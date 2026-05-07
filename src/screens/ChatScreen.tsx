@@ -9,17 +9,11 @@ import {
   faArrowUp,
   faAt,
   faBolt,
-  faChartSimple,
   faChevronDown,
   faChevronRight,
-  faComment,
-  faFile,
   faGlobe,
-  faMagnifyingGlass,
-  faMessage,
   faPaperclip,
 } from '@fortawesome/free-solid-svg-icons';
-import { IconDefinition } from '@fortawesome/fontawesome-svg-core';
 import {
   Keyboard,
   KeyboardAvoidingView,
@@ -50,14 +44,12 @@ type Message = {
 
 type QuickPrompt = {
   description: string;
-  icon: IconDefinition;
   prompt: string;
   title: string;
 };
 
 type ChatMode = {
   id: 'chat' | 'search' | 'reason' | 'files';
-  icon: IconDefinition;
   label: string;
 };
 
@@ -77,29 +69,26 @@ const initialMessages: Message[] = [
 const quickPrompts: QuickPrompt[] = [
   {
     description: '핵심 흐름과 리스크를 짧게 정리',
-    icon: faComment,
     prompt: '오늘 삼성전자 주가 흐름을 요약해줘',
     title: '오늘 삼성전자 주가 흐름을 요약해줘',
   },
   {
     description: '검색 기반으로 최신 흐름 확인',
-    icon: faMagnifyingGlass,
     prompt: '친환경 소재의 최신 연구 동향을 검색해줘',
     title: '친환경 소재의 최신 연구 동향 검색',
   },
   {
     description: '긴 문서를 읽기 쉬운 요약으로 변환',
-    icon: faFile,
     prompt: '업로드한 PDF 내용을 정리해줘',
     title: '업로드한 PDF 내용을 정리해줘',
   },
 ];
 
 const chatModes: ChatMode[] = [
-  { icon: faMessage, id: 'chat', label: '채팅' },
-  { icon: faMagnifyingGlass, id: 'search', label: '검색' },
-  { icon: faChartSimple, id: 'reason', label: '분석' },
-  { icon: faFile, id: 'files', label: '파일' },
+  { id: 'chat', label: '채팅' },
+  { id: 'search', label: '검색' },
+  { id: 'reason', label: '분석' },
+  { id: 'files', label: '파일' },
 ];
 
 const formatTime = (date: Date) =>
@@ -286,13 +275,6 @@ function ChatScreen({ onSessionTitleChange }: ChatScreenProps) {
                       pressed && styles.promptRowPressed,
                     ]}
                   >
-                    <AppIcon
-                      color={
-                        isSelected ? colors.primary : colors.mutedForeground
-                      }
-                      icon={mode.icon}
-                      size={16}
-                    />
                     <Text
                       style={[
                         styles.modeText,
@@ -318,13 +300,6 @@ function ChatScreen({ onSessionTitleChange }: ChatScreenProps) {
                     pressed && styles.promptRowPressed,
                   ]}
                 >
-                  <View style={styles.promptIcon}>
-                    <AppIcon
-                      color={colors.foreground}
-                      icon={prompt.icon}
-                      size={22}
-                    />
-                  </View>
                   <View style={styles.promptCopy}>
                     <Text style={styles.promptTitle}>{prompt.title}</Text>
                   </View>
@@ -517,11 +492,9 @@ const styles = StyleSheet.create({
   },
   modeItem: {
     alignItems: 'center',
-    flexDirection: 'row',
-    gap: 6,
     justifyContent: 'center',
     minHeight: 42,
-    paddingHorizontal: 1,
+    paddingHorizontal: 8,
     position: 'relative',
   },
   modeItemSelected: {},
@@ -582,16 +555,9 @@ const styles = StyleSheet.create({
   promptRowPressed: {
     opacity: 0.58,
   },
-  promptIcon: {
-    alignItems: 'center',
-    height: 34,
-    justifyContent: 'center',
-    marginRight: 16,
-    width: 28,
-  },
   promptCopy: {
     flex: 1,
-    paddingRight: 12,
+    paddingRight: 16,
   },
   promptTitle: {
     ...typography.label,

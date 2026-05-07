@@ -98,7 +98,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.card,
     borderColor: colors.border,
     borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: 14,
+    borderRadius: 10,
     height: 28,
     justifyContent: 'center',
     width: 28,
@@ -136,7 +136,7 @@ const styles = StyleSheet.create({
   userText: {
     ...typography.body,
     backgroundColor: colors.primary,
-    borderRadius: 18,
+    borderRadius: 14,
     color: colors.primaryForeground,
     fontSize: 16,
     fontWeight: '500',

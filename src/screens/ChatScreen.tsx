@@ -595,7 +595,7 @@ const styles = StyleSheet.create({
   inputPanel: {
     backgroundColor: colors.card,
     borderColor: 'rgba(21,25,34,0.08)',
-    borderRadius: 24,
+    borderRadius: 18,
     borderWidth: 1,
     minHeight: 132,
     paddingBottom: 12,
@@ -610,7 +610,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     alignSelf: 'flex-start',
     borderColor: colors.input,
-    borderRadius: 13,
+    borderRadius: 10,
     borderWidth: 1,
     flexDirection: 'row',
     gap: 7,

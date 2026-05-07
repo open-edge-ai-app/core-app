@@ -5,10 +5,15 @@ import {
   faBrain,
   faCheck,
   faChevronDown,
-  faChevronRight,
+  faCalendarDays,
+  faFolderPlus,
   faGear,
+  faGrip,
+  faImages,
   faLayerGroup,
-  faPlus,
+  faMagnifyingGlass,
+  faPodcast,
+  faTerminal,
   faWandMagicSparkles,
 } from '@fortawesome/free-solid-svg-icons';
 import { IconDefinition } from '@fortawesome/fontawesome-svg-core';
@@ -57,19 +62,17 @@ inputDefaults.defaultProps = {
   maxFontSizeMultiplier: 1,
 };
 
-type SessionPreview = {
-  detail: string;
-  id: string;
-  isActive?: boolean;
-  title: string;
-};
-
 type MenuRowProps = {
-  detail?: string;
-  isActive?: boolean;
+  icon?: IconDefinition;
+  iconColor?: string;
   label: string;
   onPress?: () => void;
-  trailing?: 'chevron' | 'current' | 'plus';
+};
+
+type MenuIconRow = {
+  icon: IconDefinition;
+  iconColor?: string;
+  label: string;
 };
 
 type ModelOption = {
@@ -83,47 +86,6 @@ type ModelOption = {
 const MODEL_MENU_GAP = 6;
 const MODEL_MENU_TOP = 32 + MODEL_MENU_GAP;
 const MODEL_MENU_WIDTH = 252;
-
-const savedSessions: SessionPreview[] = [
-  {
-    detail: '성장 아이디어와 실행 순서',
-    id: 'growth',
-    title: '광고 없는 성장 전략',
-  },
-  {
-    detail: '오늘 할 일과 우선순위',
-    id: 'plan',
-    title: '실행 계획 만들기',
-  },
-  {
-    detail: '로컬 모델 연결 체크',
-    id: 'runtime',
-    title: 'AIEngine 브릿지 점검',
-  },
-];
-
-const settingsRows = [
-  {
-    detail: '텍스트 크기와 표시 방식',
-    label: '개인화',
-  },
-  {
-    detail: '모델 다운로드와 연결 상태',
-    label: '모델 및 런타임',
-  },
-  {
-    detail: '자료, 파일, 일정 동기화',
-    label: '인덱싱 상태',
-  },
-  {
-    detail: '사진, 파일, 알림 권한',
-    label: '권한 설정',
-  },
-  {
-    detail: '버전 및 앱 정보',
-    label: '앱 정보',
-  },
-];
 
 const modelOptions: ModelOption[] = [
   {
@@ -159,6 +121,47 @@ const modelOptions: ModelOption[] = [
   },
 ];
 
+const mainMenuRows: MenuIconRow[] = [
+  {
+    icon: faImages,
+    label: '이미지',
+  },
+  {
+    icon: faPodcast,
+    label: 'Pulse',
+  },
+  {
+    icon: faTerminal,
+    label: 'Codex',
+  },
+  {
+    icon: faGrip,
+    label: '앱',
+  },
+];
+
+const projectRows: MenuIconRow[] = [
+  {
+    icon: faFolderPlus,
+    label: '새 프로젝트',
+  },
+  {
+    icon: faTerminal,
+    label: 'Gatepex',
+  },
+  {
+    icon: faCalendarDays,
+    iconColor: '#F97316',
+    label: 'Phison 미팅',
+  },
+];
+
+const recentRows: { label: string }[] = [
+  {
+    label: '링크드인 소개 수정',
+  },
+];
+
 function App() {
   const [sessionTitle, setSessionTitle] = useState('새 채팅');
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -167,23 +170,6 @@ function App() {
   const [activeScreen, setActiveScreen] = useState<'chat' | 'settings'>('chat');
   const [selectedModelId, setSelectedModelId] =
     useState<ModelOption['id']>('gemma-4');
-
-  const menuSessions = useMemo<SessionPreview[]>(
-    () => [
-      ...(sessionTitle === '새 채팅'
-        ? []
-        : [
-            {
-              detail: '현재 대화',
-              id: 'current',
-              isActive: true,
-              title: sessionTitle,
-            },
-          ]),
-      ...savedSessions.filter(session => session.title !== sessionTitle),
-    ],
-    [sessionTitle],
-  );
 
   const selectedModel = useMemo(
     () =>
@@ -353,7 +339,6 @@ function App() {
             onNewChat={handleNewChat}
             onOpenSettings={handleOpenSettings}
             onSelectSession={handleSelectSession}
-            sessions={menuSessions}
             visible={isMenuOpen}
           />
         </SafeAreaView>
@@ -367,14 +352,12 @@ function FullScreenMenu({
   onNewChat,
   onOpenSettings,
   onSelectSession,
-  sessions,
   visible,
 }: {
   onClose: () => void;
   onNewChat: () => void;
   onOpenSettings: () => void;
   onSelectSession: (title: string) => void;
-  sessions: SessionPreview[];
   visible: boolean;
 }) {
   const { width } = useWindowDimensions();
@@ -389,7 +372,7 @@ function FullScreenMenu({
         duration: 260,
         easing: Easing.out(Easing.cubic),
         toValue: 0,
-        useNativeDriver: true,
+        useNativeDriver: false,
       }).start();
       return;
     }
@@ -402,7 +385,7 @@ function FullScreenMenu({
       duration: 210,
       easing: Easing.in(Easing.cubic),
       toValue: -width,
-      useNativeDriver: true,
+      useNativeDriver: false,
     }).start(({ finished }) => {
       if (finished) {
         setIsRendered(false);
@@ -431,69 +414,97 @@ function FullScreenMenu({
         ]}
       >
         <SafeAreaView style={styles.menuSafeArea}>
-          <View pointerEvents="none" style={styles.menuBackground} />
+          <View style={styles.menuBackground} />
 
-          <View style={styles.menuTopBar}>
-            <Pressable
-              accessibilityLabel="메뉴 닫기"
-              accessibilityRole="button"
-              onPress={onClose}
-              style={({ pressed }) => [
-                styles.closeButton,
-                pressed && styles.menuButtonPressed,
-              ]}
-            >
-              <Text style={styles.closeText}>완료</Text>
-            </Pressable>
+          <View style={styles.menuHeader}>
+            <Image
+              accessibilityIgnoresInvertColors
+              resizeMode="contain"
+              source={logoSource}
+              style={styles.menuHeaderLogo}
+            />
+            <View style={styles.menuHeaderActions}>
+              <Pressable
+                accessibilityLabel="검색"
+                accessibilityRole="button"
+                style={({ pressed }) => [
+                  styles.menuSearchButton,
+                  pressed && styles.menuButtonPressed,
+                ]}
+              >
+                <AppIcon
+                  color={colors.foreground}
+                  icon={faMagnifyingGlass}
+                  size={30}
+                />
+              </Pressable>
+              <Pressable
+                accessibilityLabel="프로필"
+                accessibilityRole="button"
+                onPress={onClose}
+                style={({ pressed }) => [
+                  styles.menuProfileButton,
+                  pressed && styles.menuButtonPressed,
+                ]}
+              >
+                <Text style={styles.menuProfileText}>ML</Text>
+              </Pressable>
+            </View>
           </View>
 
           <ScrollView
             contentContainerStyle={styles.menuScrollContent}
             showsVerticalScrollIndicator={false}
           >
-            <Image
-              accessibilityIgnoresInvertColors
-              resizeMode="contain"
-              source={logoSource}
-              style={styles.menuLogo}
-            />
-
-            <View style={styles.menuIntro}>
-              <Text style={styles.menuTitle}>채팅 세션</Text>
-              <Text style={styles.menuDescription}>
-                최근 대화와 앱 설정을 한 화면에서 확인합니다.
-              </Text>
-            </View>
-
-            <View style={styles.menuSection}>
-              <MenuRow
-                detail="새 대화로 시작"
-                label="새 채팅"
-                onPress={onNewChat}
-                trailing="plus"
-              />
-              {sessions.map(session => (
+            <View style={styles.menuPrimaryList}>
+              {mainMenuRows.map(row => (
                 <MenuRow
-                  detail={session.detail}
-                  isActive={session.isActive}
-                  key={session.id}
-                  label={session.title}
-                  onPress={() => onSelectSession(session.title)}
-                  trailing={session.isActive ? 'current' : 'chevron'}
+                  icon={row.icon}
+                  key={row.label}
+                  label={row.label}
+                  onPress={
+                    row.label === '앱'
+                      ? onOpenSettings
+                      : () => onSelectSession(row.label)
+                  }
                 />
               ))}
             </View>
 
-            <View style={styles.menuSection}>
-              <Text style={styles.menuSectionTitle}>설정</Text>
-              {settingsRows.map(row => (
+            <View style={styles.menuSectionBlock}>
+              <Text style={styles.menuSectionTitle}>프로젝트</Text>
+              <MenuRow
+                icon={projectRows[0].icon}
+                label={projectRows[0].label}
+                onPress={onNewChat}
+              />
+              {projectRows.slice(1).map(row => (
                 <MenuRow
-                  detail={row.detail}
+                  icon={row.icon}
+                  iconColor={row.iconColor}
                   key={row.label}
                   label={row.label}
-                  onPress={onOpenSettings}
-                  trailing="chevron"
+                  onPress={() => onSelectSession(row.label)}
                 />
+              ))}
+            </View>
+
+            <View style={[styles.menuSectionBlock, styles.menuRecentSection]}>
+              <Text style={styles.menuSectionTitle}>최근</Text>
+              {recentRows.map(row => (
+                <Pressable
+                  accessibilityRole="button"
+                  key={row.label}
+                  onPress={() => onSelectSession(row.label)}
+                  style={({ pressed }) => [
+                    styles.menuRecentRow,
+                    pressed && styles.menuRowPressed,
+                  ]}
+                >
+                  <Text numberOfLines={1} style={styles.menuRecentLabel}>
+                    {row.label}
+                  </Text>
+                </Pressable>
               ))}
             </View>
           </ScrollView>
@@ -504,11 +515,10 @@ function FullScreenMenu({
 }
 
 function MenuRow({
-  detail,
-  isActive = false,
+  icon,
+  iconColor = colors.foreground,
   label,
   onPress,
-  trailing,
 }: MenuRowProps) {
   return (
     <Pressable
@@ -516,36 +526,17 @@ function MenuRow({
       onPress={onPress}
       style={({ pressed }) => [
         styles.menuRow,
-        isActive && styles.menuRowActive,
         pressed && onPress && styles.menuRowPressed,
       ]}
     >
+      <View style={styles.menuIconSlot}>
+        {icon ? <AppIcon color={iconColor} icon={icon} size={31} /> : null}
+      </View>
       <View style={styles.menuRowCopy}>
-        <Text
-          numberOfLines={1}
-          style={[styles.menuRowLabel, isActive && styles.menuRowLabelActive]}
-        >
+        <Text numberOfLines={1} style={styles.menuRowLabel}>
           {label}
         </Text>
-        {detail ? (
-          <Text numberOfLines={1} style={styles.menuRowDetail}>
-            {detail}
-          </Text>
-        ) : null}
       </View>
-      {trailing ? (
-        trailing === 'current' ? (
-          <Text style={[styles.menuRowTrailing, styles.activeTrailing]}>
-            현재
-          </Text>
-        ) : (
-          <AppIcon
-            color={colors.primary}
-            icon={trailing === 'plus' ? faPlus : faChevronRight}
-            size={trailing === 'plus' ? 15 : 14}
-          />
-        )
-      ) : null}
     </Pressable>
   );
 }
@@ -699,107 +690,121 @@ const styles = StyleSheet.create({
     backgroundColor: colors.card,
     bottom: 0,
     left: 0,
+    pointerEvents: 'none',
     position: 'absolute',
     right: 0,
     top: 0,
   },
-  menuTopBar: {
-    alignItems: 'flex-end',
-    minHeight: 52,
-    paddingHorizontal: 18,
-  },
-  closeButton: {
+  menuHeader: {
     alignItems: 'center',
-    height: 36,
-    justifyContent: 'center',
-    paddingHorizontal: 6,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    minHeight: 116,
+    paddingHorizontal: 27,
+    paddingTop: 14,
   },
-  closeText: {
-    color: colors.primary,
+  menuHeaderLogo: {
+    flexShrink: 1,
+    height: 41,
+    marginRight: 18,
+    maxWidth: 196,
+    width: 196,
+  },
+  menuHeaderActions: {
+    alignItems: 'center',
+    backgroundColor: '#F7F7F8',
+    borderRadius: 36,
+    flexDirection: 'row',
+    gap: 16,
+    minHeight: 64,
+    paddingLeft: 24,
+    paddingRight: 9,
+    shadowColor: '#000000',
+    shadowOffset: { height: 16, width: 0 },
+    shadowOpacity: 0.08,
+    shadowRadius: 28,
+  },
+  menuSearchButton: {
+    alignItems: 'center',
+    height: 48,
+    justifyContent: 'center',
+    width: 36,
+  },
+  menuProfileButton: {
+    alignItems: 'center',
+    backgroundColor: '#9B4BC1',
+    borderRadius: 25,
+    height: 50,
+    justifyContent: 'center',
+    width: 50,
+  },
+  menuProfileText: {
+    color: colors.primaryForeground,
     fontSize: 17,
     fontWeight: '600',
     includeFontPadding: false,
     lineHeight: 22,
   },
   menuScrollContent: {
-    paddingBottom: 34,
-    paddingHorizontal: 24,
-    paddingTop: 2,
+    paddingBottom: 38,
+    paddingTop: 42,
   },
-  menuLogo: {
-    alignSelf: 'flex-start',
-    height: 56,
-    marginLeft: -6,
-    width: 238,
+  menuPrimaryList: {
+    marginBottom: 58,
   },
-  menuIntro: {
-    marginTop: 34,
+  menuSectionBlock: {
+    marginTop: 0,
+    paddingTop: 0,
   },
-  menuTitle: {
-    ...typography.title,
-    color: colors.foreground,
-    fontSize: 34,
-    lineHeight: 40,
-  },
-  menuDescription: {
-    ...typography.body,
-    color: colors.mutedForeground,
-    fontWeight: '400',
-    lineHeight: 20,
-    marginTop: 8,
-  },
-  menuSection: {
-    borderTopColor: colors.border,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    marginTop: 28,
+  menuRecentSection: {
+    marginTop: 58,
   },
   menuSectionTitle: {
-    ...typography.caption,
-    color: colors.mutedForeground,
-    marginBottom: 2,
-    marginTop: 8,
+    ...typography.title,
+    color: colors.foreground,
+    fontSize: 28,
+    fontWeight: '800',
+    lineHeight: 34,
+    marginBottom: 24,
+    paddingHorizontal: 28,
   },
   menuRow: {
     alignItems: 'center',
-    borderBottomColor: colors.border,
-    borderBottomWidth: StyleSheet.hairlineWidth,
     flexDirection: 'row',
-    minHeight: 58,
-    paddingVertical: 8,
-  },
-  menuRowActive: {
-    paddingLeft: 0,
+    minHeight: 74,
+    paddingHorizontal: 27,
+    paddingVertical: 9,
   },
   menuRowPressed: {
     opacity: 0.58,
   },
+  menuIconSlot: {
+    alignItems: 'flex-start',
+    justifyContent: 'center',
+    width: 75,
+  },
   menuRowCopy: {
     flex: 1,
-    paddingRight: 18,
+    minWidth: 0,
   },
   menuRowLabel: {
     ...typography.body,
     color: colors.foreground,
-    fontSize: 18,
-    fontWeight: '600',
+    fontSize: 28,
+    fontWeight: '500',
+    lineHeight: 35,
   },
-  menuRowLabelActive: {
+  menuRecentRow: {
+    justifyContent: 'center',
+    minHeight: 66,
+    paddingHorizontal: 28,
+  },
+  menuRecentLabel: {
+    ...typography.body,
     color: colors.foreground,
-    fontWeight: '700',
-  },
-  menuRowDetail: {
-    ...typography.caption,
-    color: colors.mutedForeground,
-    marginTop: 4,
-  },
-  menuRowTrailing: {
-    ...typography.label,
-    color: colors.primary,
-    fontSize: 17,
-  },
-  activeTrailing: {
-    color: colors.primary,
-    fontSize: 12,
+    fontSize: 26,
+    fontWeight: '400',
+    lineHeight: 34,
   },
 });
 

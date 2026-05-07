@@ -20,9 +20,9 @@ export const colors = {
 };
 
 export const radii = {
-  sm: 10,
-  md: 14,
-  lg: 18,
+  sm: 8,
+  md: 10,
+  lg: 14,
 };
 
 export const shadows = {

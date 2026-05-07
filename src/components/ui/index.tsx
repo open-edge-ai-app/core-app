@@ -250,7 +250,7 @@ export function Tabs<T extends string>({
 const styles = StyleSheet.create({
   button: {
     alignItems: 'center',
-    borderRadius: 999,
+    borderRadius: radii.md,
     borderWidth: 0,
     flexDirection: 'row',
     justifyContent: 'center',

@@ -43,7 +43,6 @@ function ChatBubble({
   if (role === 'user') {
     return (
       <View style={styles.userRow}>
-        <Text style={styles.userLabel}>You</Text>
         <Text style={styles.userText}>{text}</Text>
       </View>
     );
@@ -148,12 +147,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 10,
     textAlign: 'right',
-  },
-  userLabel: {
-    ...typography.caption,
-    color: colors.mutedForeground,
-    marginBottom: 6,
-    textTransform: 'uppercase',
   },
   systemRow: {
     alignItems: 'center',

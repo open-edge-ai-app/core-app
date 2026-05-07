@@ -22,6 +22,7 @@ import {
   Easing,
   Image,
   Modal,
+  Platform,
   Pressable,
   ScrollView,
   StatusBar,
@@ -86,6 +87,10 @@ type ModelOption = {
 const MODEL_MENU_GAP = 6;
 const MODEL_MENU_TOP = 32 + MODEL_MENU_GAP;
 const MODEL_MENU_WIDTH = 252;
+const WEB_APP_MAX_WIDTH = 430;
+const MENU_HORIZONTAL_PADDING = 24;
+const MENU_HEADER_LOGO_LEFT_OFFSET = -16;
+const MENU_HEADER_ICON_SIZE = 20;
 
 const modelOptions: ModelOption[] = [
   {
@@ -398,6 +403,11 @@ function FullScreenMenu({
     return null;
   }
 
+  const handleOpenSettingsFromMenu = () => {
+    onOpenSettings();
+    setIsRendered(false);
+  };
+
   return (
     <Modal
       animationType="none"
@@ -409,6 +419,7 @@ function FullScreenMenu({
       <Animated.View
         style={[
           styles.menuSlidePanel,
+          Platform.OS === 'web' && styles.menuWebFrame,
           {
             transform: [{ translateX: slideX }],
           },
@@ -436,19 +447,23 @@ function FullScreenMenu({
                 <AppIcon
                   color={colors.foreground}
                   icon={faMagnifyingGlass}
-                  size={30}
+                  size={MENU_HEADER_ICON_SIZE}
                 />
               </Pressable>
               <Pressable
-                accessibilityLabel="프로필"
+                accessibilityLabel="설정"
                 accessibilityRole="button"
-                onPress={onClose}
+                onPress={handleOpenSettingsFromMenu}
                 style={({ pressed }) => [
-                  styles.menuProfileButton,
+                  styles.menuSettingsButton,
                   pressed && styles.menuButtonPressed,
                 ]}
               >
-                <Text style={styles.menuProfileText}>ML</Text>
+                <AppIcon
+                  color={colors.foreground}
+                  icon={faGear}
+                  size={MENU_HEADER_ICON_SIZE}
+                />
               </Pressable>
             </View>
           </View>
@@ -465,7 +480,7 @@ function FullScreenMenu({
                   label={row.label}
                   onPress={
                     row.label === '앱'
-                      ? onOpenSettings
+                      ? handleOpenSettingsFromMenu
                       : () => onSelectSession(row.label)
                   }
                 />
@@ -531,7 +546,7 @@ function MenuRow({
       ]}
     >
       <View style={styles.menuIconSlot}>
-        {icon ? <AppIcon color={iconColor} icon={icon} size={31} /> : null}
+        {icon ? <AppIcon color={iconColor} icon={icon} size={22} /> : null}
       </View>
       <View style={styles.menuRowCopy}>
         <Text numberOfLines={1} style={styles.menuRowLabel}>
@@ -683,6 +698,11 @@ const styles = StyleSheet.create({
   menuSlidePanel: {
     flex: 1,
   },
+  menuWebFrame: {
+    alignSelf: 'center',
+    maxWidth: WEB_APP_MAX_WIDTH,
+    width: '100%',
+  },
   menuSafeArea: {
     backgroundColor: colors.card,
     flex: 1,
@@ -700,81 +720,67 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     flexDirection: 'row',
     justifyContent: 'space-between',
-    minHeight: 116,
-    paddingHorizontal: 27,
-    paddingTop: 14,
+    minHeight: 78,
+    paddingHorizontal: MENU_HORIZONTAL_PADDING,
+    paddingTop: 8,
   },
   menuHeaderLogo: {
     flexShrink: 1,
-    height: 41,
-    marginRight: 18,
-    maxWidth: 196,
-    width: 196,
+    height: 32,
+    marginLeft: MENU_HEADER_LOGO_LEFT_OFFSET,
+    marginRight: 16,
+    maxWidth: 152,
+    width: 152,
   },
   menuHeaderActions: {
     alignItems: 'center',
     backgroundColor: '#F7F7F8',
-    borderRadius: 36,
+    borderRadius: 24,
     flexDirection: 'row',
-    gap: 16,
-    minHeight: 64,
-    paddingLeft: 24,
-    paddingRight: 9,
-    shadowColor: '#000000',
-    shadowOffset: { height: 16, width: 0 },
-    shadowOpacity: 0.08,
-    shadowRadius: 28,
+    gap: 8,
+    minHeight: 46,
+    paddingHorizontal: 10,
   },
   menuSearchButton: {
     alignItems: 'center',
-    height: 48,
+    height: 38,
     justifyContent: 'center',
-    width: 36,
+    width: 34,
   },
-  menuProfileButton: {
+  menuSettingsButton: {
     alignItems: 'center',
-    backgroundColor: '#9B4BC1',
-    borderRadius: 25,
-    height: 50,
+    height: 38,
     justifyContent: 'center',
-    width: 50,
-  },
-  menuProfileText: {
-    color: colors.primaryForeground,
-    fontSize: 17,
-    fontWeight: '600',
-    includeFontPadding: false,
-    lineHeight: 22,
+    width: 34,
   },
   menuScrollContent: {
-    paddingBottom: 38,
-    paddingTop: 42,
+    paddingBottom: 32,
+    paddingHorizontal: MENU_HORIZONTAL_PADDING,
+    paddingTop: 22,
   },
   menuPrimaryList: {
-    marginBottom: 58,
+    marginBottom: 34,
   },
   menuSectionBlock: {
     marginTop: 0,
     paddingTop: 0,
   },
   menuRecentSection: {
-    marginTop: 58,
+    marginTop: 34,
   },
   menuSectionTitle: {
-    ...typography.title,
+    ...typography.label,
     color: colors.foreground,
-    fontSize: 28,
+    fontSize: 17,
     fontWeight: '800',
-    lineHeight: 34,
-    marginBottom: 24,
-    paddingHorizontal: 28,
+    lineHeight: 22,
+    marginBottom: 8,
   },
   menuRow: {
     alignItems: 'center',
     flexDirection: 'row',
-    minHeight: 74,
-    paddingHorizontal: 27,
-    paddingVertical: 9,
+    minHeight: 52,
+    paddingVertical: 8,
   },
   menuRowPressed: {
     opacity: 0.58,
@@ -782,30 +788,29 @@ const styles = StyleSheet.create({
   menuIconSlot: {
     alignItems: 'flex-start',
     justifyContent: 'center',
-    width: 75,
+    width: 46,
   },
   menuRowCopy: {
     flex: 1,
     minWidth: 0,
   },
   menuRowLabel: {
-    ...typography.body,
+    ...typography.label,
     color: colors.foreground,
-    fontSize: 28,
+    fontSize: 16,
     fontWeight: '500',
-    lineHeight: 35,
+    lineHeight: 21,
   },
   menuRecentRow: {
     justifyContent: 'center',
-    minHeight: 66,
-    paddingHorizontal: 28,
+    minHeight: 48,
   },
   menuRecentLabel: {
     ...typography.body,
     color: colors.foreground,
-    fontSize: 26,
+    fontSize: 16,
     fontWeight: '400',
-    lineHeight: 34,
+    lineHeight: 22,
   },
 });
 

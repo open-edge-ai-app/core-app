@@ -190,6 +190,14 @@ function ChatScreen({ onSessionTitleChange }: ChatScreenProps) {
     return () => clearTimeout(timeoutId);
   }, [hasUserMessages, isGenerating, messages.length]);
 
+  useEffect(() => {
+    if (hasUserMessages) {
+      return;
+    }
+
+    scrollViewRef.current?.scrollTo({ animated: false, y: 0 });
+  }, [hasUserMessages]);
+
   const handleSend = useCallback(async () => {
     const prompt = draft.trim();
 
@@ -241,11 +249,13 @@ function ChatScreen({ onSessionTitleChange }: ChatScreenProps) {
       <ScrollView
         contentContainerStyle={[
           styles.scrollContent,
+          !hasUserMessages && styles.scrollContentInitial,
           hasUserMessages && styles.scrollContentThread,
         ]}
         keyboardShouldPersistTaps="handled"
         ref={scrollViewRef}
-        showsVerticalScrollIndicator={false}
+        scrollEnabled={hasUserMessages}
+        showsVerticalScrollIndicator={hasUserMessages}
       >
         <View style={[styles.hero, hasUserMessages && styles.heroCompact]}>
           <Text style={styles.heroTitle}>
@@ -463,11 +473,14 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     flexGrow: 1,
-    paddingBottom: 210,
     paddingHorizontal: 24,
-    paddingTop: 248,
+  },
+  scrollContentInitial: {
+    paddingBottom: 170,
+    paddingTop: 24,
   },
   scrollContentThread: {
+    paddingBottom: 210,
     paddingTop: 24,
   },
   hero: {

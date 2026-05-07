@@ -16,6 +16,7 @@ export type ChatBubbleAction = {
 
 type ChatBubbleProps = {
   actions?: ChatBubbleAction[];
+  assistantName?: string;
   role: ChatRole;
   text: string;
   thumbnail?: ImageSourcePropType;
@@ -24,6 +25,7 @@ type ChatBubbleProps = {
 
 function ChatBubble({
   actions = [],
+  assistantName = 'Gemma 4',
   role,
   text,
   thumbnail,
@@ -59,7 +61,7 @@ function ChatBubble({
 
       <View style={styles.assistantContent}>
         <View style={styles.assistantHeader}>
-          <Text style={styles.botLabel}>Open Edge</Text>
+          <Text style={styles.botLabel}>{assistantName}</Text>
           {timestamp ? <Text style={styles.timestamp}>{timestamp}</Text> : null}
         </View>
 

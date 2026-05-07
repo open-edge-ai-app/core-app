@@ -328,6 +328,7 @@ function App() {
               <ChatScreen
                 key={chatInstanceKey}
                 onSessionTitleChange={setSessionTitle}
+                selectedModelLabel={selectedModel.label}
               />
             ) : (
               <Settings />

@@ -38,6 +38,7 @@ import { colors, typography } from '../theme/tokens';
 type Message = {
   createdAt: Date;
   id: string;
+  modelName?: string;
   role: ChatRole;
   text: string;
 };
@@ -55,6 +56,7 @@ type ChatMode = {
 
 type ChatScreenProps = {
   onSessionTitleChange?: (title: string) => void;
+  selectedModelLabel?: string;
 };
 
 const initialMessages: Message[] = [
@@ -97,9 +99,14 @@ const formatTime = (date: Date) =>
     minute: '2-digit',
   }).format(date);
 
-const createMessage = (role: ChatRole, text: string): Message => ({
+const createMessage = (
+  role: ChatRole,
+  text: string,
+  modelName?: string,
+): Message => ({
   createdAt: new Date(),
   id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+  modelName,
   role,
   text,
 });
@@ -114,7 +121,10 @@ const createSessionTitle = (prompt: string) => {
   return `${normalizedPrompt.slice(0, 18)}...`;
 };
 
-function ChatScreen({ onSessionTitleChange }: ChatScreenProps) {
+function ChatScreen({
+  onSessionTitleChange,
+  selectedModelLabel = 'Gemma 4',
+}: ChatScreenProps) {
   const scrollViewRef = useRef<ScrollView>(null);
   const [messages, setMessages] = useState<Message[]>(initialMessages);
   const [draft, setDraft] = useState('');
@@ -194,6 +204,7 @@ function ChatScreen({ onSessionTitleChange }: ChatScreenProps) {
       return;
     }
 
+    const responseModelName = selectedModelLabel;
     const userMessage = createMessage('user', prompt);
     setMessages(current => [...current, userMessage]);
     if (!hasUserMessages) {
@@ -209,7 +220,7 @@ function ChatScreen({ onSessionTitleChange }: ChatScreenProps) {
       ]);
       setMessages(current => [
         ...current,
-        createMessage('assistant', response),
+        createMessage('assistant', response, responseModelName),
       ]);
     } catch (error) {
       const message =
@@ -224,7 +235,14 @@ function ChatScreen({ onSessionTitleChange }: ChatScreenProps) {
     } finally {
       setIsGenerating(false);
     }
-  }, [draft, hasUserMessages, history, isGenerating, onSessionTitleChange]);
+  }, [
+    draft,
+    hasUserMessages,
+    history,
+    isGenerating,
+    onSessionTitleChange,
+    selectedModelLabel,
+  ]);
 
   const handlePromptPress = useCallback((prompt: string) => {
     setDraft(prompt);
@@ -325,6 +343,7 @@ function ChatScreen({ onSessionTitleChange }: ChatScreenProps) {
             <View style={styles.threadList}>
               {messages.map(message => (
                 <ChatBubble
+                  assistantName={message.modelName ?? selectedModelLabel}
                   key={message.id}
                   role={message.role}
                   text={message.text}
@@ -335,7 +354,9 @@ function ChatScreen({ onSessionTitleChange }: ChatScreenProps) {
               {isGenerating ? (
                 <View style={styles.loadingRow}>
                   <LoadingDots />
-                  <Text style={styles.loadingText}>응답 준비 중</Text>
+                  <Text style={styles.loadingText}>
+                    {selectedModelLabel} 응답 준비 중
+                  </Text>
                 </View>
               ) : null}
             </View>

@@ -618,9 +618,9 @@ const styles = StyleSheet.create({
   },
   composer: {
     backgroundColor: 'transparent',
-    bottom: 62,
+    bottom: 0,
     left: 0,
-    paddingBottom: 12,
+    paddingBottom: 6,
     paddingHorizontal: 12,
     paddingTop: 14,
     position: 'absolute',

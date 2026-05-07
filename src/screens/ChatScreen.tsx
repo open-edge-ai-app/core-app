@@ -8,10 +8,18 @@ import React, {
 import {
   faArrowUp,
   faAt,
+  faBolt,
+  faChartSimple,
+  faChevronDown,
   faChevronRight,
+  faComment,
+  faFile,
   faGlobe,
+  faMagnifyingGlass,
+  faMessage,
   faPaperclip,
 } from '@fortawesome/free-solid-svg-icons';
+import { IconDefinition } from '@fortawesome/fontawesome-svg-core';
 import {
   Keyboard,
   KeyboardAvoidingView,
@@ -20,16 +28,17 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
-  Text,
-  TextInput,
   View,
 } from 'react-native';
 
 import AppIcon from '../components/AppIcon';
 import ChatBubble, { ChatRole } from '../components/ChatBubble';
 import LoadingDots from '../components/LoadingDots';
-import { Separator } from '../components/ui';
 import AIEngine, { AIChatMessage } from '../native/AIEngine';
+import {
+  ScaledText as Text,
+  ScaledTextInput as TextInput,
+} from '../theme/display';
 import { colors, typography } from '../theme/tokens';
 
 type Message = {
@@ -41,12 +50,14 @@ type Message = {
 
 type QuickPrompt = {
   description: string;
+  icon: IconDefinition;
   prompt: string;
   title: string;
 };
 
 type ChatMode = {
   id: 'chat' | 'search' | 'reason' | 'files';
+  icon: IconDefinition;
   label: string;
 };
 
@@ -65,27 +76,30 @@ const initialMessages: Message[] = [
 
 const quickPrompts: QuickPrompt[] = [
   {
-    description: '강점, 병목, 다음 액션을 한 번에 정리',
-    prompt: '내 프로젝트를 개선하기 위한 핵심 아이디어를 정리해줘',
-    title: '프로젝트 방향성 정리',
+    description: '핵심 흐름과 리스크를 짧게 정리',
+    icon: faComment,
+    prompt: '오늘 삼성전자 주가 흐름을 요약해줘',
+    title: '오늘 삼성전자 주가 흐름을 요약해줘',
   },
   {
-    description: '콘텐츠, 커뮤니티, 추천 루프 중심',
-    prompt: '광고 없이 사용자를 늘리는 현실적인 방법을 알려줘',
-    title: '광고 없는 성장 전략',
+    description: '검색 기반으로 최신 흐름 확인',
+    icon: faMagnifyingGlass,
+    prompt: '친환경 소재의 최신 연구 동향을 검색해줘',
+    title: '친환경 소재의 최신 연구 동향 검색',
   },
   {
-    description: '오늘 바로 실행할 수 있는 순서로 변환',
-    prompt: '오늘 할 일을 실행 계획으로 정리해줘',
-    title: '실행 계획 만들기',
+    description: '긴 문서를 읽기 쉬운 요약으로 변환',
+    icon: faFile,
+    prompt: '업로드한 PDF 내용을 정리해줘',
+    title: '업로드한 PDF 내용을 정리해줘',
   },
 ];
 
 const chatModes: ChatMode[] = [
-  { id: 'chat', label: '채팅' },
-  { id: 'search', label: '검색' },
-  { id: 'reason', label: '분석' },
-  { id: 'files', label: '파일' },
+  { icon: faMessage, id: 'chat', label: '채팅' },
+  { icon: faMagnifyingGlass, id: 'search', label: '검색' },
+  { icon: faChartSimple, id: 'reason', label: '분석' },
+  { icon: faFile, id: 'files', label: '파일' },
 ];
 
 const formatTime = (date: Date) =>
@@ -225,7 +239,10 @@ function ChatScreen({ onSessionTitleChange }: ChatScreenProps) {
       style={styles.container}
     >
       <ScrollView
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[
+          styles.scrollContent,
+          hasUserMessages && styles.scrollContentThread,
+        ]}
         keyboardShouldPersistTaps="handled"
         ref={scrollViewRef}
         showsVerticalScrollIndicator={false}
@@ -236,7 +253,7 @@ function ChatScreen({ onSessionTitleChange }: ChatScreenProps) {
           </Text>
           {!hasUserMessages ? (
             <Text style={styles.heroBody}>
-              질문, 검색, 자료 분석을 같은 입력창에서 이어서 시작합니다.
+              로컬 AI가 빠르고 안전하게 답변해드려요.
             </Text>
           ) : null}
         </View>
@@ -255,9 +272,17 @@ function ChatScreen({ onSessionTitleChange }: ChatScreenProps) {
                     onPress={() => setSelectedMode(mode.id)}
                     style={({ pressed }) => [
                       styles.modeItem,
+                      isSelected && styles.modeItemSelected,
                       pressed && styles.promptRowPressed,
                     ]}
                   >
+                    <AppIcon
+                      color={
+                        isSelected ? colors.primary : colors.mutedForeground
+                      }
+                      icon={mode.icon}
+                      size={16}
+                    />
                     <Text
                       style={[
                         styles.modeText,
@@ -272,12 +297,6 @@ function ChatScreen({ onSessionTitleChange }: ChatScreenProps) {
               })}
             </View>
 
-            <View style={styles.cardHeader}>
-              <Text style={styles.cardTitle}>빠른 시작</Text>
-              <Text style={styles.sectionMeta}>3개 추천</Text>
-            </View>
-            <Separator style={styles.cardSeparator} />
-
             <View style={styles.promptList}>
               {quickPrompts.map(prompt => (
                 <Pressable
@@ -289,11 +308,15 @@ function ChatScreen({ onSessionTitleChange }: ChatScreenProps) {
                     pressed && styles.promptRowPressed,
                   ]}
                 >
+                  <View style={styles.promptIcon}>
+                    <AppIcon
+                      color={colors.foreground}
+                      icon={prompt.icon}
+                      size={22}
+                    />
+                  </View>
                   <View style={styles.promptCopy}>
                     <Text style={styles.promptTitle}>{prompt.title}</Text>
-                    <Text style={styles.promptDescription}>
-                      {prompt.description}
-                    </Text>
                   </View>
                   <AppIcon
                     color={colors.primary}
@@ -312,7 +335,7 @@ function ChatScreen({ onSessionTitleChange }: ChatScreenProps) {
               <Text style={styles.cardTitle}>대화</Text>
               <Text style={styles.sectionMeta}>{messages.length}개 메시지</Text>
             </View>
-            <Separator style={styles.cardSeparator} />
+            <View style={styles.cardSeparator} />
 
             <View style={styles.threadList}>
               {messages.map(message => (
@@ -382,7 +405,13 @@ function ChatScreen({ onSessionTitleChange }: ChatScreenProps) {
                   pressed && styles.promptRowPressed,
                 ]}
               >
+                <AppIcon color={colors.foreground} icon={faBolt} size={15} />
                 <Text style={styles.textToolLabel}>Auto</Text>
+                <AppIcon
+                  color={colors.mutedForeground}
+                  icon={faChevronDown}
+                  size={9}
+                />
               </Pressable>
               <Pressable
                 accessibilityLabel="전체 소스"
@@ -398,6 +427,11 @@ function ChatScreen({ onSessionTitleChange }: ChatScreenProps) {
                   size={22}
                 />
                 <Text style={styles.textToolLabel}>All Sources</Text>
+                <AppIcon
+                  color={colors.mutedForeground}
+                  icon={faChevronDown}
+                  size={9}
+                />
               </Pressable>
             </View>
 
@@ -424,31 +458,38 @@ function ChatScreen({ onSessionTitleChange }: ChatScreenProps) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    overflow: 'hidden',
+    position: 'relative',
   },
   scrollContent: {
-    paddingBottom: 176,
-    paddingHorizontal: 20,
-    paddingTop: 14,
+    flexGrow: 1,
+    paddingBottom: 210,
+    paddingHorizontal: 24,
+    paddingTop: 248,
+  },
+  scrollContentThread: {
+    paddingTop: 24,
   },
   hero: {
-    paddingBottom: 22,
-    paddingTop: 18,
+    paddingBottom: 28,
   },
   heroCompact: {
-    paddingBottom: 12,
+    paddingBottom: 20,
   },
   heroTitle: {
     ...typography.title,
     color: colors.foreground,
-    fontSize: 31,
-    lineHeight: 37,
+    fontSize: 30,
+    fontWeight: '800',
+    letterSpacing: 0,
+    lineHeight: 36,
   },
   heroBody: {
     ...typography.body,
     color: colors.mutedForeground,
     fontWeight: '400',
-    lineHeight: 22,
-    marginTop: 8,
+    lineHeight: 21,
+    marginTop: 10,
     maxWidth: 320,
   },
   quickSection: {
@@ -458,27 +499,33 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.border,
     borderBottomWidth: StyleSheet.hairlineWidth,
     flexDirection: 'row',
-    gap: 24,
+    justifyContent: 'space-between',
     marginBottom: 24,
   },
   modeItem: {
-    minHeight: 40,
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 6,
     justifyContent: 'center',
+    minHeight: 42,
+    paddingHorizontal: 1,
     position: 'relative',
   },
+  modeItemSelected: {},
   modeText: {
     ...typography.label,
     color: colors.mutedForeground,
-    fontSize: 16,
+    fontSize: 14,
+    fontWeight: '600',
   },
   modeTextSelected: {
-    color: colors.foreground,
+    color: colors.primary,
   },
   modeIndicator: {
     backgroundColor: colors.primary,
-    borderRadius: 1,
+    borderRadius: 2,
     bottom: -1,
-    height: 2,
+    height: 3,
     left: 0,
     position: 'absolute',
     right: 0,
@@ -501,10 +548,12 @@ const styles = StyleSheet.create({
     color: colors.mutedForeground,
   },
   cardSeparator: {
+    backgroundColor: colors.border,
+    height: StyleSheet.hairlineWidth,
     marginTop: 12,
   },
   promptList: {
-    marginTop: 2,
+    marginTop: 0,
   },
   promptRow: {
     alignItems: 'center',
@@ -513,12 +562,19 @@ const styles = StyleSheet.create({
     borderRadius: 0,
     flexDirection: 'row',
     justifyContent: 'space-between',
-    minHeight: 64,
-    paddingHorizontal: 4,
-    paddingVertical: 10,
+    minHeight: 72,
+    paddingHorizontal: 0,
+    paddingVertical: 14,
   },
   promptRowPressed: {
     opacity: 0.58,
+  },
+  promptIcon: {
+    alignItems: 'center',
+    height: 34,
+    justifyContent: 'center',
+    marginRight: 16,
+    width: 28,
   },
   promptCopy: {
     flex: 1,
@@ -528,13 +584,8 @@ const styles = StyleSheet.create({
     ...typography.label,
     color: colors.foreground,
     fontSize: 16,
-  },
-  promptDescription: {
-    ...typography.caption,
-    color: colors.mutedForeground,
     fontWeight: '500',
-    lineHeight: 17,
-    marginTop: 5,
+    lineHeight: 21,
   },
   threadList: {
     paddingTop: 18,
@@ -553,24 +604,28 @@ const styles = StyleSheet.create({
     color: colors.mutedForeground,
   },
   composer: {
-    backgroundColor: 'rgba(247,247,250,0.96)',
-    bottom: 0,
+    backgroundColor: 'transparent',
+    bottom: 62,
     left: 0,
-    paddingBottom: 10,
+    paddingBottom: 12,
     paddingHorizontal: 12,
-    paddingTop: 8,
+    paddingTop: 14,
     position: 'absolute',
     right: 0,
   },
   inputPanel: {
     backgroundColor: colors.card,
-    borderColor: '#DADADD',
-    borderRadius: 20,
+    borderColor: 'rgba(21,25,34,0.08)',
+    borderRadius: 24,
     borderWidth: 1,
-    minHeight: 138,
-    paddingBottom: 10,
-    paddingHorizontal: 12,
-    paddingTop: 10,
+    minHeight: 132,
+    paddingBottom: 12,
+    paddingHorizontal: 16,
+    paddingTop: 14,
+    shadowColor: '#000000',
+    shadowOffset: { height: 18, width: 0 },
+    shadowOpacity: 0.12,
+    shadowRadius: 28,
   },
   contextPill: {
     alignItems: 'center',
@@ -580,13 +635,13 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     flexDirection: 'row',
     gap: 7,
-    minHeight: 32,
-    paddingHorizontal: 11,
+    minHeight: 31,
+    paddingHorizontal: 10,
   },
   contextText: {
     ...typography.label,
     color: colors.mutedForeground,
-    fontSize: 15,
+    fontSize: 14,
   },
   input: {
     ...typography.body,
@@ -596,9 +651,9 @@ const styles = StyleSheet.create({
     fontWeight: '400',
     lineHeight: 22,
     maxHeight: 82,
-    minHeight: 44,
+    minHeight: 54,
     paddingHorizontal: 4,
-    paddingTop: 16,
+    paddingTop: 18,
     textAlignVertical: 'top',
   },
   inputFooter: {
@@ -610,7 +665,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     flex: 1,
     flexDirection: 'row',
-    gap: 13,
+    gap: 14,
     paddingRight: 10,
   },
   iconTool: {
@@ -620,33 +675,36 @@ const styles = StyleSheet.create({
     width: 34,
   },
   textTool: {
-    minHeight: 34,
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 6,
     justifyContent: 'center',
+    minHeight: 34,
   },
   textToolLabel: {
     ...typography.label,
-    color: colors.mutedForeground,
-    fontSize: 15,
+    color: colors.foreground,
+    fontSize: 14,
   },
   sourceTool: {
     alignItems: 'center',
     flexDirection: 'row',
-    gap: 8,
+    gap: 7,
     minHeight: 34,
   },
   sendButton: {
     alignItems: 'center',
     backgroundColor: colors.foreground,
-    borderRadius: 21,
-    height: 42,
+    borderRadius: 22,
+    height: 44,
     justifyContent: 'center',
-    width: 42,
+    width: 44,
   },
   sendButtonPressed: {
     opacity: 0.76,
   },
   sendButtonDisabled: {
-    backgroundColor: '#161616',
+    backgroundColor: colors.foreground,
     opacity: 1,
   },
 });

@@ -4,12 +4,12 @@ import {
   PressableProps,
   StyleProp,
   StyleSheet,
-  Text,
   TextStyle,
   View,
   ViewStyle,
 } from 'react-native';
 
+import { ScaledText as Text } from '../../theme/display';
 import { colors, radii, shadows, typography } from '../../theme/tokens';
 
 type ButtonVariant = 'default' | 'secondary' | 'outline' | 'ghost';

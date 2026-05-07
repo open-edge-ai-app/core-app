@@ -1,5 +1,5 @@
 import React from 'react';
-import {StyleSheet} from 'react-native';
+import { StyleSheet } from 'react-native';
 
 type SvgShimProps = {
   children?: React.ReactNode;
@@ -10,11 +10,13 @@ type SvgShimProps = {
 const flattenStyle = (style: unknown) =>
   style ? (StyleSheet.flatten(style) as React.CSSProperties) : undefined;
 
-const createSvgElement = <ElementType extends keyof React.JSX.IntrinsicElements>(
+const createSvgElement = <
+  ElementType extends keyof React.JSX.IntrinsicElements,
+>(
   element: ElementType,
 ) =>
   React.forwardRef<Element, SvgShimProps>(
-    ({children, style, ...props}, ref) =>
+    ({ children, style, ...props }, ref) =>
       React.createElement(
         element as React.ElementType,
         {

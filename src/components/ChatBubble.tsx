@@ -1,15 +1,10 @@
 import React from 'react';
 import { faWandMagicSparkles } from '@fortawesome/free-solid-svg-icons';
-import {
-  Image,
-  ImageSourcePropType,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import { Image, ImageSourcePropType, StyleSheet, View } from 'react-native';
 
 import AppIcon from './AppIcon';
 import { Button } from './ui';
+import { ScaledText as Text } from '../theme/display';
 import { colors, typography } from '../theme/tokens';
 
 export type ChatRole = 'assistant' | 'user' | 'system';
@@ -95,12 +90,14 @@ function ChatBubble({
 const styles = StyleSheet.create({
   assistantRow: {
     flexDirection: 'row',
-    gap: 10,
-    marginBottom: 20,
+    gap: 11,
+    marginBottom: 22,
   },
   avatarIcon: {
     alignItems: 'center',
-    backgroundColor: colors.accent,
+    backgroundColor: colors.card,
+    borderColor: colors.border,
+    borderWidth: StyleSheet.hairlineWidth,
     borderRadius: 14,
     height: 28,
     justifyContent: 'center',
@@ -118,6 +115,7 @@ const styles = StyleSheet.create({
   botLabel: {
     ...typography.label,
     color: colors.foreground,
+    fontSize: 14,
   },
   timestamp: {
     ...typography.caption,
@@ -132,15 +130,21 @@ const styles = StyleSheet.create({
   },
   userRow: {
     alignItems: 'flex-end',
-    marginBottom: 20,
+    marginBottom: 22,
     paddingLeft: 42,
   },
   userText: {
     ...typography.body,
-    color: colors.primary,
-    fontSize: 17,
-    fontWeight: '600',
-    lineHeight: 24,
+    backgroundColor: colors.primary,
+    borderRadius: 18,
+    color: colors.primaryForeground,
+    fontSize: 16,
+    fontWeight: '500',
+    lineHeight: 22,
+    maxWidth: 282,
+    overflow: 'hidden',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
     textAlign: 'right',
   },
   userLabel: {

@@ -1,11 +1,17 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   faBars,
+  faBolt,
+  faBrain,
   faCheck,
   faChevronDown,
   faChevronRight,
+  faGear,
+  faLayerGroup,
   faPlus,
+  faWandMagicSparkles,
 } from '@fortawesome/free-solid-svg-icons';
+import { IconDefinition } from '@fortawesome/fontawesome-svg-core';
 import {
   Animated,
   Easing,
@@ -15,8 +21,8 @@ import {
   ScrollView,
   StatusBar,
   StyleSheet,
-  Text,
-  TextInput,
+  Text as RNText,
+  TextInput as RNTextInput,
   useWindowDimensions,
   View,
 } from 'react-native';
@@ -26,13 +32,17 @@ import AppIcon from './src/components/AppIcon';
 import PastelBackground from './src/components/PastelBackground';
 import ChatScreen from './src/screens/ChatScreen';
 import Settings from './src/screens/Settings';
+import {
+  DisplaySettingsProvider,
+  ScaledText as Text,
+} from './src/theme/display';
 import { colors, typography } from './src/theme/tokens';
 import logoSource from './src/assets/logo.png';
 
-const textDefaults = Text as unknown as {
+const textDefaults = RNText as unknown as {
   defaultProps?: { allowFontScaling?: boolean; maxFontSizeMultiplier?: number };
 };
-const inputDefaults = TextInput as unknown as {
+const inputDefaults = RNTextInput as unknown as {
   defaultProps?: { allowFontScaling?: boolean; maxFontSizeMultiplier?: number };
 };
 
@@ -63,14 +73,16 @@ type MenuRowProps = {
 };
 
 type ModelOption = {
+  action?: 'settings';
   detail: string;
-  id: 'gemma-4' | 'auto' | 'rag';
+  icon: IconDefinition;
+  id: 'gemma-4' | 'gemma-lite' | 'gemma-deep' | 'auto' | 'manage';
   label: string;
 };
 
 const MODEL_MENU_GAP = 6;
-const MODEL_MENU_TOP = 30 + MODEL_MENU_GAP;
-const MODEL_MENU_WIDTH = 222;
+const MODEL_MENU_TOP = 32 + MODEL_MENU_GAP;
+const MODEL_MENU_WIDTH = 252;
 
 const savedSessions: SessionPreview[] = [
   {
@@ -92,11 +104,15 @@ const savedSessions: SessionPreview[] = [
 
 const settingsRows = [
   {
-    detail: 'Mock engine · Native bridge 연결 전',
+    detail: '텍스트 크기와 표시 방식',
+    label: '개인화',
+  },
+  {
+    detail: '모델 다운로드와 연결 상태',
     label: '모델 및 런타임',
   },
   {
-    detail: '갤러리, 일정 인덱싱 준비 중',
+    detail: '자료, 파일, 일정 동기화',
     label: '인덱싱 상태',
   },
   {
@@ -104,26 +120,42 @@ const settingsRows = [
     label: '권한 설정',
   },
   {
-    detail: 'open edge ai · Front-end preview',
+    detail: '버전 및 앱 정보',
     label: '앱 정보',
   },
 ];
 
 const modelOptions: ModelOption[] = [
   {
-    detail: '로컬 기본 모델',
+    detail: '빠르고 균형 잡힌 성능',
+    icon: faWandMagicSparkles,
     id: 'gemma-4',
     label: 'Gemma 4',
   },
   {
-    detail: '질문에 맞춰 라우팅',
+    detail: '가볍고 빠른 응답',
+    icon: faBolt,
+    id: 'gemma-lite',
+    label: 'Gemma 4 Lite',
+  },
+  {
+    detail: '복잡한 추론에 최적화',
+    icon: faBrain,
+    id: 'gemma-deep',
+    label: 'Gemma 4 Deep',
+  },
+  {
+    detail: '작업에 맞춰 자동 선택',
+    icon: faLayerGroup,
     id: 'auto',
     label: 'Auto',
   },
   {
-    detail: '로컬 인덱스 활용',
-    id: 'rag',
-    label: 'RAG',
+    action: 'settings',
+    detail: '다운로드 및 상태 확인',
+    icon: faGear,
+    id: 'manage',
+    label: '모델 관리',
   },
 ];
 
@@ -189,122 +221,144 @@ function App() {
   };
 
   return (
-    <SafeAreaProvider>
-      <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
-      <SafeAreaView style={styles.safeArea}>
-        <PastelBackground />
-
-        <View style={styles.header}>
-          <View style={styles.headerSide}>
-            <Pressable
-              accessibilityLabel="메뉴 열기"
-              accessibilityRole="button"
-              onPress={() => {
-                setIsModelMenuOpen(false);
-                setIsMenuOpen(true);
-              }}
-              style={({ pressed }) => [
-                styles.menuButton,
-                pressed && styles.menuButtonPressed,
-              ]}
-            >
-              <AppIcon color={colors.foreground} icon={faBars} size={22} />
-            </Pressable>
-          </View>
-
-          <Text numberOfLines={1} style={styles.sessionTitle}>
-            {activeScreen === 'settings' ? '설정' : sessionTitle}
-          </Text>
-
-          <View style={[styles.headerSide, styles.headerSideRight]}>
-            <Pressable
-              accessibilityLabel="모델 선택"
-              accessibilityRole="button"
-              onPress={handleToggleModelMenu}
-              style={({ pressed }) => [
-                styles.modelSelector,
-                isModelMenuOpen && styles.modelSelectorActive,
-                pressed && styles.menuButtonPressed,
-              ]}
-            >
-              <Text numberOfLines={1} style={styles.modelSelectorText}>
-                {selectedModel.label}
-              </Text>
-              <AppIcon
-                color={colors.mutedForeground}
-                icon={faChevronDown}
-                size={10}
-              />
-            </Pressable>
-            {isModelMenuOpen ? (
-              <View style={styles.modelMenu}>
-                {modelOptions.map(model => {
-                  const isSelected = model.id === selectedModel.id;
-
-                  return (
-                    <Pressable
-                      accessibilityRole="button"
-                      key={model.id}
-                      onPress={() => {
-                        setSelectedModelId(model.id);
-                        setIsModelMenuOpen(false);
-                      }}
-                      style={({ pressed }) => [
-                        styles.modelMenuRow,
-                        isSelected && styles.modelMenuRowActive,
-                        pressed && styles.menuRowPressed,
-                      ]}
-                    >
-                      <View style={styles.modelMenuCopy}>
-                        <Text style={styles.modelMenuLabel}>{model.label}</Text>
-                        <Text style={styles.modelMenuDetail}>
-                          {model.detail}
-                        </Text>
-                      </View>
-                      {isSelected ? (
-                        <AppIcon
-                          color={colors.primary}
-                          icon={faCheck}
-                          size={18}
-                        />
-                      ) : null}
-                    </Pressable>
-                  );
-                })}
-              </View>
-            ) : null}
-          </View>
-        </View>
-
-        {isModelMenuOpen ? (
-          <Pressable
-            accessibilityLabel="모델 메뉴 닫기"
-            onPress={() => setIsModelMenuOpen(false)}
-            style={styles.modelMenuBackdrop}
-          />
-        ) : null}
-
-        <View style={styles.content}>
-          {activeScreen === 'chat' ? (
-            <ChatScreen
-              key={chatInstanceKey}
-              onSessionTitleChange={setSessionTitle}
-            />
-          ) : (
-            <Settings />
-          )}
-        </View>
-
-        <FullScreenMenu
-          onClose={() => setIsMenuOpen(false)}
-          onNewChat={handleNewChat}
-          onOpenSettings={handleOpenSettings}
-          onSelectSession={handleSelectSession}
-          sessions={menuSessions}
-          visible={isMenuOpen}
+    <DisplaySettingsProvider>
+      <SafeAreaProvider>
+        <StatusBar
+          barStyle="dark-content"
+          backgroundColor={colors.background}
         />
-      </SafeAreaView>
-    </SafeAreaProvider>
+        <SafeAreaView style={styles.safeArea}>
+          <PastelBackground />
+
+          <View style={styles.header}>
+            <View style={styles.headerSide}>
+              <Pressable
+                accessibilityLabel="메뉴 열기"
+                accessibilityRole="button"
+                onPress={() => {
+                  setIsModelMenuOpen(false);
+                  setIsMenuOpen(true);
+                }}
+                style={({ pressed }) => [
+                  styles.menuButton,
+                  pressed && styles.menuButtonPressed,
+                ]}
+              >
+                <AppIcon color={colors.foreground} icon={faBars} size={22} />
+              </Pressable>
+            </View>
+
+            <Text numberOfLines={1} style={styles.sessionTitle}>
+              {activeScreen === 'settings' ? '설정' : sessionTitle}
+            </Text>
+
+            <View style={[styles.headerSide, styles.headerSideRight]}>
+              <Pressable
+                accessibilityLabel="모델 선택"
+                accessibilityRole="button"
+                onPress={handleToggleModelMenu}
+                style={({ pressed }) => [
+                  styles.modelSelector,
+                  isModelMenuOpen && styles.modelSelectorActive,
+                  pressed && styles.menuButtonPressed,
+                ]}
+              >
+                <Text numberOfLines={1} style={styles.modelSelectorText}>
+                  {selectedModel.label}
+                </Text>
+                <AppIcon
+                  color={colors.mutedForeground}
+                  icon={faChevronDown}
+                  size={10}
+                />
+              </Pressable>
+              {isModelMenuOpen ? (
+                <View style={styles.modelMenu}>
+                  {modelOptions.map(model => {
+                    const isSelected = model.id === selectedModel.id;
+                    const isManageAction = model.action === 'settings';
+
+                    return (
+                      <Pressable
+                        accessibilityRole="button"
+                        key={model.id}
+                        onPress={() => {
+                          if (isManageAction) {
+                            setActiveScreen('settings');
+                          } else {
+                            setSelectedModelId(model.id);
+                          }
+                          setIsModelMenuOpen(false);
+                        }}
+                        style={({ pressed }) => [
+                          styles.modelMenuRow,
+                          isManageAction && styles.modelMenuManageRow,
+                          isSelected && styles.modelMenuRowActive,
+                          pressed && styles.menuRowPressed,
+                        ]}
+                      >
+                        <View style={styles.modelMenuIcon}>
+                          <AppIcon
+                            color={
+                              isSelected ? colors.primary : colors.foreground
+                            }
+                            icon={model.icon}
+                            size={16}
+                          />
+                        </View>
+                        <View style={styles.modelMenuCopy}>
+                          <Text style={styles.modelMenuLabel}>
+                            {model.label}
+                          </Text>
+                          <Text style={styles.modelMenuDetail}>
+                            {model.detail}
+                          </Text>
+                        </View>
+                        {isSelected ? (
+                          <AppIcon
+                            color={colors.primary}
+                            icon={faCheck}
+                            size={18}
+                          />
+                        ) : null}
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              ) : null}
+            </View>
+          </View>
+
+          {isModelMenuOpen ? (
+            <Pressable
+              accessibilityLabel="모델 메뉴 닫기"
+              onPress={() => setIsModelMenuOpen(false)}
+              style={styles.modelMenuBackdrop}
+            />
+          ) : null}
+
+          <View style={styles.content}>
+            {activeScreen === 'chat' ? (
+              <ChatScreen
+                key={chatInstanceKey}
+                onSessionTitleChange={setSessionTitle}
+              />
+            ) : (
+              <Settings />
+            )}
+          </View>
+
+          <FullScreenMenu
+            onClose={() => setIsMenuOpen(false)}
+            onNewChat={handleNewChat}
+            onOpenSettings={handleOpenSettings}
+            onSelectSession={handleSelectSession}
+            sessions={menuSessions}
+            visible={isMenuOpen}
+          />
+        </SafeAreaView>
+      </SafeAreaProvider>
+    </DisplaySettingsProvider>
   );
 }
 
@@ -503,20 +557,21 @@ const styles = StyleSheet.create({
   },
   header: {
     alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.88)',
+    backgroundColor: 'rgba(255,255,255,0.94)',
     borderBottomColor: colors.border,
     borderBottomWidth: StyleSheet.hairlineWidth,
     elevation: 10000,
     flexDirection: 'row',
-    minHeight: 44,
+    minHeight: 52,
     overflow: 'visible',
-    paddingHorizontal: 6,
+    paddingHorizontal: 12,
     zIndex: 10000,
   },
   headerSide: {
     alignItems: 'flex-start',
+    flexShrink: 0,
     overflow: 'visible',
-    width: 106,
+    width: 112,
   },
   headerSideRight: {
     alignItems: 'flex-end',
@@ -537,30 +592,32 @@ const styles = StyleSheet.create({
     ...typography.label,
     color: colors.foreground,
     flex: 1,
-    fontSize: 17,
-    fontWeight: '600',
+    flexShrink: 1,
+    fontSize: 16,
+    fontWeight: '700',
+    minWidth: 0,
     textAlign: 'center',
   },
   modelSelector: {
     alignItems: 'center',
     borderColor: colors.input,
-    borderRadius: 15,
+    borderRadius: 18,
     borderWidth: StyleSheet.hairlineWidth,
     flexDirection: 'row',
-    gap: 3,
-    minHeight: 30,
-    maxWidth: 96,
-    paddingHorizontal: 9,
+    gap: 5,
+    minHeight: 32,
+    maxWidth: 106,
+    paddingHorizontal: 11,
   },
   modelSelectorActive: {
     backgroundColor: colors.card,
-    borderColor: colors.border,
+    borderColor: colors.input,
   },
   modelSelectorText: {
     ...typography.caption,
     color: colors.foreground,
     flexShrink: 1,
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: '700',
   },
   modelMenuBackdrop: {
@@ -574,32 +631,42 @@ const styles = StyleSheet.create({
   },
   modelMenu: {
     backgroundColor: colors.card,
-    borderColor: colors.border,
-    borderRadius: 16,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(21,25,34,0.06)',
+    borderRadius: 24,
+    borderWidth: 1,
     elevation: 10002,
     overflow: 'hidden',
     position: 'absolute',
     right: 0,
     shadowColor: '#000000',
-    shadowOffset: { height: 10, width: 0 },
-    shadowOpacity: 0.12,
-    shadowRadius: 24,
+    shadowOffset: { height: 18, width: 0 },
+    shadowOpacity: 0.14,
+    shadowRadius: 34,
     top: MODEL_MENU_TOP,
     width: MODEL_MENU_WIDTH,
     zIndex: 10002,
   },
   modelMenuRow: {
     alignItems: 'center',
-    borderBottomColor: colors.input,
-    borderBottomWidth: StyleSheet.hairlineWidth,
     flexDirection: 'row',
-    minHeight: 58,
-    paddingHorizontal: 14,
-    paddingVertical: 9,
+    minHeight: 64,
+    paddingHorizontal: 18,
+    paddingVertical: 10,
   },
   modelMenuRowActive: {
-    backgroundColor: colors.accent,
+    backgroundColor: 'rgba(0,122,255,0.08)',
+  },
+  modelMenuManageRow: {
+    borderTopColor: colors.border,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    marginTop: 7,
+  },
+  modelMenuIcon: {
+    alignItems: 'center',
+    height: 28,
+    justifyContent: 'center',
+    marginRight: 12,
+    width: 22,
   },
   modelMenuCopy: {
     flex: 1,
@@ -608,11 +675,13 @@ const styles = StyleSheet.create({
   modelMenuLabel: {
     ...typography.label,
     color: colors.foreground,
-    fontSize: 15,
+    fontSize: 16,
+    fontWeight: '700',
   },
   modelMenuDetail: {
     ...typography.caption,
     color: colors.mutedForeground,
+    fontSize: 13,
     fontWeight: '500',
     marginTop: 4,
   },
@@ -623,11 +692,11 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   menuSafeArea: {
-    backgroundColor: colors.background,
+    backgroundColor: colors.card,
     flex: 1,
   },
   menuBackground: {
-    backgroundColor: colors.background,
+    backgroundColor: colors.card,
     bottom: 0,
     left: 0,
     position: 'absolute',
@@ -636,8 +705,8 @@ const styles = StyleSheet.create({
   },
   menuTopBar: {
     alignItems: 'flex-end',
-    minHeight: 44,
-    paddingHorizontal: 12,
+    minHeight: 52,
+    paddingHorizontal: 18,
   },
   closeButton: {
     alignItems: 'center',
@@ -653,36 +722,36 @@ const styles = StyleSheet.create({
     lineHeight: 22,
   },
   menuScrollContent: {
-    paddingBottom: 30,
-    paddingHorizontal: 20,
-    paddingTop: 0,
+    paddingBottom: 34,
+    paddingHorizontal: 24,
+    paddingTop: 2,
   },
   menuLogo: {
     alignSelf: 'flex-start',
-    height: 64,
-    marginLeft: -4,
-    width: 250,
+    height: 56,
+    marginLeft: -6,
+    width: 238,
   },
   menuIntro: {
-    marginTop: 6,
+    marginTop: 34,
   },
   menuTitle: {
     ...typography.title,
     color: colors.foreground,
-    fontSize: 30,
-    lineHeight: 35,
+    fontSize: 34,
+    lineHeight: 40,
   },
   menuDescription: {
     ...typography.body,
     color: colors.mutedForeground,
     fontWeight: '400',
     lineHeight: 20,
-    marginTop: 4,
+    marginTop: 8,
   },
   menuSection: {
     borderTopColor: colors.border,
     borderTopWidth: StyleSheet.hairlineWidth,
-    marginTop: 14,
+    marginTop: 28,
   },
   menuSectionTitle: {
     ...typography.caption,
@@ -695,13 +764,11 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.border,
     borderBottomWidth: StyleSheet.hairlineWidth,
     flexDirection: 'row',
-    minHeight: 44,
-    paddingVertical: 5,
+    minHeight: 58,
+    paddingVertical: 8,
   },
   menuRowActive: {
-    borderLeftColor: colors.primary,
-    borderLeftWidth: 3,
-    paddingLeft: 9,
+    paddingLeft: 0,
   },
   menuRowPressed: {
     opacity: 0.58,
@@ -713,11 +780,12 @@ const styles = StyleSheet.create({
   menuRowLabel: {
     ...typography.body,
     color: colors.foreground,
-    fontSize: 16,
+    fontSize: 18,
+    fontWeight: '600',
   },
   menuRowLabelActive: {
-    color: colors.primary,
-    fontWeight: '800',
+    color: colors.foreground,
+    fontWeight: '700',
   },
   menuRowDetail: {
     ...typography.caption,

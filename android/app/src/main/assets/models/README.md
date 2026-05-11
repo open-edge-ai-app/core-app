@@ -1,6 +1,6 @@
 # Bundled LLM Assets
 
-Place local LiteRT-LM model files here for development builds.
+Place local MediaPipe LLM model files here for development builds.
 
 Expected development model:
 

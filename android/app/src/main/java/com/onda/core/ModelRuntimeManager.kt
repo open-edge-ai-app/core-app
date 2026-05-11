@@ -47,9 +47,9 @@ object ModelRuntimeManager {
         loading = true
         lastError = null
         try {
-            engine = LiteRtLmReflector.createEngine(
+            engine = MediaPipeLlmReflector.createEngine(
+                context = context,
                 modelPath = modelStatus.localPath,
-                cacheDir = context.cacheDir.absolutePath,
             )
         } catch (error: Exception) {
             closeEngineLocked()
@@ -73,7 +73,7 @@ object ModelRuntimeManager {
                 modalities = emptyList(),
             )
 
-        val response = LiteRtLmReflector.sendText(currentEngine, message)
+        val response = MediaPipeLlmReflector.sendText(currentEngine, message)
         AIResponse(
             type = "text",
             message = response,
@@ -95,7 +95,7 @@ object ModelRuntimeManager {
                 modalities = modalities,
             )
 
-        val response = LiteRtLmReflector.sendMultimodal(currentEngine, request)
+        val response = MediaPipeLlmReflector.sendMultimodal(currentEngine, request)
         AIResponse(
             type = "text",
             message = response,

@@ -26,6 +26,9 @@ import {
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 
 import AppIcon from './src/components/AppIcon';
+import FloatingSelect, {
+  FloatingSelectOption,
+} from './src/components/FloatingSelect';
 import PastelBackground from './src/components/PastelBackground';
 import ChatScreen, {
   ChatMessage,
@@ -106,12 +109,6 @@ type MenuSearchResult = {
   id: string;
   title: string;
   type: 'folder' | 'session';
-};
-
-type WorkFolderIconOption = {
-  icon: IconDefinition;
-  id: WorkFolderIconId;
-  label: string;
 };
 
 type RecentActionMenuAnchor = {
@@ -227,41 +224,41 @@ const workFolderRows: MenuIconRow[] = [
 
 const DEFAULT_WORK_FOLDER_ICON_ID: WorkFolderIconId = 'folder';
 
-const workFolderIconOptions: WorkFolderIconOption[] = [
+const workFolderIconOptions: FloatingSelectOption<WorkFolderIconId>[] = [
   {
     icon: appIcons.folder,
-    id: 'folder',
     label: '기본',
+    value: 'folder',
   },
   {
     icon: appIcons.workFolderBriefcase,
-    id: 'briefcase',
     label: '업무',
+    value: 'briefcase',
   },
   {
     icon: appIcons.workFolderIdea,
-    id: 'idea',
     label: '아이디어',
+    value: 'idea',
   },
   {
     icon: appIcons.workFolderCode,
-    id: 'code',
     label: '개발',
+    value: 'code',
   },
   {
     icon: appIcons.workFolderChart,
-    id: 'chart',
     label: '분석',
+    value: 'chart',
   },
   {
     icon: appIcons.workFolderBook,
-    id: 'book',
     label: '문서',
+    value: 'book',
   },
   {
     icon: appIcons.workFolderPalette,
-    id: 'palette',
     label: '디자인',
+    value: 'palette',
   },
 ];
 
@@ -304,10 +301,10 @@ const isModelOptionId = (value: string): value is ModelOption['id'] =>
 const isWorkFolderIconId = (
   value: string | undefined,
 ): value is WorkFolderIconId =>
-  workFolderIconOptions.some(option => option.id === value);
+  workFolderIconOptions.some(option => option.value === value);
 
 const getWorkFolderIcon = (iconId?: WorkFolderIconId) =>
-  workFolderIconOptions.find(option => option.id === iconId)?.icon ??
+  workFolderIconOptions.find(option => option.value === iconId)?.icon ??
   appIcons.folder;
 
 const hydrateWorkFolders = (
@@ -916,18 +913,14 @@ function FullScreenMenu({
   const [isSearchDialogOpen, setIsSearchDialogOpen] = useState(false);
   const [searchDraft, setSearchDraft] = useState('');
 
-  const selectedWorkFolder = useMemo(
+  const workFolderSelectOptions = useMemo<FloatingSelectOption<string>[]>(
     () =>
-      workFolders.find(folder => folder.id === selectedWorkFolderId) ?? null,
-    [selectedWorkFolderId, workFolders],
-  );
-
-  const selectedWorkFolderIcon = useMemo(
-    () =>
-      workFolderIconOptions.find(
-        option => option.id === selectedWorkFolderIconId,
-      ) ?? workFolderIconOptions[0],
-    [selectedWorkFolderIconId],
+      workFolders.map(folder => ({
+        icon: getWorkFolderIcon(folder.iconId),
+        label: folder.title,
+        value: folder.id,
+      })),
+    [workFolders],
   );
 
   const searchResults = useMemo(() => {
@@ -1193,11 +1186,6 @@ function FullScreenMenu({
 
     onCreateWorkFolder(nextTitle, selectedWorkFolderIconId);
     handleCloseWorkFolderDialog();
-  };
-
-  const handleSelectWorkFolderIcon = (iconId: WorkFolderIconId) => {
-    setSelectedWorkFolderIconId(iconId);
-    setIsWorkFolderIconMenuOpen(false);
   };
 
   const handleSubmitRename = () => {
@@ -1574,116 +1562,30 @@ function FullScreenMenu({
                 />
                 <View style={styles.recentDialogCard}>
                   <Text style={styles.recentDialogTitle}>새 작업 폴더</Text>
-                  <View
-                    style={[
-                      styles.workFolderNameControl,
-                      isWorkFolderIconMenuOpen && styles.optionMenuHostRaised,
-                    ]}
+                  <FloatingSelect
+                    accessibilityLabel="작업 폴더 아이콘 변경"
+                    expanded={isWorkFolderIconMenuOpen}
+                    onExpandedChange={setIsWorkFolderIconMenuOpen}
+                    onValueChange={setSelectedWorkFolderIconId}
+                    options={workFolderIconOptions}
+                    selectedValue={selectedWorkFolderIconId}
+                    triggerIconSize={17}
+                    variant="compact"
                   >
-                    <View style={styles.workFolderNameRow}>
-                      <Pressable
-                        accessibilityLabel="작업 폴더 아이콘 변경"
-                        accessibilityRole="button"
-                        accessibilityState={{
-                          expanded: isWorkFolderIconMenuOpen,
-                        }}
-                        onPress={() =>
-                          setIsWorkFolderIconMenuOpen(current => !current)
-                        }
-                        style={({ pressed }) => [
-                          styles.workFolderIconChangeButton,
-                          isWorkFolderIconMenuOpen &&
-                            styles.workFolderIconChangeButtonActive,
-                          pressed && styles.menuButtonPressed,
-                        ]}
-                      >
-                        <AppIcon
-                          color={
-                            isWorkFolderIconMenuOpen
-                              ? colors.primaryForeground
-                              : colors.foreground
-                          }
-                          icon={selectedWorkFolderIcon.icon}
-                          size={17}
-                        />
-                        <AppIcon
-                          color={
-                            isWorkFolderIconMenuOpen
-                              ? colors.primaryForeground
-                              : colors.mutedForeground
-                          }
-                          icon={appIcons.chevronDown}
-                          size={9}
-                        />
-                      </Pressable>
-                      <RNTextInput
-                        accessibilityLabel="작업 폴더 이름"
-                        autoFocus
-                        onChangeText={setWorkFolderDraft}
-                        placeholder="작업 폴더 이름"
-                        placeholderTextColor={colors.mutedForeground}
-                        returnKeyType="done"
-                        style={[
-                          styles.recentDialogInput,
-                          styles.workFolderNameInput,
-                        ]}
-                        value={workFolderDraft}
-                      />
-                    </View>
-                    {isWorkFolderIconMenuOpen ? (
-                      <View
-                        style={[
-                          styles.optionMenuSurface,
-                          styles.workFolderIconMenu,
-                        ]}
-                      >
-                        {workFolderIconOptions.map(option => {
-                          const isSelected =
-                            option.id === selectedWorkFolderIconId;
-
-                          return (
-                            <Pressable
-                              accessibilityLabel={`${option.label} 아이콘 선택`}
-                              accessibilityRole="button"
-                              accessibilityState={{ selected: isSelected }}
-                              key={option.id}
-                              onPress={() =>
-                                handleSelectWorkFolderIcon(option.id)
-                              }
-                              style={({ pressed }) => [
-                                styles.workFolderIconMenuRow,
-                                isSelected &&
-                                  styles.workFolderIconMenuRowActive,
-                                pressed && styles.menuRowPressed,
-                              ]}
-                            >
-                              <View style={styles.workFolderIconMenuValue}>
-                                <AppIcon
-                                  color={
-                                    isSelected
-                                      ? colors.primary
-                                      : colors.foreground
-                                  }
-                                  icon={option.icon}
-                                  size={15}
-                                />
-                                <Text style={styles.workFolderIconMenuLabel}>
-                                  {option.label}
-                                </Text>
-                              </View>
-                              {isSelected ? (
-                                <AppIcon
-                                  color={colors.primary}
-                                  icon={appIcons.selected}
-                                  size={15}
-                                />
-                              ) : null}
-                            </Pressable>
-                          );
-                        })}
-                      </View>
-                    ) : null}
-                  </View>
+                    <RNTextInput
+                      accessibilityLabel="작업 폴더 이름"
+                      autoFocus
+                      onChangeText={setWorkFolderDraft}
+                      placeholder="작업 폴더 이름"
+                      placeholderTextColor={colors.mutedForeground}
+                      returnKeyType="done"
+                      style={[
+                        styles.recentDialogInput,
+                        styles.workFolderNameInput,
+                      ]}
+                      value={workFolderDraft}
+                    />
+                  </FloatingSelect>
                   <View style={styles.recentDialogActions}>
                     <Pressable
                       accessibilityRole="button"
@@ -1750,118 +1652,18 @@ function FullScreenMenu({
                         <Text style={styles.workFolderSelectLabel}>
                           이동할 작업 폴더
                         </Text>
-                        <View
-                          style={[
-                            styles.workFolderSelectControl,
-                            isWorkFolderSelectOpen &&
-                              styles.optionMenuHostRaised,
-                          ]}
-                        >
-                          <Pressable
-                            accessibilityLabel="작업 폴더 선택"
-                            accessibilityRole="button"
-                            accessibilityState={{
-                              expanded: isWorkFolderSelectOpen,
-                            }}
-                            disabled={workFolders.length === 0}
-                            onPress={() =>
-                              setIsWorkFolderSelectOpen(current => !current)
-                            }
-                            style={({ pressed }) => [
-                              styles.workFolderSelectTrigger,
-                              pressed && styles.menuButtonPressed,
-                              workFolders.length === 0 &&
-                                styles.workFolderSelectDisabled,
-                            ]}
-                          >
-                            <View style={styles.workFolderSelectValue}>
-                              <AppIcon
-                                color={
-                                  selectedWorkFolder
-                                    ? colors.foreground
-                                    : colors.mutedForeground
-                                }
-                                icon={getWorkFolderIcon(
-                                  selectedWorkFolder?.iconId,
-                                )}
-                                size={16}
-                              />
-                              <Text
-                                numberOfLines={1}
-                                style={[
-                                  styles.workFolderSelectText,
-                                  !selectedWorkFolder &&
-                                    styles.workFolderSelectPlaceholder,
-                                ]}
-                              >
-                                {selectedWorkFolder?.title ?? '작업 폴더 없음'}
-                              </Text>
-                            </View>
-                            <AppIcon
-                              color={colors.mutedForeground}
-                              icon={appIcons.chevronDown}
-                              size={12}
-                            />
-                          </Pressable>
-                          {isWorkFolderSelectOpen && workFolders.length > 0 ? (
-                            <View
-                              style={[
-                                styles.optionMenuSurface,
-                                styles.workFolderSelectMenu,
-                              ]}
-                            >
-                              {workFolders.map(folder => {
-                                const isSelected =
-                                  folder.id === selectedWorkFolderId;
-
-                                return (
-                                  <Pressable
-                                    accessibilityRole="button"
-                                    accessibilityState={{
-                                      selected: isSelected,
-                                    }}
-                                    key={folder.id}
-                                    onPress={() => {
-                                      setSelectedWorkFolderId(folder.id);
-                                      setIsWorkFolderSelectOpen(false);
-                                    }}
-                                    style={({ pressed }) => [
-                                      styles.workFolderSelectOption,
-                                      isSelected &&
-                                        styles.workFolderSelectOptionSelected,
-                                      pressed && styles.menuRowPressed,
-                                    ]}
-                                  >
-                                    <View
-                                      style={styles.workFolderSelectOptionValue}
-                                    >
-                                      <AppIcon
-                                        color={colors.foreground}
-                                        icon={getWorkFolderIcon(folder.iconId)}
-                                        size={14}
-                                      />
-                                      <Text
-                                        numberOfLines={1}
-                                        style={
-                                          styles.workFolderSelectOptionText
-                                        }
-                                      >
-                                        {folder.title}
-                                      </Text>
-                                    </View>
-                                    {isSelected ? (
-                                      <AppIcon
-                                        color={colors.primary}
-                                        icon={appIcons.selected}
-                                        size={15}
-                                      />
-                                    ) : null}
-                                  </Pressable>
-                                );
-                              })}
-                            </View>
-                          ) : null}
-                        </View>
+                        <FloatingSelect
+                          accessibilityLabel="작업 폴더 선택"
+                          disabled={workFolders.length === 0}
+                          expanded={isWorkFolderSelectOpen}
+                          menuStyle={styles.workFolderSelectMenu}
+                          onExpandedChange={setIsWorkFolderSelectOpen}
+                          onValueChange={setSelectedWorkFolderId}
+                          options={workFolderSelectOptions}
+                          placeholder="작업 폴더 없음"
+                          placeholderIcon={appIcons.folder}
+                          selectedValue={selectedWorkFolderId}
+                        />
                         {workFolders.length === 0 ? (
                           <Text style={styles.workFolderSelectHelp}>
                             새 작업 폴더를 먼저 만들어주세요.
@@ -2379,23 +2181,6 @@ const styles = StyleSheet.create({
     width: '100%',
     zIndex: 1,
   },
-  optionMenuHostRaised: {
-    elevation: OPTION_MENU_ELEVATION,
-    zIndex: OPTION_MENU_Z_INDEX,
-  },
-  optionMenuSurface: {
-    backgroundColor: colors.card,
-    borderColor: colors.border,
-    borderRadius: 12,
-    borderWidth: StyleSheet.hairlineWidth,
-    elevation: OPTION_MENU_ELEVATION,
-    overflow: 'hidden',
-    shadowColor: '#000000',
-    shadowOffset: { height: 12, width: 0 },
-    shadowOpacity: 0.16,
-    shadowRadius: 22,
-    zIndex: OPTION_MENU_Z_INDEX,
-  },
   searchDialogCard: {
     maxHeight: '72%',
   },
@@ -2418,64 +2203,8 @@ const styles = StyleSheet.create({
     minHeight: 46,
     paddingHorizontal: 14,
   },
-  workFolderNameRow: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    gap: 10,
-  },
-  workFolderNameControl: {
-    position: 'relative',
-    zIndex: 1,
-  },
-  workFolderIconChangeButton: {
-    alignItems: 'center',
-    backgroundColor: colors.muted,
-    borderColor: colors.input,
-    borderRadius: 12,
-    borderWidth: StyleSheet.hairlineWidth,
-    flexDirection: 'row',
-    gap: 6,
-    height: 46,
-    justifyContent: 'center',
-    width: 58,
-  },
-  workFolderIconChangeButtonActive: {
-    backgroundColor: colors.foreground,
-    borderColor: colors.foreground,
-  },
   workFolderNameInput: {
     flex: 1,
-  },
-  workFolderIconMenu: {
-    left: 0,
-    position: 'absolute',
-    right: 0,
-    top: 56,
-  },
-  workFolderIconMenuRow: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    minHeight: 42,
-    paddingHorizontal: 12,
-  },
-  workFolderIconMenuRowActive: {
-    backgroundColor: 'rgba(0,122,255,0.08)',
-  },
-  workFolderIconMenuValue: {
-    alignItems: 'center',
-    flex: 1,
-    flexDirection: 'row',
-    minWidth: 0,
-    paddingRight: 10,
-  },
-  workFolderIconMenuLabel: {
-    ...typography.label,
-    color: colors.foreground,
-    flex: 1,
-    fontSize: 14,
-    fontWeight: '700',
-    marginLeft: 10,
   },
   searchInputWrap: {
     alignItems: 'center',
@@ -2557,42 +2286,6 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     marginBottom: 8,
   },
-  workFolderSelectTrigger: {
-    alignItems: 'center',
-    backgroundColor: colors.muted,
-    borderColor: colors.input,
-    borderRadius: 12,
-    borderWidth: StyleSheet.hairlineWidth,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    minHeight: 44,
-    paddingHorizontal: 14,
-  },
-  workFolderSelectDisabled: {
-    opacity: 0.58,
-  },
-  workFolderSelectControl: {
-    position: 'relative',
-    zIndex: 1,
-  },
-  workFolderSelectValue: {
-    alignItems: 'center',
-    flex: 1,
-    flexDirection: 'row',
-    minWidth: 0,
-    paddingRight: 12,
-  },
-  workFolderSelectText: {
-    ...typography.label,
-    color: colors.foreground,
-    flex: 1,
-    fontSize: 15,
-    fontWeight: '700',
-    marginLeft: 10,
-  },
-  workFolderSelectPlaceholder: {
-    color: colors.mutedForeground,
-  },
   workFolderSelectMenu: {
     backgroundColor: colors.card,
     borderColor: '#D9DEE8',
@@ -2602,31 +2295,6 @@ const styles = StyleSheet.create({
     right: 0,
     shadowOpacity: 0.18,
     top: 46,
-  },
-  workFolderSelectOption: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    minHeight: 42,
-    paddingHorizontal: 12,
-  },
-  workFolderSelectOptionValue: {
-    alignItems: 'center',
-    flex: 1,
-    flexDirection: 'row',
-    minWidth: 0,
-    paddingRight: 10,
-  },
-  workFolderSelectOptionSelected: {
-    backgroundColor: 'rgba(0,122,255,0.08)',
-  },
-  workFolderSelectOptionText: {
-    ...typography.label,
-    color: colors.foreground,
-    flex: 1,
-    fontSize: 14,
-    fontWeight: '700',
-    marginLeft: 10,
   },
   workFolderSelectHelp: {
     ...typography.caption,

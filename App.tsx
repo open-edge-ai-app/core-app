@@ -1,4 +1,11 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { IconDefinition } from '@fortawesome/fontawesome-svg-core';
 import type { GestureResponderEvent, LayoutChangeEvent } from 'react-native';
 import {
@@ -20,7 +27,10 @@ import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 
 import AppIcon from './src/components/AppIcon';
 import PastelBackground from './src/components/PastelBackground';
-import ChatScreen from './src/screens/ChatScreen';
+import ChatScreen, {
+  ChatMessage,
+  createInitialChatMessages,
+} from './src/screens/ChatScreen';
 import Settings from './src/screens/Settings';
 import {
   DisplaySettingsProvider,
@@ -107,6 +117,23 @@ type RecentSessionDialog =
   | { session: ChatSession; type: 'move' }
   | { session: ChatSession; type: 'delete' };
 
+type PersistedChatMessage = Omit<ChatMessage, 'createdAt'> & {
+  createdAt: string;
+};
+
+type PersistedAppState = {
+  activeSessionId: string | null;
+  chatMessagesBySessionId: Record<string, PersistedChatMessage[]>;
+  draftChatMessages: PersistedChatMessage[];
+  recentSessions: ChatSession[];
+  selectedModelId: ModelOption['id'];
+  sessionTitle: string;
+  version: 1;
+  workFolders: WorkFolder[];
+  workFolderSessions: ChatSession[];
+};
+
+const APP_STATE_STORAGE_KEY = 'open-edge-ai:app-state:v1';
 const MODEL_MENU_GAP = 6;
 const MODEL_MENU_TOP = 32 + MODEL_MENU_GAP;
 const MODEL_MENU_WIDTH = 252;
@@ -186,7 +213,97 @@ const initialRecentSessions: ChatSession[] = [
   },
 ];
 
+const createChatSessionId = () =>
+  `chat-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
+const serializeMessages = (messages: ChatMessage[]): PersistedChatMessage[] =>
+  messages.map(message => ({
+    ...message,
+    createdAt: message.createdAt.toISOString(),
+  }));
+
+const hydrateMessages = (
+  messages: PersistedChatMessage[] | undefined,
+): ChatMessage[] => {
+  if (!Array.isArray(messages) || messages.length === 0) {
+    return createInitialChatMessages();
+  }
+
+  return messages.map(message => {
+    const createdAt = new Date(message.createdAt);
+
+    return {
+      ...message,
+      createdAt: Number.isNaN(createdAt.getTime()) ? new Date() : createdAt,
+    };
+  });
+};
+
+const isModelOptionId = (value: string): value is ModelOption['id'] =>
+  modelOptions.some(model => model.id === value);
+
+const parseStoredAppState = (
+  value: string | null,
+): PersistedAppState | null => {
+  if (!value) {
+    return null;
+  }
+
+  try {
+    const parsed = JSON.parse(value) as Partial<PersistedAppState>;
+
+    if (parsed.version !== 1) {
+      return null;
+    }
+
+    return {
+      activeSessionId:
+        typeof parsed.activeSessionId === 'string'
+          ? parsed.activeSessionId
+          : null,
+      chatMessagesBySessionId:
+        parsed.chatMessagesBySessionId &&
+        typeof parsed.chatMessagesBySessionId === 'object'
+          ? parsed.chatMessagesBySessionId
+          : {},
+      draftChatMessages: Array.isArray(parsed.draftChatMessages)
+        ? parsed.draftChatMessages
+        : serializeMessages(createInitialChatMessages()),
+      recentSessions: Array.isArray(parsed.recentSessions)
+        ? parsed.recentSessions
+        : initialRecentSessions,
+      selectedModelId:
+        typeof parsed.selectedModelId === 'string' &&
+        isModelOptionId(parsed.selectedModelId)
+          ? parsed.selectedModelId
+          : 'gemma-4',
+      sessionTitle:
+        typeof parsed.sessionTitle === 'string'
+          ? parsed.sessionTitle
+          : '새 채팅',
+      version: 1,
+      workFolders: Array.isArray(parsed.workFolders) ? parsed.workFolders : [],
+      workFolderSessions: Array.isArray(parsed.workFolderSessions)
+        ? parsed.workFolderSessions
+        : [],
+    };
+  } catch {
+    return null;
+  }
+};
+
+const omitRecordKey = <Value,>(
+  record: Record<string, Value>,
+  key: string,
+): Record<string, Value> => {
+  const nextRecord = { ...record };
+  delete nextRecord[key];
+  return nextRecord;
+};
+
 function App() {
+  const activeSessionIdRef = useRef<string | null>(null);
+  const [isAppStateHydrated, setIsAppStateHydrated] = useState(false);
   const [sessionTitle, setSessionTitle] = useState('새 채팅');
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [recentSessions, setRecentSessions] = useState<ChatSession[]>(
@@ -196,6 +313,12 @@ function App() {
     [],
   );
   const [workFolders, setWorkFolders] = useState<WorkFolder[]>([]);
+  const [chatMessagesBySessionId, setChatMessagesBySessionId] = useState<
+    Record<string, ChatMessage[]>
+  >({});
+  const [draftChatMessages, setDraftChatMessages] = useState<ChatMessage[]>(
+    createInitialChatMessages,
+  );
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isModelMenuOpen, setIsModelMenuOpen] = useState(false);
   const [chatInstanceKey, setChatInstanceKey] = useState(0);
@@ -210,6 +333,90 @@ function App() {
     [selectedModelId],
   );
 
+  useEffect(() => {
+    activeSessionIdRef.current = activeSessionId;
+  }, [activeSessionId]);
+
+  useEffect(() => {
+    let isCancelled = false;
+
+    const hydrateAppState = async () => {
+      try {
+        const storedState = parseStoredAppState(
+          await AsyncStorage.getItem(APP_STATE_STORAGE_KEY),
+        );
+
+        if (!storedState || isCancelled) {
+          return;
+        }
+
+        const hydratedMessagesBySessionId = Object.fromEntries(
+          Object.entries(storedState.chatMessagesBySessionId).map(
+            ([sessionId, messages]) => [sessionId, hydrateMessages(messages)],
+          ),
+        );
+
+        activeSessionIdRef.current = storedState.activeSessionId;
+        setSessionTitle(storedState.sessionTitle);
+        setActiveSessionId(storedState.activeSessionId);
+        setRecentSessions(storedState.recentSessions);
+        setWorkFolderSessions(storedState.workFolderSessions);
+        setWorkFolders(storedState.workFolders);
+        setSelectedModelId(storedState.selectedModelId);
+        setChatMessagesBySessionId(hydratedMessagesBySessionId);
+        setDraftChatMessages(hydrateMessages(storedState.draftChatMessages));
+      } finally {
+        if (!isCancelled) {
+          setIsAppStateHydrated(true);
+        }
+      }
+    };
+
+    hydrateAppState();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!isAppStateHydrated) {
+      return;
+    }
+
+    const nextState: PersistedAppState = {
+      activeSessionId,
+      chatMessagesBySessionId: Object.fromEntries(
+        Object.entries(chatMessagesBySessionId).map(([sessionId, messages]) => [
+          sessionId,
+          serializeMessages(messages),
+        ]),
+      ),
+      draftChatMessages: serializeMessages(draftChatMessages),
+      recentSessions,
+      selectedModelId,
+      sessionTitle,
+      version: 1,
+      workFolders,
+      workFolderSessions,
+    };
+
+    AsyncStorage.setItem(
+      APP_STATE_STORAGE_KEY,
+      JSON.stringify(nextState),
+    ).catch(() => undefined);
+  }, [
+    activeSessionId,
+    chatMessagesBySessionId,
+    draftChatMessages,
+    isAppStateHydrated,
+    recentSessions,
+    selectedModelId,
+    sessionTitle,
+    workFolders,
+    workFolderSessions,
+  ]);
+
   const sortedRecentSessions = useMemo(
     () =>
       [...recentSessions].sort((first, second) => {
@@ -221,6 +428,16 @@ function App() {
       }),
     [recentSessions],
   );
+
+  const activeMessages = useMemo(() => {
+    if (!activeSessionId) {
+      return draftChatMessages;
+    }
+
+    return (
+      chatMessagesBySessionId[activeSessionId] ?? createInitialChatMessages()
+    );
+  }, [activeSessionId, chatMessagesBySessionId, draftChatMessages]);
 
   const handleToggleModelMenu = () => {
     if (isModelMenuOpen) {
@@ -234,16 +451,28 @@ function App() {
 
   const handleNewChat = () => {
     setActiveScreen('chat');
+    activeSessionIdRef.current = null;
     setActiveSessionId(null);
     setSessionTitle('새 채팅');
+    setDraftChatMessages(createInitialChatMessages());
     setChatInstanceKey(current => current + 1);
     setIsMenuOpen(false);
   };
 
   const handleSelectSession = (title: string, id?: string) => {
+    const isChatSession =
+      id != null &&
+      (recentSessions.some(session => session.id === id) ||
+        workFolderSessions.some(session => session.id === id));
+
     setActiveScreen('chat');
-    setActiveSessionId(id ?? null);
+    activeSessionIdRef.current = isChatSession ? id : null;
+    setActiveSessionId(isChatSession ? id : null);
+    if (!isChatSession) {
+      setDraftChatMessages(createInitialChatMessages());
+    }
     setSessionTitle(title);
+    setChatInstanceKey(current => current + 1);
     setIsMenuOpen(false);
   };
 
@@ -252,6 +481,46 @@ function App() {
     setActiveSessionId(null);
     setIsMenuOpen(false);
   };
+
+  const handleChatMessagesChange = useCallback(
+    (nextMessages: ChatMessage[], sessionTitleCandidate?: string) => {
+      const currentSessionId = activeSessionIdRef.current;
+
+      if (currentSessionId) {
+        setChatMessagesBySessionId(current => ({
+          ...current,
+          [currentSessionId]: nextMessages,
+        }));
+        return;
+      }
+
+      if (!nextMessages.some(message => message.role === 'user')) {
+        setDraftChatMessages(nextMessages);
+        return;
+      }
+
+      const nextSessionId = createChatSessionId();
+      const nextSessionTitle =
+        sessionTitleCandidate?.trim() || sessionTitle || '새 채팅';
+
+      activeSessionIdRef.current = nextSessionId;
+      setActiveSessionId(nextSessionId);
+      setSessionTitle(nextSessionTitle);
+      setRecentSessions(current => [
+        {
+          id: nextSessionId,
+          title: nextSessionTitle,
+        },
+        ...current,
+      ]);
+      setChatMessagesBySessionId(current => ({
+        ...current,
+        [nextSessionId]: nextMessages,
+      }));
+      setDraftChatMessages(createInitialChatMessages());
+    },
+    [sessionTitle],
+  );
 
   const handleRenameSession = (sessionId: string, title: string) => {
     setRecentSessions(current =>
@@ -327,10 +596,13 @@ function App() {
     setWorkFolderSessions(current =>
       current.filter(session => session.id !== sessionId),
     );
+    setChatMessagesBySessionId(current => omitRecordKey(current, sessionId));
 
     if (activeSessionId === sessionId) {
+      activeSessionIdRef.current = null;
       setActiveSessionId(null);
       setSessionTitle('새 채팅');
+      setDraftChatMessages(createInitialChatMessages());
       setChatInstanceKey(current => current + 1);
     }
   };
@@ -459,7 +731,9 @@ function App() {
           <View style={styles.content}>
             {activeScreen === 'chat' ? (
               <ChatScreen
-                key={chatInstanceKey}
+                key={`chat-${chatInstanceKey}`}
+                messages={activeMessages}
+                onMessagesChange={handleChatMessagesChange}
                 onSessionTitleChange={setSessionTitle}
                 selectedModelLabel={selectedModel.label}
               />
@@ -1831,10 +2105,12 @@ const styles = StyleSheet.create({
   recentDialogBackdrop: {
     backgroundColor: 'rgba(21,25,34,0.24)',
     bottom: 0,
+    elevation: 0,
     left: 0,
     position: 'absolute',
     right: 0,
     top: 0,
+    zIndex: 0,
   },
   recentDialogCard: {
     backgroundColor: colors.card,
@@ -1843,11 +2119,13 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     elevation: 82,
     padding: 18,
+    position: 'relative',
     shadowColor: '#000000',
     shadowOffset: { height: 16, width: 0 },
     shadowOpacity: 0.14,
     shadowRadius: 28,
     width: '100%',
+    zIndex: 1,
   },
   searchDialogCard: {
     maxHeight: '72%',

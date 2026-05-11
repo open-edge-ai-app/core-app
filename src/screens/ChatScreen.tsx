@@ -27,7 +27,7 @@ import {
 import { appIcons } from '../theme/icons';
 import { colors, typography } from '../theme/tokens';
 
-type Message = {
+export type ChatMessage = {
   createdAt: Date;
   id: string;
   modelName?: string;
@@ -47,11 +47,16 @@ type ChatMode = {
 };
 
 type ChatScreenProps = {
+  messages: ChatMessage[];
+  onMessagesChange: (
+    nextMessages: ChatMessage[],
+    sessionTitleCandidate?: string,
+  ) => void;
   onSessionTitleChange?: (title: string) => void;
   selectedModelLabel?: string;
 };
 
-const initialMessages: Message[] = [
+export const createInitialChatMessages = (): ChatMessage[] => [
   {
     createdAt: new Date(),
     id: 'welcome',
@@ -95,7 +100,7 @@ const createMessage = (
   role: ChatRole,
   text: string,
   modelName?: string,
-): Message => ({
+): ChatMessage => ({
   createdAt: new Date(),
   id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
   modelName,
@@ -114,11 +119,12 @@ const createSessionTitle = (prompt: string) => {
 };
 
 function ChatScreen({
+  messages,
+  onMessagesChange,
   onSessionTitleChange,
   selectedModelLabel = 'Gemma 4',
 }: ChatScreenProps) {
   const scrollViewRef = useRef<ScrollView>(null);
-  const [messages, setMessages] = useState<Message[]>(initialMessages);
   const [draft, setDraft] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
@@ -198,9 +204,14 @@ function ChatScreen({
 
     const responseModelName = selectedModelLabel;
     const userMessage = createMessage('user', prompt);
-    setMessages(current => [...current, userMessage]);
+    const messagesWithUserPrompt = [...messages, userMessage];
+    const nextSessionTitle = !hasUserMessages
+      ? createSessionTitle(prompt)
+      : undefined;
+
+    onMessagesChange(messagesWithUserPrompt, nextSessionTitle);
     if (!hasUserMessages) {
-      onSessionTitleChange?.(createSessionTitle(prompt));
+      onSessionTitleChange?.(nextSessionTitle ?? '새 채팅');
     }
     setDraft('');
     setIsGenerating(true);
@@ -210,20 +221,26 @@ function ChatScreen({
         ...history,
         { content: prompt, role: 'user' },
       ]);
-      setMessages(current => [
-        ...current,
-        createMessage('assistant', response, responseModelName),
-      ]);
+      onMessagesChange(
+        [
+          ...messagesWithUserPrompt,
+          createMessage('assistant', response, responseModelName),
+        ],
+        nextSessionTitle,
+      );
     } catch (error) {
       const message =
         error instanceof Error
           ? error.message
           : 'AI 응답 처리 중 알 수 없는 문제가 발생했습니다.';
 
-      setMessages(current => [
-        ...current,
-        createMessage('system', `응답 실패: ${message}`),
-      ]);
+      onMessagesChange(
+        [
+          ...messagesWithUserPrompt,
+          createMessage('system', `응답 실패: ${message}`),
+        ],
+        nextSessionTitle,
+      );
     } finally {
       setIsGenerating(false);
     }
@@ -232,6 +249,8 @@ function ChatScreen({
     hasUserMessages,
     history,
     isGenerating,
+    messages,
+    onMessagesChange,
     onSessionTitleChange,
     selectedModelLabel,
   ]);

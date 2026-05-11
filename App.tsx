@@ -639,6 +639,7 @@ function FullScreenMenu({
 
           <ScrollView
             contentContainerStyle={styles.menuScrollContent}
+            onScrollBeginDrag={() => setActionSheetSession(null)}
             showsVerticalScrollIndicator={false}
           >
             <View style={styles.menuPrimaryList}>
@@ -685,79 +686,74 @@ function FullScreenMenu({
 
             <View style={[styles.menuSectionBlock, styles.menuRecentSection]}>
               <Text style={styles.menuSectionTitle}>최근</Text>
-              {recentSessions.map(session => (
-                <Pressable
-                  accessibilityRole="button"
-                  delayLongPress={360}
-                  key={session.id}
-                  onLongPress={() => setActionSheetSession(session)}
-                  onPress={() => onSelectSession(session.title, session.id)}
-                  style={({ pressed }) => [
-                    styles.menuRecentRow,
-                    pressed && styles.menuRowPressed,
-                  ]}
-                >
-                  <Text numberOfLines={1} style={styles.menuRecentLabel}>
-                    {session.title}
-                  </Text>
-                  {session.pinned ? (
-                    <AppIcon
-                      color={colors.primary}
-                      icon={faThumbtack}
-                      size={14}
-                    />
-                  ) : null}
-                </Pressable>
-              ))}
+              {recentSessions.map(session => {
+                const isActionMenuOpen = actionSheetSession?.id === session.id;
+
+                return (
+                  <View key={session.id} style={styles.menuRecentItem}>
+                    <Pressable
+                      accessibilityRole="button"
+                      delayLongPress={360}
+                      onLongPress={() => setActionSheetSession(session)}
+                      onPress={() => {
+                        setActionSheetSession(null);
+                        onSelectSession(session.title, session.id);
+                      }}
+                      style={({ pressed }) => [
+                        styles.menuRecentRow,
+                        isActionMenuOpen && styles.menuRecentRowActive,
+                        pressed && styles.menuRowPressed,
+                      ]}
+                    >
+                      <Text numberOfLines={1} style={styles.menuRecentLabel}>
+                        {session.title}
+                      </Text>
+                      {session.pinned ? (
+                        <AppIcon
+                          color={colors.primary}
+                          icon={faThumbtack}
+                          size={14}
+                        />
+                      ) : null}
+                    </Pressable>
+
+                    {isActionMenuOpen ? (
+                      <View style={styles.recentInlineActionMenu}>
+                        <RecentActionButton
+                          icon={faPen}
+                          label="이름 바꾸기"
+                          onPress={() =>
+                            handleOpenRecentDialog('rename', session)
+                          }
+                        />
+                        <RecentActionButton
+                          icon={faThumbtack}
+                          label={session.pinned ? '채팅 고정 해제' : '채팅 고정'}
+                          onPress={() => {
+                            onTogglePinnedSession(session.id);
+                            setActionSheetSession(null);
+                          }}
+                        />
+                        <RecentActionButton
+                          icon={faFolder}
+                          label="작업 폴더로 이동"
+                          onPress={() => handleOpenRecentDialog('move', session)}
+                        />
+                        <RecentActionButton
+                          destructive
+                          icon={faTrash}
+                          label="삭제"
+                          onPress={() =>
+                            handleOpenRecentDialog('delete', session)
+                          }
+                        />
+                      </View>
+                    ) : null}
+                  </View>
+                );
+              })}
             </View>
           </ScrollView>
-
-          {actionSheetSession ? (
-            <View style={styles.recentActionLayer}>
-              <Pressable
-                accessibilityLabel="최근 채팅 메뉴 닫기"
-                onPress={() => setActionSheetSession(null)}
-                style={styles.recentActionBackdrop}
-              />
-              <View style={styles.recentActionSheet}>
-                <Text numberOfLines={1} style={styles.recentActionTitle}>
-                  {actionSheetSession.title}
-                </Text>
-                <RecentActionButton
-                  icon={faPen}
-                  label="이름 바꾸기"
-                  onPress={() =>
-                    handleOpenRecentDialog('rename', actionSheetSession)
-                  }
-                />
-                <RecentActionButton
-                  icon={faThumbtack}
-                  label={
-                    actionSheetSession.pinned ? '채팅 고정 해제' : '채팅 고정'
-                  }
-                  onPress={() => {
-                    onTogglePinnedSession(actionSheetSession.id);
-                    setActionSheetSession(null);
-                  }}
-                />
-                <RecentActionButton
-                  icon={faFolder}
-                  label="작업 폴더로 이동"
-                  onPress={() =>
-                    handleOpenRecentDialog('move', actionSheetSession)
-                  }
-                />
-                <RecentActionButton
-                  destructive
-                  icon={faTrash}
-                  label="삭제"
-                  onPress={() =>
-                    handleOpenRecentDialog('delete', actionSheetSession)
-                  }
-                />
-              </View>
-            </View>
-          ) : null}
 
           {recentDialog ? (
             <View style={styles.recentDialogLayer}>
@@ -1166,11 +1162,19 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     lineHeight: 21,
   },
+  menuRecentItem: {
+    marginBottom: 2,
+  },
   menuRecentRow: {
     alignItems: 'center',
+    borderRadius: 10,
     flexDirection: 'row',
     justifyContent: 'space-between',
     minHeight: 48,
+    paddingHorizontal: 8,
+  },
+  menuRecentRowActive: {
+    backgroundColor: colors.muted,
   },
   menuRecentLabel: {
     ...typography.body,
@@ -1181,61 +1185,37 @@ const styles = StyleSheet.create({
     lineHeight: 22,
     paddingRight: 12,
   },
-  recentActionLayer: {
-    bottom: 0,
-    justifyContent: 'flex-end',
-    left: 0,
-    position: 'absolute',
-    right: 0,
-    top: 0,
-    zIndex: 30,
-  },
-  recentActionBackdrop: {
-    backgroundColor: 'rgba(21,25,34,0.16)',
-    bottom: 0,
-    left: 0,
-    position: 'absolute',
-    right: 0,
-    top: 0,
-  },
-  recentActionSheet: {
+  recentInlineActionMenu: {
+    alignSelf: 'flex-end',
     backgroundColor: colors.card,
     borderColor: colors.border,
-    borderRadius: 18,
+    borderRadius: 12,
     borderWidth: StyleSheet.hairlineWidth,
-    marginBottom: 14,
-    marginHorizontal: 14,
+    marginBottom: 8,
+    marginTop: 2,
+    maxWidth: 214,
+    minWidth: 188,
     overflow: 'hidden',
-    paddingBottom: 8,
-    paddingTop: 10,
-  },
-  recentActionTitle: {
-    ...typography.caption,
-    color: colors.mutedForeground,
-    fontSize: 12,
-    fontWeight: '700',
-    lineHeight: 16,
-    paddingHorizontal: 18,
-    paddingVertical: 8,
+    paddingVertical: 4,
   },
   recentActionRow: {
     alignItems: 'center',
     flexDirection: 'row',
-    minHeight: 50,
-    paddingHorizontal: 18,
+    minHeight: 38,
+    paddingHorizontal: 12,
   },
   recentActionIcon: {
     alignItems: 'center',
-    height: 28,
+    height: 24,
     justifyContent: 'center',
-    marginRight: 12,
-    width: 24,
+    marginRight: 9,
+    width: 20,
   },
   recentActionLabel: {
     ...typography.label,
     color: colors.foreground,
     flex: 1,
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '600',
   },
   recentActionDestructiveLabel: {

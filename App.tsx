@@ -5,13 +5,17 @@ import {
   faBrain,
   faCheck,
   faChevronDown,
+  faFolder,
   faFolderPlus,
   faGear,
   faGrip,
   faImages,
   faLayerGroup,
   faMagnifyingGlass,
+  faPen,
   faPodcast,
+  faThumbtack,
+  faTrash,
   faTerminal,
   faWandMagicSparkles,
 } from '@fortawesome/free-solid-svg-icons';
@@ -83,6 +87,17 @@ type ModelOption = {
   label: string;
 };
 
+type ChatSession = {
+  id: string;
+  pinned?: boolean;
+  title: string;
+};
+
+type RecentSessionDialog =
+  | { session: ChatSession; type: 'rename' }
+  | { session: ChatSession; type: 'move' }
+  | { session: ChatSession; type: 'delete' };
+
 const MODEL_MENU_GAP = 6;
 const MODEL_MENU_TOP = 32 + MODEL_MENU_GAP;
 const MODEL_MENU_WIDTH = 252;
@@ -151,14 +166,22 @@ const workFolderRows: MenuIconRow[] = [
   },
 ];
 
-const recentRows: { label: string }[] = [
+const initialRecentSessions: ChatSession[] = [
   {
-    label: '링크드인 소개 수정',
+    id: 'linkedin-intro',
+    title: '링크드인 소개 수정',
   },
 ];
 
 function App() {
   const [sessionTitle, setSessionTitle] = useState('새 채팅');
+  const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
+  const [recentSessions, setRecentSessions] = useState<ChatSession[]>(
+    initialRecentSessions,
+  );
+  const [workFolderSessions, setWorkFolderSessions] = useState<ChatSession[]>(
+    [],
+  );
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isModelMenuOpen, setIsModelMenuOpen] = useState(false);
   const [chatInstanceKey, setChatInstanceKey] = useState(0);
@@ -173,6 +196,18 @@ function App() {
     [selectedModelId],
   );
 
+  const sortedRecentSessions = useMemo(
+    () =>
+      [...recentSessions].sort((first, second) => {
+        if (first.pinned === second.pinned) {
+          return 0;
+        }
+
+        return first.pinned ? -1 : 1;
+      }),
+    [recentSessions],
+  );
+
   const handleToggleModelMenu = () => {
     if (isModelMenuOpen) {
       setIsModelMenuOpen(false);
@@ -185,20 +220,85 @@ function App() {
 
   const handleNewChat = () => {
     setActiveScreen('chat');
+    setActiveSessionId(null);
     setSessionTitle('새 채팅');
     setChatInstanceKey(current => current + 1);
     setIsMenuOpen(false);
   };
 
-  const handleSelectSession = (title: string) => {
+  const handleSelectSession = (title: string, id?: string) => {
     setActiveScreen('chat');
+    setActiveSessionId(id ?? null);
     setSessionTitle(title);
     setIsMenuOpen(false);
   };
 
   const handleOpenSettings = () => {
     setActiveScreen('settings');
+    setActiveSessionId(null);
     setIsMenuOpen(false);
+  };
+
+  const handleRenameSession = (sessionId: string, title: string) => {
+    setRecentSessions(current =>
+      current.map(session =>
+        session.id === sessionId ? { ...session, title } : session,
+      ),
+    );
+    setWorkFolderSessions(current =>
+      current.map(session =>
+        session.id === sessionId ? { ...session, title } : session,
+      ),
+    );
+
+    if (activeSessionId === sessionId) {
+      setSessionTitle(title);
+    }
+  };
+
+  const handleTogglePinnedSession = (sessionId: string) => {
+    setRecentSessions(current =>
+      current.map(session =>
+        session.id === sessionId
+          ? { ...session, pinned: !session.pinned }
+          : session,
+      ),
+    );
+  };
+
+  const handleMoveSessionToWorkFolder = (sessionId: string) => {
+    const movedSession = recentSessions.find(
+      session => session.id === sessionId,
+    );
+    if (!movedSession) {
+      return;
+    }
+
+    setRecentSessions(current =>
+      current.filter(session => session.id !== sessionId),
+    );
+    setWorkFolderSessions(current => {
+      if (current.some(session => session.id === sessionId)) {
+        return current;
+      }
+
+      return [...current, { ...movedSession, pinned: false }];
+    });
+  };
+
+  const handleDeleteSession = (sessionId: string) => {
+    setRecentSessions(current =>
+      current.filter(session => session.id !== sessionId),
+    );
+    setWorkFolderSessions(current =>
+      current.filter(session => session.id !== sessionId),
+    );
+
+    if (activeSessionId === sessionId) {
+      setActiveSessionId(null);
+      setSessionTitle('새 채팅');
+      setChatInstanceKey(current => current + 1);
+    }
   };
 
   return (
@@ -331,11 +431,17 @@ function App() {
           </View>
 
           <FullScreenMenu
+            onDeleteSession={handleDeleteSession}
             onClose={() => setIsMenuOpen(false)}
+            onMoveSessionToWorkFolder={handleMoveSessionToWorkFolder}
             onNewChat={handleNewChat}
             onOpenSettings={handleOpenSettings}
+            onRenameSession={handleRenameSession}
             onSelectSession={handleSelectSession}
+            onTogglePinnedSession={handleTogglePinnedSession}
+            recentSessions={sortedRecentSessions}
             visible={isMenuOpen}
+            workFolderSessions={workFolderSessions}
           />
         </SafeAreaView>
       </SafeAreaProvider>
@@ -345,20 +451,37 @@ function App() {
 
 function FullScreenMenu({
   onClose,
+  onDeleteSession,
+  onMoveSessionToWorkFolder,
   onNewChat,
   onOpenSettings,
+  onRenameSession,
   onSelectSession,
+  onTogglePinnedSession,
+  recentSessions,
   visible,
+  workFolderSessions,
 }: {
   onClose: () => void;
+  onDeleteSession: (sessionId: string) => void;
+  onMoveSessionToWorkFolder: (sessionId: string) => void;
   onNewChat: () => void;
   onOpenSettings: () => void;
-  onSelectSession: (title: string) => void;
+  onRenameSession: (sessionId: string, title: string) => void;
+  onSelectSession: (title: string, id?: string) => void;
+  onTogglePinnedSession: (sessionId: string) => void;
+  recentSessions: ChatSession[];
   visible: boolean;
+  workFolderSessions: ChatSession[];
 }) {
   const { width } = useWindowDimensions();
   const slideX = useRef(new Animated.Value(-width)).current;
   const [isRendered, setIsRendered] = useState(visible);
+  const [actionSheetSession, setActionSheetSession] =
+    useState<ChatSession | null>(null);
+  const [recentDialog, setRecentDialog] =
+    useState<RecentSessionDialog | null>(null);
+  const [renameDraft, setRenameDraft] = useState('');
 
   useEffect(() => {
     if (visible) {
@@ -389,6 +512,16 @@ function FullScreenMenu({
     });
   }, [isRendered, slideX, visible, width]);
 
+  useEffect(() => {
+    if (visible) {
+      return;
+    }
+
+    setActionSheetSession(null);
+    setRecentDialog(null);
+    setRenameDraft('');
+  }, [visible]);
+
   if (!isRendered) {
     return null;
   }
@@ -396,6 +529,52 @@ function FullScreenMenu({
   const handleOpenSettingsFromMenu = () => {
     onOpenSettings();
     setIsRendered(false);
+  };
+
+  const handleOpenRecentDialog = (
+    type: RecentSessionDialog['type'],
+    session: ChatSession,
+  ) => {
+    setActionSheetSession(null);
+    setRecentDialog({ session, type } as RecentSessionDialog);
+    setRenameDraft(session.title);
+  };
+
+  const handleCloseRecentDialog = () => {
+    setRecentDialog(null);
+    setRenameDraft('');
+  };
+
+  const handleSubmitRename = () => {
+    if (recentDialog?.type !== 'rename') {
+      return;
+    }
+
+    const nextTitle = renameDraft.trim();
+    if (!nextTitle) {
+      return;
+    }
+
+    onRenameSession(recentDialog.session.id, nextTitle);
+    handleCloseRecentDialog();
+  };
+
+  const handleConfirmMove = () => {
+    if (recentDialog?.type !== 'move') {
+      return;
+    }
+
+    onMoveSessionToWorkFolder(recentDialog.session.id);
+    handleCloseRecentDialog();
+  };
+
+  const handleConfirmDelete = () => {
+    if (recentDialog?.type !== 'delete') {
+      return;
+    }
+
+    onDeleteSession(recentDialog.session.id);
+    handleCloseRecentDialog();
   };
 
   return (
@@ -484,6 +663,15 @@ function FullScreenMenu({
                 label={workFolderRows[0].label}
                 onPress={onNewChat}
               />
+              {workFolderSessions.map(session => (
+                <MenuRow
+                  icon={faFolder}
+                  iconColor={colors.mutedForeground}
+                  key={session.id}
+                  label={session.title}
+                  onPress={() => onSelectSession(session.title, session.id)}
+                />
+              ))}
               {workFolderRows.slice(1).map(row => (
                 <MenuRow
                   icon={row.icon}
@@ -497,26 +685,212 @@ function FullScreenMenu({
 
             <View style={[styles.menuSectionBlock, styles.menuRecentSection]}>
               <Text style={styles.menuSectionTitle}>최근</Text>
-              {recentRows.map(row => (
+              {recentSessions.map(session => (
                 <Pressable
                   accessibilityRole="button"
-                  key={row.label}
-                  onPress={() => onSelectSession(row.label)}
+                  delayLongPress={360}
+                  key={session.id}
+                  onLongPress={() => setActionSheetSession(session)}
+                  onPress={() => onSelectSession(session.title, session.id)}
                   style={({ pressed }) => [
                     styles.menuRecentRow,
                     pressed && styles.menuRowPressed,
                   ]}
                 >
                   <Text numberOfLines={1} style={styles.menuRecentLabel}>
-                    {row.label}
+                    {session.title}
                   </Text>
+                  {session.pinned ? (
+                    <AppIcon
+                      color={colors.primary}
+                      icon={faThumbtack}
+                      size={14}
+                    />
+                  ) : null}
                 </Pressable>
               ))}
             </View>
           </ScrollView>
+
+          {actionSheetSession ? (
+            <View style={styles.recentActionLayer}>
+              <Pressable
+                accessibilityLabel="최근 채팅 메뉴 닫기"
+                onPress={() => setActionSheetSession(null)}
+                style={styles.recentActionBackdrop}
+              />
+              <View style={styles.recentActionSheet}>
+                <Text numberOfLines={1} style={styles.recentActionTitle}>
+                  {actionSheetSession.title}
+                </Text>
+                <RecentActionButton
+                  icon={faPen}
+                  label="이름 바꾸기"
+                  onPress={() =>
+                    handleOpenRecentDialog('rename', actionSheetSession)
+                  }
+                />
+                <RecentActionButton
+                  icon={faThumbtack}
+                  label={
+                    actionSheetSession.pinned ? '채팅 고정 해제' : '채팅 고정'
+                  }
+                  onPress={() => {
+                    onTogglePinnedSession(actionSheetSession.id);
+                    setActionSheetSession(null);
+                  }}
+                />
+                <RecentActionButton
+                  icon={faFolder}
+                  label="작업 폴더로 이동"
+                  onPress={() =>
+                    handleOpenRecentDialog('move', actionSheetSession)
+                  }
+                />
+                <RecentActionButton
+                  destructive
+                  icon={faTrash}
+                  label="삭제"
+                  onPress={() =>
+                    handleOpenRecentDialog('delete', actionSheetSession)
+                  }
+                />
+              </View>
+            </View>
+          ) : null}
+
+          {recentDialog ? (
+            <View style={styles.recentDialogLayer}>
+              <Pressable
+                accessibilityLabel="최근 채팅 작업 닫기"
+                onPress={handleCloseRecentDialog}
+                style={styles.recentDialogBackdrop}
+              />
+              <View style={styles.recentDialogCard}>
+                <Text style={styles.recentDialogTitle}>
+                  {recentDialog.type === 'rename'
+                    ? '이름 바꾸기'
+                    : recentDialog.type === 'move'
+                      ? '작업 폴더로 이동'
+                      : '채팅 삭제'}
+                </Text>
+                {recentDialog.type === 'rename' ? (
+                  <RNTextInput
+                    accessibilityLabel="채팅 이름"
+                    autoFocus
+                    onChangeText={setRenameDraft}
+                    onSubmitEditing={handleSubmitRename}
+                    placeholder="채팅 이름"
+                    placeholderTextColor={colors.mutedForeground}
+                    returnKeyType="done"
+                    style={styles.recentDialogInput}
+                    value={renameDraft}
+                  />
+                ) : (
+                  <Text style={styles.recentDialogMessage}>
+                    {recentDialog.type === 'move'
+                      ? '최근 목록에서 제거하고 작업 폴더에 추가합니다.'
+                      : '이 채팅 세션을 삭제할까요? 삭제 후에는 목록에서 사라집니다.'}
+                  </Text>
+                )}
+                {recentDialog.type === 'move' ? (
+                  <View style={styles.recentDialogFolderTarget}>
+                    <AppIcon
+                      color={colors.foreground}
+                      icon={faFolder}
+                      size={16}
+                    />
+                    <Text style={styles.recentDialogFolderText}>
+                      기본 작업 폴더
+                    </Text>
+                  </View>
+                ) : null}
+                <View style={styles.recentDialogActions}>
+                  <Pressable
+                    accessibilityRole="button"
+                    onPress={handleCloseRecentDialog}
+                    style={({ pressed }) => [
+                      styles.recentDialogButton,
+                      pressed && styles.menuButtonPressed,
+                    ]}
+                  >
+                    <Text style={styles.recentDialogCancelText}>취소</Text>
+                  </Pressable>
+                  <Pressable
+                    accessibilityRole="button"
+                    disabled={
+                      recentDialog.type === 'rename' && !renameDraft.trim()
+                    }
+                    onPress={
+                      recentDialog.type === 'rename'
+                        ? handleSubmitRename
+                        : recentDialog.type === 'move'
+                          ? handleConfirmMove
+                          : handleConfirmDelete
+                    }
+                    style={({ pressed }) => [
+                      styles.recentDialogButton,
+                      styles.recentDialogPrimaryButton,
+                      recentDialog.type === 'delete' &&
+                        styles.recentDialogDeleteButton,
+                      pressed && styles.menuButtonPressed,
+                      recentDialog.type === 'rename' &&
+                        !renameDraft.trim() &&
+                        styles.recentDialogButtonDisabled,
+                    ]}
+                  >
+                    <Text style={styles.recentDialogPrimaryText}>
+                      {recentDialog.type === 'rename'
+                        ? '저장'
+                        : recentDialog.type === 'move'
+                          ? '이동'
+                          : '삭제'}
+                    </Text>
+                  </Pressable>
+                </View>
+              </View>
+            </View>
+          ) : null}
         </SafeAreaView>
       </Animated.View>
     </Modal>
+  );
+}
+
+function RecentActionButton({
+  destructive,
+  icon,
+  label,
+  onPress,
+}: {
+  destructive?: boolean;
+  icon: IconDefinition;
+  label: string;
+  onPress: () => void;
+}) {
+  const foreground = destructive ? colors.destructive : colors.foreground;
+
+  return (
+    <Pressable
+      accessibilityRole="button"
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.recentActionRow,
+        pressed && styles.menuRowPressed,
+      ]}
+    >
+      <View style={styles.recentActionIcon}>
+        <AppIcon color={foreground} icon={icon} size={17} />
+      </View>
+      <Text
+        style={[
+          styles.recentActionLabel,
+          destructive && styles.recentActionDestructiveLabel,
+        ]}
+      >
+        {label}
+      </Text>
+    </Pressable>
   );
 }
 
@@ -696,6 +1070,7 @@ const styles = StyleSheet.create({
   menuSafeArea: {
     backgroundColor: colors.card,
     flex: 1,
+    position: 'relative',
   },
   menuBackground: {
     backgroundColor: colors.card,
@@ -792,15 +1167,183 @@ const styles = StyleSheet.create({
     lineHeight: 21,
   },
   menuRecentRow: {
-    justifyContent: 'center',
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     minHeight: 48,
   },
   menuRecentLabel: {
     ...typography.body,
     color: colors.foreground,
+    flex: 1,
     fontSize: 16,
     fontWeight: '400',
     lineHeight: 22,
+    paddingRight: 12,
+  },
+  recentActionLayer: {
+    bottom: 0,
+    justifyContent: 'flex-end',
+    left: 0,
+    position: 'absolute',
+    right: 0,
+    top: 0,
+    zIndex: 30,
+  },
+  recentActionBackdrop: {
+    backgroundColor: 'rgba(21,25,34,0.16)',
+    bottom: 0,
+    left: 0,
+    position: 'absolute',
+    right: 0,
+    top: 0,
+  },
+  recentActionSheet: {
+    backgroundColor: colors.card,
+    borderColor: colors.border,
+    borderRadius: 18,
+    borderWidth: StyleSheet.hairlineWidth,
+    marginBottom: 14,
+    marginHorizontal: 14,
+    overflow: 'hidden',
+    paddingBottom: 8,
+    paddingTop: 10,
+  },
+  recentActionTitle: {
+    ...typography.caption,
+    color: colors.mutedForeground,
+    fontSize: 12,
+    fontWeight: '700',
+    lineHeight: 16,
+    paddingHorizontal: 18,
+    paddingVertical: 8,
+  },
+  recentActionRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    minHeight: 50,
+    paddingHorizontal: 18,
+  },
+  recentActionIcon: {
+    alignItems: 'center',
+    height: 28,
+    justifyContent: 'center',
+    marginRight: 12,
+    width: 24,
+  },
+  recentActionLabel: {
+    ...typography.label,
+    color: colors.foreground,
+    flex: 1,
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  recentActionDestructiveLabel: {
+    color: colors.destructive,
+  },
+  recentDialogLayer: {
+    alignItems: 'center',
+    bottom: 0,
+    justifyContent: 'center',
+    left: 0,
+    paddingHorizontal: 22,
+    position: 'absolute',
+    right: 0,
+    top: 0,
+    zIndex: 40,
+  },
+  recentDialogBackdrop: {
+    backgroundColor: 'rgba(21,25,34,0.24)',
+    bottom: 0,
+    left: 0,
+    position: 'absolute',
+    right: 0,
+    top: 0,
+  },
+  recentDialogCard: {
+    backgroundColor: colors.card,
+    borderColor: colors.border,
+    borderRadius: 18,
+    borderWidth: StyleSheet.hairlineWidth,
+    padding: 18,
+    width: '100%',
+  },
+  recentDialogTitle: {
+    ...typography.label,
+    color: colors.foreground,
+    fontSize: 18,
+    fontWeight: '800',
+    lineHeight: 24,
+    marginBottom: 14,
+  },
+  recentDialogInput: {
+    ...typography.body,
+    backgroundColor: colors.muted,
+    borderColor: colors.input,
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+    color: colors.foreground,
+    fontSize: 16,
+    minHeight: 46,
+    paddingHorizontal: 14,
+  },
+  recentDialogMessage: {
+    ...typography.body,
+    color: colors.mutedForeground,
+    fontSize: 15,
+    fontWeight: '500',
+    lineHeight: 21,
+  },
+  recentDialogFolderTarget: {
+    alignItems: 'center',
+    backgroundColor: colors.muted,
+    borderRadius: 12,
+    flexDirection: 'row',
+    marginTop: 14,
+    minHeight: 44,
+    paddingHorizontal: 14,
+  },
+  recentDialogFolderText: {
+    ...typography.label,
+    color: colors.foreground,
+    fontSize: 15,
+    fontWeight: '700',
+    marginLeft: 10,
+  },
+  recentDialogActions: {
+    flexDirection: 'row',
+    gap: 10,
+    justifyContent: 'flex-end',
+    marginTop: 18,
+  },
+  recentDialogButton: {
+    alignItems: 'center',
+    borderRadius: 12,
+    justifyContent: 'center',
+    minHeight: 42,
+    minWidth: 74,
+    paddingHorizontal: 14,
+  },
+  recentDialogPrimaryButton: {
+    backgroundColor: colors.foreground,
+  },
+  recentDialogDeleteButton: {
+    backgroundColor: colors.destructive,
+  },
+  recentDialogButtonDisabled: {
+    opacity: 0.36,
+  },
+  recentDialogCancelText: {
+    ...typography.label,
+    color: colors.mutedForeground,
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  recentDialogPrimaryText: {
+    ...typography.label,
+    color: colors.primaryForeground,
+    fontSize: 15,
+    fontWeight: '800',
   },
 });
 

@@ -93,6 +93,11 @@ type ChatSession = {
   title: string;
 };
 
+type WorkFolder = {
+  id: string;
+  title: string;
+};
+
 type RecentSessionDialog =
   | { session: ChatSession; type: 'rename' }
   | { session: ChatSession; type: 'move' }
@@ -182,6 +187,7 @@ function App() {
   const [workFolderSessions, setWorkFolderSessions] = useState<ChatSession[]>(
     [],
   );
+  const [workFolders, setWorkFolders] = useState<WorkFolder[]>([]);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isModelMenuOpen, setIsModelMenuOpen] = useState(false);
   const [chatInstanceKey, setChatInstanceKey] = useState(0);
@@ -284,6 +290,21 @@ function App() {
 
       return [...current, { ...movedSession, pinned: false }];
     });
+  };
+
+  const handleCreateWorkFolder = (title: string) => {
+    const nextTitle = title.trim();
+    if (!nextTitle) {
+      return;
+    }
+
+    setWorkFolders(current => [
+      ...current,
+      {
+        id: `work-folder-${Date.now()}`,
+        title: nextTitle,
+      },
+    ]);
   };
 
   const handleDeleteSession = (sessionId: string) => {
@@ -431,6 +452,7 @@ function App() {
           </View>
 
           <FullScreenMenu
+            onCreateWorkFolder={handleCreateWorkFolder}
             onDeleteSession={handleDeleteSession}
             onClose={() => setIsMenuOpen(false)}
             onMoveSessionToWorkFolder={handleMoveSessionToWorkFolder}
@@ -441,6 +463,7 @@ function App() {
             onTogglePinnedSession={handleTogglePinnedSession}
             recentSessions={sortedRecentSessions}
             visible={isMenuOpen}
+            workFolders={workFolders}
             workFolderSessions={workFolderSessions}
           />
         </SafeAreaView>
@@ -451,6 +474,7 @@ function App() {
 
 function FullScreenMenu({
   onClose,
+  onCreateWorkFolder,
   onDeleteSession,
   onMoveSessionToWorkFolder,
   onNewChat,
@@ -460,9 +484,11 @@ function FullScreenMenu({
   onTogglePinnedSession,
   recentSessions,
   visible,
+  workFolders,
   workFolderSessions,
 }: {
   onClose: () => void;
+  onCreateWorkFolder: (title: string) => void;
   onDeleteSession: (sessionId: string) => void;
   onMoveSessionToWorkFolder: (sessionId: string) => void;
   onNewChat: () => void;
@@ -472,6 +498,7 @@ function FullScreenMenu({
   onTogglePinnedSession: (sessionId: string) => void;
   recentSessions: ChatSession[];
   visible: boolean;
+  workFolders: WorkFolder[];
   workFolderSessions: ChatSession[];
 }) {
   const { width } = useWindowDimensions();
@@ -482,6 +509,8 @@ function FullScreenMenu({
   const [recentDialog, setRecentDialog] =
     useState<RecentSessionDialog | null>(null);
   const [renameDraft, setRenameDraft] = useState('');
+  const [isWorkFolderDialogOpen, setIsWorkFolderDialogOpen] = useState(false);
+  const [workFolderDraft, setWorkFolderDraft] = useState('');
 
   useEffect(() => {
     if (visible) {
@@ -520,6 +549,8 @@ function FullScreenMenu({
     setActionSheetSession(null);
     setRecentDialog(null);
     setRenameDraft('');
+    setIsWorkFolderDialogOpen(false);
+    setWorkFolderDraft('');
   }, [visible]);
 
   if (!isRendered) {
@@ -543,6 +574,26 @@ function FullScreenMenu({
   const handleCloseRecentDialog = () => {
     setRecentDialog(null);
     setRenameDraft('');
+  };
+
+  const handleOpenWorkFolderDialog = () => {
+    setActionSheetSession(null);
+    setIsWorkFolderDialogOpen(true);
+  };
+
+  const handleCloseWorkFolderDialog = () => {
+    setIsWorkFolderDialogOpen(false);
+    setWorkFolderDraft('');
+  };
+
+  const handleSubmitWorkFolder = () => {
+    const nextTitle = workFolderDraft.trim();
+    if (!nextTitle) {
+      return;
+    }
+
+    onCreateWorkFolder(nextTitle);
+    handleCloseWorkFolderDialog();
   };
 
   const handleSubmitRename = () => {
@@ -662,8 +713,17 @@ function FullScreenMenu({
               <MenuRow
                 icon={workFolderRows[0].icon}
                 label={workFolderRows[0].label}
-                onPress={onNewChat}
+                onPress={handleOpenWorkFolderDialog}
               />
+              {workFolders.map(folder => (
+                <MenuRow
+                  icon={faFolder}
+                  iconColor={colors.foreground}
+                  key={folder.id}
+                  label={folder.title}
+                  onPress={() => onSelectSession(folder.title, folder.id)}
+                />
+              ))}
               {workFolderSessions.map(session => (
                 <MenuRow
                   icon={faFolder}
@@ -754,6 +814,74 @@ function FullScreenMenu({
               })}
             </View>
           </ScrollView>
+
+          {!isWorkFolderDialogOpen && !recentDialog ? (
+            <Pressable
+              accessibilityLabel="새로운 채팅"
+              accessibilityRole="button"
+              onPress={onNewChat}
+              style={({ pressed }) => [
+                styles.newChatFloatingButton,
+                pressed && styles.menuButtonPressed,
+              ]}
+            >
+              <AppIcon
+                color={colors.primaryForeground}
+                icon={faPen}
+                size={15}
+              />
+              <Text style={styles.newChatFloatingText}>새로운 채팅</Text>
+            </Pressable>
+          ) : null}
+
+          {isWorkFolderDialogOpen ? (
+            <View style={styles.recentDialogLayer}>
+              <Pressable
+                accessibilityLabel="작업 폴더 만들기 닫기"
+                onPress={handleCloseWorkFolderDialog}
+                style={styles.recentDialogBackdrop}
+              />
+              <View style={styles.recentDialogCard}>
+                <Text style={styles.recentDialogTitle}>새 작업 폴더</Text>
+                <RNTextInput
+                  accessibilityLabel="작업 폴더 이름"
+                  autoFocus
+                  onChangeText={setWorkFolderDraft}
+                  placeholder="작업 폴더 이름"
+                  placeholderTextColor={colors.mutedForeground}
+                  returnKeyType="done"
+                  style={styles.recentDialogInput}
+                  value={workFolderDraft}
+                />
+                <View style={styles.recentDialogActions}>
+                  <Pressable
+                    accessibilityRole="button"
+                    onPress={handleCloseWorkFolderDialog}
+                    style={({ pressed }) => [
+                      styles.recentDialogButton,
+                      pressed && styles.menuButtonPressed,
+                    ]}
+                  >
+                    <Text style={styles.recentDialogCancelText}>취소</Text>
+                  </Pressable>
+                  <Pressable
+                    accessibilityRole="button"
+                    disabled={!workFolderDraft.trim()}
+                    onPress={handleSubmitWorkFolder}
+                    style={({ pressed }) => [
+                      styles.recentDialogButton,
+                      styles.recentDialogPrimaryButton,
+                      pressed && styles.menuButtonPressed,
+                      !workFolderDraft.trim() &&
+                        styles.recentDialogButtonDisabled,
+                    ]}
+                  >
+                    <Text style={styles.recentDialogPrimaryText}>만들기</Text>
+                  </Pressable>
+                </View>
+              </View>
+            </View>
+          ) : null}
 
           {recentDialog ? (
             <View style={styles.recentDialogLayer}>
@@ -1115,7 +1243,7 @@ const styles = StyleSheet.create({
     width: 34,
   },
   menuScrollContent: {
-    paddingBottom: 32,
+    paddingBottom: 104,
     paddingHorizontal: MENU_HORIZONTAL_PADDING,
     paddingTop: 22,
   },
@@ -1220,6 +1348,30 @@ const styles = StyleSheet.create({
   },
   recentActionDestructiveLabel: {
     color: colors.destructive,
+  },
+  newChatFloatingButton: {
+    alignItems: 'center',
+    backgroundColor: colors.foreground,
+    borderRadius: 18,
+    bottom: 22,
+    elevation: 32,
+    flexDirection: 'row',
+    minHeight: 44,
+    paddingHorizontal: 16,
+    position: 'absolute',
+    right: 22,
+    shadowColor: '#000000',
+    shadowOffset: { height: 10, width: 0 },
+    shadowOpacity: 0.18,
+    shadowRadius: 18,
+    zIndex: 35,
+  },
+  newChatFloatingText: {
+    ...typography.label,
+    color: colors.primaryForeground,
+    fontSize: 14,
+    fontWeight: '800',
+    marginLeft: 8,
   },
   recentDialogLayer: {
     alignItems: 'center',

@@ -1,24 +1,4 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import {
-  faBars,
-  faBolt,
-  faBrain,
-  faCheck,
-  faChevronDown,
-  faFolder,
-  faFolderPlus,
-  faGear,
-  faGrip,
-  faImages,
-  faLayerGroup,
-  faMagnifyingGlass,
-  faPen,
-  faPodcast,
-  faThumbtack,
-  faTrash,
-  faTerminal,
-  faWandMagicSparkles,
-} from '@fortawesome/free-solid-svg-icons';
 import { IconDefinition } from '@fortawesome/fontawesome-svg-core';
 import {
   Animated,
@@ -45,6 +25,7 @@ import {
   DisplaySettingsProvider,
   ScaledText as Text,
 } from './src/theme/display';
+import { appIcons } from './src/theme/icons';
 import { colors, typography } from './src/theme/tokens';
 import logoSource from './src/assets/logo.png';
 
@@ -115,37 +96,37 @@ const MODEL_MENU_WIDTH = 252;
 const WEB_APP_MAX_WIDTH = 430;
 const MENU_HORIZONTAL_PADDING = 24;
 const MENU_HEADER_LOGO_LEFT_OFFSET = -16;
-const MENU_HEADER_ICON_SIZE = 20;
+const MENU_HEADER_ICON_SIZE = 18;
 
 const modelOptions: ModelOption[] = [
   {
     detail: '빠르고 균형 잡힌 성능',
-    icon: faWandMagicSparkles,
+    icon: appIcons.modelBalanced,
     id: 'gemma-4',
     label: 'Gemma 4',
   },
   {
     detail: '가볍고 빠른 응답',
-    icon: faBolt,
+    icon: appIcons.modelFast,
     id: 'gemma-lite',
     label: 'Gemma 4 Lite',
   },
   {
     detail: '복잡한 추론에 최적화',
-    icon: faBrain,
+    icon: appIcons.modelDeep,
     id: 'gemma-deep',
     label: 'Gemma 4 Deep',
   },
   {
     detail: '작업에 맞춰 자동 선택',
-    icon: faLayerGroup,
+    icon: appIcons.modelAuto,
     id: 'auto',
     label: 'Auto',
   },
   {
     action: 'settings',
     detail: '다운로드 및 상태 확인',
-    icon: faGear,
+    icon: appIcons.modelManage,
     id: 'manage',
     label: '모델 관리',
   },
@@ -153,26 +134,26 @@ const modelOptions: ModelOption[] = [
 
 const mainMenuRows: MenuIconRow[] = [
   {
-    icon: faImages,
+    icon: appIcons.menuImage,
     label: '이미지',
   },
   {
-    icon: faPodcast,
+    icon: appIcons.menuPulse,
     label: 'Pulse',
   },
   {
-    icon: faTerminal,
+    icon: appIcons.menuCodex,
     label: 'Codex',
   },
   {
-    icon: faGrip,
+    icon: appIcons.menuApps,
     label: '앱',
   },
 ];
 
 const workFolderRows: MenuIconRow[] = [
   {
-    icon: faFolderPlus,
+    icon: appIcons.newFolder,
     label: '새 작업 폴더',
   },
 ];
@@ -352,7 +333,11 @@ function App() {
                   pressed && styles.menuButtonPressed,
                 ]}
               >
-                <AppIcon color={colors.foreground} icon={faBars} size={22} />
+                <AppIcon
+                  color={colors.foreground}
+                  icon={appIcons.navigationMenu}
+                  size={20}
+                />
               </Pressable>
             </View>
 
@@ -376,7 +361,7 @@ function App() {
                 </Text>
                 <AppIcon
                   color={colors.mutedForeground}
-                  icon={faChevronDown}
+                  icon={appIcons.chevronDown}
                   size={10}
                 />
               </Pressable>
@@ -425,8 +410,8 @@ function App() {
                         {isSelected ? (
                           <AppIcon
                             color={colors.primary}
-                            icon={faCheck}
-                            size={18}
+                            icon={appIcons.selected}
+                            size={16}
                           />
                         ) : null}
                       </Pressable>
@@ -721,7 +706,7 @@ function FullScreenMenu({
               >
                 <AppIcon
                   color={colors.foreground}
-                  icon={faMagnifyingGlass}
+                  icon={appIcons.search}
                   size={MENU_HEADER_ICON_SIZE}
                 />
               </Pressable>
@@ -736,7 +721,7 @@ function FullScreenMenu({
               >
                 <AppIcon
                   color={colors.foreground}
-                  icon={faGear}
+                  icon={appIcons.settings}
                   size={MENU_HEADER_ICON_SIZE}
                 />
               </Pressable>
@@ -772,7 +757,7 @@ function FullScreenMenu({
               />
               {workFolders.map(folder => (
                 <MenuRow
-                  icon={faFolder}
+                  icon={appIcons.folder}
                   iconColor={colors.foreground}
                   key={folder.id}
                   label={folder.title}
@@ -781,7 +766,7 @@ function FullScreenMenu({
               ))}
               {workFolderSessions.map(session => (
                 <MenuRow
-                  icon={faFolder}
+                  icon={appIcons.folder}
                   iconColor={colors.mutedForeground}
                   key={session.id}
                   label={session.title}
@@ -826,7 +811,7 @@ function FullScreenMenu({
                       {session.pinned ? (
                         <AppIcon
                           color={colors.primary}
-                          icon={faThumbtack}
+                          icon={appIcons.pin}
                           size={14}
                         />
                       ) : null}
@@ -835,14 +820,14 @@ function FullScreenMenu({
                     {isActionMenuOpen ? (
                       <View style={styles.recentInlineActionMenu}>
                         <RecentActionButton
-                          icon={faPen}
+                          icon={appIcons.rename}
                           label="이름 바꾸기"
                           onPress={() =>
                             handleOpenRecentDialog('rename', session)
                           }
                         />
                         <RecentActionButton
-                          icon={faThumbtack}
+                          icon={appIcons.pin}
                           label={session.pinned ? '채팅 고정 해제' : '채팅 고정'}
                           onPress={() => {
                             onTogglePinnedSession(session.id);
@@ -850,13 +835,13 @@ function FullScreenMenu({
                           }}
                         />
                         <RecentActionButton
-                          icon={faFolder}
+                          icon={appIcons.moveToFolder}
                           label="작업 폴더로 이동"
                           onPress={() => handleOpenRecentDialog('move', session)}
                         />
                         <RecentActionButton
                           destructive
-                          icon={faTrash}
+                          icon={appIcons.delete}
                           label="삭제"
                           onPress={() =>
                             handleOpenRecentDialog('delete', session)
@@ -882,7 +867,7 @@ function FullScreenMenu({
             >
               <AppIcon
                 color={colors.primaryForeground}
-                icon={faPen}
+                icon={appIcons.newChat}
                 size={15}
               />
               <Text style={styles.newChatFloatingText}>새로운 채팅</Text>
@@ -901,7 +886,7 @@ function FullScreenMenu({
                 <View style={styles.searchInputWrap}>
                   <AppIcon
                     color={colors.mutedForeground}
-                    icon={faMagnifyingGlass}
+                    icon={appIcons.search}
                     size={15}
                   />
                   <RNTextInput
@@ -935,7 +920,9 @@ function FullScreenMenu({
                           <AppIcon
                             color={colors.foreground}
                             icon={
-                              result.type === 'folder' ? faFolder : faTerminal
+                              result.type === 'folder'
+                                ? appIcons.folder
+                                : appIcons.session
                             }
                             size={16}
                           />
@@ -1050,7 +1037,7 @@ function FullScreenMenu({
                   <View style={styles.recentDialogFolderTarget}>
                     <AppIcon
                       color={colors.foreground}
-                      icon={faFolder}
+                      icon={appIcons.folder}
                       size={16}
                     />
                     <Text style={styles.recentDialogFolderText}>
@@ -1133,7 +1120,7 @@ function RecentActionButton({
       ]}
     >
       <View style={styles.recentActionIcon}>
-        <AppIcon color={foreground} icon={icon} size={17} />
+        <AppIcon color={foreground} icon={icon} size={16} />
       </View>
       <Text
         style={[
@@ -1163,7 +1150,7 @@ function MenuRow({
       ]}
     >
       <View style={styles.menuIconSlot}>
-        {icon ? <AppIcon color={iconColor} icon={icon} size={22} /> : null}
+        {icon ? <AppIcon color={iconColor} icon={icon} size={20} /> : null}
       </View>
       <View style={styles.menuRowCopy}>
         <Text numberOfLines={1} style={styles.menuRowLabel}>

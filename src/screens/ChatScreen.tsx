@@ -6,15 +6,6 @@ import React, {
   useState,
 } from 'react';
 import {
-  faArrowUp,
-  faAt,
-  faBolt,
-  faChevronDown,
-  faChevronRight,
-  faGlobe,
-  faPaperclip,
-} from '@fortawesome/free-solid-svg-icons';
-import {
   Keyboard,
   KeyboardAvoidingView,
   KeyboardEvent,
@@ -33,6 +24,7 @@ import {
   ScaledText as Text,
   ScaledTextInput as TextInput,
 } from '../theme/display';
+import { appIcons } from '../theme/icons';
 import { colors, typography } from '../theme/tokens';
 
 type Message = {
@@ -323,7 +315,7 @@ function ChatScreen({
                   </View>
                   <AppIcon
                     color={colors.primary}
-                    icon={faChevronRight}
+                    icon={appIcons.openPrompt}
                     size={14}
                   />
                 </Pressable>
@@ -374,7 +366,11 @@ function ChatScreen({
               pressed && styles.promptRowPressed,
             ]}
           >
-            <AppIcon color={colors.mutedForeground} icon={faAt} size={18} />
+            <AppIcon
+              color={colors.mutedForeground}
+              icon={appIcons.addContext}
+              size={17}
+            />
             <Text style={styles.contextText}>Add context</Text>
           </Pressable>
 
@@ -399,8 +395,8 @@ function ChatScreen({
               >
                 <AppIcon
                   color={colors.mutedForeground}
-                  icon={faPaperclip}
-                  size={21}
+                  icon={appIcons.attachment}
+                  size={19}
                 />
               </Pressable>
               <Pressable
@@ -411,11 +407,15 @@ function ChatScreen({
                   pressed && styles.promptRowPressed,
                 ]}
               >
-                <AppIcon color={colors.foreground} icon={faBolt} size={15} />
+                <AppIcon
+                  color={colors.foreground}
+                  icon={appIcons.autoMode}
+                  size={14}
+                />
                 <Text style={styles.textToolLabel}>Auto</Text>
                 <AppIcon
                   color={colors.mutedForeground}
-                  icon={faChevronDown}
+                  icon={appIcons.chevronDown}
                   size={9}
                 />
               </Pressable>
@@ -429,13 +429,13 @@ function ChatScreen({
               >
                 <AppIcon
                   color={colors.mutedForeground}
-                  icon={faGlobe}
-                  size={22}
+                  icon={appIcons.sources}
+                  size={20}
                 />
                 <Text style={styles.textToolLabel}>All Sources</Text>
                 <AppIcon
                   color={colors.mutedForeground}
-                  icon={faChevronDown}
+                  icon={appIcons.chevronDown}
                   size={9}
                 />
               </Pressable>
@@ -452,7 +452,7 @@ function ChatScreen({
                 (!draft.trim() || isGenerating) && styles.sendButtonDisabled,
               ]}
             >
-              <AppIcon color={colors.card} icon={faArrowUp} size={22} />
+              <AppIcon color={colors.card} icon={appIcons.send} size={20} />
             </Pressable>
           </View>
         </View>

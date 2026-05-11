@@ -1,10 +1,10 @@
 import React from 'react';
-import { faWandMagicSparkles } from '@fortawesome/free-solid-svg-icons';
 import { Image, ImageSourcePropType, StyleSheet, View } from 'react-native';
 
 import AppIcon from './AppIcon';
 import { Button } from './ui';
 import { ScaledText as Text } from '../theme/display';
+import { appIcons } from '../theme/icons';
 import { colors, typography } from '../theme/tokens';
 
 export type ChatRole = 'assistant' | 'user' | 'system';
@@ -53,7 +53,7 @@ function ChatBubble({
       <View style={styles.avatarIcon}>
         <AppIcon
           color={colors.accentForeground}
-          icon={faWandMagicSparkles}
+          icon={appIcons.chatAssistant}
           size={13}
         />
       </View>

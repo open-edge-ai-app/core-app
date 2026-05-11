@@ -1,11 +1,11 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { faCheck } from '@fortawesome/free-solid-svg-icons';
 import { Pressable, ScrollView, StyleSheet, Switch, View } from 'react-native';
 
 import AppIcon from '../components/AppIcon';
 import { Badge, Button, Separator } from '../components/ui';
 import AIEngine, { IndexingStatus, ModelStatus, RuntimeStatus } from '../native/AIEngine';
 import { ScaledText as Text, useDisplaySettings } from '../theme/display';
+import { appIcons } from '../theme/icons';
 import { colors, typography } from '../theme/tokens';
 
 const defaultStatus: IndexingStatus = {
@@ -133,7 +133,11 @@ function Settings() {
                   </Text>
                 </View>
                 {isSelected ? (
-                  <AppIcon color={colors.primary} icon={faCheck} size={17} />
+                  <AppIcon
+                    color={colors.primary}
+                    icon={appIcons.selected}
+                    size={16}
+                  />
                 ) : null}
               </Pressable>
             );

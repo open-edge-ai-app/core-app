@@ -16,7 +16,7 @@ export const colors = {
   ring: '#A5ACB7',
   success: '#34C759',
   warning: '#FF9500',
-  destructive: '#FF3B30',
+  destructive: '#B3262D',
 };
 
 export const radii = {

@@ -2594,10 +2594,14 @@ const styles = StyleSheet.create({
     color: colors.mutedForeground,
   },
   workFolderSelectMenu: {
+    backgroundColor: colors.card,
+    borderColor: '#D9DEE8',
+    borderWidth: 1,
     left: 0,
     position: 'absolute',
     right: 0,
-    top: 52,
+    shadowOpacity: 0.18,
+    top: 46,
   },
   workFolderSelectOption: {
     alignItems: 'center',

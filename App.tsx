@@ -905,6 +905,8 @@ function FullScreenMenu({
   const [workFolderDraft, setWorkFolderDraft] = useState('');
   const [selectedWorkFolderIconId, setSelectedWorkFolderIconId] =
     useState<WorkFolderIconId>(DEFAULT_WORK_FOLDER_ICON_ID);
+  const [isWorkFolderIconMenuOpen, setIsWorkFolderIconMenuOpen] =
+    useState(false);
   const [selectedWorkFolderId, setSelectedWorkFolderId] = useState<
     string | null
   >(null);
@@ -916,6 +918,14 @@ function FullScreenMenu({
     () =>
       workFolders.find(folder => folder.id === selectedWorkFolderId) ?? null,
     [selectedWorkFolderId, workFolders],
+  );
+
+  const selectedWorkFolderIcon = useMemo(
+    () =>
+      workFolderIconOptions.find(
+        option => option.id === selectedWorkFolderIconId,
+      ) ?? workFolderIconOptions[0],
+    [selectedWorkFolderIconId],
   );
 
   const searchResults = useMemo(() => {
@@ -1010,6 +1020,7 @@ function FullScreenMenu({
     setIsWorkFolderDialogOpen(false);
     setWorkFolderDraft('');
     setSelectedWorkFolderIconId(DEFAULT_WORK_FOLDER_ICON_ID);
+    setIsWorkFolderIconMenuOpen(false);
     setSelectedWorkFolderId(null);
     setIsWorkFolderSelectOpen(false);
     setIsSearchDialogOpen(false);
@@ -1161,6 +1172,7 @@ function FullScreenMenu({
   const handleOpenWorkFolderDialog = () => {
     closeRecentActionMenu();
     setSelectedWorkFolderIconId(DEFAULT_WORK_FOLDER_ICON_ID);
+    setIsWorkFolderIconMenuOpen(false);
     setIsWorkFolderDialogOpen(true);
   };
 
@@ -1168,6 +1180,7 @@ function FullScreenMenu({
     setIsWorkFolderDialogOpen(false);
     setWorkFolderDraft('');
     setSelectedWorkFolderIconId(DEFAULT_WORK_FOLDER_ICON_ID);
+    setIsWorkFolderIconMenuOpen(false);
   };
 
   const handleSubmitWorkFolder = () => {
@@ -1178,6 +1191,11 @@ function FullScreenMenu({
 
     onCreateWorkFolder(nextTitle, selectedWorkFolderIconId);
     handleCloseWorkFolderDialog();
+  };
+
+  const handleSelectWorkFolderIcon = (iconId: WorkFolderIconId) => {
+    setSelectedWorkFolderIconId(iconId);
+    setIsWorkFolderIconMenuOpen(false);
   };
 
   const handleSubmitRename = () => {
@@ -1554,9 +1572,58 @@ function FullScreenMenu({
                 />
                 <View style={styles.recentDialogCard}>
                   <Text style={styles.recentDialogTitle}>새 작업 폴더</Text>
-                  <View style={styles.workFolderIconPicker}>
-                    <Text style={styles.workFolderIconPickerLabel}>아이콘</Text>
-                    <View style={styles.workFolderIconGrid}>
+                  <View style={styles.workFolderNameRow}>
+                    <Pressable
+                      accessibilityLabel="작업 폴더 아이콘 변경"
+                      accessibilityRole="button"
+                      accessibilityState={{
+                        expanded: isWorkFolderIconMenuOpen,
+                      }}
+                      onPress={() =>
+                        setIsWorkFolderIconMenuOpen(current => !current)
+                      }
+                      style={({ pressed }) => [
+                        styles.workFolderIconChangeButton,
+                        isWorkFolderIconMenuOpen &&
+                          styles.workFolderIconChangeButtonActive,
+                        pressed && styles.menuButtonPressed,
+                      ]}
+                    >
+                      <AppIcon
+                        color={
+                          isWorkFolderIconMenuOpen
+                            ? colors.primaryForeground
+                            : colors.foreground
+                        }
+                        icon={selectedWorkFolderIcon.icon}
+                        size={17}
+                      />
+                      <AppIcon
+                        color={
+                          isWorkFolderIconMenuOpen
+                            ? colors.primaryForeground
+                            : colors.mutedForeground
+                        }
+                        icon={appIcons.chevronDown}
+                        size={9}
+                      />
+                    </Pressable>
+                    <RNTextInput
+                      accessibilityLabel="작업 폴더 이름"
+                      autoFocus
+                      onChangeText={setWorkFolderDraft}
+                      placeholder="작업 폴더 이름"
+                      placeholderTextColor={colors.mutedForeground}
+                      returnKeyType="done"
+                      style={[
+                        styles.recentDialogInput,
+                        styles.workFolderNameInput,
+                      ]}
+                      value={workFolderDraft}
+                    />
+                  </View>
+                  {isWorkFolderIconMenuOpen ? (
+                    <View style={styles.workFolderIconMenu}>
                       {workFolderIconOptions.map(option => {
                         const isSelected =
                           option.id === selectedWorkFolderIconId;
@@ -1568,38 +1635,40 @@ function FullScreenMenu({
                             accessibilityState={{ selected: isSelected }}
                             key={option.id}
                             onPress={() =>
-                              setSelectedWorkFolderIconId(option.id)
+                              handleSelectWorkFolderIcon(option.id)
                             }
                             style={({ pressed }) => [
-                              styles.workFolderIconOption,
-                              isSelected && styles.workFolderIconOptionActive,
-                              pressed && styles.menuButtonPressed,
+                              styles.workFolderIconMenuRow,
+                              isSelected && styles.workFolderIconMenuRowActive,
+                              pressed && styles.menuRowPressed,
                             ]}
                           >
-                            <AppIcon
-                              color={
-                                isSelected
-                                  ? colors.primaryForeground
-                                  : colors.foreground
-                              }
-                              icon={option.icon}
-                              size={17}
-                            />
+                            <View style={styles.workFolderIconMenuValue}>
+                              <AppIcon
+                                color={
+                                  isSelected
+                                    ? colors.primary
+                                    : colors.foreground
+                                }
+                                icon={option.icon}
+                                size={15}
+                              />
+                              <Text style={styles.workFolderIconMenuLabel}>
+                                {option.label}
+                              </Text>
+                            </View>
+                            {isSelected ? (
+                              <AppIcon
+                                color={colors.primary}
+                                icon={appIcons.selected}
+                                size={15}
+                              />
+                            ) : null}
                           </Pressable>
                         );
                       })}
                     </View>
-                  </View>
-                  <RNTextInput
-                    accessibilityLabel="작업 폴더 이름"
-                    autoFocus
-                    onChangeText={setWorkFolderDraft}
-                    placeholder="작업 폴더 이름"
-                    placeholderTextColor={colors.mutedForeground}
-                    returnKeyType="done"
-                    style={styles.recentDialogInput}
-                    value={workFolderDraft}
-                  />
+                  ) : null}
                   <View style={styles.recentDialogActions}>
                     <Pressable
                       accessibilityRole="button"
@@ -2294,34 +2363,62 @@ const styles = StyleSheet.create({
     minHeight: 46,
     paddingHorizontal: 14,
   },
-  workFolderIconPicker: {
-    marginBottom: 14,
-  },
-  workFolderIconPickerLabel: {
-    ...typography.caption,
-    color: colors.mutedForeground,
-    fontSize: 12,
-    fontWeight: '700',
-    marginBottom: 9,
-  },
-  workFolderIconGrid: {
+  workFolderNameRow: {
+    alignItems: 'center',
     flexDirection: 'row',
-    flexWrap: 'wrap',
     gap: 10,
   },
-  workFolderIconOption: {
+  workFolderIconChangeButton: {
     alignItems: 'center',
     backgroundColor: colors.muted,
     borderColor: colors.input,
-    borderRadius: 17,
+    borderRadius: 12,
     borderWidth: StyleSheet.hairlineWidth,
-    height: 36,
+    flexDirection: 'row',
+    gap: 6,
+    height: 46,
     justifyContent: 'center',
-    width: 36,
+    width: 58,
   },
-  workFolderIconOptionActive: {
+  workFolderIconChangeButtonActive: {
     backgroundColor: colors.foreground,
     borderColor: colors.foreground,
+  },
+  workFolderNameInput: {
+    flex: 1,
+  },
+  workFolderIconMenu: {
+    backgroundColor: colors.card,
+    borderColor: colors.border,
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+    marginTop: 10,
+    overflow: 'hidden',
+  },
+  workFolderIconMenuRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    minHeight: 42,
+    paddingHorizontal: 12,
+  },
+  workFolderIconMenuRowActive: {
+    backgroundColor: 'rgba(0,122,255,0.08)',
+  },
+  workFolderIconMenuValue: {
+    alignItems: 'center',
+    flex: 1,
+    flexDirection: 'row',
+    minWidth: 0,
+    paddingRight: 10,
+  },
+  workFolderIconMenuLabel: {
+    ...typography.label,
+    color: colors.foreground,
+    flex: 1,
+    fontSize: 14,
+    fontWeight: '700',
+    marginLeft: 10,
   },
   searchInputWrap: {
     alignItems: 'center',

@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { IconDefinition } from '@fortawesome/fontawesome-svg-core';
+import type { GestureResponderEvent, LayoutChangeEvent } from 'react-native';
 import {
   Animated,
   Easing,
@@ -85,6 +86,21 @@ type MenuSearchResult = {
   type: 'folder' | 'session';
 };
 
+type RecentActionMenuAnchor = {
+  x: number;
+  y: number;
+};
+
+type RecentActionMenuPosition = {
+  left: number;
+  top: number;
+};
+
+type RecentActionMenuSize = {
+  height: number;
+  width: number;
+};
+
 type RecentSessionDialog =
   | { session: ChatSession; type: 'rename' }
   | { session: ChatSession; type: 'move' }
@@ -97,6 +113,10 @@ const WEB_APP_MAX_WIDTH = 430;
 const MENU_HORIZONTAL_PADDING = 24;
 const MENU_HEADER_LOGO_LEFT_OFFSET = -16;
 const MENU_HEADER_ICON_SIZE = 18;
+const RECENT_ACTION_MENU_EDGE_GAP = 16;
+const RECENT_ACTION_MENU_OFFSET = 10;
+const RECENT_ACTION_MENU_WIDTH = 214;
+const RECENT_ACTION_MENU_HEIGHT = 160;
 
 const modelOptions: ModelOption[] = [
   {
@@ -492,13 +512,22 @@ function FullScreenMenu({
   workFolders: WorkFolder[];
   workFolderSessions: ChatSession[];
 }) {
-  const { width } = useWindowDimensions();
+  const { height: windowHeight, width } = useWindowDimensions();
   const slideX = useRef(new Animated.Value(-width)).current;
+  const menuFrameRef = useRef<React.ElementRef<typeof View>>(null);
+  const actionMenuAnchorRef = useRef<RecentActionMenuAnchor | null>(null);
   const [isRendered, setIsRendered] = useState(visible);
   const [actionSheetSession, setActionSheetSession] =
     useState<ChatSession | null>(null);
-  const [recentDialog, setRecentDialog] =
-    useState<RecentSessionDialog | null>(null);
+  const [actionSheetPosition, setActionSheetPosition] =
+    useState<RecentActionMenuPosition | null>(null);
+  const [menuFrameSize, setMenuFrameSize] = useState<RecentActionMenuSize>({
+    height: windowHeight,
+    width,
+  });
+  const [recentDialog, setRecentDialog] = useState<RecentSessionDialog | null>(
+    null,
+  );
   const [renameDraft, setRenameDraft] = useState('');
   const [isWorkFolderDialogOpen, setIsWorkFolderDialogOpen] = useState(false);
   const [workFolderDraft, setWorkFolderDraft] = useState('');
@@ -569,6 +598,8 @@ function FullScreenMenu({
     }
 
     setActionSheetSession(null);
+    setActionSheetPosition(null);
+    actionMenuAnchorRef.current = null;
     setRecentDialog(null);
     setRenameDraft('');
     setIsWorkFolderDialogOpen(false);
@@ -581,6 +612,104 @@ function FullScreenMenu({
     return null;
   }
 
+  const clamp = (value: number, minimum: number, maximum: number) =>
+    Math.min(Math.max(value, minimum), Math.max(minimum, maximum));
+
+  const getBoundedActionMenuPosition = (
+    anchor: RecentActionMenuAnchor,
+    size: RecentActionMenuSize = {
+      height: RECENT_ACTION_MENU_HEIGHT,
+      width: RECENT_ACTION_MENU_WIDTH,
+    },
+  ): RecentActionMenuPosition => {
+    const frameWidth = menuFrameSize.width || width;
+    const frameHeight = menuFrameSize.height || windowHeight;
+    const maxLeft = frameWidth - size.width - RECENT_ACTION_MENU_EDGE_GAP;
+    const maxTop = frameHeight - size.height - RECENT_ACTION_MENU_EDGE_GAP;
+
+    let left = anchor.x + RECENT_ACTION_MENU_OFFSET;
+    if (left > maxLeft) {
+      left = anchor.x - size.width - RECENT_ACTION_MENU_OFFSET;
+    }
+    if (left < RECENT_ACTION_MENU_EDGE_GAP || left > maxLeft) {
+      left = anchor.x - size.width / 2;
+    }
+
+    let top = anchor.y + RECENT_ACTION_MENU_OFFSET;
+    if (top > maxTop) {
+      top = anchor.y - size.height - RECENT_ACTION_MENU_OFFSET;
+    }
+    if (top < RECENT_ACTION_MENU_EDGE_GAP || top > maxTop) {
+      top = anchor.y - size.height / 2;
+    }
+
+    return {
+      left: clamp(left, RECENT_ACTION_MENU_EDGE_GAP, maxLeft),
+      top: clamp(top, RECENT_ACTION_MENU_EDGE_GAP, maxTop),
+    };
+  };
+
+  const closeRecentActionMenu = () => {
+    setActionSheetSession(null);
+    setActionSheetPosition(null);
+    actionMenuAnchorRef.current = null;
+  };
+
+  const handleMenuFrameLayout = (event: LayoutChangeEvent) => {
+    const { height, width: frameWidth } = event.nativeEvent.layout;
+    setMenuFrameSize({ height, width: frameWidth });
+  };
+
+  const handleRecentActionMenuLayout = (event: LayoutChangeEvent) => {
+    const anchor = actionMenuAnchorRef.current;
+    if (!anchor) {
+      return;
+    }
+
+    const nextPosition = getBoundedActionMenuPosition(anchor, {
+      height: event.nativeEvent.layout.height,
+      width: event.nativeEvent.layout.width,
+    });
+
+    setActionSheetPosition(current => {
+      if (
+        current &&
+        Math.abs(current.left - nextPosition.left) < 1 &&
+        Math.abs(current.top - nextPosition.top) < 1
+      ) {
+        return current;
+      }
+
+      return nextPosition;
+    });
+  };
+
+  const handleOpenRecentActionMenu = (
+    event: GestureResponderEvent,
+    session: ChatSession,
+  ) => {
+    const { pageX, pageY } = event.nativeEvent;
+    const fallbackAnchor = { x: pageX, y: pageY };
+
+    const openMenu = (anchor: RecentActionMenuAnchor) => {
+      actionMenuAnchorRef.current = anchor;
+      setActionSheetPosition(getBoundedActionMenuPosition(anchor));
+      setActionSheetSession(session);
+    };
+
+    if (!menuFrameRef.current?.measureInWindow) {
+      openMenu(fallbackAnchor);
+      return;
+    }
+
+    menuFrameRef.current.measureInWindow((frameX, frameY) => {
+      openMenu({
+        x: pageX - frameX,
+        y: pageY - frameY,
+      });
+    });
+  };
+
   const handleOpenSettingsFromMenu = () => {
     onOpenSettings();
     setIsRendered(false);
@@ -590,7 +719,7 @@ function FullScreenMenu({
     type: RecentSessionDialog['type'],
     session: ChatSession,
   ) => {
-    setActionSheetSession(null);
+    closeRecentActionMenu();
     setRecentDialog({ session, type } as RecentSessionDialog);
     setRenameDraft(session.title);
   };
@@ -601,7 +730,7 @@ function FullScreenMenu({
   };
 
   const handleOpenSearchDialog = () => {
-    setActionSheetSession(null);
+    closeRecentActionMenu();
     setIsSearchDialogOpen(true);
   };
 
@@ -616,7 +745,7 @@ function FullScreenMenu({
   };
 
   const handleOpenWorkFolderDialog = () => {
-    setActionSheetSession(null);
+    closeRecentActionMenu();
     setIsWorkFolderDialogOpen(true);
   };
 
@@ -685,412 +814,443 @@ function FullScreenMenu({
         ]}
       >
         <SafeAreaView style={styles.menuSafeArea}>
-          <View style={styles.menuBackground} />
-
-          <View style={styles.menuHeader}>
-            <Image
-              accessibilityIgnoresInvertColors
-              resizeMode="contain"
-              source={logoSource}
-              style={styles.menuHeaderLogo}
-            />
-            <View style={styles.menuHeaderActions}>
-              <Pressable
-                accessibilityLabel="검색"
-                accessibilityRole="button"
-                onPress={handleOpenSearchDialog}
-                style={({ pressed }) => [
-                  styles.menuSearchButton,
-                  pressed && styles.menuButtonPressed,
-                ]}
-              >
-                <AppIcon
-                  color={colors.foreground}
-                  icon={appIcons.search}
-                  size={MENU_HEADER_ICON_SIZE}
-                />
-              </Pressable>
-              <Pressable
-                accessibilityLabel="설정"
-                accessibilityRole="button"
-                onPress={handleOpenSettingsFromMenu}
-                style={({ pressed }) => [
-                  styles.menuSettingsButton,
-                  pressed && styles.menuButtonPressed,
-                ]}
-              >
-                <AppIcon
-                  color={colors.foreground}
-                  icon={appIcons.settings}
-                  size={MENU_HEADER_ICON_SIZE}
-                />
-              </Pressable>
-            </View>
-          </View>
-
-          <ScrollView
-            contentContainerStyle={styles.menuScrollContent}
-            onScrollBeginDrag={() => setActionSheetSession(null)}
-            showsVerticalScrollIndicator={false}
+          <View
+            onLayout={handleMenuFrameLayout}
+            ref={menuFrameRef}
+            style={styles.menuFrame}
           >
-            <View style={styles.menuPrimaryList}>
-              {mainMenuRows.map(row => (
-                <MenuRow
-                  icon={row.icon}
-                  key={row.label}
-                  label={row.label}
-                  onPress={
-                    row.label === '앱'
-                      ? handleOpenSettingsFromMenu
-                      : () => onSelectSession(row.label)
-                  }
-                />
-              ))}
-            </View>
+            <View style={styles.menuBackground} />
 
-            <View style={styles.menuSectionBlock}>
-              <Text style={styles.menuSectionTitle}>작업 폴더</Text>
-              <MenuRow
-                icon={workFolderRows[0].icon}
-                label={workFolderRows[0].label}
-                onPress={handleOpenWorkFolderDialog}
+            <View style={styles.menuHeader}>
+              <Image
+                accessibilityIgnoresInvertColors
+                resizeMode="contain"
+                source={logoSource}
+                style={styles.menuHeaderLogo}
               />
-              {workFolders.map(folder => (
-                <MenuRow
-                  icon={appIcons.folder}
-                  iconColor={colors.foreground}
-                  key={folder.id}
-                  label={folder.title}
-                  onPress={() => onSelectSession(folder.title, folder.id)}
-                />
-              ))}
-              {workFolderSessions.map(session => (
-                <MenuRow
-                  icon={appIcons.folder}
-                  iconColor={colors.mutedForeground}
-                  key={session.id}
-                  label={session.title}
-                  onPress={() => onSelectSession(session.title, session.id)}
-                />
-              ))}
-              {workFolderRows.slice(1).map(row => (
-                <MenuRow
-                  icon={row.icon}
-                  iconColor={row.iconColor}
-                  key={row.label}
-                  label={row.label}
-                  onPress={() => onSelectSession(row.label)}
-                />
-              ))}
-            </View>
-
-            <View style={[styles.menuSectionBlock, styles.menuRecentSection]}>
-              <Text style={styles.menuSectionTitle}>최근</Text>
-              {recentSessions.map(session => {
-                const isActionMenuOpen = actionSheetSession?.id === session.id;
-
-                return (
-                  <View key={session.id} style={styles.menuRecentItem}>
-                    <Pressable
-                      accessibilityRole="button"
-                      delayLongPress={360}
-                      onLongPress={() => setActionSheetSession(session)}
-                      onPress={() => {
-                        setActionSheetSession(null);
-                        onSelectSession(session.title, session.id);
-                      }}
-                      style={({ pressed }) => [
-                        styles.menuRecentRow,
-                        isActionMenuOpen && styles.menuRecentRowActive,
-                        pressed && styles.menuRowPressed,
-                      ]}
-                    >
-                      <Text numberOfLines={1} style={styles.menuRecentLabel}>
-                        {session.title}
-                      </Text>
-                      {session.pinned ? (
-                        <AppIcon
-                          color={colors.primary}
-                          icon={appIcons.pin}
-                          size={14}
-                        />
-                      ) : null}
-                    </Pressable>
-
-                    {isActionMenuOpen ? (
-                      <View style={styles.recentInlineActionMenu}>
-                        <RecentActionButton
-                          icon={appIcons.rename}
-                          label="이름 바꾸기"
-                          onPress={() =>
-                            handleOpenRecentDialog('rename', session)
-                          }
-                        />
-                        <RecentActionButton
-                          icon={appIcons.pin}
-                          label={session.pinned ? '채팅 고정 해제' : '채팅 고정'}
-                          onPress={() => {
-                            onTogglePinnedSession(session.id);
-                            setActionSheetSession(null);
-                          }}
-                        />
-                        <RecentActionButton
-                          icon={appIcons.moveToFolder}
-                          label="작업 폴더로 이동"
-                          onPress={() => handleOpenRecentDialog('move', session)}
-                        />
-                        <RecentActionButton
-                          destructive
-                          icon={appIcons.delete}
-                          label="삭제"
-                          onPress={() =>
-                            handleOpenRecentDialog('delete', session)
-                          }
-                        />
-                      </View>
-                    ) : null}
-                  </View>
-                );
-              })}
-            </View>
-          </ScrollView>
-
-          {!isWorkFolderDialogOpen && !recentDialog && !isSearchDialogOpen ? (
-            <Pressable
-              accessibilityLabel="새로운 채팅"
-              accessibilityRole="button"
-              onPress={onNewChat}
-              style={({ pressed }) => [
-                styles.newChatFloatingButton,
-                pressed && styles.menuButtonPressed,
-              ]}
-            >
-              <AppIcon
-                color={colors.primaryForeground}
-                icon={appIcons.newChat}
-                size={15}
-              />
-              <Text style={styles.newChatFloatingText}>새로운 채팅</Text>
-            </Pressable>
-          ) : null}
-
-          {isSearchDialogOpen ? (
-            <View style={styles.recentDialogLayer}>
-              <Pressable
-                accessibilityLabel="검색 닫기"
-                onPress={handleCloseSearchDialog}
-                style={styles.recentDialogBackdrop}
-              />
-              <View style={[styles.recentDialogCard, styles.searchDialogCard]}>
-                <Text style={styles.recentDialogTitle}>검색</Text>
-                <View style={styles.searchInputWrap}>
-                  <AppIcon
-                    color={colors.mutedForeground}
-                    icon={appIcons.search}
-                    size={15}
-                  />
-                  <RNTextInput
-                    accessibilityLabel="폴더와 채팅 세션 검색"
-                    autoFocus
-                    onChangeText={setSearchDraft}
-                    placeholder="폴더, 채팅 세션 검색"
-                    placeholderTextColor={colors.mutedForeground}
-                    returnKeyType="search"
-                    style={styles.searchInput}
-                    value={searchDraft}
-                  />
-                </View>
-                <ScrollView
-                  keyboardShouldPersistTaps="handled"
-                  showsVerticalScrollIndicator={false}
-                  style={styles.searchResultsList}
+              <View style={styles.menuHeaderActions}>
+                <Pressable
+                  accessibilityLabel="검색"
+                  accessibilityRole="button"
+                  onPress={handleOpenSearchDialog}
+                  style={({ pressed }) => [
+                    styles.menuSearchButton,
+                    pressed && styles.menuButtonPressed,
+                  ]}
                 >
-                  {searchResults.length > 0 ? (
-                    searchResults.map(result => (
+                  <AppIcon
+                    color={colors.foreground}
+                    icon={appIcons.search}
+                    size={MENU_HEADER_ICON_SIZE}
+                  />
+                </Pressable>
+                <Pressable
+                  accessibilityLabel="설정"
+                  accessibilityRole="button"
+                  onPress={handleOpenSettingsFromMenu}
+                  style={({ pressed }) => [
+                    styles.menuSettingsButton,
+                    pressed && styles.menuButtonPressed,
+                  ]}
+                >
+                  <AppIcon
+                    color={colors.foreground}
+                    icon={appIcons.settings}
+                    size={MENU_HEADER_ICON_SIZE}
+                  />
+                </Pressable>
+              </View>
+            </View>
+
+            <ScrollView
+              contentContainerStyle={styles.menuScrollContent}
+              onScrollBeginDrag={closeRecentActionMenu}
+              showsVerticalScrollIndicator={false}
+            >
+              <View style={styles.menuPrimaryList}>
+                {mainMenuRows.map(row => (
+                  <MenuRow
+                    icon={row.icon}
+                    key={row.label}
+                    label={row.label}
+                    onPress={
+                      row.label === '앱'
+                        ? handleOpenSettingsFromMenu
+                        : () => onSelectSession(row.label)
+                    }
+                  />
+                ))}
+              </View>
+
+              <View style={styles.menuSectionBlock}>
+                <Text style={styles.menuSectionTitle}>작업 폴더</Text>
+                <MenuRow
+                  icon={workFolderRows[0].icon}
+                  label={workFolderRows[0].label}
+                  onPress={handleOpenWorkFolderDialog}
+                />
+                {workFolders.map(folder => (
+                  <MenuRow
+                    icon={appIcons.folder}
+                    iconColor={colors.foreground}
+                    key={folder.id}
+                    label={folder.title}
+                    onPress={() => onSelectSession(folder.title, folder.id)}
+                  />
+                ))}
+                {workFolderSessions.map(session => (
+                  <MenuRow
+                    icon={appIcons.folder}
+                    iconColor={colors.mutedForeground}
+                    key={session.id}
+                    label={session.title}
+                    onPress={() => onSelectSession(session.title, session.id)}
+                  />
+                ))}
+                {workFolderRows.slice(1).map(row => (
+                  <MenuRow
+                    icon={row.icon}
+                    iconColor={row.iconColor}
+                    key={row.label}
+                    label={row.label}
+                    onPress={() => onSelectSession(row.label)}
+                  />
+                ))}
+              </View>
+
+              <View style={[styles.menuSectionBlock, styles.menuRecentSection]}>
+                <Text style={styles.menuSectionTitle}>최근</Text>
+                {recentSessions.map(session => {
+                  const isActionMenuOpen =
+                    actionSheetSession?.id === session.id;
+
+                  return (
+                    <View key={session.id} style={styles.menuRecentItem}>
                       <Pressable
                         accessibilityRole="button"
-                        key={`${result.type}-${result.id}`}
-                        onPress={() => handleSelectSearchResult(result)}
+                        delayLongPress={360}
+                        onLongPress={event =>
+                          handleOpenRecentActionMenu(event, session)
+                        }
+                        onPress={() => {
+                          closeRecentActionMenu();
+                          onSelectSession(session.title, session.id);
+                        }}
                         style={({ pressed }) => [
-                          styles.searchResultRow,
+                          styles.menuRecentRow,
+                          isActionMenuOpen && styles.menuRecentRowActive,
                           pressed && styles.menuRowPressed,
                         ]}
                       >
-                        <View style={styles.searchResultIcon}>
+                        <Text numberOfLines={1} style={styles.menuRecentLabel}>
+                          {session.title}
+                        </Text>
+                        {session.pinned ? (
                           <AppIcon
-                            color={colors.foreground}
-                            icon={
-                              result.type === 'folder'
-                                ? appIcons.folder
-                                : appIcons.session
-                            }
-                            size={16}
+                            color={colors.primary}
+                            icon={appIcons.pin}
+                            size={14}
                           />
-                        </View>
-                        <View style={styles.searchResultCopy}>
-                          <Text
-                            numberOfLines={1}
-                            style={styles.searchResultTitle}
-                          >
-                            {result.title}
-                          </Text>
-                          <Text style={styles.searchResultMeta}>
-                            {result.type === 'folder'
-                              ? '작업 폴더'
-                              : '채팅 세션'}
-                          </Text>
-                        </View>
+                        ) : null}
                       </Pressable>
-                    ))
-                  ) : (
-                    <Text style={styles.searchEmptyText}>검색 결과 없음</Text>
-                  )}
-                </ScrollView>
+                    </View>
+                  );
+                })}
               </View>
-            </View>
-          ) : null}
+            </ScrollView>
 
-          {isWorkFolderDialogOpen ? (
-            <View style={styles.recentDialogLayer}>
-              <Pressable
-                accessibilityLabel="작업 폴더 만들기 닫기"
-                onPress={handleCloseWorkFolderDialog}
-                style={styles.recentDialogBackdrop}
-              />
-              <View style={styles.recentDialogCard}>
-                <Text style={styles.recentDialogTitle}>새 작업 폴더</Text>
-                <RNTextInput
-                  accessibilityLabel="작업 폴더 이름"
-                  autoFocus
-                  onChangeText={setWorkFolderDraft}
-                  placeholder="작업 폴더 이름"
-                  placeholderTextColor={colors.mutedForeground}
-                  returnKeyType="done"
-                  style={styles.recentDialogInput}
-                  value={workFolderDraft}
+            {actionSheetSession && actionSheetPosition ? (
+              <View pointerEvents="box-none" style={styles.recentActionLayer}>
+                <Pressable
+                  accessibilityLabel="채팅 세션 메뉴 닫기"
+                  onPress={closeRecentActionMenu}
+                  style={styles.recentActionBackdrop}
                 />
-                <View style={styles.recentDialogActions}>
-                  <Pressable
-                    accessibilityRole="button"
-                    onPress={handleCloseWorkFolderDialog}
-                    style={({ pressed }) => [
-                      styles.recentDialogButton,
-                      pressed && styles.menuButtonPressed,
-                    ]}
-                  >
-                    <Text style={styles.recentDialogCancelText}>취소</Text>
-                  </Pressable>
-                  <Pressable
-                    accessibilityRole="button"
-                    disabled={!workFolderDraft.trim()}
-                    onPress={handleSubmitWorkFolder}
-                    style={({ pressed }) => [
-                      styles.recentDialogButton,
-                      styles.recentDialogPrimaryButton,
-                      pressed && styles.menuButtonPressed,
-                      !workFolderDraft.trim() &&
-                        styles.recentDialogButtonDisabled,
-                    ]}
-                  >
-                    <Text style={styles.recentDialogPrimaryText}>만들기</Text>
-                  </Pressable>
+                <View
+                  onLayout={handleRecentActionMenuLayout}
+                  style={[
+                    styles.recentFloatingActionMenu,
+                    {
+                      left: actionSheetPosition.left,
+                      top: actionSheetPosition.top,
+                    },
+                  ]}
+                >
+                  <RecentActionButton
+                    icon={appIcons.rename}
+                    label="이름 바꾸기"
+                    onPress={() =>
+                      handleOpenRecentDialog('rename', actionSheetSession)
+                    }
+                  />
+                  <RecentActionButton
+                    icon={appIcons.pin}
+                    label={
+                      actionSheetSession.pinned ? '채팅 고정 해제' : '채팅 고정'
+                    }
+                    onPress={() => {
+                      onTogglePinnedSession(actionSheetSession.id);
+                      closeRecentActionMenu();
+                    }}
+                  />
+                  <RecentActionButton
+                    icon={appIcons.moveToFolder}
+                    label="작업 폴더로 이동"
+                    onPress={() =>
+                      handleOpenRecentDialog('move', actionSheetSession)
+                    }
+                  />
+                  <RecentActionButton
+                    destructive
+                    icon={appIcons.delete}
+                    label="삭제"
+                    onPress={() =>
+                      handleOpenRecentDialog('delete', actionSheetSession)
+                    }
+                  />
                 </View>
               </View>
-            </View>
-          ) : null}
+            ) : null}
 
-          {recentDialog ? (
-            <View style={styles.recentDialogLayer}>
+            {!isWorkFolderDialogOpen && !recentDialog && !isSearchDialogOpen ? (
               <Pressable
-                accessibilityLabel="최근 채팅 작업 닫기"
-                onPress={handleCloseRecentDialog}
-                style={styles.recentDialogBackdrop}
-              />
-              <View style={styles.recentDialogCard}>
-                <Text style={styles.recentDialogTitle}>
-                  {recentDialog.type === 'rename'
-                    ? '이름 바꾸기'
-                    : recentDialog.type === 'move'
-                      ? '작업 폴더로 이동'
-                      : '채팅 삭제'}
-                </Text>
-                {recentDialog.type === 'rename' ? (
+                accessibilityLabel="새로운 채팅"
+                accessibilityRole="button"
+                onPress={onNewChat}
+                style={({ pressed }) => [
+                  styles.newChatFloatingButton,
+                  pressed && styles.menuButtonPressed,
+                ]}
+              >
+                <AppIcon
+                  color={colors.primaryForeground}
+                  icon={appIcons.newChat}
+                  size={15}
+                />
+                <Text style={styles.newChatFloatingText}>새로운 채팅</Text>
+              </Pressable>
+            ) : null}
+
+            {isSearchDialogOpen ? (
+              <View style={styles.recentDialogLayer}>
+                <Pressable
+                  accessibilityLabel="검색 닫기"
+                  onPress={handleCloseSearchDialog}
+                  style={styles.recentDialogBackdrop}
+                />
+                <View
+                  style={[styles.recentDialogCard, styles.searchDialogCard]}
+                >
+                  <Text style={styles.recentDialogTitle}>검색</Text>
+                  <View style={styles.searchInputWrap}>
+                    <AppIcon
+                      color={colors.mutedForeground}
+                      icon={appIcons.search}
+                      size={15}
+                    />
+                    <RNTextInput
+                      accessibilityLabel="폴더와 채팅 세션 검색"
+                      autoFocus
+                      onChangeText={setSearchDraft}
+                      placeholder="폴더, 채팅 세션 검색"
+                      placeholderTextColor={colors.mutedForeground}
+                      returnKeyType="search"
+                      style={styles.searchInput}
+                      value={searchDraft}
+                    />
+                  </View>
+                  <ScrollView
+                    keyboardShouldPersistTaps="handled"
+                    showsVerticalScrollIndicator={false}
+                    style={styles.searchResultsList}
+                  >
+                    {searchResults.length > 0 ? (
+                      searchResults.map(result => (
+                        <Pressable
+                          accessibilityRole="button"
+                          key={`${result.type}-${result.id}`}
+                          onPress={() => handleSelectSearchResult(result)}
+                          style={({ pressed }) => [
+                            styles.searchResultRow,
+                            pressed && styles.menuRowPressed,
+                          ]}
+                        >
+                          <View style={styles.searchResultIcon}>
+                            <AppIcon
+                              color={colors.foreground}
+                              icon={
+                                result.type === 'folder'
+                                  ? appIcons.folder
+                                  : appIcons.session
+                              }
+                              size={16}
+                            />
+                          </View>
+                          <View style={styles.searchResultCopy}>
+                            <Text
+                              numberOfLines={1}
+                              style={styles.searchResultTitle}
+                            >
+                              {result.title}
+                            </Text>
+                            <Text style={styles.searchResultMeta}>
+                              {result.type === 'folder'
+                                ? '작업 폴더'
+                                : '채팅 세션'}
+                            </Text>
+                          </View>
+                        </Pressable>
+                      ))
+                    ) : (
+                      <Text style={styles.searchEmptyText}>검색 결과 없음</Text>
+                    )}
+                  </ScrollView>
+                </View>
+              </View>
+            ) : null}
+
+            {isWorkFolderDialogOpen ? (
+              <View style={styles.recentDialogLayer}>
+                <Pressable
+                  accessibilityLabel="작업 폴더 만들기 닫기"
+                  onPress={handleCloseWorkFolderDialog}
+                  style={styles.recentDialogBackdrop}
+                />
+                <View style={styles.recentDialogCard}>
+                  <Text style={styles.recentDialogTitle}>새 작업 폴더</Text>
                   <RNTextInput
-                    accessibilityLabel="채팅 이름"
+                    accessibilityLabel="작업 폴더 이름"
                     autoFocus
-                    onChangeText={setRenameDraft}
-                    onSubmitEditing={handleSubmitRename}
-                    placeholder="채팅 이름"
+                    onChangeText={setWorkFolderDraft}
+                    placeholder="작업 폴더 이름"
                     placeholderTextColor={colors.mutedForeground}
                     returnKeyType="done"
                     style={styles.recentDialogInput}
-                    value={renameDraft}
+                    value={workFolderDraft}
                   />
-                ) : (
-                  <Text style={styles.recentDialogMessage}>
-                    {recentDialog.type === 'move'
-                      ? '최근 목록에서 제거하고 작업 폴더에 추가합니다.'
-                      : '이 채팅 세션을 삭제할까요? 삭제 후에는 목록에서 사라집니다.'}
-                  </Text>
-                )}
-                {recentDialog.type === 'move' ? (
-                  <View style={styles.recentDialogFolderTarget}>
-                    <AppIcon
-                      color={colors.foreground}
-                      icon={appIcons.folder}
-                      size={16}
-                    />
-                    <Text style={styles.recentDialogFolderText}>
-                      기본 작업 폴더
-                    </Text>
+                  <View style={styles.recentDialogActions}>
+                    <Pressable
+                      accessibilityRole="button"
+                      onPress={handleCloseWorkFolderDialog}
+                      style={({ pressed }) => [
+                        styles.recentDialogButton,
+                        pressed && styles.menuButtonPressed,
+                      ]}
+                    >
+                      <Text style={styles.recentDialogCancelText}>취소</Text>
+                    </Pressable>
+                    <Pressable
+                      accessibilityRole="button"
+                      disabled={!workFolderDraft.trim()}
+                      onPress={handleSubmitWorkFolder}
+                      style={({ pressed }) => [
+                        styles.recentDialogButton,
+                        styles.recentDialogPrimaryButton,
+                        pressed && styles.menuButtonPressed,
+                        !workFolderDraft.trim() &&
+                          styles.recentDialogButtonDisabled,
+                      ]}
+                    >
+                      <Text style={styles.recentDialogPrimaryText}>만들기</Text>
+                    </Pressable>
                   </View>
-                ) : null}
-                <View style={styles.recentDialogActions}>
-                  <Pressable
-                    accessibilityRole="button"
-                    onPress={handleCloseRecentDialog}
-                    style={({ pressed }) => [
-                      styles.recentDialogButton,
-                      pressed && styles.menuButtonPressed,
-                    ]}
-                  >
-                    <Text style={styles.recentDialogCancelText}>취소</Text>
-                  </Pressable>
-                  <Pressable
-                    accessibilityRole="button"
-                    disabled={
-                      recentDialog.type === 'rename' && !renameDraft.trim()
-                    }
-                    onPress={
-                      recentDialog.type === 'rename'
-                        ? handleSubmitRename
-                        : recentDialog.type === 'move'
-                          ? handleConfirmMove
-                          : handleConfirmDelete
-                    }
-                    style={({ pressed }) => [
-                      styles.recentDialogButton,
-                      styles.recentDialogPrimaryButton,
-                      recentDialog.type === 'delete' &&
-                        styles.recentDialogDeleteButton,
-                      pressed && styles.menuButtonPressed,
-                      recentDialog.type === 'rename' &&
-                        !renameDraft.trim() &&
-                        styles.recentDialogButtonDisabled,
-                    ]}
-                  >
-                    <Text style={styles.recentDialogPrimaryText}>
-                      {recentDialog.type === 'rename'
-                        ? '저장'
-                        : recentDialog.type === 'move'
-                          ? '이동'
-                          : '삭제'}
-                    </Text>
-                  </Pressable>
                 </View>
               </View>
-            </View>
-          ) : null}
+            ) : null}
+
+            {recentDialog ? (
+              <View style={styles.recentDialogLayer}>
+                <Pressable
+                  accessibilityLabel="최근 채팅 작업 닫기"
+                  onPress={handleCloseRecentDialog}
+                  style={styles.recentDialogBackdrop}
+                />
+                <View style={styles.recentDialogCard}>
+                  <Text style={styles.recentDialogTitle}>
+                    {recentDialog.type === 'rename'
+                      ? '이름 바꾸기'
+                      : recentDialog.type === 'move'
+                      ? '작업 폴더로 이동'
+                      : '채팅 삭제'}
+                  </Text>
+                  {recentDialog.type === 'rename' ? (
+                    <RNTextInput
+                      accessibilityLabel="채팅 이름"
+                      autoFocus
+                      onChangeText={setRenameDraft}
+                      onSubmitEditing={handleSubmitRename}
+                      placeholder="채팅 이름"
+                      placeholderTextColor={colors.mutedForeground}
+                      returnKeyType="done"
+                      style={styles.recentDialogInput}
+                      value={renameDraft}
+                    />
+                  ) : (
+                    <Text style={styles.recentDialogMessage}>
+                      {recentDialog.type === 'move'
+                        ? '최근 목록에서 제거하고 작업 폴더에 추가합니다.'
+                        : '이 채팅 세션을 삭제할까요? 삭제 후에는 목록에서 사라집니다.'}
+                    </Text>
+                  )}
+                  {recentDialog.type === 'move' ? (
+                    <View style={styles.recentDialogFolderTarget}>
+                      <AppIcon
+                        color={colors.foreground}
+                        icon={appIcons.folder}
+                        size={16}
+                      />
+                      <Text style={styles.recentDialogFolderText}>
+                        기본 작업 폴더
+                      </Text>
+                    </View>
+                  ) : null}
+                  <View style={styles.recentDialogActions}>
+                    <Pressable
+                      accessibilityRole="button"
+                      onPress={handleCloseRecentDialog}
+                      style={({ pressed }) => [
+                        styles.recentDialogButton,
+                        pressed && styles.menuButtonPressed,
+                      ]}
+                    >
+                      <Text style={styles.recentDialogCancelText}>취소</Text>
+                    </Pressable>
+                    <Pressable
+                      accessibilityRole="button"
+                      disabled={
+                        recentDialog.type === 'rename' && !renameDraft.trim()
+                      }
+                      onPress={
+                        recentDialog.type === 'rename'
+                          ? handleSubmitRename
+                          : recentDialog.type === 'move'
+                          ? handleConfirmMove
+                          : handleConfirmDelete
+                      }
+                      style={({ pressed }) => [
+                        styles.recentDialogButton,
+                        styles.recentDialogPrimaryButton,
+                        recentDialog.type === 'delete' &&
+                          styles.recentDialogDeleteButton,
+                        pressed && styles.menuButtonPressed,
+                        recentDialog.type === 'rename' &&
+                          !renameDraft.trim() &&
+                          styles.recentDialogButtonDisabled,
+                      ]}
+                    >
+                      <Text style={styles.recentDialogPrimaryText}>
+                        {recentDialog.type === 'rename'
+                          ? '저장'
+                          : recentDialog.type === 'move'
+                          ? '이동'
+                          : '삭제'}
+                      </Text>
+                    </Pressable>
+                  </View>
+                </View>
+              </View>
+            ) : null}
+          </View>
         </SafeAreaView>
       </Animated.View>
     </Modal>
@@ -1312,6 +1472,10 @@ const styles = StyleSheet.create({
     flex: 1,
     position: 'relative',
   },
+  menuFrame: {
+    flex: 1,
+    position: 'relative',
+  },
   menuBackground: {
     backgroundColor: colors.card,
     bottom: 0,
@@ -1429,18 +1593,36 @@ const styles = StyleSheet.create({
     lineHeight: 22,
     paddingRight: 12,
   },
-  recentInlineActionMenu: {
-    alignSelf: 'flex-end',
+  recentActionLayer: {
+    bottom: 0,
+    left: 0,
+    position: 'absolute',
+    right: 0,
+    top: 0,
+    zIndex: 38,
+  },
+  recentActionBackdrop: {
+    bottom: 0,
+    left: 0,
+    position: 'absolute',
+    right: 0,
+    top: 0,
+  },
+  recentFloatingActionMenu: {
     backgroundColor: colors.card,
     borderColor: colors.border,
     borderRadius: 12,
     borderWidth: StyleSheet.hairlineWidth,
-    marginBottom: 8,
-    marginTop: 2,
-    maxWidth: 214,
-    minWidth: 188,
+    elevation: 28,
+    minWidth: RECENT_ACTION_MENU_WIDTH,
     overflow: 'hidden',
     paddingVertical: 4,
+    position: 'absolute',
+    shadowColor: '#000000',
+    shadowOffset: { height: 10, width: 0 },
+    shadowOpacity: 0.14,
+    shadowRadius: 18,
+    zIndex: 39,
   },
   recentActionRow: {
     alignItems: 'center',

@@ -73,6 +73,7 @@ type ChatSession = {
   id: string;
   pinned?: boolean;
   title: string;
+  workFolderId?: string;
 };
 
 type WorkFolder = {
@@ -279,7 +280,10 @@ function App() {
     );
   };
 
-  const handleMoveSessionToWorkFolder = (sessionId: string) => {
+  const handleMoveSessionToWorkFolder = (
+    sessionId: string,
+    workFolderId: string,
+  ) => {
     const movedSession = recentSessions.find(
       session => session.id === sessionId,
     );
@@ -292,10 +296,12 @@ function App() {
     );
     setWorkFolderSessions(current => {
       if (current.some(session => session.id === sessionId)) {
-        return current;
+        return current.map(session =>
+          session.id === sessionId ? { ...session, workFolderId } : session,
+        );
       }
 
-      return [...current, { ...movedSession, pinned: false }];
+      return [...current, { ...movedSession, pinned: false, workFolderId }];
     });
   };
 
@@ -501,7 +507,7 @@ function FullScreenMenu({
   onClose: () => void;
   onCreateWorkFolder: (title: string) => void;
   onDeleteSession: (sessionId: string) => void;
-  onMoveSessionToWorkFolder: (sessionId: string) => void;
+  onMoveSessionToWorkFolder: (sessionId: string, workFolderId: string) => void;
   onNewChat: () => void;
   onOpenSettings: () => void;
   onRenameSession: (sessionId: string, title: string) => void;
@@ -531,8 +537,18 @@ function FullScreenMenu({
   const [renameDraft, setRenameDraft] = useState('');
   const [isWorkFolderDialogOpen, setIsWorkFolderDialogOpen] = useState(false);
   const [workFolderDraft, setWorkFolderDraft] = useState('');
+  const [selectedWorkFolderId, setSelectedWorkFolderId] = useState<
+    string | null
+  >(null);
+  const [isWorkFolderSelectOpen, setIsWorkFolderSelectOpen] = useState(false);
   const [isSearchDialogOpen, setIsSearchDialogOpen] = useState(false);
   const [searchDraft, setSearchDraft] = useState('');
+
+  const selectedWorkFolder = useMemo(
+    () =>
+      workFolders.find(folder => folder.id === selectedWorkFolderId) ?? null,
+    [selectedWorkFolderId, workFolders],
+  );
 
   const searchResults = useMemo(() => {
     const query = searchDraft.trim().toLowerCase();
@@ -562,6 +578,26 @@ function FullScreenMenu({
       candidate.title.toLowerCase().includes(query),
     );
   }, [recentSessions, searchDraft, workFolders, workFolderSessions]);
+
+  useEffect(() => {
+    if (recentDialog?.type !== 'move') {
+      return;
+    }
+
+    if (workFolders.length === 0) {
+      setSelectedWorkFolderId(null);
+      setIsWorkFolderSelectOpen(false);
+      return;
+    }
+
+    setSelectedWorkFolderId(current => {
+      if (current && workFolders.some(folder => folder.id === current)) {
+        return current;
+      }
+
+      return workFolders[0].id;
+    });
+  }, [recentDialog?.type, workFolders]);
 
   useEffect(() => {
     if (visible) {
@@ -604,6 +640,8 @@ function FullScreenMenu({
     setRenameDraft('');
     setIsWorkFolderDialogOpen(false);
     setWorkFolderDraft('');
+    setSelectedWorkFolderId(null);
+    setIsWorkFolderSelectOpen(false);
     setIsSearchDialogOpen(false);
     setSearchDraft('');
   }, [visible]);
@@ -722,11 +760,17 @@ function FullScreenMenu({
     closeRecentActionMenu();
     setRecentDialog({ session, type } as RecentSessionDialog);
     setRenameDraft(session.title);
+    setIsWorkFolderSelectOpen(false);
+    setSelectedWorkFolderId(
+      type === 'move' ? workFolders[0]?.id ?? null : null,
+    );
   };
 
   const handleCloseRecentDialog = () => {
     setRecentDialog(null);
     setRenameDraft('');
+    setSelectedWorkFolderId(null);
+    setIsWorkFolderSelectOpen(false);
   };
 
   const handleOpenSearchDialog = () => {
@@ -779,11 +823,11 @@ function FullScreenMenu({
   };
 
   const handleConfirmMove = () => {
-    if (recentDialog?.type !== 'move') {
+    if (recentDialog?.type !== 'move' || !selectedWorkFolderId) {
       return;
     }
 
-    onMoveSessionToWorkFolder(recentDialog.session.id);
+    onMoveSessionToWorkFolder(recentDialog.session.id, selectedWorkFolderId);
     handleCloseRecentDialog();
   };
 
@@ -795,6 +839,10 @@ function FullScreenMenu({
     onDeleteSession(recentDialog.session.id);
     handleCloseRecentDialog();
   };
+
+  const isRecentDialogPrimaryDisabled =
+    (recentDialog?.type === 'rename' && !renameDraft.trim()) ||
+    (recentDialog?.type === 'move' && !selectedWorkFolderId);
 
   return (
     <Modal
@@ -890,23 +938,39 @@ function FullScreenMenu({
                   onPress={handleOpenWorkFolderDialog}
                 />
                 {workFolders.map(folder => (
-                  <MenuRow
-                    icon={appIcons.folder}
-                    iconColor={colors.foreground}
-                    key={folder.id}
-                    label={folder.title}
-                    onPress={() => onSelectSession(folder.title, folder.id)}
-                  />
+                  <React.Fragment key={folder.id}>
+                    <MenuRow
+                      icon={appIcons.folder}
+                      iconColor={colors.foreground}
+                      label={folder.title}
+                      onPress={() => onSelectSession(folder.title, folder.id)}
+                    />
+                    {workFolderSessions
+                      .filter(session => session.workFolderId === folder.id)
+                      .map(session => (
+                        <MenuRow
+                          icon={appIcons.session}
+                          iconColor={colors.mutedForeground}
+                          key={session.id}
+                          label={session.title}
+                          onPress={() =>
+                            onSelectSession(session.title, session.id)
+                          }
+                        />
+                      ))}
+                  </React.Fragment>
                 ))}
-                {workFolderSessions.map(session => (
-                  <MenuRow
-                    icon={appIcons.folder}
-                    iconColor={colors.mutedForeground}
-                    key={session.id}
-                    label={session.title}
-                    onPress={() => onSelectSession(session.title, session.id)}
-                  />
-                ))}
+                {workFolderSessions
+                  .filter(session => !session.workFolderId)
+                  .map(session => (
+                    <MenuRow
+                      icon={appIcons.session}
+                      iconColor={colors.mutedForeground}
+                      key={session.id}
+                      label={session.title}
+                      onPress={() => onSelectSession(session.title, session.id)}
+                    />
+                  ))}
                 {workFolderRows.slice(1).map(row => (
                   <MenuRow
                     icon={row.icon}
@@ -1185,25 +1249,109 @@ function FullScreenMenu({
                       style={styles.recentDialogInput}
                       value={renameDraft}
                     />
+                  ) : recentDialog.type === 'move' ? (
+                    <View>
+                      <Text style={styles.recentDialogMessage}>
+                        최근 목록에서 제거하고 선택한 작업 폴더에 추가합니다.
+                      </Text>
+                      <View style={styles.workFolderSelectBlock}>
+                        <Text style={styles.workFolderSelectLabel}>
+                          이동할 작업 폴더
+                        </Text>
+                        <Pressable
+                          accessibilityLabel="작업 폴더 선택"
+                          accessibilityRole="button"
+                          disabled={workFolders.length === 0}
+                          onPress={() =>
+                            setIsWorkFolderSelectOpen(current => !current)
+                          }
+                          style={({ pressed }) => [
+                            styles.workFolderSelectTrigger,
+                            pressed && styles.menuButtonPressed,
+                            workFolders.length === 0 &&
+                              styles.workFolderSelectDisabled,
+                          ]}
+                        >
+                          <View style={styles.workFolderSelectValue}>
+                            <AppIcon
+                              color={
+                                selectedWorkFolder
+                                  ? colors.foreground
+                                  : colors.mutedForeground
+                              }
+                              icon={appIcons.folder}
+                              size={16}
+                            />
+                            <Text
+                              numberOfLines={1}
+                              style={[
+                                styles.workFolderSelectText,
+                                !selectedWorkFolder &&
+                                  styles.workFolderSelectPlaceholder,
+                              ]}
+                            >
+                              {selectedWorkFolder?.title ?? '작업 폴더 없음'}
+                            </Text>
+                          </View>
+                          <AppIcon
+                            color={colors.mutedForeground}
+                            icon={appIcons.chevronDown}
+                            size={12}
+                          />
+                        </Pressable>
+                        {isWorkFolderSelectOpen && workFolders.length > 0 ? (
+                          <View style={styles.workFolderSelectMenu}>
+                            {workFolders.map(folder => {
+                              const isSelected =
+                                folder.id === selectedWorkFolderId;
+
+                              return (
+                                <Pressable
+                                  accessibilityRole="button"
+                                  accessibilityState={{ selected: isSelected }}
+                                  key={folder.id}
+                                  onPress={() => {
+                                    setSelectedWorkFolderId(folder.id);
+                                    setIsWorkFolderSelectOpen(false);
+                                  }}
+                                  style={({ pressed }) => [
+                                    styles.workFolderSelectOption,
+                                    isSelected &&
+                                      styles.workFolderSelectOptionSelected,
+                                    pressed && styles.menuRowPressed,
+                                  ]}
+                                >
+                                  <Text
+                                    numberOfLines={1}
+                                    style={styles.workFolderSelectOptionText}
+                                  >
+                                    {folder.title}
+                                  </Text>
+                                  {isSelected ? (
+                                    <AppIcon
+                                      color={colors.primary}
+                                      icon={appIcons.selected}
+                                      size={15}
+                                    />
+                                  ) : null}
+                                </Pressable>
+                              );
+                            })}
+                          </View>
+                        ) : null}
+                        {workFolders.length === 0 ? (
+                          <Text style={styles.workFolderSelectHelp}>
+                            새 작업 폴더를 먼저 만들어주세요.
+                          </Text>
+                        ) : null}
+                      </View>
+                    </View>
                   ) : (
                     <Text style={styles.recentDialogMessage}>
-                      {recentDialog.type === 'move'
-                        ? '최근 목록에서 제거하고 작업 폴더에 추가합니다.'
-                        : '이 채팅 세션을 삭제할까요? 삭제 후에는 목록에서 사라집니다.'}
+                      이 채팅 세션을 삭제할까요? 삭제 후에는 목록에서
+                      사라집니다.
                     </Text>
                   )}
-                  {recentDialog.type === 'move' ? (
-                    <View style={styles.recentDialogFolderTarget}>
-                      <AppIcon
-                        color={colors.foreground}
-                        icon={appIcons.folder}
-                        size={16}
-                      />
-                      <Text style={styles.recentDialogFolderText}>
-                        기본 작업 폴더
-                      </Text>
-                    </View>
-                  ) : null}
                   <View style={styles.recentDialogActions}>
                     <Pressable
                       accessibilityRole="button"
@@ -1217,9 +1365,7 @@ function FullScreenMenu({
                     </Pressable>
                     <Pressable
                       accessibilityRole="button"
-                      disabled={
-                        recentDialog.type === 'rename' && !renameDraft.trim()
-                      }
+                      disabled={isRecentDialogPrimaryDisabled}
                       onPress={
                         recentDialog.type === 'rename'
                           ? handleSubmitRename
@@ -1233,8 +1379,7 @@ function FullScreenMenu({
                         recentDialog.type === 'delete' &&
                           styles.recentDialogDeleteButton,
                         pressed && styles.menuButtonPressed,
-                        recentDialog.type === 'rename' &&
-                          !renameDraft.trim() &&
+                        isRecentDialogPrimaryDisabled &&
                           styles.recentDialogButtonDisabled,
                       ]}
                     >
@@ -1674,6 +1819,7 @@ const styles = StyleSheet.create({
   recentDialogLayer: {
     alignItems: 'center',
     bottom: 0,
+    elevation: 80,
     justifyContent: 'center',
     left: 0,
     paddingHorizontal: 22,
@@ -1695,7 +1841,12 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     borderRadius: 18,
     borderWidth: StyleSheet.hairlineWidth,
+    elevation: 82,
     padding: 18,
+    shadowColor: '#000000',
+    shadowOffset: { height: 16, width: 0 },
+    shadowOpacity: 0.14,
+    shadowRadius: 28,
     width: '100%',
   },
   searchDialogCard: {
@@ -1788,21 +1939,80 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     lineHeight: 21,
   },
-  recentDialogFolderTarget: {
+  workFolderSelectBlock: {
+    marginTop: 14,
+  },
+  workFolderSelectLabel: {
+    ...typography.caption,
+    color: colors.mutedForeground,
+    fontSize: 12,
+    fontWeight: '700',
+    marginBottom: 8,
+  },
+  workFolderSelectTrigger: {
     alignItems: 'center',
     backgroundColor: colors.muted,
+    borderColor: colors.input,
     borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
     flexDirection: 'row',
-    marginTop: 14,
+    justifyContent: 'space-between',
     minHeight: 44,
     paddingHorizontal: 14,
   },
-  recentDialogFolderText: {
+  workFolderSelectDisabled: {
+    opacity: 0.58,
+  },
+  workFolderSelectValue: {
+    alignItems: 'center',
+    flex: 1,
+    flexDirection: 'row',
+    minWidth: 0,
+    paddingRight: 12,
+  },
+  workFolderSelectText: {
     ...typography.label,
     color: colors.foreground,
+    flex: 1,
     fontSize: 15,
     fontWeight: '700',
     marginLeft: 10,
+  },
+  workFolderSelectPlaceholder: {
+    color: colors.mutedForeground,
+  },
+  workFolderSelectMenu: {
+    backgroundColor: colors.card,
+    borderColor: colors.border,
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+    marginTop: 8,
+    overflow: 'hidden',
+  },
+  workFolderSelectOption: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    minHeight: 42,
+    paddingHorizontal: 12,
+  },
+  workFolderSelectOptionSelected: {
+    backgroundColor: 'rgba(0,122,255,0.08)',
+  },
+  workFolderSelectOptionText: {
+    ...typography.label,
+    color: colors.foreground,
+    flex: 1,
+    fontSize: 14,
+    fontWeight: '700',
+    paddingRight: 10,
+  },
+  workFolderSelectHelp: {
+    ...typography.caption,
+    color: colors.mutedForeground,
+    fontSize: 12,
+    fontWeight: '600',
+    marginTop: 8,
   },
   recentDialogActions: {
     flexDirection: 'row',

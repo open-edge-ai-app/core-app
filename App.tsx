@@ -98,6 +98,12 @@ type WorkFolder = {
   title: string;
 };
 
+type MenuSearchResult = {
+  id: string;
+  title: string;
+  type: 'folder' | 'session';
+};
+
 type RecentSessionDialog =
   | { session: ChatSession; type: 'rename' }
   | { session: ChatSession; type: 'move' }
@@ -511,6 +517,37 @@ function FullScreenMenu({
   const [renameDraft, setRenameDraft] = useState('');
   const [isWorkFolderDialogOpen, setIsWorkFolderDialogOpen] = useState(false);
   const [workFolderDraft, setWorkFolderDraft] = useState('');
+  const [isSearchDialogOpen, setIsSearchDialogOpen] = useState(false);
+  const [searchDraft, setSearchDraft] = useState('');
+
+  const searchResults = useMemo(() => {
+    const query = searchDraft.trim().toLowerCase();
+    const candidates: MenuSearchResult[] = [
+      ...workFolders.map(folder => ({
+        id: folder.id,
+        title: folder.title,
+        type: 'folder' as const,
+      })),
+      ...workFolderSessions.map(session => ({
+        id: session.id,
+        title: session.title,
+        type: 'session' as const,
+      })),
+      ...recentSessions.map(session => ({
+        id: session.id,
+        title: session.title,
+        type: 'session' as const,
+      })),
+    ];
+
+    if (!query) {
+      return candidates;
+    }
+
+    return candidates.filter(candidate =>
+      candidate.title.toLowerCase().includes(query),
+    );
+  }, [recentSessions, searchDraft, workFolders, workFolderSessions]);
 
   useEffect(() => {
     if (visible) {
@@ -551,6 +588,8 @@ function FullScreenMenu({
     setRenameDraft('');
     setIsWorkFolderDialogOpen(false);
     setWorkFolderDraft('');
+    setIsSearchDialogOpen(false);
+    setSearchDraft('');
   }, [visible]);
 
   if (!isRendered) {
@@ -574,6 +613,21 @@ function FullScreenMenu({
   const handleCloseRecentDialog = () => {
     setRecentDialog(null);
     setRenameDraft('');
+  };
+
+  const handleOpenSearchDialog = () => {
+    setActionSheetSession(null);
+    setIsSearchDialogOpen(true);
+  };
+
+  const handleCloseSearchDialog = () => {
+    setIsSearchDialogOpen(false);
+    setSearchDraft('');
+  };
+
+  const handleSelectSearchResult = (result: MenuSearchResult) => {
+    handleCloseSearchDialog();
+    onSelectSession(result.title, result.id);
   };
 
   const handleOpenWorkFolderDialog = () => {
@@ -659,6 +713,7 @@ function FullScreenMenu({
               <Pressable
                 accessibilityLabel="검색"
                 accessibilityRole="button"
+                onPress={handleOpenSearchDialog}
                 style={({ pressed }) => [
                   styles.menuSearchButton,
                   pressed && styles.menuButtonPressed,
@@ -815,7 +870,7 @@ function FullScreenMenu({
             </View>
           </ScrollView>
 
-          {!isWorkFolderDialogOpen && !recentDialog ? (
+          {!isWorkFolderDialogOpen && !recentDialog && !isSearchDialogOpen ? (
             <Pressable
               accessibilityLabel="새로운 채팅"
               accessibilityRole="button"
@@ -832,6 +887,80 @@ function FullScreenMenu({
               />
               <Text style={styles.newChatFloatingText}>새로운 채팅</Text>
             </Pressable>
+          ) : null}
+
+          {isSearchDialogOpen ? (
+            <View style={styles.recentDialogLayer}>
+              <Pressable
+                accessibilityLabel="검색 닫기"
+                onPress={handleCloseSearchDialog}
+                style={styles.recentDialogBackdrop}
+              />
+              <View style={[styles.recentDialogCard, styles.searchDialogCard]}>
+                <Text style={styles.recentDialogTitle}>검색</Text>
+                <View style={styles.searchInputWrap}>
+                  <AppIcon
+                    color={colors.mutedForeground}
+                    icon={faMagnifyingGlass}
+                    size={15}
+                  />
+                  <RNTextInput
+                    accessibilityLabel="폴더와 채팅 세션 검색"
+                    autoFocus
+                    onChangeText={setSearchDraft}
+                    placeholder="폴더, 채팅 세션 검색"
+                    placeholderTextColor={colors.mutedForeground}
+                    returnKeyType="search"
+                    style={styles.searchInput}
+                    value={searchDraft}
+                  />
+                </View>
+                <ScrollView
+                  keyboardShouldPersistTaps="handled"
+                  showsVerticalScrollIndicator={false}
+                  style={styles.searchResultsList}
+                >
+                  {searchResults.length > 0 ? (
+                    searchResults.map(result => (
+                      <Pressable
+                        accessibilityRole="button"
+                        key={`${result.type}-${result.id}`}
+                        onPress={() => handleSelectSearchResult(result)}
+                        style={({ pressed }) => [
+                          styles.searchResultRow,
+                          pressed && styles.menuRowPressed,
+                        ]}
+                      >
+                        <View style={styles.searchResultIcon}>
+                          <AppIcon
+                            color={colors.foreground}
+                            icon={
+                              result.type === 'folder' ? faFolder : faTerminal
+                            }
+                            size={16}
+                          />
+                        </View>
+                        <View style={styles.searchResultCopy}>
+                          <Text
+                            numberOfLines={1}
+                            style={styles.searchResultTitle}
+                          >
+                            {result.title}
+                          </Text>
+                          <Text style={styles.searchResultMeta}>
+                            {result.type === 'folder'
+                              ? '작업 폴더'
+                              : '채팅 세션'}
+                          </Text>
+                        </View>
+                      </Pressable>
+                    ))
+                  ) : (
+                    <Text style={styles.searchEmptyText}>검색 결과 없음</Text>
+                  )}
+                </ScrollView>
+              </View>
+            </View>
           ) : null}
 
           {isWorkFolderDialogOpen ? (
@@ -1400,6 +1529,9 @@ const styles = StyleSheet.create({
     padding: 18,
     width: '100%',
   },
+  searchDialogCard: {
+    maxHeight: '72%',
+  },
   recentDialogTitle: {
     ...typography.label,
     color: colors.foreground,
@@ -1418,6 +1550,67 @@ const styles = StyleSheet.create({
     fontSize: 16,
     minHeight: 46,
     paddingHorizontal: 14,
+  },
+  searchInputWrap: {
+    alignItems: 'center',
+    backgroundColor: colors.muted,
+    borderColor: colors.input,
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+    flexDirection: 'row',
+    minHeight: 46,
+    paddingHorizontal: 14,
+  },
+  searchInput: {
+    ...typography.body,
+    color: colors.foreground,
+    flex: 1,
+    fontSize: 16,
+    marginLeft: 10,
+    minHeight: 44,
+    padding: 0,
+  },
+  searchResultsList: {
+    marginTop: 12,
+  },
+  searchResultRow: {
+    alignItems: 'center',
+    borderRadius: 12,
+    flexDirection: 'row',
+    minHeight: 58,
+    paddingHorizontal: 10,
+  },
+  searchResultIcon: {
+    alignItems: 'center',
+    height: 32,
+    justifyContent: 'center',
+    marginRight: 12,
+    width: 28,
+  },
+  searchResultCopy: {
+    flex: 1,
+    minWidth: 0,
+  },
+  searchResultTitle: {
+    ...typography.label,
+    color: colors.foreground,
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  searchResultMeta: {
+    ...typography.caption,
+    color: colors.mutedForeground,
+    fontSize: 12,
+    fontWeight: '600',
+    marginTop: 4,
+  },
+  searchEmptyText: {
+    ...typography.label,
+    color: colors.mutedForeground,
+    fontSize: 14,
+    fontWeight: '600',
+    paddingVertical: 22,
+    textAlign: 'center',
   },
   recentDialogMessage: {
     ...typography.body,

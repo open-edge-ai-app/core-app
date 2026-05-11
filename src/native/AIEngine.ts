@@ -127,6 +127,47 @@ const isNativeAvailable = () =>
 const sleep = (durationMs: number) =>
   new Promise<void>(resolve => setTimeout(() => resolve(), durationMs));
 
+async function ensureRuntimeReadyForGeneration() {
+  if (!nativeModule?.sendMultimodalMessage) {
+    return null;
+  }
+
+  const modelStatus = await (nativeModule.getModelStatus?.() ??
+    Promise.resolve(fallbackModelStatus));
+
+  if (!modelStatus.installed) {
+    if (modelStatus.isDownloading) {
+      const percent =
+        modelStatus.totalBytes > 0
+          ? Math.floor(
+              (modelStatus.bytesDownloaded / modelStatus.totalBytes) * 100,
+            )
+          : 0;
+      return `모델을 다운로드하는 중입니다. 현재 ${percent}% 완료됐습니다. 다운로드가 끝난 뒤 다시 시도해주세요.`;
+    }
+
+    return `Gemma 4 모델이 아직 설치되지 않았습니다. 설정 화면에서 모델을 다운로드한 뒤 다시 시도해주세요.\n${modelStatus.downloadUrl}`;
+  }
+
+  const runtimeStatus = await (nativeModule.getRuntimeStatus?.() ??
+    Promise.resolve(fallbackRuntimeStatus));
+
+  if (runtimeStatus.canGenerate) {
+    return null;
+  }
+
+  const loadedStatus = await (nativeModule.loadModel?.() ??
+    Promise.resolve(fallbackRuntimeStatus));
+
+  if (loadedStatus.canGenerate) {
+    return null;
+  }
+
+  return loadedStatus.error
+    ? `모델 런타임을 켜지 못했습니다: ${loadedStatus.error}`
+    : '모델 런타임을 켜지 못했습니다. 설정 화면에서 모델 상태를 확인해주세요.';
+}
+
 async function createDevelopmentResponse(prompt: string) {
   await sleep(450);
 
@@ -143,6 +184,11 @@ export const AIEngine = {
 
   async generateResponse(prompt: string, history: AIChatMessage[] = []) {
     if (nativeModule?.sendMultimodalMessage) {
+      const blockedReason = await ensureRuntimeReadyForGeneration();
+      if (blockedReason) {
+        return blockedReason;
+      }
+
       const response = await nativeModule.sendMultimodalMessage({
         text: prompt,
         attachments: [],
@@ -163,6 +209,17 @@ export const AIEngine = {
 
   async sendMultimodalMessage(message: MultimodalMessage): Promise<AIResponse> {
     if (nativeModule?.sendMultimodalMessage) {
+      const blockedReason = await ensureRuntimeReadyForGeneration();
+      if (blockedReason) {
+        return {
+          type: 'error',
+          message: blockedReason,
+          route: 'invalid',
+          modalities:
+            message.attachments?.map(attachment => attachment.type) ?? [],
+        };
+      }
+
       return nativeModule.sendMultimodalMessage(message);
     }
 

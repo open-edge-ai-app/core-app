@@ -5,7 +5,6 @@ import {
   faBrain,
   faCheck,
   faChevronDown,
-  faCalendarDays,
   faFolderPlus,
   faGear,
   faGrip,
@@ -145,19 +144,10 @@ const mainMenuRows: MenuIconRow[] = [
   },
 ];
 
-const projectRows: MenuIconRow[] = [
+const workFolderRows: MenuIconRow[] = [
   {
     icon: faFolderPlus,
-    label: '새 프로젝트',
-  },
-  {
-    icon: faTerminal,
-    label: 'Gatepex',
-  },
-  {
-    icon: faCalendarDays,
-    iconColor: '#F97316',
-    label: 'Phison 미팅',
+    label: '새 작업 폴더',
   },
 ];
 
@@ -488,13 +478,13 @@ function FullScreenMenu({
             </View>
 
             <View style={styles.menuSectionBlock}>
-              <Text style={styles.menuSectionTitle}>프로젝트</Text>
+              <Text style={styles.menuSectionTitle}>작업 폴더</Text>
               <MenuRow
-                icon={projectRows[0].icon}
-                label={projectRows[0].label}
+                icon={workFolderRows[0].icon}
+                label={workFolderRows[0].label}
                 onPress={onNewChat}
               />
-              {projectRows.slice(1).map(row => (
+              {workFolderRows.slice(1).map(row => (
                 <MenuRow
                   icon={row.icon}
                   iconColor={row.iconColor}

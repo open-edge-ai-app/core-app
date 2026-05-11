@@ -4,7 +4,7 @@ import { Pressable, ScrollView, StyleSheet, Switch, View } from 'react-native';
 
 import AppIcon from '../components/AppIcon';
 import { Badge, Button, Separator } from '../components/ui';
-import AIEngine, { IndexingStatus } from '../native/AIEngine';
+import AIEngine, { IndexingStatus, ModelStatus, RuntimeStatus } from '../native/AIEngine';
 import { ScaledText as Text, useDisplaySettings } from '../theme/display';
 import { colors, typography } from '../theme/tokens';
 
@@ -14,20 +14,70 @@ const defaultStatus: IndexingStatus = {
   isIndexing: false,
 };
 
+const formatBytes = (bytes: number) => {
+  if (bytes <= 0) {
+    return '0 MB';
+  }
+
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+};
+
 function Settings() {
   const [status, setStatus] = useState<IndexingStatus>(defaultStatus);
+  const [modelStatus, setModelStatus] = useState<ModelStatus | null>(null);
+  const [runtimeStatus, setRuntimeStatus] = useState<RuntimeStatus | null>(null);
   const [galleryIndexingEnabled, setGalleryIndexingEnabled] = useState(false);
   const { selectedTextSize, setTextSize, textSize, textSizes } =
     useDisplaySettings();
 
   const refreshStatus = useCallback(async () => {
-    const nextStatus = await AIEngine.getIndexingStatus();
+    const [nextStatus, nextModelStatus, nextRuntimeStatus] = await Promise.all([
+      AIEngine.getIndexingStatus(),
+      AIEngine.getModelStatus(),
+      AIEngine.getRuntimeStatus(),
+    ]);
     setStatus(nextStatus);
+    setModelStatus(nextModelStatus);
+    setRuntimeStatus(nextRuntimeStatus);
   }, []);
 
   useEffect(() => {
     refreshStatus();
   }, [refreshStatus]);
+
+  useEffect(() => {
+    if (!modelStatus?.isDownloading) {
+      return;
+    }
+
+    const interval = setInterval(refreshStatus, 1500);
+    return () => clearInterval(interval);
+  }, [modelStatus?.isDownloading, refreshStatus]);
+
+  const downloadProgress =
+    modelStatus == null || modelStatus.totalBytes <= 0
+      ? 0
+      : Math.min(1, modelStatus.bytesDownloaded / modelStatus.totalBytes);
+
+  const handleDownloadModel = useCallback(async () => {
+    const nextStatus = await AIEngine.ensureModelDownloaded();
+    setModelStatus(nextStatus);
+  }, []);
+
+  const handleCancelModelDownload = useCallback(async () => {
+    const nextStatus = await AIEngine.cancelModelDownload();
+    setModelStatus(nextStatus);
+  }, []);
+
+  const handleLoadModel = useCallback(async () => {
+    const nextStatus = await AIEngine.loadModel();
+    setRuntimeStatus(nextStatus);
+  }, []);
+
+  const handleUnloadModel = useCallback(async () => {
+    const nextStatus = await AIEngine.unloadModel();
+    setRuntimeStatus(nextStatus);
+  }, []);
 
   return (
     <ScrollView
@@ -108,7 +158,79 @@ function Settings() {
           label="Native bridge"
           value={status.isAvailable ? '연결됨' : '대기 중'}
         />
-        <StatusRow label="기본 모델" value="Gemma 4" />
+        <StatusRow
+          label="기본 모델"
+          value={modelStatus?.modelName ?? 'gemma-4-E2B-it'}
+        />
+        <StatusRow
+          label="모델 파일"
+          value={
+            modelStatus?.installed
+              ? '설치됨'
+              : modelStatus?.isDownloading
+                ? '다운로드 중'
+                : '필요함'
+          }
+        />
+        <StatusRow
+          label="다운로드"
+          value={`${formatBytes(modelStatus?.bytesDownloaded ?? 0)} / ${formatBytes(
+            modelStatus?.totalBytes ?? 2588147712,
+          )}`}
+        />
+        <View style={styles.progressTrack}>
+          <View
+            style={[
+              styles.progressFill,
+              { width: `${downloadProgress * 100}%` },
+            ]}
+          />
+        </View>
+        {modelStatus?.error ? (
+          <Text style={styles.errorText}>{modelStatus.error}</Text>
+        ) : null}
+        <View style={styles.actionRow}>
+          <Button
+            disabled={modelStatus?.installed || modelStatus?.isDownloading}
+            label="모델 다운로드"
+            onPress={handleDownloadModel}
+            style={styles.modelButton}
+            variant="ghost"
+          />
+          <Button
+            disabled={!modelStatus?.isDownloading}
+            label="취소"
+            onPress={handleCancelModelDownload}
+            style={styles.modelButton}
+            variant="ghost"
+          />
+        </View>
+        <StatusRow
+          label="런타임"
+          value={
+            runtimeStatus?.loaded
+              ? '로드됨'
+              : runtimeStatus?.loading
+                ? '로드 중'
+                : '꺼짐'
+          }
+        />
+        <View style={styles.actionRow}>
+          <Button
+            disabled={!modelStatus?.installed || runtimeStatus?.loaded}
+            label="모델 켜기"
+            onPress={handleLoadModel}
+            style={styles.modelButton}
+            variant="ghost"
+          />
+          <Button
+            disabled={!runtimeStatus?.loaded}
+            label="모델 끄기"
+            onPress={handleUnloadModel}
+            style={styles.modelButton}
+            variant="ghost"
+          />
+        </View>
         <StatusRow
           label="인덱싱 항목"
           value={`${status.indexedItems.toLocaleString('ko-KR')}개`}
@@ -255,6 +377,35 @@ const styles = StyleSheet.create({
   },
   separator: {
     marginVertical: 14,
+  },
+  progressTrack: {
+    backgroundColor: colors.border,
+    borderRadius: 4,
+    height: 8,
+    marginBottom: 8,
+    marginTop: 4,
+    overflow: 'hidden',
+  },
+  progressFill: {
+    backgroundColor: colors.primary,
+    borderRadius: 4,
+    height: 8,
+  },
+  errorText: {
+    ...typography.caption,
+    color: '#B42318',
+    lineHeight: 16,
+    marginBottom: 8,
+  },
+  actionRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+    marginBottom: 8,
+    marginTop: 4,
+  },
+  modelButton: {
+    paddingHorizontal: 0,
   },
   statusRow: {
     alignItems: 'center',

@@ -131,6 +131,11 @@ type RecentSessionDialog =
   | { session: ChatSession; type: 'move' }
   | { session: ChatSession; type: 'delete' };
 
+type WorkFolderActionDialog =
+  | { folder: WorkFolder; type: 'rename' }
+  | { folder: WorkFolder; type: 'settings' }
+  | { folder: WorkFolder; type: 'delete' };
+
 type PersistedChatMessage = Omit<ChatMessage, 'createdAt'> & {
   createdAt: string;
 };
@@ -161,6 +166,7 @@ const RECENT_ACTION_MENU_EDGE_GAP = 16;
 const RECENT_ACTION_MENU_OFFSET = 10;
 const RECENT_ACTION_MENU_WIDTH = 214;
 const RECENT_ACTION_MENU_HEIGHT = 160;
+const WORK_FOLDER_ACTION_MENU_HEIGHT = 122;
 
 const modelOptions: ModelOption[] = [
   {
@@ -699,6 +705,61 @@ function App() {
     ]);
   };
 
+  const handleRenameWorkFolder = (folderId: string, title: string) => {
+    const nextTitle = title.trim();
+    if (!nextTitle) {
+      return;
+    }
+
+    setWorkFolders(current =>
+      current.map(folder =>
+        folder.id === folderId ? { ...folder, title: nextTitle } : folder,
+      ),
+    );
+  };
+
+  const handleUpdateWorkFolder = (
+    folderId: string,
+    title: string,
+    iconId: WorkFolderIconId,
+  ) => {
+    const nextTitle = title.trim();
+    if (!nextTitle) {
+      return;
+    }
+
+    setWorkFolders(current =>
+      current.map(folder =>
+        folder.id === folderId
+          ? { ...folder, iconId, title: nextTitle }
+          : folder,
+      ),
+    );
+  };
+
+  const handleDeleteWorkFolder = (folderId: string) => {
+    const restoredSessions = workFolderSessions
+      .filter(session => session.workFolderId === folderId)
+      .map(session => ({
+        id: session.id,
+        pinned: false,
+        title: session.title,
+      }));
+
+    setWorkFolders(current => current.filter(folder => folder.id !== folderId));
+    setWorkFolderSessions(current =>
+      current.filter(session => session.workFolderId !== folderId),
+    );
+    setRecentSessions(current => {
+      const existingSessionIds = new Set(current.map(session => session.id));
+      const nextRestoredSessions = restoredSessions.filter(
+        session => !existingSessionIds.has(session.id),
+      );
+
+      return [...nextRestoredSessions, ...current];
+    });
+  };
+
   const handleDeleteSession = (sessionId: string) => {
     setRecentSessions(current =>
       current.filter(session => session.id !== sessionId),
@@ -796,14 +857,17 @@ function App() {
 
           <FullScreenMenu
             onCreateWorkFolder={handleCreateWorkFolder}
+            onDeleteWorkFolder={handleDeleteWorkFolder}
             onDeleteSession={handleDeleteSession}
             onClose={() => setIsMenuOpen(false)}
             onMoveSessionToWorkFolder={handleMoveSessionToWorkFolder}
             onNewChat={handleNewChat}
             onOpenSettings={handleOpenSettings}
+            onRenameWorkFolder={handleRenameWorkFolder}
             onRenameSession={handleRenameSession}
             onSelectSession={handleSelectSession}
             onTogglePinnedSession={handleTogglePinnedSession}
+            onUpdateWorkFolder={handleUpdateWorkFolder}
             recentSessions={sortedRecentSessions}
             visible={isMenuOpen}
             workFolders={workFolders}
@@ -818,13 +882,16 @@ function App() {
 function FullScreenMenu({
   onClose,
   onCreateWorkFolder,
+  onDeleteWorkFolder,
   onDeleteSession,
   onMoveSessionToWorkFolder,
   onNewChat,
   onOpenSettings,
+  onRenameWorkFolder,
   onRenameSession,
   onSelectSession,
   onTogglePinnedSession,
+  onUpdateWorkFolder,
   recentSessions,
   visible,
   workFolders,
@@ -832,13 +899,20 @@ function FullScreenMenu({
 }: {
   onClose: () => void;
   onCreateWorkFolder: (title: string, iconId: WorkFolderIconId) => void;
+  onDeleteWorkFolder: (folderId: string) => void;
   onDeleteSession: (sessionId: string) => void;
   onMoveSessionToWorkFolder: (sessionId: string, workFolderId: string) => void;
   onNewChat: () => void;
   onOpenSettings: () => void;
+  onRenameWorkFolder: (folderId: string, title: string) => void;
   onRenameSession: (sessionId: string, title: string) => void;
   onSelectSession: (title: string, id?: string) => void;
   onTogglePinnedSession: (sessionId: string) => void;
+  onUpdateWorkFolder: (
+    folderId: string,
+    title: string,
+    iconId: WorkFolderIconId,
+  ) => void;
   recentSessions: ChatSession[];
   visible: boolean;
   workFolders: WorkFolder[];
@@ -848,10 +922,17 @@ function FullScreenMenu({
   const slideX = useRef(new Animated.Value(-width)).current;
   const menuFrameRef = useRef<React.ElementRef<typeof View>>(null);
   const actionMenuAnchorRef = useRef<RecentActionMenuAnchor | null>(null);
+  const workFolderActionMenuAnchorRef = useRef<RecentActionMenuAnchor | null>(
+    null,
+  );
   const [isRendered, setIsRendered] = useState(visible);
   const [actionSheetSession, setActionSheetSession] =
     useState<ChatSession | null>(null);
   const [actionSheetPosition, setActionSheetPosition] =
+    useState<RecentActionMenuPosition | null>(null);
+  const [workFolderActionSheetFolder, setWorkFolderActionSheetFolder] =
+    useState<WorkFolder | null>(null);
+  const [workFolderActionSheetPosition, setWorkFolderActionSheetPosition] =
     useState<RecentActionMenuPosition | null>(null);
   const [menuFrameSize, setMenuFrameSize] = useState<RecentActionMenuSize>({
     height: windowHeight,
@@ -873,6 +954,17 @@ function FullScreenMenu({
   const [isWorkFolderSelectOpen, setIsWorkFolderSelectOpen] = useState(false);
   const [isSearchDialogOpen, setIsSearchDialogOpen] = useState(false);
   const [searchDraft, setSearchDraft] = useState('');
+  const [collapsedWorkFolderIds, setCollapsedWorkFolderIds] = useState<
+    Record<string, boolean>
+  >({});
+  const [workFolderActionDialog, setWorkFolderActionDialog] =
+    useState<WorkFolderActionDialog | null>(null);
+  const [workFolderActionTitleDraft, setWorkFolderActionTitleDraft] =
+    useState('');
+  const [workFolderActionIconId, setWorkFolderActionIconId] =
+    useState<WorkFolderIconId>(DEFAULT_WORK_FOLDER_ICON_ID);
+  const [isWorkFolderActionIconMenuOpen, setIsWorkFolderActionIconMenuOpen] =
+    useState(false);
 
   const workFolderSelectOptions = useMemo<FloatingSelectOption<string>[]>(
     () =>
@@ -882,6 +974,26 @@ function FullScreenMenu({
         value: folder.id,
       })),
     [workFolders],
+  );
+  const workFolderSessionsByFolderId = useMemo(
+    () =>
+      workFolderSessions.reduce<Record<string, ChatSession[]>>(
+        (sessionsByFolderId, session) => {
+          if (!session.workFolderId) {
+            return sessionsByFolderId;
+          }
+
+          return {
+            ...sessionsByFolderId,
+            [session.workFolderId]: [
+              ...(sessionsByFolderId[session.workFolderId] ?? []),
+              session,
+            ],
+          };
+        },
+        {},
+      ),
+    [workFolderSessions],
   );
 
   const searchResults = useMemo(() => {
@@ -913,6 +1025,19 @@ function FullScreenMenu({
       candidate.title.toLowerCase().includes(query),
     );
   }, [recentSessions, searchDraft, workFolders, workFolderSessions]);
+
+  useEffect(() => {
+    setCollapsedWorkFolderIds(current => {
+      const nextCollapsedFolderIds: Record<string, boolean> = {};
+      workFolders.forEach(folder => {
+        if (current[folder.id]) {
+          nextCollapsedFolderIds[folder.id] = true;
+        }
+      });
+
+      return nextCollapsedFolderIds;
+    });
+  }, [workFolders]);
 
   useEffect(() => {
     if (recentDialog?.type !== 'move') {
@@ -971,6 +1096,9 @@ function FullScreenMenu({
     setActionSheetSession(null);
     setActionSheetPosition(null);
     actionMenuAnchorRef.current = null;
+    setWorkFolderActionSheetFolder(null);
+    setWorkFolderActionSheetPosition(null);
+    workFolderActionMenuAnchorRef.current = null;
     setRecentDialog(null);
     setRenameDraft('');
     setIsWorkFolderDialogOpen(false);
@@ -981,6 +1109,10 @@ function FullScreenMenu({
     setIsWorkFolderSelectOpen(false);
     setIsSearchDialogOpen(false);
     setSearchDraft('');
+    setWorkFolderActionDialog(null);
+    setWorkFolderActionTitleDraft('');
+    setWorkFolderActionIconId(DEFAULT_WORK_FOLDER_ICON_ID);
+    setIsWorkFolderActionIconMenuOpen(false);
   }, [visible]);
 
   if (!isRendered) {
@@ -1030,6 +1162,17 @@ function FullScreenMenu({
     actionMenuAnchorRef.current = null;
   };
 
+  const closeWorkFolderActionMenu = () => {
+    setWorkFolderActionSheetFolder(null);
+    setWorkFolderActionSheetPosition(null);
+    workFolderActionMenuAnchorRef.current = null;
+  };
+
+  const closeFloatingActionMenus = () => {
+    closeRecentActionMenu();
+    closeWorkFolderActionMenu();
+  };
+
   const handleMenuFrameLayout = (event: LayoutChangeEvent) => {
     const { height, width: frameWidth } = event.nativeEvent.layout;
     setMenuFrameSize({ height, width: frameWidth });
@@ -1059,6 +1202,30 @@ function FullScreenMenu({
     });
   };
 
+  const handleWorkFolderActionMenuLayout = (event: LayoutChangeEvent) => {
+    const anchor = workFolderActionMenuAnchorRef.current;
+    if (!anchor) {
+      return;
+    }
+
+    const nextPosition = getBoundedActionMenuPosition(anchor, {
+      height: event.nativeEvent.layout.height,
+      width: event.nativeEvent.layout.width,
+    });
+
+    setWorkFolderActionSheetPosition(current => {
+      if (
+        current &&
+        Math.abs(current.left - nextPosition.left) < 1 &&
+        Math.abs(current.top - nextPosition.top) < 1
+      ) {
+        return current;
+      }
+
+      return nextPosition;
+    });
+  };
+
   const handleOpenRecentActionMenu = (
     event: GestureResponderEvent,
     session: ChatSession,
@@ -1067,6 +1234,7 @@ function FullScreenMenu({
     const fallbackAnchor = { x: pageX, y: pageY };
 
     const openMenu = (anchor: RecentActionMenuAnchor) => {
+      closeWorkFolderActionMenu();
       actionMenuAnchorRef.current = anchor;
       setActionSheetPosition(getBoundedActionMenuPosition(anchor));
       setActionSheetSession(session);
@@ -1085,7 +1253,40 @@ function FullScreenMenu({
     });
   };
 
+  const handleOpenWorkFolderActionMenu = (
+    event: GestureResponderEvent,
+    folder: WorkFolder,
+  ) => {
+    const { pageX, pageY } = event.nativeEvent;
+    const fallbackAnchor = { x: pageX, y: pageY };
+
+    const openMenu = (anchor: RecentActionMenuAnchor) => {
+      closeRecentActionMenu();
+      workFolderActionMenuAnchorRef.current = anchor;
+      setWorkFolderActionSheetPosition(
+        getBoundedActionMenuPosition(anchor, {
+          height: WORK_FOLDER_ACTION_MENU_HEIGHT,
+          width: RECENT_ACTION_MENU_WIDTH,
+        }),
+      );
+      setWorkFolderActionSheetFolder(folder);
+    };
+
+    if (!menuFrameRef.current?.measureInWindow) {
+      openMenu(fallbackAnchor);
+      return;
+    }
+
+    menuFrameRef.current.measureInWindow((frameX, frameY) => {
+      openMenu({
+        x: pageX - frameX,
+        y: pageY - frameY,
+      });
+    });
+  };
+
   const handleOpenSettingsFromMenu = () => {
+    closeFloatingActionMenus();
     onOpenSettings();
     setIsRendered(false);
   };
@@ -1094,7 +1295,7 @@ function FullScreenMenu({
     type: RecentSessionDialog['type'],
     session: ChatSession,
   ) => {
-    closeRecentActionMenu();
+    closeFloatingActionMenus();
     setRecentDialog({ session, type } as RecentSessionDialog);
     setRenameDraft(session.title);
     setIsWorkFolderSelectOpen(false);
@@ -1111,7 +1312,7 @@ function FullScreenMenu({
   };
 
   const handleOpenSearchDialog = () => {
-    closeRecentActionMenu();
+    closeFloatingActionMenus();
     setIsSearchDialogOpen(true);
   };
 
@@ -1122,11 +1323,16 @@ function FullScreenMenu({
 
   const handleSelectSearchResult = (result: MenuSearchResult) => {
     handleCloseSearchDialog();
+    if (result.type === 'folder') {
+      setCollapsedWorkFolderIds(current => omitRecordKey(current, result.id));
+      return;
+    }
+
     onSelectSession(result.title, result.id);
   };
 
   const handleOpenWorkFolderDialog = () => {
-    closeRecentActionMenu();
+    closeFloatingActionMenus();
     setSelectedWorkFolderIconId(DEFAULT_WORK_FOLDER_ICON_ID);
     setIsWorkFolderIconMenuOpen(false);
     setIsWorkFolderDialogOpen(true);
@@ -1147,6 +1353,76 @@ function FullScreenMenu({
 
     onCreateWorkFolder(nextTitle, selectedWorkFolderIconId);
     handleCloseWorkFolderDialog();
+  };
+
+  const handleToggleWorkFolderCollapsed = (folderId: string) => {
+    closeFloatingActionMenus();
+    setCollapsedWorkFolderIds(current => ({
+      ...current,
+      [folderId]: !current[folderId],
+    }));
+  };
+
+  const handleOpenWorkFolderActionDialog = (
+    type: WorkFolderActionDialog['type'],
+    folder: WorkFolder,
+  ) => {
+    closeFloatingActionMenus();
+    setWorkFolderActionDialog({ folder, type } as WorkFolderActionDialog);
+    setWorkFolderActionTitleDraft(folder.title);
+    setWorkFolderActionIconId(folder.iconId ?? DEFAULT_WORK_FOLDER_ICON_ID);
+    setIsWorkFolderActionIconMenuOpen(false);
+  };
+
+  const handleCloseWorkFolderActionDialog = () => {
+    setWorkFolderActionDialog(null);
+    setWorkFolderActionTitleDraft('');
+    setWorkFolderActionIconId(DEFAULT_WORK_FOLDER_ICON_ID);
+    setIsWorkFolderActionIconMenuOpen(false);
+  };
+
+  const handleSubmitWorkFolderRename = () => {
+    if (workFolderActionDialog?.type !== 'rename') {
+      return;
+    }
+
+    const nextTitle = workFolderActionTitleDraft.trim();
+    if (!nextTitle) {
+      return;
+    }
+
+    onRenameWorkFolder(workFolderActionDialog.folder.id, nextTitle);
+    handleCloseWorkFolderActionDialog();
+  };
+
+  const handleSubmitWorkFolderSettings = () => {
+    if (workFolderActionDialog?.type !== 'settings') {
+      return;
+    }
+
+    const nextTitle = workFolderActionTitleDraft.trim();
+    if (!nextTitle) {
+      return;
+    }
+
+    onUpdateWorkFolder(
+      workFolderActionDialog.folder.id,
+      nextTitle,
+      workFolderActionIconId,
+    );
+    handleCloseWorkFolderActionDialog();
+  };
+
+  const handleConfirmWorkFolderDelete = () => {
+    if (workFolderActionDialog?.type !== 'delete') {
+      return;
+    }
+
+    onDeleteWorkFolder(workFolderActionDialog.folder.id);
+    setCollapsedWorkFolderIds(current =>
+      omitRecordKey(current, workFolderActionDialog.folder.id),
+    );
+    handleCloseWorkFolderActionDialog();
   };
 
   const handleSubmitRename = () => {
@@ -1184,6 +1460,11 @@ function FullScreenMenu({
   const isRecentDialogPrimaryDisabled =
     (recentDialog?.type === 'rename' && !renameDraft.trim()) ||
     (recentDialog?.type === 'move' && !selectedWorkFolderId);
+  const isWorkFolderActionPrimaryDisabled =
+    (workFolderActionDialog?.type === 'rename' &&
+      !workFolderActionTitleDraft.trim()) ||
+    (workFolderActionDialog?.type === 'settings' &&
+      !workFolderActionTitleDraft.trim());
 
   return (
     <Modal
@@ -1253,7 +1534,7 @@ function FullScreenMenu({
 
             <ScrollView
               contentContainerStyle={styles.menuScrollContent}
-              onScrollBeginDrag={closeRecentActionMenu}
+              onScrollBeginDrag={closeFloatingActionMenus}
               showsVerticalScrollIndicator={false}
             >
               <View style={styles.menuPrimaryList}>
@@ -1278,29 +1559,46 @@ function FullScreenMenu({
                   label={workFolderRows[0].label}
                   onPress={handleOpenWorkFolderDialog}
                 />
-                {workFolders.map(folder => (
-                  <React.Fragment key={folder.id}>
-                    <MenuRow
-                      icon={getWorkFolderIcon(folder.iconId)}
-                      iconColor={colors.foreground}
-                      label={folder.title}
-                      onPress={() => onSelectSession(folder.title, folder.id)}
-                    />
-                    {workFolderSessions
-                      .filter(session => session.workFolderId === folder.id)
-                      .map(session => (
-                        <MenuRow
-                          icon={appIcons.session}
-                          iconColor={colors.mutedForeground}
-                          key={session.id}
-                          label={session.title}
-                          onPress={() =>
-                            onSelectSession(session.title, session.id)
+                <View style={styles.workFolderTree}>
+                  {workFolders.map(folder => {
+                    const folderSessions =
+                      workFolderSessionsByFolderId[folder.id] ?? [];
+                    const isExpanded = !collapsedWorkFolderIds[folder.id];
+                    const isActionMenuOpen =
+                      workFolderActionSheetFolder?.id === folder.id;
+
+                    return (
+                      <View key={folder.id} style={styles.workFolderTreeItem}>
+                        <WorkFolderTreeRow
+                          expanded={isExpanded}
+                          folder={folder}
+                          isActionMenuOpen={isActionMenuOpen}
+                          onLongPress={event =>
+                            handleOpenWorkFolderActionMenu(event, folder)
                           }
+                          onPress={() =>
+                            handleToggleWorkFolderCollapsed(folder.id)
+                          }
+                          sessionCount={folderSessions.length}
                         />
-                      ))}
-                  </React.Fragment>
-                ))}
+                        {isExpanded && folderSessions.length > 0 ? (
+                          <View style={styles.workFolderTreeChildren}>
+                            {folderSessions.map(session => (
+                              <TreeSessionRow
+                                key={session.id}
+                                label={session.title}
+                                onPress={() => {
+                                  closeFloatingActionMenus();
+                                  onSelectSession(session.title, session.id);
+                                }}
+                              />
+                            ))}
+                          </View>
+                        ) : null}
+                      </View>
+                    );
+                  })}
+                </View>
                 {workFolderSessions
                   .filter(session => !session.workFolderId)
                   .map(session => (
@@ -1417,7 +1715,62 @@ function FullScreenMenu({
               </View>
             ) : null}
 
-            {!isWorkFolderDialogOpen && !recentDialog && !isSearchDialogOpen ? (
+            {workFolderActionSheetFolder && workFolderActionSheetPosition ? (
+              <View pointerEvents="box-none" style={styles.recentActionLayer}>
+                <Pressable
+                  accessibilityLabel="작업 폴더 메뉴 닫기"
+                  onPress={closeWorkFolderActionMenu}
+                  style={styles.recentActionBackdrop}
+                />
+                <View
+                  onLayout={handleWorkFolderActionMenuLayout}
+                  style={[
+                    styles.recentFloatingActionMenu,
+                    {
+                      left: workFolderActionSheetPosition.left,
+                      top: workFolderActionSheetPosition.top,
+                    },
+                  ]}
+                >
+                  <RecentActionButton
+                    icon={appIcons.rename}
+                    label="이름 바꾸기"
+                    onPress={() =>
+                      handleOpenWorkFolderActionDialog(
+                        'rename',
+                        workFolderActionSheetFolder,
+                      )
+                    }
+                  />
+                  <RecentActionButton
+                    icon={appIcons.settings}
+                    label="작업 폴더 설정"
+                    onPress={() =>
+                      handleOpenWorkFolderActionDialog(
+                        'settings',
+                        workFolderActionSheetFolder,
+                      )
+                    }
+                  />
+                  <RecentActionButton
+                    destructive
+                    icon={appIcons.delete}
+                    label="삭제"
+                    onPress={() =>
+                      handleOpenWorkFolderActionDialog(
+                        'delete',
+                        workFolderActionSheetFolder,
+                      )
+                    }
+                  />
+                </View>
+              </View>
+            ) : null}
+
+            {!isWorkFolderDialogOpen &&
+            !recentDialog &&
+            !isSearchDialogOpen &&
+            !workFolderActionDialog ? (
               <Pressable
                 accessibilityLabel="새로운 채팅"
                 accessibilityRole="button"
@@ -1577,6 +1930,109 @@ function FullScreenMenu({
               </View>
             ) : null}
 
+            {workFolderActionDialog ? (
+              <View style={styles.recentDialogLayer}>
+                <Pressable
+                  accessibilityLabel="작업 폴더 작업 닫기"
+                  onPress={handleCloseWorkFolderActionDialog}
+                  style={styles.recentDialogBackdrop}
+                />
+                <View style={styles.recentDialogCard}>
+                  <Text style={styles.recentDialogTitle}>
+                    {workFolderActionDialog.type === 'rename'
+                      ? '작업 폴더 이름 바꾸기'
+                      : workFolderActionDialog.type === 'settings'
+                      ? '작업 폴더 설정'
+                      : '작업 폴더 삭제'}
+                  </Text>
+                  {workFolderActionDialog.type === 'rename' ? (
+                    <RNTextInput
+                      accessibilityLabel="작업 폴더 이름"
+                      autoFocus
+                      onChangeText={setWorkFolderActionTitleDraft}
+                      onSubmitEditing={handleSubmitWorkFolderRename}
+                      placeholder="작업 폴더 이름"
+                      placeholderTextColor={colors.mutedForeground}
+                      returnKeyType="done"
+                      style={styles.recentDialogInput}
+                      value={workFolderActionTitleDraft}
+                    />
+                  ) : workFolderActionDialog.type === 'settings' ? (
+                    <FloatingSelect
+                      accessibilityLabel="작업 폴더 아이콘 변경"
+                      expanded={isWorkFolderActionIconMenuOpen}
+                      onExpandedChange={setIsWorkFolderActionIconMenuOpen}
+                      onValueChange={setWorkFolderActionIconId}
+                      options={workFolderIconOptions}
+                      selectedValue={workFolderActionIconId}
+                      triggerIconSize={17}
+                      variant="compact"
+                    >
+                      <RNTextInput
+                        accessibilityLabel="작업 폴더 이름"
+                        autoFocus
+                        onChangeText={setWorkFolderActionTitleDraft}
+                        onSubmitEditing={handleSubmitWorkFolderSettings}
+                        placeholder="작업 폴더 이름"
+                        placeholderTextColor={colors.mutedForeground}
+                        returnKeyType="done"
+                        style={[
+                          styles.recentDialogInput,
+                          styles.workFolderNameInput,
+                        ]}
+                        value={workFolderActionTitleDraft}
+                      />
+                    </FloatingSelect>
+                  ) : (
+                    <Text style={styles.recentDialogMessage}>
+                      이 작업 폴더를 삭제할까요? 폴더 안의 채팅은 최근 목록으로
+                      이동합니다.
+                    </Text>
+                  )}
+                  <View style={styles.recentDialogActions}>
+                    <Pressable
+                      accessibilityRole="button"
+                      onPress={handleCloseWorkFolderActionDialog}
+                      style={({ pressed }) => [
+                        styles.recentDialogButton,
+                        pressed && styles.menuButtonPressed,
+                      ]}
+                    >
+                      <Text style={styles.recentDialogCancelText}>취소</Text>
+                    </Pressable>
+                    <Pressable
+                      accessibilityRole="button"
+                      disabled={isWorkFolderActionPrimaryDisabled}
+                      onPress={
+                        workFolderActionDialog.type === 'rename'
+                          ? handleSubmitWorkFolderRename
+                          : workFolderActionDialog.type === 'settings'
+                          ? handleSubmitWorkFolderSettings
+                          : handleConfirmWorkFolderDelete
+                      }
+                      style={({ pressed }) => [
+                        styles.recentDialogButton,
+                        styles.recentDialogPrimaryButton,
+                        workFolderActionDialog.type === 'delete' &&
+                          styles.recentDialogDeleteButton,
+                        pressed && styles.menuButtonPressed,
+                        isWorkFolderActionPrimaryDisabled &&
+                          styles.recentDialogButtonDisabled,
+                      ]}
+                    >
+                      <Text style={styles.recentDialogPrimaryText}>
+                        {workFolderActionDialog.type === 'rename'
+                          ? '저장'
+                          : workFolderActionDialog.type === 'settings'
+                          ? '적용'
+                          : '삭제'}
+                      </Text>
+                    </Pressable>
+                  </View>
+                </View>
+              </View>
+            ) : null}
+
             {recentDialog ? (
               <View style={styles.recentDialogLayer}>
                 <Pressable
@@ -1719,6 +2175,91 @@ function RecentActionButton({
           destructive && styles.recentActionDestructiveLabel,
         ]}
       >
+        {label}
+      </Text>
+    </Pressable>
+  );
+}
+
+function WorkFolderTreeRow({
+  expanded,
+  folder,
+  isActionMenuOpen,
+  onLongPress,
+  onPress,
+  sessionCount,
+}: {
+  expanded: boolean;
+  folder: WorkFolder;
+  isActionMenuOpen: boolean;
+  onLongPress: (event: GestureResponderEvent) => void;
+  onPress: () => void;
+  sessionCount: number;
+}) {
+  return (
+    <Pressable
+      accessibilityLabel={`${folder.title} 작업 폴더`}
+      accessibilityRole="button"
+      accessibilityState={{ expanded }}
+      delayLongPress={360}
+      onLongPress={onLongPress}
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.workFolderTreeRow,
+        isActionMenuOpen && styles.menuRecentRowActive,
+        pressed && styles.menuRowPressed,
+      ]}
+    >
+      <View style={styles.workFolderTreeChevron}>
+        <AppIcon
+          color={colors.mutedForeground}
+          icon={expanded ? appIcons.chevronDown : appIcons.openPrompt}
+          size={12}
+        />
+      </View>
+      <View style={styles.workFolderTreeIcon}>
+        <AppIcon
+          color={colors.foreground}
+          icon={getWorkFolderIcon(folder.iconId)}
+          size={18}
+        />
+      </View>
+      <Text numberOfLines={1} style={styles.workFolderTreeLabel}>
+        {folder.title}
+      </Text>
+      {sessionCount > 0 ? (
+        <Text style={styles.workFolderTreeCount}>{sessionCount}</Text>
+      ) : null}
+    </Pressable>
+  );
+}
+
+function TreeSessionRow({
+  label,
+  onPress,
+}: {
+  label: string;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      accessibilityLabel={label}
+      accessibilityRole="button"
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.workFolderChildRow,
+        pressed && styles.menuRowPressed,
+      ]}
+    >
+      <View style={styles.workFolderChildBranch} />
+      <View style={styles.workFolderChildIcon}>
+        <AppIcon
+          color={colors.mutedForeground}
+          icon={appIcons.session}
+          size={15}
+        />
+      </View>
+      <Text numberOfLines={1} style={styles.workFolderChildLabel}>
         {label}
       </Text>
     </Pressable>
@@ -1945,6 +2486,84 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '500',
     lineHeight: 21,
+  },
+  workFolderTree: {
+    marginTop: 4,
+  },
+  workFolderTreeItem: {
+    marginBottom: 2,
+  },
+  workFolderTreeRow: {
+    alignItems: 'center',
+    borderRadius: 10,
+    flexDirection: 'row',
+    minHeight: 50,
+    paddingHorizontal: 4,
+  },
+  workFolderTreeChevron: {
+    alignItems: 'center',
+    height: 28,
+    justifyContent: 'center',
+    width: 24,
+  },
+  workFolderTreeIcon: {
+    alignItems: 'center',
+    height: 30,
+    justifyContent: 'center',
+    marginRight: 10,
+    width: 26,
+  },
+  workFolderTreeLabel: {
+    ...typography.label,
+    color: colors.foreground,
+    flex: 1,
+    fontSize: 16,
+    fontWeight: '600',
+    lineHeight: 21,
+    minWidth: 0,
+  },
+  workFolderTreeCount: {
+    ...typography.caption,
+    color: colors.mutedForeground,
+    fontSize: 12,
+    fontWeight: '700',
+    paddingLeft: 10,
+  },
+  workFolderTreeChildren: {
+    borderLeftColor: colors.border,
+    borderLeftWidth: StyleSheet.hairlineWidth,
+    marginLeft: 18,
+    paddingLeft: 22,
+    paddingVertical: 2,
+  },
+  workFolderChildRow: {
+    alignItems: 'center',
+    borderRadius: 10,
+    flexDirection: 'row',
+    minHeight: 42,
+    paddingRight: 8,
+  },
+  workFolderChildBranch: {
+    backgroundColor: colors.border,
+    height: StyleSheet.hairlineWidth,
+    marginRight: 9,
+    width: 14,
+  },
+  workFolderChildIcon: {
+    alignItems: 'center',
+    height: 24,
+    justifyContent: 'center',
+    marginRight: 8,
+    width: 20,
+  },
+  workFolderChildLabel: {
+    ...typography.body,
+    color: colors.foreground,
+    flex: 1,
+    fontSize: 15,
+    fontWeight: '400',
+    lineHeight: 20,
+    minWidth: 0,
   },
   menuRecentItem: {
     marginBottom: 2,

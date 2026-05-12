@@ -2279,18 +2279,18 @@ function WorkFolderTreeRow({
       ]}
     >
       <View style={styles.workFolderTreeIconSlot}>
-        <View style={styles.workFolderTreeIcon}>
-          <AppIcon
-            color={colors.foreground}
-            icon={getWorkFolderIcon(folder.iconId)}
-            size={18}
-          />
-        </View>
         <View style={styles.workFolderTreeChevron}>
           <AppIcon
             color={colors.mutedForeground}
             icon={expanded ? appIcons.chevronDown : appIcons.openPrompt}
             size={12}
+          />
+        </View>
+        <View style={styles.workFolderTreeIcon}>
+          <AppIcon
+            color={colors.foreground}
+            icon={getWorkFolderIcon(folder.iconId)}
+            size={18}
           />
         </View>
       </View>
@@ -2583,17 +2583,18 @@ const styles = StyleSheet.create({
     width: 46,
   },
   workFolderTreeIcon: {
-    alignItems: 'flex-start',
+    alignItems: 'center',
     height: 30,
     justifyContent: 'center',
-    width: 26,
+    marginLeft: 18,
+    width: 24,
   },
   workFolderTreeChevron: {
     alignItems: 'center',
     height: 28,
     justifyContent: 'center',
     position: 'absolute',
-    right: 4,
+    left: 0,
     top: 3,
     width: 16,
   },

@@ -490,15 +490,15 @@ function ChatScreen({
         updateAssistantMessage(response);
       }
 
-      onMessagesChange(
-        [
-          ...messagesWithUserPrompt,
-          {
-            ...assistantMessage,
-            text: response,
-          },
-        ],
-        nextSessionTitle,
+      const finalMessages = [
+        ...messagesWithUserPrompt,
+        {
+          ...assistantMessage,
+          text: response,
+        },
+      ];
+      await onMessagesChange(finalMessages, nextSessionTitle).persisted?.catch(
+        () => undefined,
       );
 
       if (shouldGenerateSessionTitle) {
@@ -632,7 +632,15 @@ function ChatScreen({
           },
         );
 
-        updateRetriedAssistantMessage(response || streamedResponse);
+        const finalResponse = response || streamedResponse;
+        updateRetriedAssistantMessage(finalResponse);
+        await onMessagesChange(
+          messagesWithPendingRetry.map(message =>
+            message.id === retriedAssistantMessage.id
+              ? { ...retriedAssistantMessage, text: finalResponse }
+              : message,
+          ),
+        ).persisted?.catch(() => undefined);
       } catch (error) {
         const message =
           error instanceof Error

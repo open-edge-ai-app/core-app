@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Switch, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import AppIcon from '../components/AppIcon';
 import { Badge, Button, Separator } from '../components/ui';
@@ -251,13 +251,8 @@ function Settings() {
             <Text style={styles.sectionTitle}>인덱싱</Text>
             <Text style={styles.sectionCaption}>파일과 일정 인덱싱</Text>
           </View>
-          <Switch
+          <SettingsToggle
             onValueChange={setGalleryIndexingEnabled}
-            thumbColor={galleryIndexingEnabled ? colors.card : '#F8FAFC'}
-            trackColor={{
-              false: colors.border,
-              true: colors.primary,
-            }}
             value={galleryIndexingEnabled}
           />
         </View>
@@ -291,6 +286,34 @@ function StatusRow({ label, value }: StatusRowProps) {
       <Text style={styles.rowLabel}>{label}</Text>
       <Text style={styles.rowValue}>{value}</Text>
     </View>
+  );
+}
+
+type SettingsToggleProps = {
+  onValueChange: (value: boolean) => void;
+  value: boolean;
+};
+
+function SettingsToggle({ onValueChange, value }: SettingsToggleProps) {
+  return (
+    <Pressable
+      accessibilityRole="switch"
+      accessibilityState={{ checked: value }}
+      hitSlop={8}
+      onPress={() => onValueChange(!value)}
+      style={({ pressed }) => [
+        styles.settingsToggle,
+        value && styles.settingsToggleOn,
+        pressed && styles.settingsTogglePressed,
+      ]}
+    >
+      <View
+        style={[
+          styles.settingsToggleThumb,
+          value && styles.settingsToggleThumbOn,
+        ]}
+      />
+    </Pressable>
   );
 }
 
@@ -432,6 +455,37 @@ const styles = StyleSheet.create({
   switchCopy: {
     flex: 1,
     paddingRight: 16,
+  },
+  settingsToggle: {
+    backgroundColor: colors.input,
+    borderColor: colors.border,
+    borderRadius: 15,
+    borderWidth: StyleSheet.hairlineWidth,
+    height: 30,
+    justifyContent: 'center',
+    paddingHorizontal: 3,
+    width: 50,
+  },
+  settingsToggleOn: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  settingsTogglePressed: {
+    opacity: 0.72,
+  },
+  settingsToggleThumb: {
+    backgroundColor: colors.card,
+    borderRadius: 12,
+    height: 24,
+    shadowColor: '#000000',
+    shadowOffset: { height: 1, width: 0 },
+    shadowOpacity: 0.16,
+    shadowRadius: 2,
+    transform: [{ translateX: 0 }],
+    width: 24,
+  },
+  settingsToggleThumbOn: {
+    transform: [{ translateX: 20 }],
   },
   refreshButton: {
     alignSelf: 'flex-start',

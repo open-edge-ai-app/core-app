@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Community support
+    url: https://github.com/open-edge-ai-app/open-edge-ai/blob/main/SUPPORT.md
+    about: Ask setup and usage questions with clear logs and context.
+  - name: Commercial support
+    url: https://github.com/open-edge-ai-app/open-edge-ai/blob/main/COMMERCIAL_SUPPORT.md
+    about: Learn about voluntary support options for organizations.

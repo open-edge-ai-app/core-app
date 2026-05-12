@@ -1,7 +1,27 @@
 {
   "name": "open-edge-ai",
   "version": "0.0.1",
+  "description": "Local-first React Native AI chat app with on-device model integration.",
   "private": true,
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/open-edge-ai-app/open-edge-ai.git"
+  },
+  "homepage": "https://github.com/open-edge-ai-app/open-edge-ai#readme",
+  "bugs": {
+    "url": "https://github.com/open-edge-ai-app/open-edge-ai/issues"
+  },
+  "keywords": [
+    "ai",
+    "android",
+    "chat",
+    "edge-ai",
+    "gemma",
+    "local-first",
+    "on-device-ai",
+    "react-native"
+  ],
   "scripts": {
     "android": "react-native run-android",
     "android:8082": "react-native run-android --port 8082",

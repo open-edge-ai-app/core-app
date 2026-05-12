@@ -101,7 +101,7 @@ const chatModes: ChatMode[] = [
 const INITIAL_SCROLL_BOTTOM_INSET = 170;
 const THREAD_SCROLL_BOTTOM_INSET = 210;
 const SCROLL_TO_BOTTOM_THRESHOLD = 140;
-const SCROLL_TO_BOTTOM_BUTTON_OFFSET = 160;
+const SCROLL_TO_BOTTOM_BUTTON_OFFSET = 198;
 
 const formatTime = (date: Date) =>
   new Intl.DateTimeFormat('ko-KR', {
@@ -1043,14 +1043,9 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     borderRadius: 20,
     borderWidth: StyleSheet.hairlineWidth,
-    elevation: 8,
     height: 40,
     justifyContent: 'center',
     position: 'absolute',
-    shadowColor: '#000000',
-    shadowOffset: { height: 6, width: 0 },
-    shadowOpacity: 0.12,
-    shadowRadius: 12,
     width: 40,
     zIndex: 30,
   },

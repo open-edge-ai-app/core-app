@@ -765,8 +765,10 @@ class AIEngineModule(
             putInt("indexedItems", indexedItems)
             putBoolean("smsEnabled", smsEnabled)
             putBoolean("galleryEnabled", galleryEnabled)
+            putBoolean("documentEnabled", documentEnabled)
             putInt("smsIndexedItems", smsIndexedItems)
             putInt("galleryIndexedItems", galleryIndexedItems)
+            putInt("documentIndexedItems", documentIndexedItems)
             if (lastIndexedAt == null) {
                 putNull("lastIndexedAt")
             } else {
@@ -783,6 +785,7 @@ class AIEngineModule(
         Arguments.createMap().apply {
             putInt("smsIndexed", smsIndexed)
             putInt("galleryIndexed", galleryIndexed)
+            putInt("documentIndexed", documentIndexed)
             putInt("deleted", deleted)
             putInt("skipped", skipped)
             putMap("status", status.toWritableMap())

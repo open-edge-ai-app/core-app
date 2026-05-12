@@ -44,15 +44,17 @@ class MemoryIndexer(
             lastError = lastError,
             smsEnabled = isSourceEnabled(SOURCE_SMS),
             galleryEnabled = isSourceEnabled(SOURCE_IMAGE),
+            documentEnabled = isSourceEnabled(SOURCE_DOCUMENT),
             smsIndexedItems = dbHelper.countBySource(SOURCE_SMS),
             galleryIndexedItems = dbHelper.countBySource(SOURCE_IMAGE),
+            documentIndexedItems = dbHelper.countBySource(SOURCE_DOCUMENT),
         )
 
     fun startIndexing(
         onComplete: (Result<IndexingResult>) -> Unit,
     ) {
         if (!running.compareAndSet(false, true)) {
-            onComplete(Result.success(IndexingResult(0, 0, 0, 0, getStatus())))
+            onComplete(Result.success(IndexingResult(0, 0, 0, 0, 0, getStatus())))
             return
         }
 
@@ -84,8 +86,31 @@ class MemoryIndexer(
                     } else {
                         0
                     }
+                val documentIndexed =
+                    if (isSourceEnabled(SOURCE_DOCUMENT)) {
+                        try {
+                            indexDocuments()
+                        } catch (error: Exception) {
+                            skipped += 1
+                            lastError = error.message ?: error.javaClass.simpleName
+                            0
+                        }
+                    } else {
+                        0
+                    }
                 running.set(false)
-                onComplete(Result.success(IndexingResult(smsIndexed, galleryIndexed, 0, skipped, getStatus())))
+                onComplete(
+                    Result.success(
+                        IndexingResult(
+                            smsIndexed,
+                            galleryIndexed,
+                            documentIndexed,
+                            0,
+                            skipped,
+                            getStatus(),
+                        ),
+                    ),
+                )
             } catch (error: Exception) {
                 lastError = error.message ?: error.javaClass.simpleName
                 running.set(false)
@@ -140,7 +165,7 @@ class MemoryIndexer(
         executor.execute {
             try {
                 val deleted = dao.deleteBySource(normalizedSource)
-                onComplete(Result.success(IndexingResult(0, 0, deleted, 0, getStatus())))
+                onComplete(Result.success(IndexingResult(0, 0, 0, deleted, 0, getStatus())))
             } catch (error: Exception) {
                 lastError = error.message ?: error.javaClass.simpleName
                 onComplete(Result.failure(error))
@@ -161,7 +186,7 @@ class MemoryIndexer(
         executor.execute {
             try {
                 val deleted = dao.deleteBySource(normalizedSource)
-                onComplete(Result.success(IndexingResult(0, 0, deleted, 0, getStatus())))
+                onComplete(Result.success(IndexingResult(0, 0, 0, deleted, 0, getStatus())))
             } catch (error: Exception) {
                 lastError = error.message ?: error.javaClass.simpleName
                 onComplete(Result.failure(error))
@@ -179,7 +204,7 @@ class MemoryIndexer(
             return
         }
         if (!running.compareAndSet(false, true)) {
-            onComplete(Result.success(IndexingResult(0, 0, 0, 0, getStatus())))
+            onComplete(Result.success(IndexingResult(0, 0, 0, 0, 0, getStatus())))
             return
         }
 
@@ -189,6 +214,7 @@ class MemoryIndexer(
                 val count = when (normalizedSource) {
                     SOURCE_SMS -> indexSms()
                     SOURCE_IMAGE -> indexGallery()
+                    SOURCE_DOCUMENT -> indexDocuments()
                     else -> 0
                 }
                 running.set(false)
@@ -197,6 +223,7 @@ class MemoryIndexer(
                         IndexingResult(
                             smsIndexed = if (normalizedSource == SOURCE_SMS) count else 0,
                             galleryIndexed = if (normalizedSource == SOURCE_IMAGE) count else 0,
+                            documentIndexed = if (normalizedSource == SOURCE_DOCUMENT) count else 0,
                             deleted = 0,
                             skipped = 0,
                             status = getStatus(),
@@ -255,6 +282,73 @@ class MemoryIndexer(
                         uri = uri.toString(),
                         timestamp = date,
                         metadata = "type=$type",
+                    ),
+                )
+                if (insertedId > 0) {
+                    indexed += 1
+                }
+            }
+        }
+        return indexed
+    }
+
+    private fun indexDocuments(limit: Int? = null): Int {
+        if (!hasDocumentPermission()) {
+            return 0
+        }
+        if (!embedManager.isAvailable()) {
+            error("Text embedding model is missing.")
+        }
+
+        var indexed = 0
+        val externalFiles = MediaStore.Files.getContentUri("external")
+        val projection = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            arrayOf(
+                MediaStore.Files.FileColumns._ID,
+                MediaStore.Files.FileColumns.DISPLAY_NAME,
+                MediaStore.Files.FileColumns.DATE_MODIFIED,
+                MediaStore.Files.FileColumns.MIME_TYPE,
+                MediaStore.Files.FileColumns.SIZE,
+                MediaStore.Files.FileColumns.RELATIVE_PATH,
+            )
+        } else {
+            arrayOf(
+                MediaStore.Files.FileColumns._ID,
+                MediaStore.Files.FileColumns.DISPLAY_NAME,
+                MediaStore.Files.FileColumns.DATE_MODIFIED,
+                MediaStore.Files.FileColumns.MIME_TYPE,
+                MediaStore.Files.FileColumns.SIZE,
+            )
+        }
+
+        appContext.contentResolver.query(
+            externalFiles,
+            projection,
+            buildDocumentSelection(),
+            DOCUMENT_MIME_TYPES,
+            buildSortOrder(MediaStore.Files.FileColumns.DATE_MODIFIED, limit),
+        )?.use { cursor ->
+            val relativePathIndex = cursor.getColumnIndex(MediaStore.Files.FileColumns.RELATIVE_PATH)
+            while (cursor.moveToNext()) {
+                val id = cursor.getLong(0)
+                val name = cursor.getString(1)
+                val modified = normalizeDocumentTimestamp(cursor.getLong(2))
+                val mimeType = cursor.getString(3)
+                val size = cursor.getLong(4)
+                val relativePath = if (relativePathIndex >= 0) cursor.getString(relativePathIndex) else null
+                val uri = ContentUris.withAppendedId(externalFiles, id)
+                val text = buildDocumentText(name, modified, mimeType, relativePath, uri)
+                val embedding = embedManager.embed(text)
+                val insertedId = dao.insert(
+                    VectorRecord(
+                        id = 0,
+                        source = SOURCE_DOCUMENT,
+                        sourceId = id.toString(),
+                        text = text,
+                        embedding = embedding,
+                        uri = uri.toString(),
+                        timestamp = modified,
+                        metadata = "mimeType=${mimeType.orEmpty()};size=$size;relativePath=${relativePath.orEmpty()}",
                     ),
                 )
                 if (insertedId > 0) {
@@ -335,6 +429,15 @@ class MemoryIndexer(
         uri: Uri,
     ): String = "${formatDate(timestamp)} gallery image ${name.orEmpty()} at $uri"
 
+    private fun buildDocumentText(
+        name: String?,
+        timestamp: Long,
+        mimeType: String?,
+        relativePath: String?,
+        uri: Uri,
+    ): String =
+        "${formatDate(timestamp)} document file ${name.orEmpty()} ${mimeType.orEmpty()} from ${relativePath.orEmpty()} at $uri"
+
     private fun formatDate(timestamp: Long): String =
         if (timestamp <= 0) {
             "unknown date"
@@ -349,6 +452,13 @@ class MemoryIndexer(
             hasPermission(Manifest.permission.READ_EXTERNAL_STORAGE)
         }
 
+    private fun hasDocumentPermission(): Boolean =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            true
+        } else {
+            hasPermission(Manifest.permission.READ_EXTERNAL_STORAGE)
+        }
+
     private fun hasPermission(permission: String): Boolean =
         appContext.checkSelfPermission(permission) == PackageManager.PERMISSION_GRANTED
 
@@ -357,6 +467,20 @@ class MemoryIndexer(
             "$column DESC"
         } else {
             "$column DESC LIMIT $limit"
+        }
+
+    private fun buildDocumentSelection(): String =
+        DOCUMENT_MIME_TYPES.joinToString(
+            prefix = "${MediaStore.Files.FileColumns.MIME_TYPE} IN (",
+            postfix = ")",
+            separator = ",",
+        ) { "?" }
+
+    private fun normalizeDocumentTimestamp(timestamp: Long): Long =
+        if (timestamp in 1 until 10_000_000_000L) {
+            timestamp * 1000
+        } else {
+            timestamp
         }
 
     private fun isSourceEnabled(source: String): Boolean =
@@ -368,6 +492,7 @@ class MemoryIndexer(
         when (source.lowercase(Locale.US)) {
             SOURCE_SMS -> SOURCE_SMS
             "gallery", SOURCE_IMAGE -> SOURCE_IMAGE
+            SOURCE_DOCUMENT, "documents", "download", "downloads" -> SOURCE_DOCUMENT
             else -> null
         }
 
@@ -380,8 +505,22 @@ class MemoryIndexer(
     companion object {
         private const val SOURCE_SMS = "sms"
         private const val SOURCE_IMAGE = "image"
+        private const val SOURCE_DOCUMENT = "document"
         private const val PREFS_NAME = "onda_indexing"
         private const val DEFAULT_SOURCE_ENABLED = false
         private val DATE_FORMAT = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.KOREA)
+        private val DOCUMENT_MIME_TYPES = arrayOf(
+            "application/pdf",
+            "text/plain",
+            "text/csv",
+            "text/markdown",
+            "application/json",
+            "application/msword",
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            "application/vnd.ms-excel",
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            "application/vnd.ms-powerpoint",
+            "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        )
     }
 }

@@ -53,15 +53,18 @@ export type IndexingStatus = {
   lastError?: string | null;
   smsEnabled: boolean;
   galleryEnabled: boolean;
+  documentEnabled: boolean;
   smsIndexedItems: number;
   galleryIndexedItems: number;
+  documentIndexedItems: number;
 };
 
-export type IndexingSource = 'sms' | 'gallery' | 'image';
+export type IndexingSource = 'sms' | 'gallery' | 'image' | 'document';
 
 export type IndexingResult = {
   smsIndexed: number;
   galleryIndexed: number;
+  documentIndexed: number;
   deleted: number;
   skipped: number;
   status: IndexingStatus;
@@ -633,10 +636,12 @@ export const AIEngine = {
         isIndexing: status.isIndexing,
         lastError: status.lastError,
         lastIndexedAt: status.lastIndexedAt,
-        smsEnabled: status.smsEnabled ?? true,
-        galleryEnabled: status.galleryEnabled ?? true,
+        smsEnabled: status.smsEnabled ?? false,
+        galleryEnabled: status.galleryEnabled ?? false,
+        documentEnabled: status.documentEnabled ?? false,
         smsIndexedItems: status.smsIndexedItems ?? 0,
         galleryIndexedItems: status.galleryIndexedItems ?? 0,
+        documentIndexedItems: status.documentIndexedItems ?? 0,
       };
     }
 
@@ -648,8 +653,10 @@ export const AIEngine = {
       lastIndexedAt: undefined,
       smsEnabled: false,
       galleryEnabled: false,
+      documentEnabled: false,
       smsIndexedItems: 0,
       galleryIndexedItems: 0,
+      documentIndexedItems: 0,
     };
   },
 
@@ -758,7 +765,15 @@ export const AIEngine = {
         ? [androidPermissions.READ_SMS]
         : source === 'gallery' || source === 'image'
         ? [mediaPermission]
+        : source === 'document'
+        ? Number(Platform.Version) >= 33
+          ? []
+          : [androidPermissions.READ_EXTERNAL_STORAGE]
         : [androidPermissions.READ_SMS, mediaPermission];
+
+    if (permissions.length === 0) {
+      return true;
+    }
 
     if (!nativePermissionsAndroid?.requestMultiplePermissions) {
       throw new Error('Android permission module is not available.');

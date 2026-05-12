@@ -419,6 +419,35 @@ function App() {
       modelOptions[0],
     [selectedModelId],
   );
+  const modelSelectOptions = useMemo<FloatingSelectOption<ModelOption['id']>[]>(
+    () =>
+      modelOptions.map(model => ({
+        description: model.detail,
+        dividerBefore: model.action === 'settings',
+        icon: model.icon,
+        label: model.label,
+        value: model.id,
+      })),
+    [],
+  );
+
+  const handleModelMenuExpandedChange = useCallback((expanded: boolean) => {
+    if (expanded) {
+      setIsMenuOpen(false);
+    }
+    setIsModelMenuOpen(expanded);
+  }, []);
+
+  const handleSelectModel = useCallback((modelId: ModelOption['id']) => {
+    const nextModel = modelOptions.find(model => model.id === modelId);
+
+    if (nextModel?.action === 'settings') {
+      setActiveScreen('settings');
+      return;
+    }
+
+    setSelectedModelId(modelId);
+  }, []);
 
   useEffect(() => {
     activeSessionIdRef.current = activeSessionId;
@@ -525,16 +554,6 @@ function App() {
       chatMessagesBySessionId[activeSessionId] ?? createInitialChatMessages()
     );
   }, [activeSessionId, chatMessagesBySessionId, draftChatMessages]);
-
-  const handleToggleModelMenu = () => {
-    if (isModelMenuOpen) {
-      setIsModelMenuOpen(false);
-      return;
-    }
-
-    setIsMenuOpen(false);
-    setIsModelMenuOpen(true);
-  };
 
   const handleNewChat = () => {
     setActiveScreen('chat');
@@ -735,79 +754,21 @@ function App() {
             </Text>
 
             <View style={[styles.headerSide, styles.headerSideRight]}>
-              <Pressable
+              <FloatingSelect
                 accessibilityLabel="모델 선택"
-                accessibilityRole="button"
-                onPress={handleToggleModelMenu}
-                style={({ pressed }) => [
-                  styles.modelSelector,
-                  isModelMenuOpen && styles.modelSelectorActive,
-                  pressed && styles.menuButtonPressed,
-                ]}
-              >
-                <Text numberOfLines={1} style={styles.modelSelectorText}>
-                  {selectedModel.label}
-                </Text>
-                <AppIcon
-                  color={colors.mutedForeground}
-                  icon={appIcons.chevronDown}
-                  size={10}
-                />
-              </Pressable>
-              {isModelMenuOpen ? (
-                <View style={styles.modelMenu}>
-                  {modelOptions.map(model => {
-                    const isSelected = model.id === selectedModel.id;
-                    const isManageAction = model.action === 'settings';
-
-                    return (
-                      <Pressable
-                        accessibilityRole="button"
-                        key={model.id}
-                        onPress={() => {
-                          if (isManageAction) {
-                            setActiveScreen('settings');
-                          } else {
-                            setSelectedModelId(model.id);
-                          }
-                          setIsModelMenuOpen(false);
-                        }}
-                        style={({ pressed }) => [
-                          styles.modelMenuRow,
-                          isManageAction && styles.modelMenuManageRow,
-                          isSelected && styles.modelMenuRowActive,
-                          pressed && styles.menuRowPressed,
-                        ]}
-                      >
-                        <View style={styles.modelMenuIcon}>
-                          <AppIcon
-                            color={
-                              isSelected ? colors.primary : colors.foreground
-                            }
-                            icon={model.icon}
-                            size={16}
-                          />
-                        </View>
-                        <View style={styles.modelMenuCopy}>
-                          <Text style={styles.modelMenuLabel}>
-                            {model.label}
-                          </Text>
-                          <Text style={styles.modelMenuDetail}>
-                            {model.detail}
-                          </Text>
-                        </View>
-                        {isSelected ? (
-                          <AppIcon
-                            color={colors.primary}
-                            icon={appIcons.selected}
-                            size={16}
-                          />
-                        ) : null}
-                      </Pressable>
-                    );
-                  })}
-                </View>
-              ) : null}
+                expanded={isModelMenuOpen}
+                menuAlignment="right"
+                menuStyle={styles.modelMenu}
+                onExpandedChange={handleModelMenuExpandedChange}
+                onValueChange={handleSelectModel}
+                optionIconSize={16}
+                options={modelSelectOptions}
+                selectedValue={selectedModelId}
+                showTriggerIcon={false}
+                triggerStyle={styles.modelSelector}
+                valueTextStyle={styles.modelSelectorText}
+                variant="header"
+              />
             </View>
           </View>
 
@@ -1850,10 +1811,6 @@ const styles = StyleSheet.create({
     maxWidth: 106,
     paddingHorizontal: 11,
   },
-  modelSelectorActive: {
-    backgroundColor: colors.card,
-    borderColor: colors.input,
-  },
   modelSelectorText: {
     ...typography.caption,
     color: colors.foreground,
@@ -1871,60 +1828,8 @@ const styles = StyleSheet.create({
     zIndex: 9000,
   },
   modelMenu: {
-    backgroundColor: colors.card,
-    borderColor: 'rgba(21,25,34,0.06)',
-    borderRadius: 24,
-    borderWidth: 1,
-    elevation: 10002,
-    overflow: 'hidden',
-    position: 'absolute',
-    right: 0,
-    shadowColor: '#000000',
-    shadowOffset: { height: 18, width: 0 },
-    shadowOpacity: 0.14,
-    shadowRadius: 34,
     top: MODEL_MENU_TOP,
     width: MODEL_MENU_WIDTH,
-    zIndex: 10002,
-  },
-  modelMenuRow: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    minHeight: 64,
-    paddingHorizontal: 18,
-    paddingVertical: 10,
-  },
-  modelMenuRowActive: {
-    backgroundColor: 'rgba(0,122,255,0.08)',
-  },
-  modelMenuManageRow: {
-    borderTopColor: colors.border,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    marginTop: 7,
-  },
-  modelMenuIcon: {
-    alignItems: 'center',
-    height: 28,
-    justifyContent: 'center',
-    marginRight: 12,
-    width: 22,
-  },
-  modelMenuCopy: {
-    flex: 1,
-    paddingRight: 10,
-  },
-  modelMenuLabel: {
-    ...typography.label,
-    color: colors.foreground,
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  modelMenuDetail: {
-    ...typography.caption,
-    color: colors.mutedForeground,
-    fontSize: 13,
-    fontWeight: '500',
-    marginTop: 4,
   },
   content: {
     flex: 1,

@@ -15,6 +15,8 @@ import { appIcons } from '../theme/icons';
 import { colors, typography } from '../theme/tokens';
 
 export type FloatingSelectOption<Value extends string> = {
+  description?: string;
+  dividerBefore?: boolean;
   icon?: IconDefinition;
   label: string;
   value: Value;
@@ -25,6 +27,7 @@ type FloatingSelectProps<Value extends string> = {
   children?: ReactNode;
   disabled?: boolean;
   expanded: boolean;
+  menuAlignment?: 'left' | 'right' | 'stretch';
   menuStyle?: StyleProp<ViewStyle>;
   onExpandedChange: (expanded: boolean) => void;
   onValueChange: (value: Value) => void;
@@ -33,9 +36,11 @@ type FloatingSelectProps<Value extends string> = {
   placeholder?: string;
   placeholderIcon?: IconDefinition;
   selectedValue?: Value | null;
+  showTriggerIcon?: boolean;
   triggerIconSize?: number;
+  triggerStyle?: StyleProp<ViewStyle>;
   valueTextStyle?: StyleProp<TextStyle>;
-  variant?: 'full' | 'compact';
+  variant?: 'full' | 'compact' | 'header';
 };
 
 const OPTION_MENU_ELEVATION = 96;
@@ -46,6 +51,7 @@ function FloatingSelect<Value extends string>({
   children,
   disabled = false,
   expanded,
+  menuAlignment = 'stretch',
   menuStyle,
   onExpandedChange,
   onValueChange,
@@ -54,7 +60,9 @@ function FloatingSelect<Value extends string>({
   placeholder,
   placeholderIcon,
   selectedValue,
+  showTriggerIcon = true,
   triggerIconSize = 16,
+  triggerStyle,
   valueTextStyle,
   variant = 'full',
 }: FloatingSelectProps<Value>) {
@@ -63,8 +71,12 @@ function FloatingSelect<Value extends string>({
     [options, selectedValue],
   );
   const isCompact = variant === 'compact';
+  const isHeader = variant === 'header';
   const isActiveCompact = isCompact && expanded;
-  const displayIcon = selectedOption?.icon ?? placeholderIcon;
+  const isActiveHeader = isHeader && expanded;
+  const displayIcon = showTriggerIcon
+    ? selectedOption?.icon ?? placeholderIcon
+    : undefined;
   const displayLabel = selectedOption?.label ?? placeholder;
   const triggerIconColor = isActiveCompact
     ? colors.primaryForeground
@@ -91,16 +103,26 @@ function FloatingSelect<Value extends string>({
           onPress={() => onExpandedChange(!expanded)}
           style={({ pressed }) => [
             styles.trigger,
-            isCompact ? styles.compactTrigger : styles.fullTrigger,
+            isCompact
+              ? styles.compactTrigger
+              : isHeader
+              ? styles.headerTrigger
+              : styles.fullTrigger,
             isActiveCompact && styles.compactTriggerActive,
+            isActiveHeader && styles.headerTriggerActive,
             disabled && styles.disabled,
             pressed && styles.pressed,
+            triggerStyle,
           ]}
         >
           <View
             style={[
               styles.triggerValue,
-              isCompact ? styles.compactTriggerValue : styles.fullTriggerValue,
+              isCompact
+                ? styles.compactTriggerValue
+                : isHeader
+                ? styles.headerTriggerValue
+                : styles.fullTriggerValue,
             ]}
           >
             {displayIcon ? (
@@ -115,6 +137,8 @@ function FloatingSelect<Value extends string>({
                 numberOfLines={1}
                 style={[
                   styles.triggerText,
+                  !displayIcon && styles.triggerTextNoIcon,
+                  isHeader && styles.headerTriggerText,
                   !selectedOption && styles.placeholderText,
                   valueTextStyle,
                 ]}
@@ -126,7 +150,7 @@ function FloatingSelect<Value extends string>({
           <AppIcon
             color={chevronColor}
             icon={appIcons.chevronDown}
-            size={isCompact ? 9 : 12}
+            size={isCompact || isHeader ? 9 : 12}
           />
         </Pressable>
         {children}
@@ -136,7 +160,16 @@ function FloatingSelect<Value extends string>({
         <View
           style={[
             styles.menu,
-            isCompact ? styles.compactMenu : styles.fullMenu,
+            menuAlignment === 'stretch'
+              ? styles.menuStretch
+              : menuAlignment === 'right'
+              ? styles.menuRight
+              : styles.menuLeft,
+            isCompact
+              ? styles.compactMenu
+              : isHeader
+              ? styles.headerMenu
+              : styles.fullMenu,
             menuStyle,
           ]}
         >
@@ -152,6 +185,7 @@ function FloatingSelect<Value extends string>({
                 onPress={() => handleSelect(option.value)}
                 style={({ pressed }) => [
                   styles.optionRow,
+                  option.dividerBefore && styles.optionRowDivider,
                   isSelected && styles.optionRowActive,
                   pressed && styles.pressed,
                 ]}
@@ -164,9 +198,16 @@ function FloatingSelect<Value extends string>({
                       size={optionIconSize}
                     />
                   ) : null}
-                  <Text numberOfLines={1} style={styles.optionLabel}>
-                    {option.label}
-                  </Text>
+                  <View style={styles.optionCopy}>
+                    <Text numberOfLines={1} style={styles.optionLabel}>
+                      {option.label}
+                    </Text>
+                    {option.description ? (
+                      <Text numberOfLines={1} style={styles.optionDescription}>
+                        {option.description}
+                      </Text>
+                    ) : null}
+                  </View>
                 </View>
                 {isSelected ? (
                   <AppIcon
@@ -214,6 +255,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     width: '100%',
   },
+  headerTrigger: {
+    borderRadius: 18,
+    justifyContent: 'space-between',
+    maxWidth: 106,
+    minHeight: 32,
+    paddingHorizontal: 11,
+  },
+  headerTriggerActive: {
+    backgroundColor: colors.card,
+  },
   compactTrigger: {
     gap: 6,
     height: 46,
@@ -239,6 +290,10 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingRight: 12,
   },
+  headerTriggerValue: {
+    flex: 1,
+    paddingRight: 5,
+  },
   compactTriggerValue: {
     flexShrink: 0,
   },
@@ -250,6 +305,13 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     marginLeft: 10,
   },
+  headerTriggerText: {
+    ...typography.caption,
+    fontSize: 13,
+  },
+  triggerTextNoIcon: {
+    marginLeft: 0,
+  },
   placeholderText: {
     color: colors.mutedForeground,
   },
@@ -259,15 +321,23 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     borderWidth: StyleSheet.hairlineWidth,
     elevation: OPTION_MENU_ELEVATION,
-    left: 0,
     overflow: 'hidden',
     position: 'absolute',
-    right: 0,
     shadowColor: '#000000',
     shadowOffset: { height: 12, width: 0 },
     shadowOpacity: 0.16,
     shadowRadius: 22,
     zIndex: OPTION_MENU_Z_INDEX,
+  },
+  menuStretch: {
+    left: 0,
+    right: 0,
+  },
+  menuLeft: {
+    left: 0,
+  },
+  menuRight: {
+    right: 0,
   },
   fullMenu: {
     top: 46,
@@ -275,15 +345,24 @@ const styles = StyleSheet.create({
   compactMenu: {
     top: 56,
   },
+  headerMenu: {
+    top: 38,
+  },
   optionRow: {
     alignItems: 'center',
     flexDirection: 'row',
     justifyContent: 'space-between',
     minHeight: 42,
     paddingHorizontal: 12,
+    paddingVertical: 8,
   },
   optionRowActive: {
     backgroundColor: 'rgba(0,122,255,0.08)',
+  },
+  optionRowDivider: {
+    borderTopColor: colors.border,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    marginTop: 6,
   },
   optionValue: {
     alignItems: 'center',
@@ -292,13 +371,24 @@ const styles = StyleSheet.create({
     minWidth: 0,
     paddingRight: 10,
   },
+  optionCopy: {
+    flex: 1,
+    marginLeft: 10,
+    minWidth: 0,
+  },
   optionLabel: {
     ...typography.label,
     color: colors.foreground,
     flex: 1,
     fontSize: 14,
     fontWeight: '700',
-    marginLeft: 10,
+  },
+  optionDescription: {
+    ...typography.caption,
+    color: colors.mutedForeground,
+    fontSize: 12,
+    fontWeight: '500',
+    marginTop: 3,
   },
 });
 

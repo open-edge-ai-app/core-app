@@ -35,15 +35,17 @@ const formatBytes = (bytes: number) => {
 };
 
 type SettingsProps = {
+  activePanel: SettingsPanelId;
   onModelStateChange?: (state: {
     modelStatus: ModelStatus | null;
     runtimeStatus: RuntimeStatus | null;
   }) => void;
+  onPanelChange: (panel: SettingsPanelId) => void;
   onPersonalSystemPromptChange: (prompt: string) => void;
   personalSystemPrompt: string;
 };
 
-type SettingsPanelId =
+export type SettingsPanelId =
   | 'root'
   | 'systemPrompt'
   | 'personalization'
@@ -51,7 +53,9 @@ type SettingsPanelId =
   | 'indexing';
 
 function Settings({
+  activePanel,
   onModelStateChange,
+  onPanelChange,
   onPersonalSystemPromptChange,
   personalSystemPrompt,
 }: SettingsProps) {
@@ -60,7 +64,6 @@ function Settings({
   const [runtimeStatus, setRuntimeStatus] = useState<RuntimeStatus | null>(
     null,
   );
-  const [activePanel, setActivePanel] = useState<SettingsPanelId>('root');
   const { selectedTextSize, setTextSize, textSize, textSizes } =
     useDisplaySettings();
 
@@ -170,18 +173,6 @@ function Settings({
     : `${status.indexedItems.toLocaleString('ko-KR')}개`;
   const renderDetailHeader = (title: string, description: string) => (
     <View style={styles.header}>
-      <Pressable
-        accessibilityLabel="설정 목록으로 돌아가기"
-        accessibilityRole="button"
-        hitSlop={8}
-        onPress={() => setActivePanel('root')}
-        style={({ pressed }) => [
-          styles.backButton,
-          pressed && styles.rowPressed,
-        ]}
-      >
-        <AppIcon color={colors.foreground} icon={appIcons.back} size={18} />
-      </Pressable>
       <Text style={styles.title}>{title}</Text>
       <Text style={styles.description}>{description}</Text>
     </View>
@@ -199,28 +190,28 @@ function Settings({
       <View style={styles.settingsList}>
         <SettingsNavigationRow
           caption="개인 기본 지침과 작업 폴더 메모리 적용 순서"
-          onPress={() => setActivePanel('systemPrompt')}
+          onPress={() => onPanelChange('systemPrompt')}
           title="시스템 프롬프트"
           value={personalSystemPrompt.trim() ? '적용 중' : '비어 있음'}
           valueVariant={personalSystemPrompt.trim() ? 'success' : 'outline'}
         />
         <SettingsNavigationRow
           caption="앱 전체 텍스트 크기"
-          onPress={() => setActivePanel('personalization')}
+          onPress={() => onPanelChange('personalization')}
           title="개인화"
           value={selectedTextSize.label}
           valueVariant="outline"
         />
         <SettingsNavigationRow
           caption="모델 다운로드, 런타임 로드, 엔진 연결 상태"
-          onPress={() => setActivePanel('model')}
+          onPress={() => onPanelChange('model')}
           title="모델"
           value={modelSummary}
           valueVariant={runtimeStatus?.loaded ? 'success' : 'secondary'}
         />
         <SettingsNavigationRow
           caption="SMS/Gallery 임베딩 생성과 삭제"
-          onPress={() => setActivePanel('indexing')}
+          onPress={() => onPanelChange('indexing')}
           title="인덱싱"
           value={indexingSummary}
           valueVariant={status.isIndexing ? 'success' : 'outline'}
@@ -640,14 +631,6 @@ const styles = StyleSheet.create({
   },
   header: {
     marginBottom: 42,
-  },
-  backButton: {
-    alignItems: 'center',
-    height: 34,
-    justifyContent: 'center',
-    marginBottom: 18,
-    marginLeft: -8,
-    width: 34,
   },
   title: {
     ...typography.title,

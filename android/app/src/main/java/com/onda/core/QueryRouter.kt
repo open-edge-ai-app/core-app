@@ -29,6 +29,37 @@ class QueryRouter {
         return gemmaManager.generateMultimodal(request, requiresRag, modalities)
     }
 
+    fun routeMultimodalStream(
+        request: MultimodalRequest,
+        onPartial: (String, Boolean) -> Unit,
+        onComplete: (AIResponse) -> Unit,
+        onError: (Throwable) -> Unit,
+    ): Boolean {
+        val normalized = request.text.trim()
+        if (normalized.isEmpty() && request.attachments.isEmpty()) {
+            onComplete(
+                AIResponse(
+                    type = "error",
+                    message = "Message and attachments are empty.",
+                    route = "invalid",
+                    modalities = emptyList(),
+                ),
+            )
+            return false
+        }
+
+        val requiresRag = request.useRag ?: shouldUseRag(normalized)
+        val modalities = request.attachments.map { attachment -> attachment.type }.distinct()
+        return gemmaManager.generateMultimodalStream(
+            request = request,
+            useRag = requiresRag,
+            modalities = modalities,
+            onPartial = onPartial,
+            onComplete = onComplete,
+            onError = onError,
+        )
+    }
+
     private fun shouldUseRag(message: String): Boolean {
         val ragHints = listOf(
             "memory",

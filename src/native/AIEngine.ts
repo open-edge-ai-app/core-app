@@ -1,4 +1,4 @@
-import { NativeModules, Platform } from 'react-native';
+import { NativeEventEmitter, NativeModules, Platform } from 'react-native';
 
 export type AIChatRole = 'assistant' | 'user' | 'system';
 
@@ -64,11 +64,23 @@ export type MultimodalMessage = {
   };
 };
 
+export type AIResponseStreamCallbacks = {
+  onChunk: (chunk: string) => void;
+};
+
 export type AIResponse = {
   type: 'text' | 'memory' | 'action' | 'error';
   message: string;
   route: 'direct' | 'rag' | 'agent' | 'invalid';
   modalities: MultimodalAttachmentType[];
+};
+
+type NativeStreamEvent = {
+  chunk?: string;
+  done?: boolean;
+  error?: string;
+  message?: string;
+  requestId?: string;
 };
 
 type NativeIndexingStatus = Omit<IndexingStatus, 'isAvailable'> & {
@@ -82,6 +94,10 @@ type AIEngineNativeModule = {
   ) => Promise<string>;
   sendMessage?: (message: string) => Promise<string>;
   sendMultimodalMessage?: (message: MultimodalMessage) => Promise<AIResponse>;
+  sendMultimodalMessageStream?: (
+    requestId: string,
+    message: MultimodalMessage,
+  ) => Promise<{ started: boolean }>;
   getIndexingStatus?: () => Promise<NativeIndexingStatus>;
   getStartupState?: () => Promise<StartupState>;
   getModelStatus?: () => Promise<ModelStatus>;
@@ -92,9 +108,12 @@ type AIEngineNativeModule = {
   ensureModelDownloaded?: () => Promise<ModelStatus>;
   cancelModelDownload?: () => Promise<ModelStatus>;
   startIndexing?: () => Promise<void>;
+  addListener: (eventName: string) => void;
+  removeListeners: (count: number) => void;
 };
 
 const nativeModule = NativeModules.AIEngine as AIEngineNativeModule | undefined;
+const AI_ENGINE_STREAM_EVENT = 'AIEngineStreamChunk';
 
 const modelDownloadUrl =
   'https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm/resolve/main/gemma-4-E2B-it.litertlm?download=true';
@@ -177,6 +196,55 @@ async function createDevelopmentResponse(prompt: string) {
   ].join('\n');
 }
 
+const createStreamRequestId = () =>
+  `stream-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
+const splitResponseForStreaming = (text: string) => {
+  const chunks = text.match(/\S+\s*|\s+/g) ?? [];
+
+  if (chunks.length > 0) {
+    return chunks.flatMap(chunk => {
+      if (chunk.length <= 16) {
+        return [chunk];
+      }
+
+      const splitChunks: string[] = [];
+      for (let index = 0; index < chunk.length; index += 8) {
+        splitChunks.push(chunk.slice(index, index + 8));
+      }
+      return splitChunks;
+    });
+  }
+
+  return text ? [text] : [];
+};
+
+const streamCompletedText = async (
+  text: string,
+  { onChunk }: AIResponseStreamCallbacks,
+) => {
+  const chunks = splitResponseForStreaming(text);
+
+  for (const chunk of chunks) {
+    onChunk(chunk);
+    await sleep(18);
+  }
+
+  return text;
+};
+
+const createNativeStreamEmitter = () => {
+  if (!nativeModule?.sendMultimodalMessageStream) {
+    return null;
+  }
+
+  try {
+    return new NativeEventEmitter(nativeModule);
+  } catch {
+    return null;
+  }
+};
+
 const getSystemInstructions = (history: AIChatMessage[]) =>
   history
     .filter(message => message.role === 'system')
@@ -232,6 +300,102 @@ export const AIEngine = {
     }
 
     return createDevelopmentResponse(prompt);
+  },
+
+  async generateResponseStream(
+    prompt: string,
+    history: AIChatMessage[] = [],
+    callbacks: AIResponseStreamCallbacks,
+  ) {
+    const promptWithSystemInstructions = applySystemInstructions(
+      prompt,
+      history,
+    );
+
+    if (nativeModule?.sendMultimodalMessageStream) {
+      const sendMultimodalMessageStream =
+        nativeModule.sendMultimodalMessageStream.bind(nativeModule);
+      const blockedReason = await ensureRuntimeReadyForGeneration();
+      if (blockedReason) {
+        return streamCompletedText(blockedReason, callbacks);
+      }
+
+      const emitter = createNativeStreamEmitter();
+      if (emitter) {
+        const requestId = createStreamRequestId();
+
+        return new Promise<string>((resolve, reject) => {
+          let response = '';
+          let settled = false;
+          let subscription: { remove: () => void } | null = null;
+
+          const cleanup = () => {
+            subscription?.remove();
+          };
+
+          const complete = (text: string) => {
+            if (settled) {
+              return;
+            }
+
+            settled = true;
+            cleanup();
+            resolve(text);
+          };
+
+          const fail = (error: Error) => {
+            if (settled) {
+              return;
+            }
+
+            settled = true;
+            cleanup();
+            reject(error);
+          };
+
+          subscription = emitter.addListener(
+            AI_ENGINE_STREAM_EVENT,
+            (event: NativeStreamEvent) => {
+              if (event.requestId !== requestId) {
+                return;
+              }
+
+              if (event.error) {
+                fail(new Error(event.error));
+                return;
+              }
+
+              if (event.chunk) {
+                response += event.chunk;
+                callbacks.onChunk(event.chunk);
+              }
+
+              if (event.done) {
+                complete(event.message ?? response);
+              }
+            },
+          );
+
+          sendMultimodalMessageStream(requestId, {
+            attachments: [],
+            options: {
+              stream: true,
+            },
+            text: promptWithSystemInstructions,
+          })
+            .catch(error => {
+              fail(
+                error instanceof Error
+                  ? error
+                  : new Error('AI 응답 스트리밍을 시작하지 못했습니다.'),
+              );
+            });
+        });
+      }
+    }
+
+    const response = await this.generateResponse(prompt, history);
+    return streamCompletedText(response, callbacks);
   },
 
   async sendMultimodalMessage(message: MultimodalMessage): Promise<AIResponse> {

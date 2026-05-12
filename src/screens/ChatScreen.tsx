@@ -129,6 +129,7 @@ function ChatScreen({
   const scrollViewRef = useRef<ScrollView>(null);
   const [draft, setDraft] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isAwaitingFirstChunk, setIsAwaitingFirstChunk] = useState(false);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
   const [selectedMode, setSelectedMode] = useState<ChatMode['id']>('chat');
 
@@ -136,6 +137,7 @@ function ChatScreen({
     () => messages.some(message => message.role === 'user'),
     [messages],
   );
+  const latestMessageText = messages[messages.length - 1]?.text ?? '';
 
   const history = useMemo<AIChatMessage[]>(
     () => [
@@ -196,7 +198,7 @@ function ChatScreen({
     }, 80);
 
     return () => clearTimeout(timeoutId);
-  }, [hasUserMessages, isGenerating, messages.length]);
+  }, [hasUserMessages, isGenerating, latestMessageText, messages.length]);
 
   useEffect(() => {
     if (hasUserMessages) {
@@ -215,27 +217,65 @@ function ChatScreen({
 
     const responseModelName = selectedModelLabel;
     const userMessage = createMessage('user', prompt);
+    const assistantMessage = createMessage('assistant', '', responseModelName);
     const messagesWithUserPrompt = [...messages, userMessage];
     const nextSessionTitle = !hasUserMessages
       ? createSessionTitle(prompt)
       : undefined;
 
-    onMessagesChange(messagesWithUserPrompt, nextSessionTitle);
+    onMessagesChange(
+      [...messagesWithUserPrompt, assistantMessage],
+      nextSessionTitle,
+    );
     if (!hasUserMessages) {
       onSessionTitleChange?.(nextSessionTitle ?? '새 채팅');
     }
     setDraft('');
     setIsGenerating(true);
+    setIsAwaitingFirstChunk(true);
 
+    let streamedResponse = '';
     try {
-      const response = await AIEngine.generateResponse(prompt, [
-        ...history,
-        { content: prompt, role: 'user' },
-      ]);
+      const updateAssistantMessage = (text: string) => {
+        onMessagesChange(
+          [
+            ...messagesWithUserPrompt,
+            {
+              ...assistantMessage,
+              text,
+            },
+          ],
+          nextSessionTitle,
+        );
+      };
+
+      const response = await AIEngine.generateResponseStream(
+        prompt,
+        [...history, { content: prompt, role: 'user' }],
+        {
+          onChunk: chunk => {
+            if (!chunk) {
+              return;
+            }
+
+            streamedResponse += chunk;
+            setIsAwaitingFirstChunk(false);
+            updateAssistantMessage(streamedResponse);
+          },
+        },
+      );
+
+      if (response !== streamedResponse) {
+        updateAssistantMessage(response);
+      }
+
       onMessagesChange(
         [
           ...messagesWithUserPrompt,
-          createMessage('assistant', response, responseModelName),
+          {
+            ...assistantMessage,
+            text: response,
+          },
         ],
         nextSessionTitle,
       );
@@ -248,12 +288,16 @@ function ChatScreen({
       onMessagesChange(
         [
           ...messagesWithUserPrompt,
+          ...(streamedResponse
+            ? [{ ...assistantMessage, text: streamedResponse }]
+            : []),
           createMessage('system', `응답 실패: ${message}`),
         ],
         nextSessionTitle,
       );
     } finally {
       setIsGenerating(false);
+      setIsAwaitingFirstChunk(false);
     }
   }, [
     draft,
@@ -363,17 +407,29 @@ function ChatScreen({
             <View style={styles.cardSeparator} />
 
             <View style={styles.threadList}>
-              {messages.map(message => (
-                <ChatBubble
-                  assistantName={message.modelName ?? selectedModelLabel}
-                  key={message.id}
-                  role={message.role}
-                  text={message.text}
-                  timestamp={formatTime(message.createdAt)}
-                />
-              ))}
+              {messages.map(message => {
+                const isPendingAssistant =
+                  isGenerating &&
+                  isAwaitingFirstChunk &&
+                  message.role === 'assistant' &&
+                  !message.text.trim();
 
-              {isGenerating ? (
+                if (isPendingAssistant) {
+                  return null;
+                }
+
+                return (
+                  <ChatBubble
+                    assistantName={message.modelName ?? selectedModelLabel}
+                    key={message.id}
+                    role={message.role}
+                    text={message.text}
+                    timestamp={formatTime(message.createdAt)}
+                  />
+                );
+              })}
+
+              {isGenerating && isAwaitingFirstChunk ? (
                 <View style={styles.loadingRow}>
                   <LoadingDots />
                   <Text style={styles.loadingText}>

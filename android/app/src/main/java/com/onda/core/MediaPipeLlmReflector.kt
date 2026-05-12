@@ -4,6 +4,9 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import java.io.File
+import java.lang.reflect.Proxy
+import java.util.concurrent.atomic.AtomicBoolean
+import kotlin.concurrent.thread
 
 object MediaPipeLlmReflector {
     private const val PACKAGE_NAME = "com.google.mediapipe.tasks.genai.llminference"
@@ -72,6 +75,62 @@ object MediaPipeLlmReflector {
             }
 
             session.generateResponse()
+        }
+    }
+
+    fun sendMultimodalStream(
+        engine: Any,
+        request: MultimodalRequest,
+        onPartial: (String, Boolean) -> Unit,
+        onComplete: (String) -> Unit,
+        onError: (Throwable) -> Unit,
+    ) {
+        val hasImages = request.attachments.any { it.type == "image" }
+        val hasAudio = request.attachments.any { it.type == "audio" }
+        val response = StringBuilder()
+        val completed = AtomicBoolean(false)
+
+        val session = createSession(engine, enableVision = hasImages, enableAudio = hasAudio)
+        try {
+            val text = request.text.trim()
+            if (text.isNotEmpty()) {
+                session.addQueryChunk(text)
+            }
+
+            request.attachments.forEach { attachment ->
+                when (attachment.type) {
+                    "image" -> session.addImage(attachment.uri)
+                    "audio" -> session.addAudio(attachment.uri)
+                    else -> session.addQueryChunk(
+                        "\nAttached file: ${attachment.name ?: File(attachment.uri).name} (${attachment.uri})",
+                    )
+                }
+            }
+
+            session.generateResponseStream(
+                onPartial = { partial, done ->
+                    if (partial.isNotEmpty()) {
+                        response.append(partial)
+                        onPartial(partial, done)
+                    }
+
+                    if (done && completed.compareAndSet(false, true)) {
+                        session.close()
+                        onComplete(response.toString())
+                    }
+                },
+                onError = { error ->
+                    if (completed.compareAndSet(false, true)) {
+                        session.close()
+                        onError(error)
+                    }
+                },
+            )
+        } catch (error: Exception) {
+            if (completed.compareAndSet(false, true)) {
+                session.close()
+            }
+            throw error
         }
     }
 
@@ -200,6 +259,35 @@ object MediaPipeLlmReflector {
 
         fun generateResponse(): String =
             delegate.javaClass.getMethod("generateResponse").invoke(delegate)?.toString().orEmpty()
+
+        fun generateResponseStream(
+            onPartial: (String, Boolean) -> Unit,
+            onError: (Throwable) -> Unit,
+        ) {
+            val listenerClass = Class.forName("$PACKAGE_NAME.ProgressListener")
+            val listener = Proxy.newProxyInstance(
+                listenerClass.classLoader,
+                arrayOf(listenerClass),
+            ) { _, method, args ->
+                if (method.name == "run") {
+                    val partial = args?.getOrNull(0)?.toString().orEmpty()
+                    val done = args?.getOrNull(1) as? Boolean ?: false
+                    onPartial(partial, done)
+                }
+                null
+            }
+            val future = delegate.javaClass
+                .getMethod("generateResponseAsync", listenerClass)
+                .invoke(delegate, listener)
+
+            thread(name = "open-edge-ai-stream-watch") {
+                try {
+                    future?.javaClass?.getMethod("get")?.invoke(future)
+                } catch (error: Exception) {
+                    onError(error.cause ?: error)
+                }
+            }
+        }
 
         override fun close() {
             (delegate as? AutoCloseable)?.close()

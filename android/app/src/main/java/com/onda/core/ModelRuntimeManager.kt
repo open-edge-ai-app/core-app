@@ -104,6 +104,51 @@ object ModelRuntimeManager {
         )
     }
 
+    fun generateMultimodalStream(
+        request: MultimodalRequest,
+        useRag: Boolean,
+        modalities: List<String>,
+        onPartial: (String, Boolean) -> Unit,
+        onComplete: (AIResponse) -> Unit,
+        onError: (Throwable) -> Unit,
+    ): Boolean {
+        val currentEngine = lock.withLock { engine }
+            ?: run {
+                onComplete(
+                    AIResponse(
+                        type = "error",
+                        message = "Model runtime is not loaded.",
+                        route = "invalid",
+                        modalities = modalities,
+                    ),
+                )
+                return false
+            }
+
+        return try {
+            MediaPipeLlmReflector.sendMultimodalStream(
+                engine = currentEngine,
+                request = request,
+                onPartial = onPartial,
+                onComplete = { response ->
+                    onComplete(
+                        AIResponse(
+                            type = "text",
+                            message = response,
+                            route = if (useRag) "rag" else "direct",
+                            modalities = modalities,
+                        ),
+                    )
+                },
+                onError = onError,
+            )
+            true
+        } catch (error: Exception) {
+            onError(error)
+            false
+        }
+    }
+
     fun unload() = lock.withLock {
         closeEngineLocked()
         loading = false

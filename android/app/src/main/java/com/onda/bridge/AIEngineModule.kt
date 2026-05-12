@@ -11,6 +11,7 @@ import com.facebook.react.bridge.ReadableArray
 import com.facebook.react.bridge.ReadableMap
 import com.facebook.react.bridge.WritableArray
 import com.facebook.react.bridge.WritableMap
+import com.facebook.react.modules.core.DeviceEventManagerModule
 import com.onda.core.AIResponse
 import com.onda.core.ModelDownloader
 import com.onda.core.ModelFileManager
@@ -53,6 +54,44 @@ class AIEngineModule(
             promise.resolve(queryRouter.routeMultimodal(multimodalRequest).toWritableMap())
         } catch (error: Exception) {
             promise.reject("AI_ENGINE_MULTIMODAL_ERROR", error)
+        }
+    }
+
+    @ReactMethod
+    fun sendMultimodalMessageStream(requestId: String, request: ReadableMap, promise: Promise) {
+        try {
+            val multimodalRequest = request.toMultimodalRequest()
+            queryRouter.routeMultimodalStream(
+                request = multimodalRequest,
+                onPartial = { partial, done ->
+                    emitStreamEvent(
+                        requestId = requestId,
+                        chunk = partial,
+                        done = false,
+                    )
+                },
+                onComplete = { response ->
+                    emitStreamEvent(
+                        requestId = requestId,
+                        done = true,
+                        message = response.message,
+                    )
+                },
+                onError = { error ->
+                    emitStreamEvent(
+                        requestId = requestId,
+                        done = true,
+                        error = error.message ?: error.javaClass.simpleName,
+                    )
+                },
+            )
+            promise.resolve(
+                Arguments.createMap().apply {
+                    putBoolean("started", true)
+                },
+            )
+        } catch (error: Exception) {
+            promise.reject("AI_ENGINE_STREAM_ERROR", error)
         }
     }
 
@@ -149,6 +188,40 @@ class AIEngineModule(
         reactContext.removeLifecycleEventListener(this)
         ModelRuntimeManager.unload()
         super.invalidate()
+    }
+
+    @ReactMethod
+    fun addListener(eventName: String) = Unit
+
+    @ReactMethod
+    fun removeListeners(count: Int) = Unit
+
+    private fun emitStreamEvent(
+        requestId: String,
+        chunk: String? = null,
+        done: Boolean = false,
+        message: String? = null,
+        error: String? = null,
+    ) {
+        reactContext.runOnJSQueueThread {
+            val event = Arguments.createMap().apply {
+                putString("requestId", requestId)
+                putBoolean("done", done)
+                if (chunk != null) {
+                    putString("chunk", chunk)
+                }
+                if (message != null) {
+                    putString("message", message)
+                }
+                if (error != null) {
+                    putString("error", error)
+                }
+            }
+
+            reactContext
+                .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
+                .emit(STREAM_EVENT_NAME, event)
+        }
     }
 
     private fun ReadableMap.toMultimodalRequest(): MultimodalRequest {
@@ -294,5 +367,6 @@ class AIEngineModule(
 
     companion object {
         const val NAME = "AIEngine"
+        private const val STREAM_EVENT_NAME = "AIEngineStreamChunk"
     }
 }

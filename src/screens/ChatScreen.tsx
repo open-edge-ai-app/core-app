@@ -8,7 +8,6 @@ import React, {
 import {
   Keyboard,
   KeyboardAvoidingView,
-  KeyboardEvent,
   Platform,
   Pressable,
   ScrollView,
@@ -91,6 +90,9 @@ const chatModes: ChatMode[] = [
   { id: 'files', label: '파일' },
 ];
 
+const INITIAL_SCROLL_BOTTOM_INSET = 170;
+const THREAD_SCROLL_BOTTOM_INSET = 210;
+
 const formatTime = (date: Date) =>
   new Intl.DateTimeFormat('ko-KR', {
     hour: '2-digit',
@@ -130,7 +132,7 @@ function ChatScreen({
   const [draft, setDraft] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [isAwaitingFirstChunk, setIsAwaitingFirstChunk] = useState(false);
-  const [keyboardHeight, setKeyboardHeight] = useState(0);
+  const [keyboardRevision, setKeyboardRevision] = useState(0);
   const [selectedMode, setSelectedMode] = useState<ChatMode['id']>('chat');
 
   const hasUserMessages = useMemo(
@@ -159,27 +161,20 @@ function ChatScreen({
     [commonSystemPrompt, messages],
   );
 
-  const composerOffsetStyle = useMemo(
-    () => ({
-      marginBottom: Platform.OS === 'android' ? keyboardHeight : 0,
-    }),
-    [keyboardHeight],
-  );
-
   useEffect(() => {
     if (Platform.OS !== 'android') {
       return;
     }
 
-    const handleKeyboardShow = (event: KeyboardEvent) => {
-      setKeyboardHeight(event.endCoordinates.height);
+    const handleKeyboardChange = () => {
+      setKeyboardRevision(current => current + 1);
     };
     const showSubscription = Keyboard.addListener(
       'keyboardDidShow',
-      handleKeyboardShow,
+      handleKeyboardChange,
     );
     const hideSubscription = Keyboard.addListener('keyboardDidHide', () => {
-      setKeyboardHeight(0);
+      handleKeyboardChange();
     });
 
     return () => {
@@ -198,7 +193,13 @@ function ChatScreen({
     }, 80);
 
     return () => clearTimeout(timeoutId);
-  }, [hasUserMessages, isGenerating, latestMessageText, messages.length]);
+  }, [
+    hasUserMessages,
+    isGenerating,
+    keyboardRevision,
+    latestMessageText,
+    messages.length,
+  ]);
 
   useEffect(() => {
     if (hasUserMessages) {
@@ -442,7 +443,7 @@ function ChatScreen({
         ) : null}
       </ScrollView>
 
-      <View style={[styles.composer, composerOffsetStyle]}>
+      <View style={styles.composer}>
         <View style={styles.inputPanel}>
           <Pressable
             accessibilityLabel="컨텍스트 추가"
@@ -558,11 +559,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
   },
   scrollContentInitial: {
-    paddingBottom: 170,
+    paddingBottom: INITIAL_SCROLL_BOTTOM_INSET,
     paddingTop: 24,
   },
   scrollContentThread: {
-    paddingBottom: 210,
+    paddingBottom: THREAD_SCROLL_BOTTOM_INSET,
     paddingTop: 24,
   },
   hero: {

@@ -22,7 +22,14 @@ const formatBytes = (bytes: number) => {
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 };
 
-function Settings() {
+type SettingsProps = {
+  onModelStateChange?: (state: {
+    modelStatus: ModelStatus | null;
+    runtimeStatus: RuntimeStatus | null;
+  }) => void;
+};
+
+function Settings({ onModelStateChange }: SettingsProps) {
   const [status, setStatus] = useState<IndexingStatus>(defaultStatus);
   const [modelStatus, setModelStatus] = useState<ModelStatus | null>(null);
   const [runtimeStatus, setRuntimeStatus] = useState<RuntimeStatus | null>(null);
@@ -39,7 +46,11 @@ function Settings() {
     setStatus(nextStatus);
     setModelStatus(nextModelStatus);
     setRuntimeStatus(nextRuntimeStatus);
-  }, []);
+    onModelStateChange?.({
+      modelStatus: nextModelStatus,
+      runtimeStatus: nextRuntimeStatus,
+    });
+  }, [onModelStateChange]);
 
   useEffect(() => {
     refreshStatus();
@@ -62,22 +73,38 @@ function Settings() {
   const handleDownloadModel = useCallback(async () => {
     const nextStatus = await AIEngine.ensureModelDownloaded();
     setModelStatus(nextStatus);
-  }, []);
+    onModelStateChange?.({
+      modelStatus: nextStatus,
+      runtimeStatus,
+    });
+  }, [onModelStateChange, runtimeStatus]);
 
   const handleCancelModelDownload = useCallback(async () => {
     const nextStatus = await AIEngine.cancelModelDownload();
     setModelStatus(nextStatus);
-  }, []);
+    onModelStateChange?.({
+      modelStatus: nextStatus,
+      runtimeStatus,
+    });
+  }, [onModelStateChange, runtimeStatus]);
 
   const handleLoadModel = useCallback(async () => {
     const nextStatus = await AIEngine.loadModel();
     setRuntimeStatus(nextStatus);
-  }, []);
+    onModelStateChange?.({
+      modelStatus,
+      runtimeStatus: nextStatus,
+    });
+  }, [modelStatus, onModelStateChange]);
 
   const handleUnloadModel = useCallback(async () => {
     const nextStatus = await AIEngine.unloadModel();
     setRuntimeStatus(nextStatus);
-  }, []);
+    onModelStateChange?.({
+      modelStatus,
+      runtimeStatus: nextStatus,
+    });
+  }, [modelStatus, onModelStateChange]);
 
   return (
     <ScrollView

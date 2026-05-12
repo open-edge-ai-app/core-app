@@ -30,6 +30,7 @@ import FloatingSelect, {
   FloatingSelectOption,
 } from './src/components/FloatingSelect';
 import PastelBackground from './src/components/PastelBackground';
+import AIEngine, { ModelStatus, RuntimeStatus } from './src/native/AIEngine';
 import ChatScreen, {
   ChatMessage,
   createInitialChatMessages,
@@ -103,6 +104,11 @@ type WorkFolder = {
   id: string;
   memory?: string;
   title: string;
+};
+
+type ModelStateSnapshot = {
+  modelStatus: ModelStatus | null;
+  runtimeStatus: RuntimeStatus | null;
 };
 
 type MenuSearchResult = {
@@ -204,6 +210,36 @@ const modelOptions: ModelOption[] = [
     label: '모델 관리',
   },
 ];
+
+const modelManageOption = modelOptions.find(model => model.id === 'manage')!;
+
+const getActiveModelOption = (
+  modelStatus: ModelStatus | null,
+  runtimeStatus: RuntimeStatus | null,
+) => {
+  if (
+    !modelStatus?.installed ||
+    !(runtimeStatus?.loaded || runtimeStatus?.canGenerate)
+  ) {
+    return null;
+  }
+
+  const normalizedModelName = modelStatus.modelName.toLowerCase();
+
+  if (normalizedModelName.includes('lite')) {
+    return modelOptions.find(model => model.id === 'gemma-lite') ?? null;
+  }
+
+  if (normalizedModelName.includes('deep')) {
+    return modelOptions.find(model => model.id === 'gemma-deep') ?? null;
+  }
+
+  if (normalizedModelName.includes('gemma')) {
+    return modelOptions.find(model => model.id === 'gemma-4') ?? null;
+  }
+
+  return null;
+};
 
 const mainMenuRows: MenuIconRow[] = [
   {
@@ -411,23 +447,60 @@ function App() {
   const [activeScreen, setActiveScreen] = useState<'chat' | 'settings'>('chat');
   const [selectedModelId, setSelectedModelId] =
     useState<ModelOption['id']>('gemma-4');
+  const [modelStatus, setModelStatus] = useState<ModelStatus | null>(null);
+  const [runtimeStatus, setRuntimeStatus] = useState<RuntimeStatus | null>(
+    null,
+  );
+
+  const handleModelStateChange = useCallback(
+    ({ modelStatus: nextModelStatus, runtimeStatus: nextRuntimeStatus }: ModelStateSnapshot) => {
+      setModelStatus(nextModelStatus);
+      setRuntimeStatus(nextRuntimeStatus);
+    },
+    [],
+  );
+
+  const refreshModelState = useCallback(async () => {
+    const [nextModelStatus, nextRuntimeStatus] = await Promise.all([
+      AIEngine.getModelStatus(),
+      AIEngine.getRuntimeStatus(),
+    ]);
+    handleModelStateChange({
+      modelStatus: nextModelStatus,
+      runtimeStatus: nextRuntimeStatus,
+    });
+  }, [handleModelStateChange]);
+
+  const activeModelOption = useMemo(
+    () => getActiveModelOption(modelStatus, runtimeStatus),
+    [modelStatus, runtimeStatus],
+  );
 
   const selectedModel = useMemo(
     () =>
-      modelOptions.find(model => model.id === selectedModelId) ??
+      activeModelOption ??
+      modelOptions.find(
+        model => model.id === selectedModelId && model.action !== 'settings',
+      ) ??
       modelOptions[0],
-    [selectedModelId],
+    [activeModelOption, selectedModelId],
   );
+  const headerSelectedModelId = activeModelOption?.id ?? modelManageOption.id;
   const modelSelectOptions = useMemo<FloatingSelectOption<ModelOption['id']>[]>(
-    () =>
-      modelOptions.map(model => ({
+    () => {
+      const visibleModelOptions = activeModelOption
+        ? [activeModelOption, modelManageOption]
+        : [modelManageOption];
+
+      return visibleModelOptions.map((model, index) => ({
         description: model.detail,
-        dividerBefore: model.action === 'settings',
+        dividerBefore: index > 0 && model.action === 'settings',
         icon: model.icon,
         label: model.label,
         value: model.id,
-      })),
-    [],
+      }));
+    },
+    [activeModelOption],
   );
 
   const handleModelMenuExpandedChange = useCallback((expanded: boolean) => {
@@ -447,6 +520,16 @@ function App() {
 
     setSelectedModelId(modelId);
   }, []);
+
+  useEffect(() => {
+    refreshModelState().catch(() => undefined);
+  }, [refreshModelState]);
+
+  useEffect(() => {
+    if (isModelMenuOpen) {
+      refreshModelState().catch(() => undefined);
+    }
+  }, [isModelMenuOpen, refreshModelState]);
 
   useEffect(() => {
     activeSessionIdRef.current = activeSessionId;
@@ -860,7 +943,7 @@ function App() {
                 onValueChange={handleSelectModel}
                 optionIconSize={16}
                 options={modelSelectOptions}
-                selectedValue={selectedModelId}
+                selectedValue={headerSelectedModelId}
                 showTriggerIcon={false}
                 triggerStyle={styles.modelSelector}
                 valueTextStyle={styles.modelSelectorText}
@@ -888,7 +971,7 @@ function App() {
                 selectedModelLabel={selectedModel.label}
               />
             ) : (
-              <Settings />
+              <Settings onModelStateChange={handleModelStateChange} />
             )}
           </View>
 

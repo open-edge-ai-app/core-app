@@ -759,21 +759,38 @@ function App() {
       const currentSessionId = activeSessionIdRef.current;
 
       if (currentSessionId) {
+        const session = [...recentSessions, ...workFolderSessions].find(
+          candidate => candidate.id === currentSessionId,
+        );
+        const persisted = AIEngine.saveChatSession(
+          currentSessionId,
+          sessionTitleCandidate?.trim() ||
+            session?.title ||
+            sessionTitle ||
+            'New chat',
+          toStoredChatMessages(nextMessages),
+        ).catch(() => undefined);
+
         setChatMessagesBySessionId(current => ({
           ...current,
           [currentSessionId]: nextMessages,
         }));
-        return currentSessionId;
+        return { persisted, sessionId: currentSessionId };
       }
 
       if (!nextMessages.some(message => message.role === 'user')) {
         setDraftChatMessages(nextMessages);
-        return null;
+        return { sessionId: null };
       }
 
       const nextSessionId = createChatSessionId();
       const nextSessionTitle =
         sessionTitleCandidate?.trim() || sessionTitle || '새 채팅';
+      const persisted = AIEngine.saveChatSession(
+        nextSessionId,
+        nextSessionTitle,
+        toStoredChatMessages(nextMessages),
+      ).catch(() => undefined);
 
       activeSessionIdRef.current = nextSessionId;
       setActiveSessionId(nextSessionId);
@@ -790,9 +807,9 @@ function App() {
         [nextSessionId]: nextMessages,
       }));
       setDraftChatMessages(createInitialChatMessages());
-      return nextSessionId;
+      return { persisted, sessionId: nextSessionId };
     },
-    [sessionTitle],
+    [recentSessions, sessionTitle, workFolderSessions],
   );
 
   const handleActiveSessionTitleChange = useCallback((title: string) => {

@@ -52,13 +52,18 @@ type ChatMode = {
   label: string;
 };
 
+type MessagesChangeResult = {
+  persisted?: Promise<void>;
+  sessionId: string | null;
+};
+
 type ChatScreenProps = {
   commonSystemPrompt?: string;
   messages: ChatMessage[];
   onMessagesChange: (
     nextMessages: ChatMessage[],
     sessionTitleCandidate?: string,
-  ) => string | null;
+  ) => MessagesChangeResult;
   onSessionTitleChange?: (title: string) => void;
   selectedModelLabel?: string;
   sessionId?: string | null;
@@ -419,11 +424,11 @@ function ChatScreen({
       return;
     }
 
-    const resolvedSessionId =
-      onMessagesChange(
-        [...messagesWithUserPrompt, assistantMessage],
-        nextSessionTitle,
-      ) ?? sessionId;
+    const messagesChange = onMessagesChange(
+      [...messagesWithUserPrompt, assistantMessage],
+      nextSessionTitle,
+    );
+    const resolvedSessionId = messagesChange.sessionId ?? sessionId;
     if (!hasUserMessages) {
       onSessionTitleChange?.(nextSessionTitle ?? '새 채팅');
     }
@@ -435,6 +440,8 @@ function ChatScreen({
 
     let streamedResponse = '';
     try {
+      await messagesChange.persisted?.catch(() => undefined);
+
       if (resolvedSessionId) {
         await AIEngine.compactChatSession(resolvedSessionId, 'auto').catch(
           () => undefined,
@@ -483,15 +490,15 @@ function ChatScreen({
         updateAssistantMessage(response);
       }
 
-      onMessagesChange(
-        [
-          ...messagesWithUserPrompt,
-          {
-            ...assistantMessage,
-            text: response,
-          },
-        ],
-        nextSessionTitle,
+      const finalMessages = [
+        ...messagesWithUserPrompt,
+        {
+          ...assistantMessage,
+          text: response,
+        },
+      ];
+      await onMessagesChange(finalMessages, nextSessionTitle).persisted?.catch(
+        () => undefined,
       );
 
       if (shouldGenerateSessionTitle) {
@@ -587,13 +594,15 @@ function ChatScreen({
         );
       };
 
-      onMessagesChange(messagesWithPendingRetry);
+      const messagesChange = onMessagesChange(messagesWithPendingRetry);
       setAttachmentError(null);
       setIsGenerating(true);
       setIsAwaitingFirstChunk(false);
 
       let streamedResponse = '';
       try {
+        await messagesChange.persisted?.catch(() => undefined);
+
         if (sessionId) {
           await AIEngine.compactChatSession(sessionId, 'auto').catch(
             () => undefined,
@@ -623,7 +632,15 @@ function ChatScreen({
           },
         );
 
-        updateRetriedAssistantMessage(response || streamedResponse);
+        const finalResponse = response || streamedResponse;
+        updateRetriedAssistantMessage(finalResponse);
+        await onMessagesChange(
+          messagesWithPendingRetry.map(message =>
+            message.id === retriedAssistantMessage.id
+              ? { ...retriedAssistantMessage, text: finalResponse }
+              : message,
+          ),
+        ).persisted?.catch(() => undefined);
       } catch (error) {
         const message =
           error instanceof Error

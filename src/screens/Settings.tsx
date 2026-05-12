@@ -3,8 +3,16 @@ import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import AppIcon from '../components/AppIcon';
 import { Badge, Button, Separator } from '../components/ui';
-import AIEngine, { IndexingStatus, ModelStatus, RuntimeStatus } from '../native/AIEngine';
-import { ScaledText as Text, useDisplaySettings } from '../theme/display';
+import AIEngine, {
+  IndexingStatus,
+  ModelStatus,
+  RuntimeStatus,
+} from '../native/AIEngine';
+import {
+  ScaledText as Text,
+  ScaledTextInput as TextInput,
+  useDisplaySettings,
+} from '../theme/display';
 import { appIcons } from '../theme/icons';
 import { colors, typography } from '../theme/tokens';
 
@@ -27,12 +35,20 @@ type SettingsProps = {
     modelStatus: ModelStatus | null;
     runtimeStatus: RuntimeStatus | null;
   }) => void;
+  onPersonalSystemPromptChange: (prompt: string) => void;
+  personalSystemPrompt: string;
 };
 
-function Settings({ onModelStateChange }: SettingsProps) {
+function Settings({
+  onModelStateChange,
+  onPersonalSystemPromptChange,
+  personalSystemPrompt,
+}: SettingsProps) {
   const [status, setStatus] = useState<IndexingStatus>(defaultStatus);
   const [modelStatus, setModelStatus] = useState<ModelStatus | null>(null);
-  const [runtimeStatus, setRuntimeStatus] = useState<RuntimeStatus | null>(null);
+  const [runtimeStatus, setRuntimeStatus] = useState<RuntimeStatus | null>(
+    null,
+  );
   const [galleryIndexingEnabled, setGalleryIndexingEnabled] = useState(false);
   const { selectedTextSize, setTextSize, textSize, textSizes } =
     useDisplaySettings();
@@ -121,6 +137,34 @@ function Settings({ onModelStateChange }: SettingsProps) {
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
           <View>
+            <Text style={styles.sectionTitle}>시스템 프롬프트</Text>
+            <Text style={styles.sectionCaption}>개인 기본 지침</Text>
+          </View>
+          <Badge variant={personalSystemPrompt.trim() ? 'success' : 'outline'}>
+            {personalSystemPrompt.trim() ? '적용 중' : '비어 있음'}
+          </Badge>
+        </View>
+
+        <Text style={styles.personalizationDescription}>
+          모든 채팅에 먼저 적용됩니다. 작업 폴더의 시스템 프롬프트(메모리)는 이
+          지침 아래에 추가됩니다.
+        </Text>
+
+        <TextInput
+          accessibilityLabel="개인 시스템 프롬프트"
+          multiline
+          onChangeText={onPersonalSystemPromptChange}
+          placeholder="예: 항상 한국어로 간결하게 답하고, 모호한 요청은 필요한 가정을 먼저 밝혀줘."
+          placeholderTextColor={colors.mutedForeground}
+          style={styles.systemPromptInput}
+          textAlignVertical="top"
+          value={personalSystemPrompt}
+        />
+      </View>
+
+      <View style={styles.section}>
+        <View style={styles.sectionHeader}>
+          <View>
             <Text style={styles.sectionTitle}>개인화</Text>
             <Text style={styles.sectionCaption}>텍스트 크기</Text>
           </View>
@@ -199,15 +243,15 @@ function Settings({ onModelStateChange }: SettingsProps) {
             modelStatus?.installed
               ? '설치됨'
               : modelStatus?.isDownloading
-                ? '다운로드 중'
-                : '필요함'
+              ? '다운로드 중'
+              : '필요함'
           }
         />
         <StatusRow
           label="다운로드"
-          value={`${formatBytes(modelStatus?.bytesDownloaded ?? 0)} / ${formatBytes(
-            modelStatus?.totalBytes ?? 2588147712,
-          )}`}
+          value={`${formatBytes(
+            modelStatus?.bytesDownloaded ?? 0,
+          )} / ${formatBytes(modelStatus?.totalBytes ?? 2588147712)}`}
         />
         <View style={styles.progressTrack}>
           <View
@@ -242,8 +286,8 @@ function Settings({ onModelStateChange }: SettingsProps) {
             runtimeStatus?.loaded
               ? '로드됨'
               : runtimeStatus?.loading
-                ? '로드 중'
-                : '꺼짐'
+              ? '로드 중'
+              : '꺼짐'
           }
         />
         <View style={styles.actionRow}>
@@ -428,6 +472,20 @@ const styles = StyleSheet.create({
     color: colors.mutedForeground,
     lineHeight: 16,
     marginTop: 4,
+  },
+  systemPromptInput: {
+    ...typography.body,
+    backgroundColor: colors.muted,
+    borderColor: colors.input,
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+    color: colors.foreground,
+    fontSize: 15,
+    lineHeight: 21,
+    marginTop: 16,
+    minHeight: 132,
+    paddingHorizontal: 14,
+    paddingTop: 12,
   },
   separator: {
     marginVertical: 14,

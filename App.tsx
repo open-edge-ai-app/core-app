@@ -152,6 +152,7 @@ type PersistedAppState = {
   activeSessionId: string | null;
   chatMessagesBySessionId: Record<string, PersistedChatMessage[]>;
   draftChatMessages: PersistedChatMessage[];
+  personalSystemPrompt: string;
   recentSessions: ChatSession[];
   selectedModelId: ModelOption['id'];
   sessionTitle: string;
@@ -391,6 +392,10 @@ const parseStoredAppState = (
       draftChatMessages: Array.isArray(parsed.draftChatMessages)
         ? parsed.draftChatMessages
         : serializeMessages(createInitialChatMessages()),
+      personalSystemPrompt:
+        typeof parsed.personalSystemPrompt === 'string'
+          ? parsed.personalSystemPrompt
+          : '',
       recentSessions: Array.isArray(parsed.recentSessions)
         ? parsed.recentSessions
         : initialRecentSessions,
@@ -423,6 +428,21 @@ const omitRecordKey = <Value,>(
   return nextRecord;
 };
 
+const createCommonSystemPrompt = (
+  personalSystemPrompt: string,
+  workFolderMemory: string,
+) =>
+  [
+    personalSystemPrompt.trim()
+      ? `개인 시스템 프롬프트:\n${personalSystemPrompt.trim()}`
+      : '',
+    workFolderMemory.trim()
+      ? `작업 폴더 시스템 프롬프트(메모리):\n${workFolderMemory.trim()}`
+      : '',
+  ]
+    .filter(Boolean)
+    .join('\n\n');
+
 function App() {
   const activeSessionIdRef = useRef<string | null>(null);
   const [isAppStateHydrated, setIsAppStateHydrated] = useState(false);
@@ -441,6 +461,7 @@ function App() {
   const [draftChatMessages, setDraftChatMessages] = useState<ChatMessage[]>(
     createInitialChatMessages,
   );
+  const [personalSystemPrompt, setPersonalSystemPrompt] = useState('');
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isModelMenuOpen, setIsModelMenuOpen] = useState(false);
   const [chatInstanceKey, setChatInstanceKey] = useState(0);
@@ -453,7 +474,10 @@ function App() {
   );
 
   const handleModelStateChange = useCallback(
-    ({ modelStatus: nextModelStatus, runtimeStatus: nextRuntimeStatus }: ModelStateSnapshot) => {
+    ({
+      modelStatus: nextModelStatus,
+      runtimeStatus: nextRuntimeStatus,
+    }: ModelStateSnapshot) => {
       setModelStatus(nextModelStatus);
       setRuntimeStatus(nextRuntimeStatus);
     },
@@ -486,22 +510,21 @@ function App() {
     [activeModelOption, selectedModelId],
   );
   const headerSelectedModelId = activeModelOption?.id ?? modelManageOption.id;
-  const modelSelectOptions = useMemo<FloatingSelectOption<ModelOption['id']>[]>(
-    () => {
-      const visibleModelOptions = activeModelOption
-        ? [activeModelOption, modelManageOption]
-        : [modelManageOption];
+  const modelSelectOptions = useMemo<
+    FloatingSelectOption<ModelOption['id']>[]
+  >(() => {
+    const visibleModelOptions = activeModelOption
+      ? [activeModelOption, modelManageOption]
+      : [modelManageOption];
 
-      return visibleModelOptions.map((model, index) => ({
-        description: model.detail,
-        dividerBefore: index > 0 && model.action === 'settings',
-        icon: model.icon,
-        label: model.label,
-        value: model.id,
-      }));
-    },
-    [activeModelOption],
-  );
+    return visibleModelOptions.map((model, index) => ({
+      description: model.detail,
+      dividerBefore: index > 0 && model.action === 'settings',
+      icon: model.icon,
+      label: model.label,
+      value: model.id,
+    }));
+  }, [activeModelOption]);
 
   const handleModelMenuExpandedChange = useCallback((expanded: boolean) => {
     if (expanded) {
@@ -561,6 +584,7 @@ function App() {
         setWorkFolderSessions(storedState.workFolderSessions);
         setWorkFolders(storedState.workFolders);
         setSelectedModelId(storedState.selectedModelId);
+        setPersonalSystemPrompt(storedState.personalSystemPrompt);
         setChatMessagesBySessionId(hydratedMessagesBySessionId);
         setDraftChatMessages(hydrateMessages(storedState.draftChatMessages));
       } finally {
@@ -591,6 +615,7 @@ function App() {
         ]),
       ),
       draftChatMessages: serializeMessages(draftChatMessages),
+      personalSystemPrompt,
       recentSessions,
       selectedModelId,
       sessionTitle,
@@ -608,6 +633,7 @@ function App() {
     chatMessagesBySessionId,
     draftChatMessages,
     isAppStateHydrated,
+    personalSystemPrompt,
     recentSessions,
     selectedModelId,
     sessionTitle,
@@ -656,6 +682,12 @@ function App() {
         ?.memory?.trim() ?? ''
     );
   }, [activeSessionId, workFolders, workFolderSessions]);
+
+  const activeSystemPrompt = useMemo(
+    () =>
+      createCommonSystemPrompt(personalSystemPrompt, activeWorkFolderMemory),
+    [activeWorkFolderMemory, personalSystemPrompt],
+  );
 
   const handleNewChat = () => {
     setActiveScreen('chat');
@@ -963,7 +995,7 @@ function App() {
           <View style={styles.content}>
             {activeScreen === 'chat' ? (
               <ChatScreen
-                commonSystemPrompt={activeWorkFolderMemory}
+                commonSystemPrompt={activeSystemPrompt}
                 key={`chat-${chatInstanceKey}`}
                 messages={activeMessages}
                 onMessagesChange={handleChatMessagesChange}
@@ -971,7 +1003,11 @@ function App() {
                 selectedModelLabel={selectedModel.label}
               />
             ) : (
-              <Settings onModelStateChange={handleModelStateChange} />
+              <Settings
+                onModelStateChange={handleModelStateChange}
+                onPersonalSystemPromptChange={setPersonalSystemPrompt}
+                personalSystemPrompt={personalSystemPrompt}
+              />
             )}
           </View>
 
@@ -2121,12 +2157,14 @@ function FullScreenMenu({
                           value={workFolderActionTitleDraft}
                         />
                       </FloatingSelect>
-                      <Text style={styles.workFolderSettingsLabel}>메모리</Text>
+                      <Text style={styles.workFolderSettingsLabel}>
+                        시스템 프롬프트(메모리)
+                      </Text>
                       <RNTextInput
                         accessibilityLabel="작업 폴더 메모리"
                         multiline
                         onChangeText={setWorkFolderActionMemoryDraft}
-                        placeholder="이 작업 폴더의 모든 채팅에 적용할 공통 시스템 프롬프트"
+                        placeholder="이 작업 폴더의 모든 채팅에 추가로 적용할 시스템 프롬프트"
                         placeholderTextColor={colors.mutedForeground}
                         style={[
                           styles.recentDialogInput,
@@ -2136,8 +2174,8 @@ function FullScreenMenu({
                         value={workFolderActionMemoryDraft}
                       />
                       <Text style={styles.workFolderSettingsHelp}>
-                        이 내용은 폴더 안 채팅의 공통 시스템 지침으로 함께
-                        전달됩니다.
+                        개인 시스템 프롬프트가 먼저 적용되고, 이 내용은 그
+                        아래에 작업 폴더 지침으로 전달됩니다.
                       </Text>
                     </View>
                   ) : (

@@ -306,6 +306,7 @@ export const AIEngine = {
     prompt: string,
     history: AIChatMessage[] = [],
     callbacks: AIResponseStreamCallbacks,
+    attachments: MultimodalAttachment[] = [],
   ) {
     const promptWithSystemInstructions = applySystemInstructions(
       prompt,
@@ -377,21 +378,28 @@ export const AIEngine = {
           );
 
           sendMultimodalMessageStream(requestId, {
-            attachments: [],
+            attachments,
             options: {
               stream: true,
             },
             text: promptWithSystemInstructions,
-          })
-            .catch(error => {
-              fail(
-                error instanceof Error
-                  ? error
-                  : new Error('AI 응답 스트리밍을 시작하지 못했습니다.'),
-              );
-            });
+          }).catch(error => {
+            fail(
+              error instanceof Error
+                ? error
+                : new Error('AI 응답 스트리밍을 시작하지 못했습니다.'),
+            );
+          });
         });
       }
+    }
+
+    if (attachments.length > 0 && nativeModule?.sendMultimodalMessage) {
+      const response = await this.sendMultimodalMessage({
+        attachments,
+        text: promptWithSystemInstructions,
+      });
+      return streamCompletedText(response.message, callbacks);
     }
 
     const response = await this.generateResponse(prompt, history);

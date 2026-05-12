@@ -8,6 +8,9 @@ import React, {
 import {
   Keyboard,
   KeyboardAvoidingView,
+  KeyboardEvent,
+  NativeScrollEvent,
+  NativeSyntheticEvent,
   Platform,
   Pressable,
   ScrollView,
@@ -18,7 +21,11 @@ import {
 import AppIcon from '../components/AppIcon';
 import ChatBubble, { ChatRole } from '../components/ChatBubble';
 import LoadingDots from '../components/LoadingDots';
-import AIEngine, { AIChatMessage } from '../native/AIEngine';
+import AIEngine, {
+  AIChatMessage,
+  MultimodalAttachment,
+} from '../native/AIEngine';
+import { pickAttachment } from '../native/FilePicker';
 import {
   ScaledText as Text,
   ScaledTextInput as TextInput,
@@ -92,12 +99,50 @@ const chatModes: ChatMode[] = [
 
 const INITIAL_SCROLL_BOTTOM_INSET = 170;
 const THREAD_SCROLL_BOTTOM_INSET = 210;
+const SCROLL_TO_BOTTOM_THRESHOLD = 140;
+const SCROLL_TO_BOTTOM_BUTTON_OFFSET = 160;
 
 const formatTime = (date: Date) =>
   new Intl.DateTimeFormat('ko-KR', {
     hour: '2-digit',
     minute: '2-digit',
   }).format(date);
+
+const formatLocalDate = (date: Date) => {
+  const year = date.getFullYear();
+  const month = `${date.getMonth() + 1}`.padStart(2, '0');
+  const day = `${date.getDate()}`.padStart(2, '0');
+
+  return `${year}-${month}-${day}`;
+};
+
+const createRuntimeContextMessage = (date = new Date()): AIChatMessage => {
+  const localDate = formatLocalDate(date);
+  const readableDate = new Intl.DateTimeFormat('ko-KR', {
+    day: 'numeric',
+    month: 'long',
+    weekday: 'long',
+    year: 'numeric',
+  }).format(date);
+  const readableTime = new Intl.DateTimeFormat('ko-KR', {
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(date);
+  const timeZone =
+    Intl.DateTimeFormat().resolvedOptions().timeZone || 'local time';
+
+  return {
+    content: [
+      '현재 날짜/시간 컨텍스트입니다.',
+      `오늘은 ${readableDate}입니다.`,
+      `로컬 날짜: ${localDate}`,
+      `현재 로컬 시각: ${readableTime}`,
+      `시간대: ${timeZone}`,
+      '사용자가 "오늘", "내일", "어제", "이번 주"처럼 상대 날짜를 말하면 이 값을 기준으로 해석하세요.',
+    ].join('\n'),
+    role: 'system',
+  };
+};
 
 const createMessage = (
   role: ChatRole,
@@ -121,6 +166,50 @@ const createSessionTitle = (prompt: string) => {
   return `${normalizedPrompt.slice(0, 18)}...`;
 };
 
+const getAttachmentKey = (attachment: MultimodalAttachment) =>
+  attachment.id ?? attachment.uri;
+
+const getAttachmentName = (attachment: MultimodalAttachment) =>
+  attachment.name?.trim() || '첨부 파일';
+
+const formatAttachmentSize = (sizeBytes?: number) => {
+  if (
+    typeof sizeBytes !== 'number' ||
+    !Number.isFinite(sizeBytes) ||
+    sizeBytes <= 0
+  ) {
+    return '';
+  }
+
+  if (sizeBytes < 1024) {
+    return `${Math.round(sizeBytes)} B`;
+  }
+
+  if (sizeBytes < 1024 * 1024) {
+    return `${(sizeBytes / 1024).toFixed(1)} KB`;
+  }
+
+  return `${(sizeBytes / (1024 * 1024)).toFixed(1)} MB`;
+};
+
+const createAttachmentSummary = (attachments: MultimodalAttachment[]) =>
+  attachments.map(getAttachmentName).join(', ');
+
+const createUserMessageText = (
+  prompt: string,
+  attachments: MultimodalAttachment[],
+) => {
+  const attachmentSummary = createAttachmentSummary(attachments);
+
+  if (!attachmentSummary) {
+    return prompt;
+  }
+
+  return [prompt, `첨부 파일: ${attachmentSummary}`]
+    .filter(Boolean)
+    .join('\n\n');
+};
+
 function ChatScreen({
   commonSystemPrompt = '',
   messages,
@@ -129,10 +218,16 @@ function ChatScreen({
   selectedModelLabel = 'Gemma 4',
 }: ChatScreenProps) {
   const scrollViewRef = useRef<ScrollView>(null);
+  const isNearThreadEndRef = useRef(true);
   const [draft, setDraft] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [isAwaitingFirstChunk, setIsAwaitingFirstChunk] = useState(false);
-  const [keyboardRevision, setKeyboardRevision] = useState(0);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+  const [showScrollToBottom, setShowScrollToBottom] = useState(false);
+  const [selectedAttachments, setSelectedAttachments] = useState<
+    MultimodalAttachment[]
+  >([]);
+  const [attachmentError, setAttachmentError] = useState<string | null>(null);
   const [selectedMode, setSelectedMode] = useState<ChatMode['id']>('chat');
 
   const hasUserMessages = useMemo(
@@ -140,6 +235,9 @@ function ChatScreen({
     [messages],
   );
   const latestMessageText = messages[messages.length - 1]?.text ?? '';
+  const canSend =
+    (draft.trim().length > 0 || selectedAttachments.length > 0) &&
+    !isGenerating;
 
   const history = useMemo<AIChatMessage[]>(
     () => [
@@ -161,20 +259,63 @@ function ChatScreen({
     [commonSystemPrompt, messages],
   );
 
+  const composerOffsetStyle = useMemo(
+    () => ({
+      marginBottom: Platform.OS === 'android' ? keyboardHeight : 0,
+    }),
+    [keyboardHeight],
+  );
+  const scrollToBottomButtonOffsetStyle = useMemo(
+    () => ({
+      bottom:
+        SCROLL_TO_BOTTOM_BUTTON_OFFSET +
+        (Platform.OS === 'android' ? keyboardHeight : 0),
+    }),
+    [keyboardHeight],
+  );
+
+  const scrollToThreadEnd = useCallback((animated = true) => {
+    isNearThreadEndRef.current = true;
+    setShowScrollToBottom(false);
+    scrollViewRef.current?.scrollToEnd({ animated });
+  }, []);
+
+  const handleThreadScroll = useCallback(
+    (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+      if (!hasUserMessages) {
+        return;
+      }
+
+      const { contentOffset, contentSize, layoutMeasurement } =
+        event.nativeEvent;
+      const distanceFromBottom =
+        contentSize.height - layoutMeasurement.height - contentOffset.y;
+      const shouldShow =
+        distanceFromBottom > SCROLL_TO_BOTTOM_THRESHOLD &&
+        contentSize.height > layoutMeasurement.height;
+
+      isNearThreadEndRef.current = !shouldShow;
+      setShowScrollToBottom(current =>
+        current === shouldShow ? current : shouldShow,
+      );
+    },
+    [hasUserMessages],
+  );
+
   useEffect(() => {
     if (Platform.OS !== 'android') {
       return;
     }
 
-    const handleKeyboardChange = () => {
-      setKeyboardRevision(current => current + 1);
+    const handleKeyboardShow = (event: KeyboardEvent) => {
+      setKeyboardHeight(event.endCoordinates.height);
     };
     const showSubscription = Keyboard.addListener(
       'keyboardDidShow',
-      handleKeyboardChange,
+      handleKeyboardShow,
     );
     const hideSubscription = Keyboard.addListener('keyboardDidHide', () => {
-      handleKeyboardChange();
+      setKeyboardHeight(0);
     });
 
     return () => {
@@ -188,17 +329,22 @@ function ChatScreen({
       return;
     }
 
+    if (!isNearThreadEndRef.current) {
+      return;
+    }
+
     const timeoutId = setTimeout(() => {
-      scrollViewRef.current?.scrollToEnd({ animated: true });
+      scrollToThreadEnd(true);
     }, 80);
 
     return () => clearTimeout(timeoutId);
   }, [
     hasUserMessages,
     isGenerating,
-    keyboardRevision,
+    keyboardHeight,
     latestMessageText,
     messages.length,
+    scrollToThreadEnd,
   ]);
 
   useEffect(() => {
@@ -206,22 +352,29 @@ function ChatScreen({
       return;
     }
 
+    isNearThreadEndRef.current = true;
+    setShowScrollToBottom(false);
     scrollViewRef.current?.scrollTo({ animated: false, y: 0 });
   }, [hasUserMessages]);
 
   const handleSend = useCallback(async () => {
     const prompt = draft.trim();
+    const attachmentsForPrompt = selectedAttachments;
 
-    if (!prompt || isGenerating) {
+    if ((!prompt && attachmentsForPrompt.length === 0) || isGenerating) {
       return;
     }
 
+    const promptForModel = prompt || '첨부한 파일을 분석해줘';
+    const userMessageText = createUserMessageText(prompt, attachmentsForPrompt);
     const responseModelName = selectedModelLabel;
-    const userMessage = createMessage('user', prompt);
+    const userMessage = createMessage('user', userMessageText);
     const assistantMessage = createMessage('assistant', '', responseModelName);
     const messagesWithUserPrompt = [...messages, userMessage];
     const nextSessionTitle = !hasUserMessages
-      ? createSessionTitle(prompt)
+      ? createSessionTitle(
+          prompt || createAttachmentSummary(attachmentsForPrompt),
+        )
       : undefined;
 
     onMessagesChange(
@@ -232,11 +385,19 @@ function ChatScreen({
       onSessionTitleChange?.(nextSessionTitle ?? '새 채팅');
     }
     setDraft('');
+    setSelectedAttachments([]);
+    setAttachmentError(null);
     setIsGenerating(true);
     setIsAwaitingFirstChunk(true);
 
     let streamedResponse = '';
     try {
+      const requestHistory = [
+        ...history,
+        createRuntimeContextMessage(),
+        { content: promptForModel, role: 'user' as const },
+      ];
+
       const updateAssistantMessage = (text: string) => {
         onMessagesChange(
           [
@@ -251,8 +412,8 @@ function ChatScreen({
       };
 
       const response = await AIEngine.generateResponseStream(
-        prompt,
-        [...history, { content: prompt, role: 'user' }],
+        promptForModel,
+        requestHistory,
         {
           onChunk: chunk => {
             if (!chunk) {
@@ -264,6 +425,7 @@ function ChatScreen({
             updateAssistantMessage(streamedResponse);
           },
         },
+        attachmentsForPrompt,
       );
 
       if (response !== streamedResponse) {
@@ -309,7 +471,51 @@ function ChatScreen({
     onMessagesChange,
     onSessionTitleChange,
     selectedModelLabel,
+    selectedAttachments,
   ]);
+
+  const handleAttachFile = useCallback(async () => {
+    if (isGenerating) {
+      return;
+    }
+
+    setAttachmentError(null);
+
+    try {
+      const attachment = await pickAttachment();
+      if (!attachment) {
+        return;
+      }
+
+      setSelectedAttachments(currentAttachments => [
+        ...currentAttachments,
+        {
+          ...attachment,
+          id:
+            attachment.id ??
+            `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+          name: getAttachmentName(attachment),
+        },
+      ]);
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : '파일을 선택하지 못했습니다.';
+      setAttachmentError(`파일 첨부 실패: ${message}`);
+    }
+  }, [isGenerating]);
+
+  const handleRemoveAttachment = useCallback(
+    (attachment: MultimodalAttachment) => {
+      const attachmentKey = getAttachmentKey(attachment);
+      setSelectedAttachments(currentAttachments =>
+        currentAttachments.filter(
+          currentAttachment =>
+            getAttachmentKey(currentAttachment) !== attachmentKey,
+        ),
+      );
+    },
+    [],
+  );
 
   const handlePromptPress = useCallback((prompt: string) => {
     setDraft(prompt);
@@ -327,7 +533,9 @@ function ChatScreen({
           hasUserMessages && styles.scrollContentThread,
         ]}
         keyboardShouldPersistTaps="handled"
+        onScroll={handleThreadScroll}
         ref={scrollViewRef}
+        scrollEventThrottle={16}
         scrollEnabled={hasUserMessages}
         showsVerticalScrollIndicator={hasUserMessages}
       >
@@ -443,7 +651,26 @@ function ChatScreen({
         ) : null}
       </ScrollView>
 
-      <View style={styles.composer}>
+      {showScrollToBottom ? (
+        <Pressable
+          accessibilityLabel="최신 메시지로 이동"
+          accessibilityRole="button"
+          onPress={() => scrollToThreadEnd(true)}
+          style={({ pressed }) => [
+            styles.scrollToBottomButton,
+            scrollToBottomButtonOffsetStyle,
+            pressed && styles.scrollToBottomButtonPressed,
+          ]}
+        >
+          <AppIcon
+            color={colors.foreground}
+            icon={appIcons.chevronDown}
+            size={14}
+          />
+        </Pressable>
+      ) : null}
+
+      <View style={[styles.composer, composerOffsetStyle]}>
         <View style={styles.inputPanel}>
           <Pressable
             accessibilityLabel="컨텍스트 추가"
@@ -470,14 +697,66 @@ function ChatScreen({
             value={draft}
           />
 
+          {selectedAttachments.length > 0 ? (
+            <View style={styles.attachmentList}>
+              {selectedAttachments.map(attachment => {
+                const attachmentName = getAttachmentName(attachment);
+                const attachmentSize = formatAttachmentSize(
+                  attachment.sizeBytes,
+                );
+
+                return (
+                  <View
+                    key={getAttachmentKey(attachment)}
+                    style={styles.attachmentChip}
+                  >
+                    <AppIcon
+                      color={colors.mutedForeground}
+                      icon={appIcons.attachment}
+                      size={13}
+                    />
+                    <View style={styles.attachmentCopy}>
+                      <Text numberOfLines={1} style={styles.attachmentName}>
+                        {attachmentName}
+                      </Text>
+                      {attachmentSize ? (
+                        <Text style={styles.attachmentMeta}>
+                          {attachmentSize}
+                        </Text>
+                      ) : null}
+                    </View>
+                    <Pressable
+                      accessibilityLabel={`${attachmentName} 제거`}
+                      accessibilityRole="button"
+                      onPress={() => handleRemoveAttachment(attachment)}
+                      style={({ pressed }) => [
+                        styles.removeAttachmentButton,
+                        pressed && styles.promptRowPressed,
+                      ]}
+                    >
+                      <Text style={styles.removeAttachmentText}>×</Text>
+                    </Pressable>
+                  </View>
+                );
+              })}
+            </View>
+          ) : null}
+
+          {attachmentError ? (
+            <Text style={styles.attachmentError}>{attachmentError}</Text>
+          ) : null}
+
           <View style={styles.inputFooter}>
             <View style={styles.inputTools}>
               <Pressable
                 accessibilityLabel="파일 첨부"
                 accessibilityRole="button"
+                disabled={isGenerating}
+                onPress={handleAttachFile}
                 style={({ pressed }) => [
                   styles.iconTool,
                   pressed && styles.promptRowPressed,
+                  isGenerating && styles.disabledTool,
                 ]}
               >
                 <AppIcon
@@ -531,12 +810,12 @@ function ChatScreen({
             <Pressable
               accessibilityLabel="메시지 보내기"
               accessibilityRole="button"
-              disabled={!draft.trim() || isGenerating}
+              disabled={!canSend}
               onPress={handleSend}
               style={({ pressed }) => [
                 styles.sendButton,
                 pressed && styles.sendButtonPressed,
-                (!draft.trim() || isGenerating) && styles.sendButtonDisabled,
+                !canSend && styles.sendButtonDisabled,
               ]}
             >
               <AppIcon color={colors.card} icon={appIcons.send} size={20} />
@@ -690,6 +969,27 @@ const styles = StyleSheet.create({
     ...typography.caption,
     color: colors.mutedForeground,
   },
+  scrollToBottomButton: {
+    alignItems: 'center',
+    alignSelf: 'center',
+    backgroundColor: colors.card,
+    borderColor: colors.border,
+    borderRadius: 20,
+    borderWidth: StyleSheet.hairlineWidth,
+    elevation: 8,
+    height: 40,
+    justifyContent: 'center',
+    position: 'absolute',
+    shadowColor: '#000000',
+    shadowOffset: { height: 6, width: 0 },
+    shadowOpacity: 0.12,
+    shadowRadius: 12,
+    width: 40,
+    zIndex: 30,
+  },
+  scrollToBottomButtonPressed: {
+    opacity: 0.68,
+  },
   composer: {
     backgroundColor: 'transparent',
     bottom: 0,
@@ -743,6 +1043,58 @@ const styles = StyleSheet.create({
     paddingTop: 18,
     textAlignVertical: 'top',
   },
+  attachmentList: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    paddingBottom: 10,
+  },
+  attachmentChip: {
+    alignItems: 'center',
+    backgroundColor: colors.muted,
+    borderColor: colors.border,
+    borderRadius: 10,
+    borderWidth: StyleSheet.hairlineWidth,
+    flexDirection: 'row',
+    gap: 7,
+    maxWidth: '100%',
+    minHeight: 36,
+    paddingLeft: 10,
+    paddingRight: 5,
+  },
+  attachmentCopy: {
+    flexShrink: 1,
+    minWidth: 0,
+  },
+  attachmentName: {
+    ...typography.caption,
+    color: colors.foreground,
+    fontSize: 12,
+    maxWidth: 190,
+  },
+  attachmentMeta: {
+    ...typography.caption,
+    color: colors.mutedForeground,
+    fontSize: 10,
+    marginTop: 2,
+  },
+  removeAttachmentButton: {
+    alignItems: 'center',
+    height: 28,
+    justifyContent: 'center',
+    width: 28,
+  },
+  removeAttachmentText: {
+    ...typography.label,
+    color: colors.mutedForeground,
+    fontSize: 17,
+    lineHeight: 18,
+  },
+  attachmentError: {
+    ...typography.caption,
+    color: colors.destructive,
+    paddingBottom: 10,
+  },
   inputFooter: {
     alignItems: 'center',
     flexDirection: 'row',
@@ -760,6 +1112,9 @@ const styles = StyleSheet.create({
     height: 36,
     justifyContent: 'center',
     width: 34,
+  },
+  disabledTool: {
+    opacity: 0.38,
   },
   textTool: {
     alignItems: 'center',

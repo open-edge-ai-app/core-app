@@ -1,10 +1,14 @@
 package com.onda.bridge
 
+import android.app.Activity
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import android.content.Intent
 import android.net.Uri
+import android.provider.OpenableColumns
 import com.facebook.react.bridge.Arguments
+import com.facebook.react.bridge.ActivityEventListener
 import com.facebook.react.bridge.LifecycleEventListener
 import com.facebook.react.bridge.Promise
 import com.facebook.react.bridge.ReactApplicationContext
@@ -30,13 +34,15 @@ import java.io.FileOutputStream
 
 class AIEngineModule(
     private val reactContext: ReactApplicationContext,
-) : ReactContextBaseJavaModule(reactContext), LifecycleEventListener {
+) : ReactContextBaseJavaModule(reactContext), LifecycleEventListener, ActivityEventListener {
 
     private val queryRouter = QueryRouter()
     private val modelFileManager = ModelFileManager(reactContext)
+    private var filePickerPromise: Promise? = null
 
     init {
         reactContext.addLifecycleEventListener(this)
+        reactContext.addActivityEventListener(this)
     }
 
     override fun getName(): String = NAME
@@ -191,19 +197,107 @@ class AIEngineModule(
         }
     }
 
+    @ReactMethod
+    fun pickAttachment(promise: Promise) {
+        val activity = reactContext.currentActivity
+        if (activity == null) {
+            promise.reject("FILE_PICKER_NO_ACTIVITY", "현재 파일 선택 화면을 열 수 없습니다.")
+            return
+        }
+
+        if (filePickerPromise != null) {
+            promise.reject("FILE_PICKER_BUSY", "이미 파일 선택이 진행 중입니다.")
+            return
+        }
+
+        filePickerPromise = promise
+
+        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+            addCategory(Intent.CATEGORY_OPENABLE)
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            addFlags(Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION)
+            type = "*/*"
+            putExtra(
+                Intent.EXTRA_MIME_TYPES,
+                arrayOf(
+                    "image/*",
+                    "audio/*",
+                    "video/*",
+                    "application/pdf",
+                    "text/*",
+                    "application/json",
+                ),
+            )
+        }
+
+        try {
+            activity.startActivityForResult(intent, FILE_PICKER_REQUEST_CODE)
+        } catch (error: Exception) {
+            filePickerPromise = null
+            promise.reject("FILE_PICKER_OPEN_ERROR", error)
+        }
+    }
+
     override fun onHostResume() = Unit
 
     override fun onHostPause() = Unit
 
     override fun onHostDestroy() {
+        filePickerPromise?.resolve(null)
+        filePickerPromise = null
         ModelRuntimeManager.unload()
     }
 
     override fun invalidate() {
+        filePickerPromise?.resolve(null)
+        filePickerPromise = null
         reactContext.removeLifecycleEventListener(this)
+        reactContext.removeActivityEventListener(this)
         ModelRuntimeManager.unload()
         super.invalidate()
     }
+
+    override fun onActivityResult(
+        activity: Activity,
+        requestCode: Int,
+        resultCode: Int,
+        data: Intent?,
+    ) {
+        if (requestCode != FILE_PICKER_REQUEST_CODE) {
+            return
+        }
+
+        val promise = filePickerPromise ?: return
+        filePickerPromise = null
+
+        if (resultCode != Activity.RESULT_OK) {
+            promise.resolve(null)
+            return
+        }
+
+        val uri = data?.data
+        if (uri == null) {
+            promise.resolve(null)
+            return
+        }
+
+        try {
+            val flags = data.flags and Intent.FLAG_GRANT_READ_URI_PERMISSION
+            if (flags != 0) {
+                reactContext.contentResolver.takePersistableUriPermission(uri, flags)
+            }
+        } catch (_: Exception) {
+            // Some document providers grant only transient access.
+        }
+
+        try {
+            promise.resolve(uri.toAttachmentWritableMap())
+        } catch (error: Exception) {
+            promise.reject("FILE_PICKER_RESULT_ERROR", error)
+        }
+    }
+
+    override fun onNewIntent(intent: Intent) = Unit
 
     @ReactMethod
     fun addListener(eventName: String) = Unit
@@ -320,6 +414,68 @@ class AIEngineModule(
         return outputFile.absolutePath
     }
 
+    private fun Uri.toAttachmentWritableMap(): WritableMap {
+        val resolver = reactContext.contentResolver
+        val mimeType = resolver.getType(this)
+        var displayName: String? = null
+        var sizeBytes: Long? = null
+
+        resolver.query(this, null, null, null, null)?.use { cursor ->
+            val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+            val sizeIndex = cursor.getColumnIndex(OpenableColumns.SIZE)
+
+            if (cursor.moveToFirst()) {
+                if (nameIndex >= 0 && !cursor.isNull(nameIndex)) {
+                    displayName = cursor.getString(nameIndex)
+                }
+                if (sizeIndex >= 0 && !cursor.isNull(sizeIndex)) {
+                    sizeBytes = cursor.getLong(sizeIndex)
+                }
+            }
+        }
+
+        return Arguments.createMap().apply {
+            putString("id", "attachment-${System.nanoTime()}")
+            putString("type", inferAttachmentType(mimeType, displayName))
+            putString("uri", toString())
+            if (mimeType == null) {
+                putNull("mimeType")
+            } else {
+                putString("mimeType", mimeType)
+            }
+            if (displayName == null) {
+                putNull("name")
+            } else {
+                putString("name", displayName)
+            }
+            if (sizeBytes == null) {
+                putNull("sizeBytes")
+            } else {
+                putDouble("sizeBytes", sizeBytes!!.toDouble())
+            }
+        }
+    }
+
+    private fun inferAttachmentType(mimeType: String?, name: String?): String {
+        if (mimeType?.startsWith("image/") == true) {
+            return "image"
+        }
+        if (mimeType?.startsWith("audio/") == true) {
+            return "audio"
+        }
+        if (mimeType?.startsWith("video/") == true) {
+            return "video"
+        }
+
+        val normalizedName = name.orEmpty().lowercase()
+        return when {
+            Regex("\\.(png|jpe?g|webp|gif|heic)$").containsMatchIn(normalizedName) -> "image"
+            Regex("\\.(mp3|wav|m4a|aac|ogg|flac)$").containsMatchIn(normalizedName) -> "audio"
+            Regex("\\.(mp4|mov|m4v|webm|mkv)$").containsMatchIn(normalizedName) -> "video"
+            else -> "file"
+        }
+    }
+
     private fun AIResponse.toWritableMap(): WritableMap =
         Arguments.createMap().apply {
             putString("type", type)
@@ -382,6 +538,7 @@ class AIEngineModule(
 
     companion object {
         const val NAME = "AIEngine"
+        private const val FILE_PICKER_REQUEST_CODE = 41042
         private const val STREAM_EVENT_NAME = "AIEngineStreamChunk"
     }
 }

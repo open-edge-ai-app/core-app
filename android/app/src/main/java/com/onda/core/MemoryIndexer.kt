@@ -113,6 +113,7 @@ class MemoryIndexer(
                 sourceId = "incoming:${timestamp}:${address.orEmpty().hashCode()}:${body.orEmpty().hashCode()}",
                 text = text,
                 embedding = embedding,
+                uri = Telephony.Sms.CONTENT_URI.toString(),
                 timestamp = timestamp,
                 metadata = "incoming",
             ),
@@ -241,6 +242,7 @@ class MemoryIndexer(
                 val date = cursor.getLong(2)
                 val body = cursor.getString(3)
                 val type = cursor.getInt(4)
+                val uri = ContentUris.withAppendedId(Telephony.Sms.CONTENT_URI, id)
                 val text = buildSmsText(address, date, body, type)
                 val embedding = embedManager.embed(text)
                 val insertedId = dao.insert(
@@ -250,6 +252,7 @@ class MemoryIndexer(
                         sourceId = id.toString(),
                         text = text,
                         embedding = embedding,
+                        uri = uri.toString(),
                         timestamp = date,
                         metadata = "type=$type",
                     ),

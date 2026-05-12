@@ -14,6 +14,7 @@ class QueryRouter(
     private val embedManager = EmbedManager(context)
     private val vectorDao = VectorDao(vectorDBHelper)
     private val chatContextManager = ChatContextManager(vectorDBHelper, gemmaManager)
+    private val webSearchManager = WebSearchManager()
 
     fun route(message: String): String {
         val normalized = message.trim()
@@ -22,12 +23,17 @@ class QueryRouter(
         }
 
         val toolCall = decideToolCall(normalized)
-        if (toolCall?.name != TOOL_RAG_SEARCH) {
-            return gemmaManager.generate(normalized, useRag = false)
+        return when (toolCall?.name) {
+            TOOL_RAG_SEARCH -> {
+                val memories = searchMemories(toolCall.query.ifBlank { normalized })
+                gemmaManager.generate(buildRagPrompt(normalized, memories), useRag = true)
+            }
+            TOOL_WEB_SEARCH -> {
+                val webContext = webSearchManager.search(toolCall.query.ifBlank { normalized })
+                gemmaManager.generate(buildWebPrompt(normalized, webContext), useRag = false)
+            }
+            else -> gemmaManager.generate(normalized, useRag = false)
         }
-
-        val memories = searchMemories(toolCall.query.ifBlank { normalized })
-        return gemmaManager.generate(buildRagPrompt(normalized, memories), useRag = true)
     }
 
     fun routeMultimodal(request: MultimodalRequest): AIResponse {
@@ -48,18 +54,24 @@ class QueryRouter(
         )
         val requestWithHistory = request.copy(text = promptWithHistory)
         val toolCall = if (request.useRag == true) {
-            RagToolCall(TOOL_RAG_SEARCH, normalized)
+            ToolCall(TOOL_RAG_SEARCH, normalized)
         } else {
             decideToolCall(normalized)
         }
 
-        if (toolCall?.name != TOOL_RAG_SEARCH) {
-            return gemmaManager.generateMultimodal(requestWithHistory, useRag = false, modalities = modalities)
+        if (toolCall?.name == TOOL_RAG_SEARCH) {
+            val memories = searchMemories(toolCall.query.ifBlank { normalized })
+            val ragRequest = request.copy(text = buildRagPrompt(promptWithHistory, memories))
+            return gemmaManager.generateMultimodal(ragRequest, useRag = true, modalities = modalities)
         }
 
-        val memories = searchMemories(toolCall.query.ifBlank { normalized })
-        val ragRequest = request.copy(text = buildRagPrompt(promptWithHistory, memories))
-        return gemmaManager.generateMultimodal(ragRequest, useRag = true, modalities = modalities)
+        if (toolCall?.name == TOOL_WEB_SEARCH) {
+            val webContext = webSearchManager.search(toolCall.query.ifBlank { normalized })
+            val webRequest = request.copy(text = buildWebPrompt(promptWithHistory, webContext))
+            return gemmaManager.generateMultimodal(webRequest, useRag = false, modalities = modalities)
+        }
+
+        return gemmaManager.generateMultimodal(requestWithHistory, useRag = false, modalities = modalities)
     }
 
     fun routeMultimodalStream(
@@ -88,15 +100,20 @@ class QueryRouter(
         )
         val requestWithHistory = request.copy(text = promptWithHistory)
         val toolCall = if (request.useRag == true) {
-            RagToolCall(TOOL_RAG_SEARCH, normalized)
+            ToolCall(TOOL_RAG_SEARCH, normalized)
         } else {
             decideToolCall(normalized)
         }
-        val routedRequest = if (toolCall?.name == TOOL_RAG_SEARCH) {
-            val memories = searchMemories(toolCall.query.ifBlank { normalized })
-            request.copy(text = buildRagPrompt(promptWithHistory, memories))
-        } else {
-            requestWithHistory
+        val routedRequest = when (toolCall?.name) {
+            TOOL_RAG_SEARCH -> {
+                val memories = searchMemories(toolCall.query.ifBlank { normalized })
+                request.copy(text = buildRagPrompt(promptWithHistory, memories))
+            }
+            TOOL_WEB_SEARCH -> {
+                val webContext = webSearchManager.search(toolCall.query.ifBlank { normalized })
+                request.copy(text = buildWebPrompt(promptWithHistory, webContext))
+            }
+            else -> requestWithHistory
         }
 
         return gemmaManager.generateMultimodalStream(
@@ -109,15 +126,15 @@ class QueryRouter(
         )
     }
 
-    private fun decideToolCall(message: String): RagToolCall? {
+    private fun decideToolCall(message: String): ToolCall? {
         val decision = gemmaManager.generate(buildToolDecisionPrompt(message), useRag = false)
         val json = extractJsonObject(decision) ?: return fallbackToolDecision(message)
         return try {
             val parsed = JSONObject(json)
             val tool = parsed.optString("tool", "none")
-            if (tool == TOOL_RAG_SEARCH) {
+            if (tool == TOOL_RAG_SEARCH || tool == TOOL_WEB_SEARCH) {
                 val arguments = parsed.optJSONObject("arguments")
-                RagToolCall(
+                ToolCall(
                     name = tool,
                     query = arguments?.optString("query").orEmpty().ifBlank { message },
                 )
@@ -129,7 +146,7 @@ class QueryRouter(
         }
     }
 
-    private fun fallbackToolDecision(message: String): RagToolCall? {
+    private fun fallbackToolDecision(message: String): ToolCall? {
         val hints = listOf(
             "기억",
             "사진",
@@ -153,7 +170,7 @@ class QueryRouter(
             "show",
         )
         return if (hints.any { hint -> message.contains(hint, ignoreCase = true) }) {
-            RagToolCall(TOOL_RAG_SEARCH, message)
+            ToolCall(TOOL_RAG_SEARCH, message)
         } else {
             null
         }
@@ -174,11 +191,15 @@ class QueryRouter(
         Decide whether the user question requires searching the local memory database.
 
         Available tool:
-        - rag.search: Search local embedded memories from SMS and gallery photos.
+        - rag.search: Search private local device memories such as SMS, gallery photos, and saved chat context.
+        - web.search: Search the public web for current, recent, external, or generally public information.
 
-        Use rag.search only when the user asks about personal past events, photos, receipts, messages, locations, dates, or something that must be remembered from the device.
+        Use rag.search only when the user asks about personal past events, private records, photos, receipts, messages, locations, dates, or something that must be remembered from the device.
+        Use web.search only when the user asks about current news, recent public facts, public people or companies, market data, product information, weather, sports, or anything likely to have changed.
+        Never include private local memory, SMS body, photo path, file path, phone number, email, account number, exact address, or secret values in a web.search query.
         If no memory search is needed, return {"tool":"none","arguments":{}}.
-        If memory search is needed, return {"tool":"rag.search","arguments":{"query":"short search query"}}.
+        If private local memory search is needed, return {"tool":"rag.search","arguments":{"query":"short search query"}}.
+        If public web search is needed, return {"tool":"web.search","arguments":{"query":"sanitized public search query"}}.
 
         Return only compact JSON. Do not explain.
 
@@ -212,6 +233,34 @@ class QueryRouter(
         """.trimIndent()
     }
 
+    private fun buildWebPrompt(
+        question: String,
+        webContext: WebSearchContext,
+    ): String {
+        val maskedNotice = if (webContext.privacyMasked) {
+            "Privacy masking was applied before any web request. Masked fields: ${webContext.maskedTypes.joinToString(", ")}."
+        } else {
+            "No privacy masking was needed for the web query."
+        }
+
+        return """
+        You are an on-device assistant. The user asked for public web information.
+        Use only the public web search context below. If web search is not configured or the results are insufficient, say that current web information is unavailable instead of inventing facts.
+
+        Sanitized web query:
+        ${webContext.sanitizedQuery}
+
+        Privacy status:
+        $maskedNotice
+
+        Public web search context:
+        ${webContext.resultsText}
+
+        User question:
+        $question
+        """.trimIndent()
+    }
+
     private fun extractJsonObject(text: String): String? {
         val start = text.indexOf('{')
         val end = text.lastIndexOf('}')
@@ -226,13 +275,14 @@ class QueryRouter(
         embedManager.close()
     }
 
-    private data class RagToolCall(
+    private data class ToolCall(
         val name: String,
         val query: String,
     )
 
     companion object {
         private const val TOOL_RAG_SEARCH = "rag.search"
+        private const val TOOL_WEB_SEARCH = "web.search"
         private const val RAG_RESULT_LIMIT = 5
     }
 }

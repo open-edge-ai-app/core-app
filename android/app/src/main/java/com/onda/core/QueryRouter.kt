@@ -14,7 +14,7 @@ class QueryRouter(
     private val embedManager = EmbedManager(context)
     private val vectorDao = VectorDao(vectorDBHelper)
     private val chatContextManager = ChatContextManager(vectorDBHelper, gemmaManager)
-    private val webSearchManager = WebSearchManager()
+    private val webSearchManager = WebSearchManager(gemmaManager)
 
     fun route(message: String): String {
         val normalized = message.trim()
@@ -242,6 +242,11 @@ class QueryRouter(
         } else {
             "No privacy masking was needed for the web query."
         }
+        val llmSanitizeNotice = if (webContext.llmSanitized) {
+            "A local LLM sanitizer rewrote the web query before provider execution."
+        } else {
+            "The local LLM sanitizer did not change the web query."
+        }
 
         return """
         You are an on-device assistant. The user asked for public web information.
@@ -252,6 +257,7 @@ class QueryRouter(
 
         Privacy status:
         $maskedNotice
+        $llmSanitizeNotice
 
         Public web search context:
         ${webContext.resultsText}

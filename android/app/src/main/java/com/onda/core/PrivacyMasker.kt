@@ -66,7 +66,7 @@ object PrivacyMasker {
         ),
         MaskingRule(
             type = "bank_account",
-            regex = Regex("""(?i)(계좌|account)\s*[:=]?\s*[0-9 -]{8,24}"""),
+            regex = Regex("""(?i)(\uACC4\uC88C|account)\s*[:=]?\s*[0-9 -]{8,24}"""),
             replacement = "\$1 [account-number]",
         ),
         MaskingRule(
@@ -81,12 +81,14 @@ object PrivacyMasker {
         ),
         MaskingRule(
             type = "detailed_address",
-            regex = Regex("""(?:[가-힣]+(?:시|도)\s*)?[가-힣]+(?:시|군|구)\s+[가-힣0-9]+(?:로|길)\s*\d+(?:-\d+)?(?:\s*\d+동|\s*\d+호)?"""),
+            regex = Regex(
+                """(?:[\uAC00-\uD7A3]+(?:\uC2DC|\uB3C4)\s*)?[\uAC00-\uD7A3]+(?:\uC2DC|\uAD70|\uAD6C)\s+[\uAC00-\uD7A30-9]+(?:\uB85C|\uAE38)\s*\d+(?:-\d+)?(?:\s*\d+\uB3D9|\s*\d+\uD638)?""",
+            ),
             replacement = "[address]",
         ),
         MaskingRule(
             type = "named_person",
-            regex = Regex("""(?i)(이름|성명|name)\s*[:=]?\s*[가-힣A-Za-z]{2,30}"""),
+            regex = Regex("""(?i)(\uC774\uB984|\uC131\uBA85|name)\s*[:=]?\s*[\uAC00-\uD7A3A-Za-z]{2,30}"""),
             replacement = "\$1 [name]",
         ),
     )

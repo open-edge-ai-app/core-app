@@ -17,6 +17,7 @@ import { appIcons } from '../theme/icons';
 import { colors, typography } from '../theme/tokens';
 
 type MarkdownTextProps = {
+  selectable?: boolean;
   style?: StyleProp<TextStyle>;
   text: string;
 };
@@ -171,7 +172,12 @@ function parseMarkdown(text: string): MarkdownBlock[] {
   return blocks;
 }
 
-function renderInline(text: string, keyPrefix: string, depth = 0): ReactNode[] {
+function renderInline(
+  text: string,
+  keyPrefix: string,
+  depth = 0,
+  selectable = false,
+): ReactNode[] {
   if (depth > 4) {
     return [text];
   }
@@ -196,6 +202,7 @@ function renderInline(text: string, keyPrefix: string, depth = 0): ReactNode[] {
         <Text
           key={key}
           onPress={() => Linking.openURL(link[2]).catch(() => undefined)}
+          selectable={selectable}
           style={styles.link}
         >
           {link[1]}
@@ -203,20 +210,20 @@ function renderInline(text: string, keyPrefix: string, depth = 0): ReactNode[] {
       );
     } else if (token.startsWith('`')) {
       nodes.push(
-        <Text key={key} style={styles.inlineCode}>
+        <Text key={key} selectable={selectable} style={styles.inlineCode}>
           {token.slice(1, -1)}
         </Text>,
       );
     } else if (token.startsWith('**') || token.startsWith('__')) {
       nodes.push(
-        <Text key={key} style={styles.bold}>
-          {renderInline(token.slice(2, -2), key, depth + 1)}
+        <Text key={key} selectable={selectable} style={styles.bold}>
+          {renderInline(token.slice(2, -2), key, depth + 1, selectable)}
         </Text>,
       );
     } else {
       nodes.push(
-        <Text key={key} style={styles.italic}>
-          {renderInline(token.slice(1, -1), key, depth + 1)}
+        <Text key={key} selectable={selectable} style={styles.italic}>
+          {renderInline(token.slice(1, -1), key, depth + 1, selectable)}
         </Text>,
       );
     }
@@ -343,7 +350,7 @@ function CodeBlock({ code, language }: CodeBlockProps) {
   );
 }
 
-function MarkdownText({ style, text }: MarkdownTextProps) {
+function MarkdownText({ selectable = false, style, text }: MarkdownTextProps) {
   const blocks = parseMarkdown(text);
 
   return (
@@ -353,6 +360,7 @@ function MarkdownText({ style, text }: MarkdownTextProps) {
           return (
             <Text
               key={`heading-${index}`}
+              selectable={selectable}
               style={[
                 styles.text,
                 style,
@@ -360,7 +368,7 @@ function MarkdownText({ style, text }: MarkdownTextProps) {
                 block.level === 1 && styles.headingLarge,
               ]}
             >
-              {renderInline(block.text, `heading-${index}`)}
+              {renderInline(block.text, `heading-${index}`, 0, selectable)}
             </Text>
           );
         }
@@ -378,8 +386,11 @@ function MarkdownText({ style, text }: MarkdownTextProps) {
         if (block.type === 'quote') {
           return (
             <View key={`quote-${index}`} style={styles.quote}>
-              <Text style={[styles.text, style, styles.quoteText]}>
-                {renderInline(block.text, `quote-${index}`)}
+              <Text
+                selectable={selectable}
+                style={[styles.text, style, styles.quoteText]}
+              >
+                {renderInline(block.text, `quote-${index}`, 0, selectable)}
               </Text>
             </View>
           );
@@ -393,8 +404,16 @@ function MarkdownText({ style, text }: MarkdownTextProps) {
                   <Text style={[styles.text, style, styles.listMarker]}>
                     {'\u2022'}
                   </Text>
-                  <Text style={[styles.text, style, styles.listText]}>
-                    {renderInline(item, `bullet-${index}-${itemIndex}`)}
+                  <Text
+                    selectable={selectable}
+                    style={[styles.text, style, styles.listText]}
+                  >
+                    {renderInline(
+                      item,
+                      `bullet-${index}-${itemIndex}`,
+                      0,
+                      selectable,
+                    )}
                   </Text>
                 </View>
               ))}
@@ -413,8 +432,16 @@ function MarkdownText({ style, text }: MarkdownTextProps) {
                   <Text style={[styles.text, style, styles.orderedMarker]}>
                     {item.marker}
                   </Text>
-                  <Text style={[styles.text, style, styles.listText]}>
-                    {renderInline(item.text, `ordered-${index}-${itemIndex}`)}
+                  <Text
+                    selectable={selectable}
+                    style={[styles.text, style, styles.listText]}
+                  >
+                    {renderInline(
+                      item.text,
+                      `ordered-${index}-${itemIndex}`,
+                      0,
+                      selectable,
+                    )}
                   </Text>
                 </View>
               ))}
@@ -423,8 +450,12 @@ function MarkdownText({ style, text }: MarkdownTextProps) {
         }
 
         return (
-          <Text key={`paragraph-${index}`} style={[styles.text, style]}>
-            {renderInline(block.text, `paragraph-${index}`)}
+          <Text
+            key={`paragraph-${index}`}
+            selectable={selectable}
+            style={[styles.text, style]}
+          >
+            {renderInline(block.text, `paragraph-${index}`, 0, selectable)}
           </Text>
         );
       })}

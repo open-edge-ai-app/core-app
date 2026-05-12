@@ -35,16 +35,27 @@ const formatBytes = (bytes: number) => {
 };
 
 type SettingsProps = {
+  activePanel: SettingsPanelId;
   onModelStateChange?: (state: {
     modelStatus: ModelStatus | null;
     runtimeStatus: RuntimeStatus | null;
   }) => void;
+  onPanelChange: (panel: SettingsPanelId) => void;
   onPersonalSystemPromptChange: (prompt: string) => void;
   personalSystemPrompt: string;
 };
 
+export type SettingsPanelId =
+  | 'root'
+  | 'systemPrompt'
+  | 'personalization'
+  | 'model'
+  | 'indexing';
+
 function Settings({
+  activePanel,
   onModelStateChange,
+  onPanelChange,
   onPersonalSystemPromptChange,
   personalSystemPrompt,
 }: SettingsProps) {
@@ -150,18 +161,71 @@ function Settings({
     setStatus(result.status);
   }, []);
 
-  return (
-    <ScrollView
-      contentContainerStyle={styles.container}
-      showsVerticalScrollIndicator={false}
-    >
+  const modelSummary = modelStatus?.installed
+    ? runtimeStatus?.loaded
+      ? '로드됨'
+      : '설치됨'
+    : modelStatus?.isDownloading
+    ? '다운로드 중'
+    : '설치 필요';
+  const indexingSummary = status.isIndexing
+    ? '인덱싱 중'
+    : `${status.indexedItems.toLocaleString('ko-KR')}개`;
+  const renderDetailHeader = (title: string, description: string) => (
+    <View style={styles.header}>
+      <Text style={styles.title}>{title}</Text>
+      <Text style={styles.description}>{description}</Text>
+    </View>
+  );
+
+  const renderRoot = () => (
+    <>
       <View style={styles.header}>
         <Text style={styles.title}>설정</Text>
         <Text style={styles.description}>
-          개인화, 모델, 인덱싱 상태를 한 곳에서 확인합니다.
+          필요한 항목을 선택해서 상세 설정으로 들어갑니다.
         </Text>
       </View>
 
+      <View style={styles.settingsList}>
+        <SettingsNavigationRow
+          caption="개인 기본 지침과 작업 폴더 메모리 적용 순서"
+          onPress={() => onPanelChange('systemPrompt')}
+          title="시스템 프롬프트"
+          value={personalSystemPrompt.trim() ? '적용 중' : '비어 있음'}
+          valueVariant={personalSystemPrompt.trim() ? 'success' : 'outline'}
+        />
+        <SettingsNavigationRow
+          caption="앱 전체 텍스트 크기"
+          onPress={() => onPanelChange('personalization')}
+          title="개인화"
+          value={selectedTextSize.label}
+          valueVariant="outline"
+        />
+        <SettingsNavigationRow
+          caption="모델 다운로드, 런타임 로드, 엔진 연결 상태"
+          onPress={() => onPanelChange('model')}
+          title="모델"
+          value={modelSummary}
+          valueVariant={runtimeStatus?.loaded ? 'success' : 'secondary'}
+        />
+        <SettingsNavigationRow
+          caption="SMS/Gallery 임베딩 생성과 삭제"
+          onPress={() => onPanelChange('indexing')}
+          title="인덱싱"
+          value={indexingSummary}
+          valueVariant={status.isIndexing ? 'success' : 'outline'}
+        />
+      </View>
+    </>
+  );
+
+  const renderSystemPrompt = () => (
+    <>
+      {renderDetailHeader(
+        '시스템 프롬프트',
+        '개인 기본 지침을 관리합니다. 작업 폴더의 시스템 프롬프트(메모리)는 이 지침 아래에 추가됩니다.',
+      )}
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
           <View>
@@ -189,7 +253,15 @@ function Settings({
           value={personalSystemPrompt}
         />
       </View>
+    </>
+  );
 
+  const renderPersonalization = () => (
+    <>
+      {renderDetailHeader(
+        '개인화',
+        '앱에서 반복적으로 보는 텍스트의 표시 크기를 설정합니다.',
+      )}
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
           <View>
@@ -243,7 +315,15 @@ function Settings({
           })}
         </View>
       </View>
+    </>
+  );
 
+  const renderModel = () => (
+    <>
+      {renderDetailHeader(
+        '모델',
+        '온디바이스 모델 파일과 런타임 연결 상태를 관리합니다.',
+      )}
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
           <View>
@@ -334,6 +414,26 @@ function Settings({
             variant="ghost"
           />
         </View>
+      </View>
+    </>
+  );
+
+  const renderIndexing = () => (
+    <>
+      {renderDetailHeader(
+        '인덱싱',
+        '검색과 개인 메모리에 사용할 소스별 임베딩을 관리합니다.',
+      )}
+      <View style={styles.section}>
+        <View style={styles.sectionHeader}>
+          <View style={styles.switchCopy}>
+            <Text style={styles.sectionTitle}>인덱싱</Text>
+            <Text style={styles.sectionCaption}>소스별 임베딩 생성/삭제</Text>
+          </View>
+        </View>
+
+        <Separator style={styles.separator} />
+
         <StatusRow
           label="인덱싱 항목"
           value={`${status.indexedItems.toLocaleString('ko-KR')}개`}
@@ -350,17 +450,6 @@ function Settings({
           label="마지막 인덱싱"
           value={status.lastIndexedAt ?? '기록 없음'}
         />
-      </View>
-
-      <View style={styles.section}>
-        <View style={styles.sectionHeader}>
-          <View style={styles.switchCopy}>
-            <Text style={styles.sectionTitle}>인덱싱</Text>
-            <Text style={styles.sectionCaption}>소스별 임베딩 생성/삭제</Text>
-          </View>
-        </View>
-
-        <Separator style={styles.separator} />
 
         <View style={styles.toggleRow}>
           <View style={styles.switchCopy}>
@@ -422,7 +511,73 @@ function Settings({
           variant="ghost"
         />
       </View>
+    </>
+  );
+
+  const renderActivePanel = () => {
+    switch (activePanel) {
+      case 'systemPrompt':
+        return renderSystemPrompt();
+      case 'personalization':
+        return renderPersonalization();
+      case 'model':
+        return renderModel();
+      case 'indexing':
+        return renderIndexing();
+      case 'root':
+      default:
+        return renderRoot();
+    }
+  };
+
+  return (
+    <ScrollView
+      key={activePanel}
+      contentContainerStyle={styles.container}
+      showsVerticalScrollIndicator={false}
+    >
+      {renderActivePanel()}
     </ScrollView>
+  );
+}
+
+type SettingsNavigationRowProps = {
+  caption: string;
+  onPress: () => void;
+  title: string;
+  value: string;
+  valueVariant?: 'default' | 'secondary' | 'outline' | 'success';
+};
+
+function SettingsNavigationRow({
+  caption,
+  onPress,
+  title,
+  value,
+  valueVariant = 'secondary',
+}: SettingsNavigationRowProps) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.navigationRow,
+        pressed && styles.rowPressed,
+      ]}
+    >
+      <View style={styles.navigationCopy}>
+        <Text style={styles.navigationTitle}>{title}</Text>
+        <Text style={styles.navigationCaption}>{caption}</Text>
+      </View>
+      <View style={styles.navigationMeta}>
+        <Badge variant={valueVariant}>{value}</Badge>
+        <AppIcon
+          color={colors.mutedForeground}
+          icon={appIcons.openPrompt}
+          size={14}
+        />
+      </View>
+    </Pressable>
   );
 }
 
@@ -489,6 +644,39 @@ const styles = StyleSheet.create({
     fontWeight: '400',
     lineHeight: 22,
     marginTop: 10,
+  },
+  settingsList: {
+    borderTopColor: colors.border,
+    borderTopWidth: StyleSheet.hairlineWidth,
+  },
+  navigationRow: {
+    alignItems: 'center',
+    borderBottomColor: colors.border,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    flexDirection: 'row',
+    minHeight: 78,
+    paddingVertical: 14,
+  },
+  navigationCopy: {
+    flex: 1,
+    paddingRight: 16,
+  },
+  navigationTitle: {
+    ...typography.body,
+    color: colors.foreground,
+    fontSize: 17,
+    fontWeight: '600',
+  },
+  navigationCaption: {
+    ...typography.caption,
+    color: colors.mutedForeground,
+    lineHeight: 16,
+    marginTop: 5,
+  },
+  navigationMeta: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 10,
   },
   section: {
     borderTopColor: colors.border,

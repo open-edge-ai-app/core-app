@@ -39,7 +39,7 @@ import ChatScreen, {
   ChatMessage,
   createInitialChatMessages,
 } from './src/screens/ChatScreen';
-import Settings from './src/screens/Settings';
+import Settings, { type SettingsPanelId } from './src/screens/Settings';
 import {
   DisplaySettingsProvider,
   ScaledText as Text,
@@ -479,6 +479,8 @@ function App() {
   const [isModelMenuOpen, setIsModelMenuOpen] = useState(false);
   const [chatInstanceKey, setChatInstanceKey] = useState(0);
   const [activeScreen, setActiveScreen] = useState<'chat' | 'settings'>('chat');
+  const [settingsPanel, setSettingsPanel] =
+    useState<SettingsPanelId>('root');
   const [selectedModelId, setSelectedModelId] =
     useState<ModelOption['id']>('gemma-4');
   const [modelStatus, setModelStatus] = useState<ModelStatus | null>(null);
@@ -523,6 +525,8 @@ function App() {
     [activeModelOption, selectedModelId],
   );
   const headerSelectedModelId = activeModelOption?.id ?? modelManageOption.id;
+  const isSettingsDetailPanel =
+    activeScreen === 'settings' && settingsPanel !== 'root';
   const modelSelectOptions = useMemo<
     FloatingSelectOption<ModelOption['id']>[]
   >(() => {
@@ -551,6 +555,7 @@ function App() {
 
     if (nextModel?.action === 'settings') {
       setActiveScreen('settings');
+      setSettingsPanel('root');
       return;
     }
 
@@ -715,6 +720,7 @@ function App() {
 
   const handleNewChat = () => {
     setActiveScreen('chat');
+    setSettingsPanel('root');
     activeSessionIdRef.current = null;
     setActiveSessionId(null);
     setSessionTitle('새 채팅');
@@ -730,6 +736,7 @@ function App() {
         workFolderSessions.some(session => session.id === id));
 
     setActiveScreen('chat');
+    setSettingsPanel('root');
     activeSessionIdRef.current = isChatSession ? id : null;
     setActiveSessionId(isChatSession ? id : null);
     if (!isChatSession) {
@@ -742,6 +749,7 @@ function App() {
 
   const handleOpenSettings = () => {
     setActiveScreen('settings');
+    setSettingsPanel('root');
     setActiveSessionId(null);
     setIsMenuOpen(false);
   };
@@ -998,9 +1006,16 @@ function App() {
           <View style={styles.header}>
             <View style={styles.headerSide}>
               <Pressable
-                accessibilityLabel="메뉴 열기"
+                accessibilityLabel={
+                  isSettingsDetailPanel ? '설정 목록으로 돌아가기' : '메뉴 열기'
+                }
                 accessibilityRole="button"
                 onPress={() => {
+                  if (isSettingsDetailPanel) {
+                    setSettingsPanel('root');
+                    return;
+                  }
+
                   setIsModelMenuOpen(false);
                   setIsMenuOpen(true);
                 }}
@@ -1011,8 +1026,12 @@ function App() {
               >
                 <AppIcon
                   color={colors.foreground}
-                  icon={appIcons.navigationMenu}
-                  size={20}
+                  icon={
+                    isSettingsDetailPanel
+                      ? appIcons.back
+                      : appIcons.navigationMenu
+                  }
+                  size={isSettingsDetailPanel ? 18 : 20}
                 />
               </Pressable>
             </View>
@@ -1022,21 +1041,23 @@ function App() {
             </Text>
 
             <View style={[styles.headerSide, styles.headerSideRight]}>
-              <FloatingSelect
-                accessibilityLabel="모델 선택"
-                expanded={isModelMenuOpen}
-                menuAlignment="right"
-                menuStyle={styles.modelMenu}
-                onExpandedChange={handleModelMenuExpandedChange}
-                onValueChange={handleSelectModel}
-                optionIconSize={16}
-                options={modelSelectOptions}
-                selectedValue={headerSelectedModelId}
-                showTriggerIcon={false}
-                triggerStyle={styles.modelSelector}
-                valueTextStyle={styles.modelSelectorText}
-                variant="header"
-              />
+              {activeScreen === 'settings' ? null : (
+                <FloatingSelect
+                  accessibilityLabel="모델 선택"
+                  expanded={isModelMenuOpen}
+                  menuAlignment="right"
+                  menuStyle={styles.modelMenu}
+                  onExpandedChange={handleModelMenuExpandedChange}
+                  onValueChange={handleSelectModel}
+                  optionIconSize={16}
+                  options={modelSelectOptions}
+                  selectedValue={headerSelectedModelId}
+                  showTriggerIcon={false}
+                  triggerStyle={styles.modelSelector}
+                  valueTextStyle={styles.modelSelectorText}
+                  variant="header"
+                />
+              )}
             </View>
           </View>
 
@@ -1061,7 +1082,9 @@ function App() {
               />
             ) : (
               <Settings
+                activePanel={settingsPanel}
                 onModelStateChange={handleModelStateChange}
+                onPanelChange={setSettingsPanel}
                 onPersonalSystemPromptChange={setPersonalSystemPrompt}
                 personalSystemPrompt={personalSystemPrompt}
               />

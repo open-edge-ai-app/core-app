@@ -156,28 +156,130 @@ class ChatContextManager(
     fun buildPromptWithHistory(
         chatId: String?,
         currentPrompt: String,
+        requestHistory: List<ConversationMessage> = emptyList(),
     ): String {
-        if (chatId.isNullOrBlank()) {
+        val requestConversationMessages = requestHistory
+            .filter { message -> message.role != "system" }
+            .map { message -> message.copy(content = message.content.trim()) }
+            .filter { message -> message.content.isNotBlank() }
+        val systemInstructions = renderSystemInstructions(requestHistory)
+
+        if (requestConversationMessages.isNotEmpty()) {
+            return buildPromptWithRequestHistory(
+                currentPrompt = currentPrompt,
+                requestHistory = requestHistory,
+            )
+        }
+
+        if (chatId.isNullOrBlank() && systemInstructions.isBlank()) {
             return currentPrompt
         }
 
-        val snapshot = getLatestSnapshot(chatId) ?: return currentPrompt
-        val contextMessages = snapshot.optJSONArray("messages") ?: return currentPrompt
-        val renderedContext = renderMessages(contextMessages, currentPrompt)
-        if (renderedContext.isBlank()) {
+        val renderedContext = if (chatId.isNullOrBlank()) {
+            ""
+        } else {
+            val snapshot = getLatestSnapshot(chatId)
+            val contextMessages = snapshot?.optJSONArray("messages")
+            if (contextMessages == null) {
+                ""
+            } else {
+                renderMessages(contextMessages, currentPrompt)
+            }
+        }
+
+        if (renderedContext.isBlank() && systemInstructions.isBlank()) {
             return currentPrompt
         }
 
-        return """
-        You are continuing a local chat session.
-        Use the context history below as the active conversation state. It may contain a compacted summary followed by recent exact messages.
+        val sections = mutableListOf<String>()
+        if (systemInstructions.isNotBlank()) {
+            sections.add(
+                """
+                System instructions:
+                $systemInstructions
+                """.trimIndent(),
+            )
+        }
+        if (renderedContext.isNotBlank()) {
+            sections.add(
+                """
+                You are continuing a local chat session.
+                Use the context history below as the active conversation state. It may contain a compacted summary followed by recent exact messages.
 
-        Context history:
-        $renderedContext
+                Context history:
+                $renderedContext
+                """.trimIndent(),
+            )
+        }
+        sections.add(
+            """
+            Current user message:
+            $currentPrompt
+            """.trimIndent(),
+        )
 
-        Current user message:
-        $currentPrompt
-        """.trimIndent()
+        return sections.joinToString("\n\n")
+    }
+
+    private fun renderSystemInstructions(requestHistory: List<ConversationMessage>): String =
+        requestHistory
+            .filter { message -> message.role == "system" }
+            .map { message -> message.content.trim() }
+            .filter { content -> content.isNotBlank() }
+            .joinToString("\n\n")
+
+    private fun buildPromptWithRequestHistory(
+        currentPrompt: String,
+        requestHistory: List<ConversationMessage>,
+    ): String {
+        val systemInstructions = renderSystemInstructions(requestHistory)
+        val conversationMessages = requestHistory
+            .filter { message -> message.role != "system" }
+            .map { message -> message.copy(content = message.content.trim()) }
+            .filter { message -> message.content.isNotBlank() }
+            .let { messages ->
+                val lastMessage = messages.lastOrNull()
+                if (
+                    lastMessage?.role == "user" &&
+                    normalizePromptText(lastMessage.content) == normalizePromptText(currentPrompt)
+                ) {
+                    messages.dropLast(1)
+                } else {
+                    messages
+                }
+            }
+        val sections = mutableListOf<String>()
+
+        if (systemInstructions.isNotBlank()) {
+            sections.add(
+                """
+                다음 시스템 지침을 우선 적용하세요.
+                $systemInstructions
+                """.trimIndent(),
+            )
+        }
+
+        if (conversationMessages.isNotEmpty()) {
+            sections.add(
+                """
+                이전 대화 내용입니다. 사용자가 이전 내용, 방금 말한 것, 위 내용, 이어서 등의 표현을 쓰면 이 대화 맥락을 기준으로 답하세요.
+                ${conversationMessages.joinToString("\n") { message -> "${message.role}: ${message.content}" }}
+                """.trimIndent(),
+            )
+        }
+
+        if (sections.isEmpty()) {
+            return currentPrompt
+        }
+
+        sections.add(
+            """
+            현재 사용자 요청:
+            $currentPrompt
+            """.trimIndent(),
+        )
+
+        return sections.joinToString("\n\n")
     }
 
     private fun summarizeContext(
@@ -350,7 +452,7 @@ class ChatContextManager(
 
     private fun renderMessages(messages: JSONArray, currentPrompt: String): String {
         val rendered = mutableListOf<String>()
-        val normalizedCurrentPrompt = currentPrompt.trim()
+        val normalizedCurrentPrompt = normalizePromptText(currentPrompt)
         val lastNonBlankIndex = findLastNonBlankMessageIndex(messages)
         for (index in 0 until messages.length()) {
             val message = messages.optJSONObject(index) ?: continue
@@ -360,7 +462,7 @@ class ChatContextManager(
                 index == lastNonBlankIndex &&
                     role == "user" &&
                     normalizedCurrentPrompt.isNotBlank() &&
-                    content == normalizedCurrentPrompt
+                    normalizePromptText(content) == normalizedCurrentPrompt
             if (isCurrentPromptAlreadyInSnapshot) {
                 continue
             }
@@ -384,6 +486,9 @@ class ChatContextManager(
         }
         return -1
     }
+
+    private fun normalizePromptText(text: String): String =
+        text.trim().replace(Regex("\\s+"), " ")
 
     private fun JSONObject.compactSummary(): String? {
         val compact = optJSONObject("compact") ?: return null

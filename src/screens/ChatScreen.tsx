@@ -211,6 +211,17 @@ const createUserMessageText = (
     .join('\n\n');
 };
 
+const createSystemHistory = (commonSystemPrompt: string): AIChatMessage[] => [
+  ...(commonSystemPrompt.trim()
+    ? [
+        {
+          content: commonSystemPrompt.trim(),
+          role: 'system' as const,
+        },
+      ]
+    : []),
+];
+
 function ChatScreen({
   commonSystemPrompt = '',
   messages,
@@ -242,16 +253,7 @@ function ChatScreen({
     !isGenerating;
 
   const systemHistory = useMemo<AIChatMessage[]>(
-    () => [
-      ...(commonSystemPrompt.trim()
-        ? [
-            {
-              content: commonSystemPrompt.trim(),
-              role: 'system' as const,
-            },
-          ]
-        : []),
-    ],
+    () => createSystemHistory(commonSystemPrompt),
     [commonSystemPrompt],
   );
 
@@ -535,6 +537,117 @@ function ChatScreen({
     systemHistory,
   ]);
 
+  const handleRetryResponse = useCallback(
+    async (assistantMessageId: string) => {
+      if (isGenerating) {
+        return;
+      }
+
+      const assistantIndex = messages.findIndex(
+        message => message.id === assistantMessageId,
+      );
+      if (assistantIndex < 0) {
+        return;
+      }
+
+      let userIndex = -1;
+      for (let index = assistantIndex - 1; index >= 0; index -= 1) {
+        if (messages[index].role === 'user') {
+          userIndex = index;
+          break;
+        }
+      }
+
+      if (userIndex < 0) {
+        return;
+      }
+
+      const sourceUserMessage = messages[userIndex];
+      const promptForModel = sourceUserMessage.text.trim();
+      if (!promptForModel) {
+        return;
+      }
+
+      const retriedAssistantMessage: ChatMessage = {
+        ...messages[assistantIndex],
+        createdAt: new Date(),
+        modelName: selectedModelLabel,
+        text: '다시 생성 중...',
+      };
+      const messagesWithPendingRetry = messages.map((message, index) =>
+        index === assistantIndex ? retriedAssistantMessage : message,
+      );
+      const updateRetriedAssistantMessage = (text: string) => {
+        onMessagesChange(
+          messagesWithPendingRetry.map(message =>
+            message.id === retriedAssistantMessage.id
+              ? { ...retriedAssistantMessage, text }
+              : message,
+          ),
+        );
+      };
+
+      onMessagesChange(messagesWithPendingRetry);
+      setAttachmentError(null);
+      setIsGenerating(true);
+      setIsAwaitingFirstChunk(false);
+
+      let streamedResponse = '';
+      try {
+        if (sessionId) {
+          await AIEngine.compactChatSession(sessionId, 'auto').catch(
+            () => undefined,
+          );
+        }
+
+        const requestHistory = [
+          ...createSystemHistory(commonSystemPrompt),
+          createRuntimeContextMessage(),
+        ];
+
+        const response = await AIEngine.generateResponseStream(
+          promptForModel,
+          requestHistory,
+          {
+            onChunk: chunk => {
+              if (!chunk) {
+                return;
+              }
+
+              streamedResponse += chunk;
+              updateRetriedAssistantMessage(streamedResponse);
+            },
+          },
+          {
+            chatSessionId: sessionId ?? undefined,
+          },
+        );
+
+        updateRetriedAssistantMessage(response || streamedResponse);
+      } catch (error) {
+        const message =
+          error instanceof Error
+            ? error.message
+            : 'AI 응답 처리 중 알 수 없는 문제가 발생했습니다.';
+
+        updateRetriedAssistantMessage(
+          streamedResponse || `응답 실패: ${message}`,
+        );
+      } finally {
+        setIsGenerating(false);
+        setIsAwaitingFirstChunk(false);
+      }
+    },
+    [
+      commonSystemPrompt,
+      isGenerating,
+      messages,
+      onMessagesChange,
+      selectedModelLabel,
+      sessionId,
+    ],
+  );
+
   const handleAttachFile = useCallback(async () => {
     if (isGenerating) {
       return;
@@ -677,7 +790,7 @@ function ChatScreen({
             <View style={styles.cardSeparator} />
 
             <View style={styles.threadList}>
-              {messages.map(message => {
+              {messages.map((message, index) => {
                 const isPendingAssistant =
                   isGenerating &&
                   isAwaitingFirstChunk &&
@@ -688,10 +801,22 @@ function ChatScreen({
                   return null;
                 }
 
+                const canRetryAssistantMessage =
+                  message.role === 'assistant' &&
+                  messages
+                    .slice(0, index)
+                    .some(previousMessage => previousMessage.role === 'user');
+
                 return (
                   <ChatBubble
                     assistantName={message.modelName ?? selectedModelLabel}
+                    isRetryDisabled={isGenerating}
                     key={message.id}
+                    onRetry={
+                      canRetryAssistantMessage
+                        ? () => handleRetryResponse(message.id)
+                        : undefined
+                    }
                     role={message.role}
                     text={message.text}
                     timestamp={formatTime(message.createdAt)}
@@ -701,10 +826,7 @@ function ChatScreen({
 
               {isGenerating && isAwaitingFirstChunk ? (
                 <View style={styles.loadingRow}>
-                  <LoadingDots />
-                  <Text style={styles.loadingText}>
-                    {selectedModelLabel} 응답 준비 중
-                  </Text>
+                  <LoadingDots label={`${selectedModelLabel} 응답 준비 중`} />
                 </View>
               ) : null}
             </View>
@@ -1021,14 +1143,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     alignSelf: 'flex-start',
     flexDirection: 'row',
-    gap: 8,
     marginBottom: 12,
     paddingHorizontal: 12,
     paddingVertical: 9,
-  },
-  loadingText: {
-    ...typography.caption,
-    color: colors.mutedForeground,
   },
   scrollToBottomButton: {
     alignItems: 'center',

@@ -1,40 +1,36 @@
-import React, { useEffect, useRef } from 'react';
-import { Animated, StyleSheet, View } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { StyleSheet, View } from 'react-native';
 
-function LoadingDots() {
-  const opacities = useRef([
-    new Animated.Value(0.3),
-    new Animated.Value(0.3),
-    new Animated.Value(0.3),
-  ]).current;
+import { ScaledText as Text } from '../theme/display';
+import { colors, typography } from '../theme/tokens';
+
+type LoadingDotsProps = {
+  label?: string;
+};
+
+const ellipsisFrames = ['.', '..', '...'];
+
+function LoadingDots({ label }: LoadingDotsProps) {
+  const [frameIndex, setFrameIndex] = useState(0);
 
   useEffect(() => {
-    const animations = opacities.map(opacity =>
-      Animated.sequence([
-        Animated.timing(opacity, {
-          duration: 280,
-          toValue: 1,
-          useNativeDriver: true,
-        }),
-        Animated.timing(opacity, {
-          duration: 280,
-          toValue: 0.3,
-          useNativeDriver: true,
-        }),
-      ]),
-    );
-    const loop = Animated.loop(Animated.stagger(140, animations));
+    const intervalId = setInterval(() => {
+      setFrameIndex(currentIndex =>
+        currentIndex >= ellipsisFrames.length - 1 ? 0 : currentIndex + 1,
+      );
+    }, 260);
 
-    loop.start();
-
-    return () => loop.stop();
-  }, [opacities]);
+    return () => clearInterval(intervalId);
+  }, []);
 
   return (
     <View accessibilityLabel="AI response loading" style={styles.container}>
-      {opacities.map((opacity, index) => (
-        <Animated.View key={index} style={[styles.dot, { opacity }]} />
-      ))}
+      {label ? (
+        <Text style={styles.label}>
+          {label}
+          {ellipsisFrames[frameIndex]}
+        </Text>
+      ) : null}
     </View>
   );
 }
@@ -46,12 +42,10 @@ const styles = StyleSheet.create({
     height: 22,
     paddingHorizontal: 2,
   },
-  dot: {
-    backgroundColor: '#007AFF',
-    borderRadius: 4,
-    height: 8,
-    marginHorizontal: 3,
-    width: 8,
+  label: {
+    ...typography.caption,
+    color: colors.mutedForeground,
+    minWidth: 118,
   },
 });
 

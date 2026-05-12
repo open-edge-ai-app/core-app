@@ -1,5 +1,6 @@
 import {
   faAngleDown,
+  faAngleLeft,
   faAngleRight,
   faArrowUp,
   faBars,
@@ -70,6 +71,7 @@ export const appIcons = {
   send: faArrowUp,
   sources: faGlobe,
   addContext: faCirclePlus,
+  back: faAngleLeft,
   workFolderBook: faBookOpen,
   workFolderBriefcase: faBriefcase,
   workFolderChart: faChartLine,

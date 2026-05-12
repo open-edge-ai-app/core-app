@@ -872,31 +872,6 @@ function ChatScreen({
 
       <View style={[styles.composer, composerOffsetStyle]}>
         <View style={styles.inputPanel}>
-          <Pressable
-            accessibilityLabel="컨텍스트 추가"
-            accessibilityRole="button"
-            style={({ pressed }) => [
-              styles.contextPill,
-              pressed && styles.promptRowPressed,
-            ]}
-          >
-            <AppIcon
-              color={colors.mutedForeground}
-              icon={appIcons.addContext}
-              size={17}
-            />
-            <Text style={styles.contextText}>Add context</Text>
-          </Pressable>
-
-          <TextInput
-            multiline
-            onChangeText={setDraft}
-            placeholder="Ask, search, or make anything..."
-            placeholderTextColor={colors.mutedForeground}
-            style={styles.input}
-            value={draft}
-          />
-
           {selectedAttachments.length > 0 ? (
             <View style={styles.attachmentList}>
               {selectedAttachments.map(attachment => {
@@ -941,6 +916,15 @@ function ChatScreen({
               })}
             </View>
           ) : null}
+
+          <TextInput
+            multiline
+            onChangeText={setDraft}
+            placeholder="Ask, search, or make anything..."
+            placeholderTextColor={colors.mutedForeground}
+            style={styles.input}
+            value={draft}
+          />
 
           {attachmentError ? (
             <Text style={styles.attachmentError}>{attachmentError}</Text>
@@ -1163,22 +1147,6 @@ const styles = StyleSheet.create({
     shadowOffset: { height: 18, width: 0 },
     shadowOpacity: 0.12,
     shadowRadius: 28,
-  },
-  contextPill: {
-    alignItems: 'center',
-    alignSelf: 'flex-start',
-    borderColor: colors.input,
-    borderRadius: 10,
-    borderWidth: 1,
-    flexDirection: 'row',
-    gap: 7,
-    minHeight: 31,
-    paddingHorizontal: 10,
-  },
-  contextText: {
-    ...typography.label,
-    color: colors.mutedForeground,
-    fontSize: 14,
   },
   input: {
     ...typography.body,

@@ -22,6 +22,7 @@ import com.facebook.react.modules.core.DeviceEventManagerModule
 import com.onda.core.AIResponse
 import com.onda.core.ChatCompactionResult
 import com.onda.core.ChatContextManager
+import com.onda.core.ConversationMessage
 import com.onda.core.GemmaManager
 import com.onda.core.IndexingResult
 import com.onda.core.IndexingStatus
@@ -526,10 +527,37 @@ class AIEngineModule(
             } else {
                 emptyList()
             },
+            history = if (hasKey("history") && !isNull("history")) {
+                getArray("history").toConversationMessageList()
+            } else {
+                emptyList()
+            },
             useRag = options?.getOptionalBoolean("useRag"),
             stream = options?.getOptionalBoolean("stream") ?: false,
             chatSessionId = options?.getOptionalString("chatSessionId"),
         )
+    }
+
+    private fun ReadableArray?.toConversationMessageList(): List<ConversationMessage> {
+        if (this == null) {
+            return emptyList()
+        }
+
+        val messages = mutableListOf<ConversationMessage>()
+        for (index in 0 until size()) {
+            val map = getMap(index) ?: continue
+            val content = map.getOptionalString("content")?.trim().orEmpty()
+            if (content.isBlank()) {
+                continue
+            }
+            messages.add(
+                ConversationMessage(
+                    role = map.getOptionalString("role") ?: "user",
+                    content = content,
+                ),
+            )
+        }
+        return messages
     }
 
     private fun ReadableArray?.toAttachmentList(): List<MultimodalAttachment> {

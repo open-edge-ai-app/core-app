@@ -45,6 +45,7 @@ class QueryRouter(
         val promptWithHistory = chatContextManager.buildPromptWithHistory(
             chatId = request.chatSessionId,
             currentPrompt = normalized,
+            requestHistory = request.history,
         )
         val requestWithHistory = request.copy(text = promptWithHistory)
         val toolCall = if (request.useRag == true) {
@@ -85,6 +86,7 @@ class QueryRouter(
         val promptWithHistory = chatContextManager.buildPromptWithHistory(
             chatId = request.chatSessionId,
             currentPrompt = normalized,
+            requestHistory = request.history,
         )
         val requestWithHistory = request.copy(text = promptWithHistory)
         val toolCall = if (request.useRag == true) {

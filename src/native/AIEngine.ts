@@ -111,6 +111,7 @@ export type MultimodalAttachment = {
 export type MultimodalMessage = {
   text?: string;
   attachments?: MultimodalAttachment[];
+  history?: AIChatMessage[];
   options?: {
     chatSessionId?: string;
     useRag?: boolean;
@@ -362,19 +363,78 @@ const getSystemInstructions = (history: AIChatMessage[]) =>
     .filter(Boolean)
     .join('\n\n');
 
-const applySystemInstructions = (prompt: string, history: AIChatMessage[]) => {
-  const systemInstructions = getSystemInstructions(history);
+const normalizePromptText = (text: string) => text.replace(/\s+/g, ' ').trim();
 
-  if (!systemInstructions) {
+const getPriorConversationMessages = (
+  prompt: string,
+  history: AIChatMessage[],
+) => {
+  const conversationMessages = history
+    .filter(message => message.role !== 'system')
+    .map(message => ({
+      ...message,
+      content: message.content.trim(),
+    }))
+    .filter(message => message.content.length > 0);
+
+  const lastMessage = conversationMessages[conversationMessages.length - 1];
+  if (
+    lastMessage?.role === 'user' &&
+    normalizePromptText(lastMessage.content) === normalizePromptText(prompt)
+  ) {
+    return conversationMessages.slice(0, -1);
+  }
+
+  return conversationMessages;
+};
+
+const formatConversationHistory = (messages: AIChatMessage[]) =>
+  messages
+    .map(message => {
+      const roleLabel =
+        message.role === 'assistant'
+          ? 'assistant'
+          : message.role === 'user'
+          ? 'user'
+          : 'system';
+      return `${roleLabel}: ${message.content}`;
+    })
+    .join('\n');
+
+const createPromptWithHistory = (prompt: string, history: AIChatMessage[]) => {
+  const systemInstructions = getSystemInstructions(history);
+  const priorConversation = getPriorConversationMessages(prompt, history);
+  const sections: string[] = [];
+
+  if (systemInstructions) {
+    sections.push(
+      [
+        '다음 시스템 지침을 우선 적용하세요.',
+        systemInstructions,
+      ].join('\n'),
+    );
+  }
+
+  if (priorConversation.length > 0) {
+    sections.push(
+      [
+        '이전 대화 내용입니다. 사용자가 이전 내용, 방금 말한 것, 위 내용, 이어서 등의 표현을 쓰면 이 대화 맥락을 기준으로 답하세요.',
+        formatConversationHistory(priorConversation),
+      ].join('\n'),
+    );
+  }
+
+  sections.push(['현재 사용자 요청:', prompt].join('\n'));
+
+  if (
+    sections.length === 1 &&
+    !systemInstructions &&
+    priorConversation.length === 0
+  ) {
     return prompt;
   }
 
-  return [
-    '다음 시스템 지침을 우선 적용하세요.',
-    systemInstructions,
-    '사용자 요청:',
-    prompt,
-  ].join('\n\n');
+  return sections.join('\n\n');
 };
 
 export const AIEngine = {
@@ -387,11 +447,6 @@ export const AIEngine = {
     history: AIChatMessage[] = [],
     options: { chatSessionId?: string } = {},
   ) {
-    const promptWithSystemInstructions = applySystemInstructions(
-      prompt,
-      history,
-    );
-
     if (nativeModule?.sendMultimodalMessage) {
       const blockedReason = await ensureRuntimeReadyForGeneration();
       if (blockedReason) {
@@ -399,11 +454,12 @@ export const AIEngine = {
       }
 
       const response = await nativeModule.sendMultimodalMessage({
-        text: promptWithSystemInstructions,
         attachments: [],
+        history,
         options: {
           chatSessionId: options.chatSessionId,
         },
+        text: prompt,
       });
       return response.message;
     }
@@ -413,7 +469,7 @@ export const AIEngine = {
     }
 
     if (nativeModule?.sendMessage) {
-      return nativeModule.sendMessage(promptWithSystemInstructions);
+      return nativeModule.sendMessage(createPromptWithHistory(prompt, history));
     }
 
     return createDevelopmentResponse(prompt);
@@ -426,10 +482,6 @@ export const AIEngine = {
     options: AIResponseStreamOptions = {},
   ) {
     const attachments = options.attachments ?? [];
-    const promptWithSystemInstructions = applySystemInstructions(
-      prompt,
-      history,
-    );
 
     if (nativeModule?.sendMultimodalMessageStream) {
       const sendMultimodalMessageStream =
@@ -497,11 +549,12 @@ export const AIEngine = {
 
           sendMultimodalMessageStream(requestId, {
             attachments,
+            history,
             options: {
               chatSessionId: options.chatSessionId,
               stream: true,
             },
-            text: promptWithSystemInstructions,
+            text: prompt,
           }).catch(error => {
             fail(
               error instanceof Error
@@ -516,10 +569,11 @@ export const AIEngine = {
     if (attachments.length > 0 && nativeModule?.sendMultimodalMessage) {
       const response = await this.sendMultimodalMessage({
         attachments,
+        history,
         options: {
           chatSessionId: options.chatSessionId,
         },
-        text: promptWithSystemInstructions,
+        text: prompt,
       });
       return streamCompletedText(response.message, callbacks);
     }

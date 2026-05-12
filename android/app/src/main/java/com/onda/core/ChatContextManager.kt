@@ -156,7 +156,15 @@ class ChatContextManager(
     fun buildPromptWithHistory(
         chatId: String?,
         currentPrompt: String,
+        requestHistory: List<ConversationMessage> = emptyList(),
     ): String {
+        if (requestHistory.isNotEmpty()) {
+            return buildPromptWithRequestHistory(
+                currentPrompt = currentPrompt,
+                requestHistory = requestHistory,
+            )
+        }
+
         if (chatId.isNullOrBlank()) {
             return currentPrompt
         }
@@ -178,6 +186,64 @@ class ChatContextManager(
         Current user message:
         $currentPrompt
         """.trimIndent()
+    }
+
+    private fun buildPromptWithRequestHistory(
+        currentPrompt: String,
+        requestHistory: List<ConversationMessage>,
+    ): String {
+        val systemInstructions = requestHistory
+            .filter { message -> message.role == "system" }
+            .map { message -> message.content.trim() }
+            .filter { content -> content.isNotBlank() }
+            .joinToString("\n\n")
+        val conversationMessages = requestHistory
+            .filter { message -> message.role != "system" }
+            .map { message -> message.copy(content = message.content.trim()) }
+            .filter { message -> message.content.isNotBlank() }
+            .let { messages ->
+                val lastMessage = messages.lastOrNull()
+                if (
+                    lastMessage?.role == "user" &&
+                    normalizePromptText(lastMessage.content) == normalizePromptText(currentPrompt)
+                ) {
+                    messages.dropLast(1)
+                } else {
+                    messages
+                }
+            }
+        val sections = mutableListOf<String>()
+
+        if (systemInstructions.isNotBlank()) {
+            sections.add(
+                """
+                다음 시스템 지침을 우선 적용하세요.
+                $systemInstructions
+                """.trimIndent(),
+            )
+        }
+
+        if (conversationMessages.isNotEmpty()) {
+            sections.add(
+                """
+                이전 대화 내용입니다. 사용자가 이전 내용, 방금 말한 것, 위 내용, 이어서 등의 표현을 쓰면 이 대화 맥락을 기준으로 답하세요.
+                ${conversationMessages.joinToString("\n") { message -> "${message.role}: ${message.content}" }}
+                """.trimIndent(),
+            )
+        }
+
+        if (sections.isEmpty()) {
+            return currentPrompt
+        }
+
+        sections.add(
+            """
+            현재 사용자 요청:
+            $currentPrompt
+            """.trimIndent(),
+        )
+
+        return sections.joinToString("\n\n")
     }
 
     private fun summarizeContext(
@@ -360,6 +426,9 @@ class ChatContextManager(
         }
         return rendered.joinToString("\n")
     }
+
+    private fun normalizePromptText(text: String): String =
+        text.trim().replace(Regex("\\s+"), " ")
 
     private fun JSONObject.compactSummary(): String? {
         val compact = optJSONObject("compact") ?: return null

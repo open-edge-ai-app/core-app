@@ -3,7 +3,6 @@ import { Image, ImageSourcePropType, StyleSheet, View } from 'react-native';
 
 import MarkdownText from './MarkdownText';
 import { Button } from './ui';
-import assistantLogo from '../assets/assistant-logo.png';
 import { ScaledText as Text } from '../theme/display';
 import { colors, typography } from '../theme/tokens';
 
@@ -23,6 +22,48 @@ type ChatBubbleProps = {
   timestamp?: string;
 };
 
+const getAssistantProfile = (assistantName: string) => {
+  const normalizedName = assistantName.toLowerCase();
+
+  if (normalizedName.includes('deep')) {
+    return {
+      backgroundColor: '#EEF2FF',
+      foregroundColor: '#3048A8',
+      label: 'GD',
+    };
+  }
+
+  if (normalizedName.includes('lite')) {
+    return {
+      backgroundColor: '#ECFDF3',
+      foregroundColor: '#167044',
+      label: 'GL',
+    };
+  }
+
+  if (normalizedName.includes('auto')) {
+    return {
+      backgroundColor: '#FFF7E6',
+      foregroundColor: '#9A5B00',
+      label: 'AI',
+    };
+  }
+
+  if (normalizedName.includes('gemma')) {
+    return {
+      backgroundColor: '#EEF6FF',
+      foregroundColor: colors.accentForeground,
+      label: 'G4',
+    };
+  }
+
+  return {
+    backgroundColor: colors.muted,
+    foregroundColor: colors.foreground,
+    label: assistantName.trim().slice(0, 2).toUpperCase() || 'AI',
+  };
+};
+
 function ChatBubble({
   actions = [],
   assistantName = 'Gemma 4',
@@ -31,6 +72,8 @@ function ChatBubble({
   thumbnail,
   timestamp,
 }: ChatBubbleProps) {
+  const assistantProfile = getAssistantProfile(assistantName);
+
   if (role === 'system') {
     return (
       <View style={styles.systemRow}>
@@ -50,12 +93,23 @@ function ChatBubble({
 
   return (
     <View style={styles.assistantRow}>
-      <View style={styles.avatarIcon}>
-        <Image
-          accessibilityIgnoresInvertColors
-          source={assistantLogo}
-          style={styles.avatarLogo}
-        />
+      <View
+        accessibilityLabel={`${assistantName} 모델 프로필`}
+        accessibilityRole="image"
+        accessible
+        style={[
+          styles.avatarIcon,
+          { backgroundColor: assistantProfile.backgroundColor },
+        ]}
+      >
+        <Text
+          style={[
+            styles.avatarModelLabel,
+            { color: assistantProfile.foregroundColor },
+          ]}
+        >
+          {assistantProfile.label}
+        </Text>
       </View>
 
       <View style={styles.assistantContent}>
@@ -96,7 +150,6 @@ const styles = StyleSheet.create({
   },
   avatarIcon: {
     alignItems: 'center',
-    backgroundColor: colors.card,
     borderColor: colors.border,
     borderRadius: 10,
     borderWidth: StyleSheet.hairlineWidth,
@@ -105,9 +158,11 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     width: 28,
   },
-  avatarLogo: {
-    height: 24,
-    width: 24,
+  avatarModelLabel: {
+    ...typography.caption,
+    fontSize: 10,
+    fontWeight: '800',
+    lineHeight: 12,
   },
   assistantContent: {
     flex: 1,

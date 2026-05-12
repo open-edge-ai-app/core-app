@@ -5,6 +5,7 @@ import com.facebook.react.bridge.NativeModule
 import com.facebook.react.bridge.ReactApplicationContext
 import com.facebook.react.uimanager.ViewManager
 
+@Suppress("OVERRIDE_DEPRECATION")
 class AIEnginePackage : ReactPackage {
     override fun createNativeModules(
         reactContext: ReactApplicationContext,

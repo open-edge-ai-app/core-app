@@ -3,6 +3,7 @@ package com.onda.core
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.os.Build
 import java.io.File
 import java.lang.reflect.Proxy
 import java.util.concurrent.atomic.AtomicBoolean
@@ -17,6 +18,14 @@ object MediaPipeLlmReflector {
     private const val TEMPERATURE = 0.7f
     private const val TOP_K = 64
     private const val TOP_P = 0.95f
+    private val OPENCL_LIBRARY_PATHS = listOf(
+        "/system/lib64/libOpenCL.so",
+        "/system/vendor/lib64/libOpenCL.so",
+        "/vendor/lib64/libOpenCL.so",
+        "/system/lib/libOpenCL.so",
+        "/system/vendor/lib/libOpenCL.so",
+        "/vendor/lib/libOpenCL.so",
+    )
 
     fun createEngine(
         context: Context,
@@ -24,7 +33,8 @@ object MediaPipeLlmReflector {
     ): Any {
         val llmInferenceClass = Class.forName("$PACKAGE_NAME.LlmInference")
         val optionsClass = Class.forName("$PACKAGE_NAME.LlmInference\$LlmInferenceOptions")
-        val options = buildInferenceOptions(optionsClass, modelPath, "GPU")
+        val preferredBackend = if (canUseGpuBackend()) "GPU" else "CPU"
+        val options = buildInferenceOptions(optionsClass, modelPath, preferredBackend)
             ?: buildInferenceOptions(optionsClass, modelPath, "CPU")
             ?: error("Unable to create MediaPipe LLM options.")
 
@@ -32,10 +42,13 @@ object MediaPipeLlmReflector {
             llmInferenceClass
                 .getMethod("createFromOptions", Context::class.java, optionsClass)
                 .invoke(null, context.applicationContext, options)
-                ?: error("MediaPipe LLM returned a null engine.")
-        } catch (gpuError: Exception) {
+                ?: error("MediaPipe LLM returned a null $preferredBackend engine.")
+        } catch (error: Exception) {
+            if (preferredBackend == "CPU") {
+                throw error
+            }
             val cpuOptions = buildInferenceOptions(optionsClass, modelPath, "CPU")
-                ?: throw gpuError
+                ?: throw error
             llmInferenceClass
                 .getMethod("createFromOptions", Context::class.java, optionsClass)
                 .invoke(null, context.applicationContext, cpuOptions)
@@ -159,6 +172,27 @@ object MediaPipeLlmReflector {
         java.lang.Enum.valueOf(backendClass as Class<out Enum<*>>, name)
     } catch (_: Exception) {
         null
+    }
+
+    private fun canUseGpuBackend(): Boolean {
+        if (isProbablyEmulator()) {
+            return false
+        }
+        return OPENCL_LIBRARY_PATHS.any { path -> File(path).exists() }
+    }
+
+    private fun isProbablyEmulator(): Boolean {
+        val fingerprint = Build.FINGERPRINT.lowercase()
+        val model = Build.MODEL.lowercase()
+        val product = Build.PRODUCT.lowercase()
+        val hardware = Build.HARDWARE.lowercase()
+        return fingerprint.contains("generic") ||
+            fingerprint.contains("emulator") ||
+            model.contains("sdk") ||
+            model.contains("emulator") ||
+            product.contains("sdk") ||
+            hardware.contains("ranchu") ||
+            hardware.contains("goldfish")
     }
 
     private fun createSession(

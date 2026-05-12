@@ -1,11 +1,10 @@
 import React from 'react';
 import { Image, ImageSourcePropType, StyleSheet, View } from 'react-native';
 
-import AppIcon from './AppIcon';
 import MarkdownText from './MarkdownText';
 import { Button } from './ui';
+import assistantLogo from '../assets/assistant-logo.png';
 import { ScaledText as Text } from '../theme/display';
-import { appIcons } from '../theme/icons';
 import { colors, typography } from '../theme/tokens';
 
 export type ChatRole = 'assistant' | 'user' | 'system';
@@ -52,10 +51,10 @@ function ChatBubble({
   return (
     <View style={styles.assistantRow}>
       <View style={styles.avatarIcon}>
-        <AppIcon
-          color={colors.accentForeground}
-          icon={appIcons.chatAssistant}
-          size={13}
+        <Image
+          accessibilityIgnoresInvertColors
+          source={assistantLogo}
+          style={styles.avatarLogo}
         />
       </View>
 
@@ -99,11 +98,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: colors.card,
     borderColor: colors.border,
-    borderWidth: StyleSheet.hairlineWidth,
     borderRadius: 10,
+    borderWidth: StyleSheet.hairlineWidth,
     height: 28,
     justifyContent: 'center',
+    overflow: 'hidden',
     width: 28,
+  },
+  avatarLogo: {
+    height: 24,
+    width: 24,
   },
   assistantContent: {
     flex: 1,

@@ -34,6 +34,7 @@ import AIEngine, {
   ModelStatus,
   RuntimeStatus,
   StoredChatMessage,
+  StoredChatSession,
 } from './src/native/AIEngine';
 import ChatScreen, {
   ChatMessage,
@@ -334,6 +335,29 @@ const hydrateMessages = (
   });
 };
 
+const isChatMessageRole = (role: string): role is ChatMessage['role'] =>
+  role === 'assistant' || role === 'user' || role === 'system';
+
+const hydrateStoredChatMessages = (
+  messages: StoredChatMessage[] | undefined,
+): ChatMessage[] => {
+  if (!Array.isArray(messages) || messages.length === 0) {
+    return createInitialChatMessages();
+  }
+
+  return messages.map(message => {
+    const createdAt = new Date(message.createdAt);
+
+    return {
+      createdAt: Number.isNaN(createdAt.getTime()) ? new Date() : createdAt,
+      id: message.id,
+      modelName: message.modelName ?? undefined,
+      role: isChatMessageRole(message.role) ? message.role : 'user',
+      text: message.text,
+    };
+  });
+};
+
 const toStoredChatMessages = (messages: ChatMessage[]): StoredChatMessage[] =>
   messages.map(message => ({
     createdAt: message.createdAt.getTime(),
@@ -342,6 +366,67 @@ const toStoredChatMessages = (messages: ChatMessage[]): StoredChatMessage[] =>
     role: message.role,
     text: message.text,
   }));
+
+type NativeChatSessionSnapshot = {
+  messages: ChatMessage[];
+  session: ChatSession;
+};
+
+const getConversationContentWeight = (messages: ChatMessage[] | undefined) =>
+  messages
+    ?.filter(message => message.id !== 'welcome')
+    .reduce((total, message) => total + message.text.trim().length, 0) ?? 0;
+
+const shouldUseNativeMessages = (
+  currentMessages: ChatMessage[] | undefined,
+  nativeMessages: ChatMessage[],
+) => {
+  if (!currentMessages) {
+    return true;
+  }
+
+  return (
+    getConversationContentWeight(nativeMessages) >
+    getConversationContentWeight(currentMessages)
+  );
+};
+
+const loadNativeChatSnapshots = async (): Promise<
+  NativeChatSessionSnapshot[]
+> => {
+  const nativeSessions = await AIEngine.listChatSessions().catch(() => []);
+  const loadedSessions = await Promise.all(
+    nativeSessions.map(session =>
+      AIEngine.loadChatSession(session.id).catch(() => null),
+    ),
+  );
+
+  return loadedSessions
+    .filter((session): session is StoredChatSession => session != null)
+    .map(session => ({
+      messages: hydrateStoredChatMessages(session.messages),
+      session: {
+        id: session.chat.id,
+        title: session.chat.title,
+      },
+    }));
+};
+
+const mergeSessionLists = (
+  primary: ChatSession[],
+  secondary: ChatSession[],
+): ChatSession[] => {
+  const seenSessionIds = new Set<string>();
+
+  return [...primary, ...secondary].filter(session => {
+    if (seenSessionIds.has(session.id)) {
+      return false;
+    }
+
+    seenSessionIds.add(session.id);
+    return true;
+  });
+};
 
 const isModelOptionId = (value: string): value is ModelOption['id'] =>
   modelOptions.some(model => model.id === value);
@@ -584,27 +669,83 @@ function App() {
         const storedState = parseStoredAppState(
           await AsyncStorage.getItem(APP_STATE_STORAGE_KEY),
         );
+        const nativeSnapshots = await loadNativeChatSnapshots();
 
-        if (!storedState || isCancelled) {
+        if (isCancelled) {
           return;
         }
 
-        const hydratedMessagesBySessionId = Object.fromEntries(
-          Object.entries(storedState.chatMessagesBySessionId).map(
-            ([sessionId, messages]) => [sessionId, hydrateMessages(messages)],
+        if (!storedState && nativeSnapshots.length === 0) {
+          return;
+        }
+
+        const hydratedMessagesBySessionId: Record<string, ChatMessage[]> =
+          storedState
+            ? Object.fromEntries(
+                Object.entries(storedState.chatMessagesBySessionId).map(
+                  ([sessionId, messages]) => [
+                    sessionId,
+                    hydrateMessages(messages),
+                  ],
+                ),
+              )
+            : {};
+
+        nativeSnapshots.forEach(({ messages, session }) => {
+          if (
+            shouldUseNativeMessages(
+              hydratedMessagesBySessionId[session.id],
+              messages,
+            )
+          ) {
+            hydratedMessagesBySessionId[session.id] = messages;
+          }
+        });
+
+        const storedRecentSessions =
+          storedState?.recentSessions ?? initialRecentSessions;
+        const storedWorkFolderSessions = storedState?.workFolderSessions ?? [];
+        const storedWorkFolderSessionIds = new Set(
+          storedWorkFolderSessions.map(session => session.id),
+        );
+        const nativeRecentSessions = nativeSnapshots
+          .map(snapshot => snapshot.session)
+          .filter(session => !storedWorkFolderSessionIds.has(session.id));
+        const mergedRecentSessions = mergeSessionLists(
+          storedRecentSessions,
+          nativeRecentSessions,
+        );
+        const availableSessionIds = new Set(
+          [...mergedRecentSessions, ...storedWorkFolderSessions].map(
+            session => session.id,
           ),
         );
+        const resolvedActiveSessionId =
+          storedState?.activeSessionId &&
+          availableSessionIds.has(storedState.activeSessionId)
+            ? storedState.activeSessionId
+            : nativeSnapshots[0]?.session.id ?? null;
+        const resolvedSessionTitle =
+          resolvedActiveSessionId == null
+            ? storedState?.sessionTitle ?? '새 채팅'
+            : [...mergedRecentSessions, ...storedWorkFolderSessions].find(
+                session => session.id === resolvedActiveSessionId,
+              )?.title ??
+              storedState?.sessionTitle ??
+              '새 채팅';
 
-        activeSessionIdRef.current = storedState.activeSessionId;
-        setSessionTitle(storedState.sessionTitle);
-        setActiveSessionId(storedState.activeSessionId);
-        setRecentSessions(storedState.recentSessions);
-        setWorkFolderSessions(storedState.workFolderSessions);
-        setWorkFolders(storedState.workFolders);
-        setSelectedModelId(storedState.selectedModelId);
-        setPersonalSystemPrompt(storedState.personalSystemPrompt);
+        activeSessionIdRef.current = resolvedActiveSessionId;
+        setSessionTitle(resolvedSessionTitle);
+        setActiveSessionId(resolvedActiveSessionId);
+        setRecentSessions(mergedRecentSessions);
+        setWorkFolderSessions(storedWorkFolderSessions);
+        setWorkFolders(storedState?.workFolders ?? []);
+        setSelectedModelId(storedState?.selectedModelId ?? 'gemma-4');
+        setPersonalSystemPrompt(storedState?.personalSystemPrompt ?? '');
         setChatMessagesBySessionId(hydratedMessagesBySessionId);
-        setDraftChatMessages(hydrateMessages(storedState.draftChatMessages));
+        setDraftChatMessages(
+          hydrateMessages(storedState?.draftChatMessages),
+        );
       } finally {
         if (!isCancelled) {
           setIsAppStateHydrated(true);
@@ -646,17 +787,6 @@ function App() {
       APP_STATE_STORAGE_KEY,
       JSON.stringify(nextState),
     ).catch(() => undefined);
-
-    Object.entries(chatMessagesBySessionId).forEach(([sessionId, messages]) => {
-      const session = [...recentSessions, ...workFolderSessions].find(
-        candidate => candidate.id === sessionId,
-      );
-      AIEngine.saveChatSession(
-        sessionId,
-        session?.title ?? sessionTitle,
-        toStoredChatMessages(messages),
-      ).catch(() => undefined);
-    });
   }, [
     activeSessionId,
     chatMessagesBySessionId,
@@ -755,21 +885,28 @@ function App() {
   };
 
   const handleChatMessagesChange = useCallback(
-    (nextMessages: ChatMessage[], sessionTitleCandidate?: string) => {
+    (
+      nextMessages: ChatMessage[],
+      sessionTitleCandidate?: string,
+      options?: { persist?: boolean },
+    ) => {
       const currentSessionId = activeSessionIdRef.current;
+      const shouldPersist = options?.persist !== false;
 
       if (currentSessionId) {
         const session = [...recentSessions, ...workFolderSessions].find(
           candidate => candidate.id === currentSessionId,
         );
-        const persisted = AIEngine.saveChatSession(
-          currentSessionId,
-          sessionTitleCandidate?.trim() ||
-            session?.title ||
-            sessionTitle ||
-            'New chat',
-          toStoredChatMessages(nextMessages),
-        ).catch(() => undefined);
+        const persisted = shouldPersist
+          ? AIEngine.saveChatSession(
+              currentSessionId,
+              sessionTitleCandidate?.trim() ||
+                session?.title ||
+                sessionTitle ||
+                'New chat',
+              toStoredChatMessages(nextMessages),
+            ).catch(() => undefined)
+          : undefined;
 
         setChatMessagesBySessionId(current => ({
           ...current,
@@ -786,11 +923,13 @@ function App() {
       const nextSessionId = createChatSessionId();
       const nextSessionTitle =
         sessionTitleCandidate?.trim() || sessionTitle || '새 채팅';
-      const persisted = AIEngine.saveChatSession(
-        nextSessionId,
-        nextSessionTitle,
-        toStoredChatMessages(nextMessages),
-      ).catch(() => undefined);
+      const persisted = shouldPersist
+        ? AIEngine.saveChatSession(
+            nextSessionId,
+            nextSessionTitle,
+            toStoredChatMessages(nextMessages),
+          ).catch(() => undefined)
+        : undefined;
 
       activeSessionIdRef.current = nextSessionId;
       setActiveSessionId(nextSessionId);
@@ -812,35 +951,47 @@ function App() {
     [recentSessions, sessionTitle, workFolderSessions],
   );
 
-  const handleActiveSessionTitleChange = useCallback((title: string) => {
-    const normalizedTitle = title.trim();
-    const currentSessionId = activeSessionIdRef.current;
+  const handleActiveSessionTitleChange = useCallback(
+    (title: string) => {
+      const normalizedTitle = title.trim();
+      const currentSessionId = activeSessionIdRef.current;
 
-    if (!normalizedTitle) {
-      return;
-    }
+      if (!normalizedTitle) {
+        return;
+      }
 
-    setSessionTitle(normalizedTitle);
+      setSessionTitle(normalizedTitle);
 
-    if (!currentSessionId) {
-      return;
-    }
+      if (!currentSessionId) {
+        return;
+      }
 
-    setRecentSessions(current =>
-      current.map(session =>
-        session.id === currentSessionId
-          ? { ...session, title: normalizedTitle }
-          : session,
-      ),
-    );
-    setWorkFolderSessions(current =>
-      current.map(session =>
-        session.id === currentSessionId
-          ? { ...session, title: normalizedTitle }
-          : session,
-      ),
-    );
-  }, []);
+      setRecentSessions(current =>
+        current.map(session =>
+          session.id === currentSessionId
+            ? { ...session, title: normalizedTitle }
+            : session,
+        ),
+      );
+      setWorkFolderSessions(current =>
+        current.map(session =>
+          session.id === currentSessionId
+            ? { ...session, title: normalizedTitle }
+            : session,
+        ),
+      );
+
+      const currentMessages = chatMessagesBySessionId[currentSessionId];
+      if (currentMessages) {
+        AIEngine.saveChatSession(
+          currentSessionId,
+          normalizedTitle,
+          toStoredChatMessages(currentMessages),
+        ).catch(() => undefined);
+      }
+    },
+    [chatMessagesBySessionId],
+  );
 
   const handleRenameSession = (sessionId: string, title: string) => {
     setRecentSessions(current =>
@@ -856,6 +1007,15 @@ function App() {
 
     if (activeSessionId === sessionId) {
       setSessionTitle(title);
+    }
+
+    const messages = chatMessagesBySessionId[sessionId];
+    if (messages) {
+      AIEngine.saveChatSession(
+        sessionId,
+        title,
+        toStoredChatMessages(messages),
+      ).catch(() => undefined);
     }
   };
 

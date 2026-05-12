@@ -288,12 +288,21 @@ async function ensureRuntimeReadyForGeneration() {
     : '모델 런타임을 켜지 못했습니다. 설정 화면에서 모델 상태를 확인해주세요.';
 }
 
-async function createDevelopmentResponse(prompt: string) {
+async function createDevelopmentResponse(
+  prompt: string,
+  history: AIChatMessage[] = [],
+) {
   await sleep(450);
+
+  const promptWithHistory = createPromptWithHistory(prompt, history);
+  const priorConversation = getPriorConversationMessages(prompt, history);
 
   return [
     '아직 Kotlin AIEngineModule이 연결되지 않았습니다.',
-    `프론트 입력은 정상 처리됐고, 마지막 메시지는 "${prompt}"입니다.`,
+    priorConversation.length > 0
+      ? `이전 대화 ${priorConversation.length}개를 포함해 응답 요청을 구성했습니다.`
+      : '이전 대화 없이 현재 메시지만 응답 요청에 사용했습니다.',
+    `모델에 전달될 프롬프트:\n${promptWithHistory}`,
   ].join('\n');
 }
 
@@ -401,7 +410,10 @@ const formatConversationHistory = (messages: AIChatMessage[]) =>
     })
     .join('\n');
 
-const createPromptWithHistory = (prompt: string, history: AIChatMessage[]) => {
+export const createPromptWithHistory = (
+  prompt: string,
+  history: AIChatMessage[],
+) => {
   const systemInstructions = getSystemInstructions(history);
   const priorConversation = getPriorConversationMessages(prompt, history);
   const sections: string[] = [];
@@ -472,7 +484,7 @@ export const AIEngine = {
       return nativeModule.sendMessage(createPromptWithHistory(prompt, history));
     }
 
-    return createDevelopmentResponse(prompt);
+    return createDevelopmentResponse(prompt, history);
   },
 
   async generateResponseStream(
@@ -602,7 +614,10 @@ export const AIEngine = {
       message.attachments?.map(attachment => attachment.type) ?? [];
     return {
       type: 'text',
-      message: await createDevelopmentResponse(message.text ?? ''),
+      message: await createDevelopmentResponse(
+        message.text ?? '',
+        message.history ?? [],
+      ),
       route: 'direct',
       modalities,
     };

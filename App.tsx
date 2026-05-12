@@ -2548,9 +2548,9 @@ const styles = StyleSheet.create({
   menuSectionTitle: {
     ...typography.label,
     color: colors.foreground,
-    fontSize: 17,
-    fontWeight: '800',
-    lineHeight: 22,
+    fontSize: 16,
+    fontWeight: '700',
+    lineHeight: 21,
     marginBottom: 8,
   },
   menuSectionHeader: {
@@ -2632,7 +2632,7 @@ const styles = StyleSheet.create({
     color: colors.foreground,
     flex: 1,
     fontSize: 15,
-    fontWeight: '600',
+    fontWeight: '500',
     lineHeight: 20,
     minWidth: 0,
   },

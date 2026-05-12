@@ -126,6 +126,8 @@ type RecentActionMenuSize = {
   width: number;
 };
 
+type SessionActionScope = 'recent' | 'workFolder';
+
 type RecentSessionDialog =
   | { session: ChatSession; type: 'rename' }
   | { session: ChatSession; type: 'move' }
@@ -167,6 +169,7 @@ const RECENT_ACTION_MENU_OFFSET = 10;
 const RECENT_ACTION_MENU_WIDTH = 214;
 const RECENT_ACTION_MENU_HEIGHT = 160;
 const WORK_FOLDER_ACTION_MENU_HEIGHT = 122;
+const WORK_FOLDER_SESSION_ACTION_MENU_HEIGHT = 46;
 
 const modelOptions: ModelOption[] = [
   {
@@ -760,6 +763,33 @@ function App() {
     });
   };
 
+  const handleRemoveSessionFromWorkFolder = (sessionId: string) => {
+    const removedSession = workFolderSessions.find(
+      session => session.id === sessionId,
+    );
+    if (!removedSession) {
+      return;
+    }
+
+    setWorkFolderSessions(current =>
+      current.filter(session => session.id !== sessionId),
+    );
+    setRecentSessions(current => {
+      if (current.some(session => session.id === sessionId)) {
+        return current;
+      }
+
+      return [
+        {
+          id: removedSession.id,
+          pinned: false,
+          title: removedSession.title,
+        },
+        ...current,
+      ];
+    });
+  };
+
   const handleDeleteSession = (sessionId: string) => {
     setRecentSessions(current =>
       current.filter(session => session.id !== sessionId),
@@ -865,6 +895,7 @@ function App() {
             onOpenSettings={handleOpenSettings}
             onRenameWorkFolder={handleRenameWorkFolder}
             onRenameSession={handleRenameSession}
+            onRemoveSessionFromWorkFolder={handleRemoveSessionFromWorkFolder}
             onSelectSession={handleSelectSession}
             onTogglePinnedSession={handleTogglePinnedSession}
             onUpdateWorkFolder={handleUpdateWorkFolder}
@@ -889,6 +920,7 @@ function FullScreenMenu({
   onOpenSettings,
   onRenameWorkFolder,
   onRenameSession,
+  onRemoveSessionFromWorkFolder,
   onSelectSession,
   onTogglePinnedSession,
   onUpdateWorkFolder,
@@ -906,6 +938,7 @@ function FullScreenMenu({
   onOpenSettings: () => void;
   onRenameWorkFolder: (folderId: string, title: string) => void;
   onRenameSession: (sessionId: string, title: string) => void;
+  onRemoveSessionFromWorkFolder: (sessionId: string) => void;
   onSelectSession: (title: string, id?: string) => void;
   onTogglePinnedSession: (sessionId: string) => void;
   onUpdateWorkFolder: (
@@ -930,6 +963,8 @@ function FullScreenMenu({
     useState<ChatSession | null>(null);
   const [actionSheetPosition, setActionSheetPosition] =
     useState<RecentActionMenuPosition | null>(null);
+  const [actionSheetScope, setActionSheetScope] =
+    useState<SessionActionScope>('recent');
   const [workFolderActionSheetFolder, setWorkFolderActionSheetFolder] =
     useState<WorkFolder | null>(null);
   const [workFolderActionSheetPosition, setWorkFolderActionSheetPosition] =
@@ -1095,6 +1130,7 @@ function FullScreenMenu({
 
     setActionSheetSession(null);
     setActionSheetPosition(null);
+    setActionSheetScope('recent');
     actionMenuAnchorRef.current = null;
     setWorkFolderActionSheetFolder(null);
     setWorkFolderActionSheetPosition(null);
@@ -1159,6 +1195,7 @@ function FullScreenMenu({
   const closeRecentActionMenu = () => {
     setActionSheetSession(null);
     setActionSheetPosition(null);
+    setActionSheetScope('recent');
     actionMenuAnchorRef.current = null;
   };
 
@@ -1229,14 +1266,23 @@ function FullScreenMenu({
   const handleOpenRecentActionMenu = (
     event: GestureResponderEvent,
     session: ChatSession,
+    scope: SessionActionScope = 'recent',
   ) => {
     const { pageX, pageY } = event.nativeEvent;
     const fallbackAnchor = { x: pageX, y: pageY };
 
     const openMenu = (anchor: RecentActionMenuAnchor) => {
       closeWorkFolderActionMenu();
+      const menuSize =
+        scope === 'workFolder'
+          ? {
+              height: WORK_FOLDER_SESSION_ACTION_MENU_HEIGHT,
+              width: RECENT_ACTION_MENU_WIDTH,
+            }
+          : undefined;
       actionMenuAnchorRef.current = anchor;
-      setActionSheetPosition(getBoundedActionMenuPosition(anchor));
+      setActionSheetPosition(getBoundedActionMenuPosition(anchor, menuSize));
+      setActionSheetScope(scope);
       setActionSheetSession(session);
     };
 
@@ -1585,8 +1631,19 @@ function FullScreenMenu({
                           <View style={styles.workFolderTreeChildren}>
                             {folderSessions.map(session => (
                               <TreeSessionRow
+                                isActionMenuOpen={
+                                  actionSheetScope === 'workFolder' &&
+                                  actionSheetSession?.id === session.id
+                                }
                                 key={session.id}
                                 label={session.title}
+                                onLongPress={event =>
+                                  handleOpenRecentActionMenu(
+                                    event,
+                                    session,
+                                    'workFolder',
+                                  )
+                                }
                                 onPress={() => {
                                   closeFloatingActionMenus();
                                   onSelectSession(session.title, session.id);
@@ -1625,6 +1682,7 @@ function FullScreenMenu({
                 <Text style={styles.menuSectionTitle}>최근</Text>
                 {recentSessions.map(session => {
                   const isActionMenuOpen =
+                    actionSheetScope === 'recent' &&
                     actionSheetSession?.id === session.id;
 
                   return (
@@ -1679,38 +1737,53 @@ function FullScreenMenu({
                     },
                   ]}
                 >
-                  <RecentActionButton
-                    icon={appIcons.rename}
-                    label="이름 바꾸기"
-                    onPress={() =>
-                      handleOpenRecentDialog('rename', actionSheetSession)
-                    }
-                  />
-                  <RecentActionButton
-                    icon={appIcons.pin}
-                    label={
-                      actionSheetSession.pinned ? '채팅 고정 해제' : '채팅 고정'
-                    }
-                    onPress={() => {
-                      onTogglePinnedSession(actionSheetSession.id);
-                      closeRecentActionMenu();
-                    }}
-                  />
-                  <RecentActionButton
-                    icon={appIcons.moveToFolder}
-                    label="작업 폴더로 이동"
-                    onPress={() =>
-                      handleOpenRecentDialog('move', actionSheetSession)
-                    }
-                  />
-                  <RecentActionButton
-                    destructive
-                    icon={appIcons.delete}
-                    label="삭제"
-                    onPress={() =>
-                      handleOpenRecentDialog('delete', actionSheetSession)
-                    }
-                  />
+                  {actionSheetScope === 'workFolder' ? (
+                    <RecentActionButton
+                      icon={appIcons.moveToFolder}
+                      label="작업 폴더에서 제거"
+                      onPress={() => {
+                        onRemoveSessionFromWorkFolder(actionSheetSession.id);
+                        closeRecentActionMenu();
+                      }}
+                    />
+                  ) : (
+                    <>
+                      <RecentActionButton
+                        icon={appIcons.rename}
+                        label="이름 바꾸기"
+                        onPress={() =>
+                          handleOpenRecentDialog('rename', actionSheetSession)
+                        }
+                      />
+                      <RecentActionButton
+                        icon={appIcons.pin}
+                        label={
+                          actionSheetSession.pinned
+                            ? '채팅 고정 해제'
+                            : '채팅 고정'
+                        }
+                        onPress={() => {
+                          onTogglePinnedSession(actionSheetSession.id);
+                          closeRecentActionMenu();
+                        }}
+                      />
+                      <RecentActionButton
+                        icon={appIcons.moveToFolder}
+                        label="작업 폴더로 이동"
+                        onPress={() =>
+                          handleOpenRecentDialog('move', actionSheetSession)
+                        }
+                      />
+                      <RecentActionButton
+                        destructive
+                        icon={appIcons.delete}
+                        label="삭제"
+                        onPress={() =>
+                          handleOpenRecentDialog('delete', actionSheetSession)
+                        }
+                      />
+                    </>
+                  )}
                 </View>
               </View>
             ) : null}
@@ -2235,19 +2308,26 @@ function WorkFolderTreeRow({
 }
 
 function TreeSessionRow({
+  isActionMenuOpen,
   label,
+  onLongPress,
   onPress,
 }: {
+  isActionMenuOpen: boolean;
   label: string;
+  onLongPress: (event: GestureResponderEvent) => void;
   onPress: () => void;
 }) {
   return (
     <Pressable
       accessibilityLabel={label}
       accessibilityRole="button"
+      delayLongPress={360}
+      onLongPress={onLongPress}
       onPress={onPress}
       style={({ pressed }) => [
         styles.workFolderChildRow,
+        isActionMenuOpen && styles.menuRecentRowActive,
         pressed && styles.menuRowPressed,
       ]}
     >

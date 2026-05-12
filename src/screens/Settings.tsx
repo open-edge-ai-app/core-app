@@ -627,10 +627,10 @@ const styles = StyleSheet.create({
   container: {
     paddingBottom: 42,
     paddingHorizontal: 24,
-    paddingTop: 86,
+    paddingTop: 26,
   },
   header: {
-    marginBottom: 42,
+    marginBottom: 28,
   },
   title: {
     ...typography.title,

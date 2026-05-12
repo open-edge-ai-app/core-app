@@ -29,6 +29,7 @@ import {
 import {
   faCircleCheck,
   faCommentDots,
+  faCopy,
   faFileImage,
   faFolder,
   faFolderOpen,
@@ -41,6 +42,7 @@ export const appIcons = {
   autoMode: faGaugeHigh,
   chatAssistant: faMicrochip,
   chevronDown: faAngleDown,
+  copy: faCopy,
   delete: faTrashCan,
   folder: faFolder,
   menuCodex: faTerminal,

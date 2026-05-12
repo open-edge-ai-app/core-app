@@ -1,5 +1,8 @@
 package com.onda.bridge
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
 import android.net.Uri
 import com.facebook.react.bridge.Arguments
 import com.facebook.react.bridge.LifecycleEventListener
@@ -174,6 +177,18 @@ class AIEngineModule(
     fun cancelModelDownload(promise: Promise) {
         ModelDownloader.cancel()
         promise.resolve(modelFileManager.getStatus().toWritableMap())
+    }
+
+    @ReactMethod
+    fun copyTextToClipboard(text: String, promise: Promise) {
+        try {
+            val clipboard = reactContext
+                .getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+            clipboard.setPrimaryClip(ClipData.newPlainText("Open Edge AI code", text))
+            promise.resolve(true)
+        } catch (error: Exception) {
+            promise.reject("CLIPBOARD_COPY_ERROR", error)
+        }
     }
 
     override fun onHostResume() = Unit

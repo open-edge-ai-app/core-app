@@ -1,14 +1,19 @@
-import React, { ReactNode } from 'react';
+import React, { ReactNode, useEffect, useRef, useState } from 'react';
 import {
   Linking,
   Platform,
+  Pressable,
+  ScrollView,
   StyleProp,
   StyleSheet,
   TextStyle,
   View,
 } from 'react-native';
 
+import AppIcon from './AppIcon';
+import { copyToClipboard } from '../native/Clipboard';
 import { ScaledText as Text } from '../theme/display';
+import { appIcons } from '../theme/icons';
 import { colors, typography } from '../theme/tokens';
 
 type MarkdownTextProps = {
@@ -28,8 +33,38 @@ const blockStartPattern =
   /^(```|#{1,6}\s+|>\s?|[-*]\s+|\d+[.)]\s+)/;
 const inlinePattern =
   /(\[[^\]]+\]\([^)]+\)|`[^`\n]+`|\*\*[^*\n]+?\*\*|__[^_\n]+?__|\*[^*\n]+?\*|_[^_\n]+?_)/g;
+const codeTokenPattern =
+  /(\/\/.*$|#.*$|\/\*.*?\*\/|"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|`(?:\\.|[^`\\])*`|\b(?:abstract|and|as|async|await|break|catch|class|const|continue|data|def|do|else|enum|export|extends|false|finally|for|from|fun|function|if|implements|import|in|interface|is|let|new|null|object|or|override|private|public|return|static|struct|super|suspend|switch|this|throw|true|try|type|undefined|val|var|when|while|yield)\b|\b\d+(?:\.\d+)?\b|[{}[\]().,;:+\-*/%=<>!&|?]+)/g;
 
 const isBlockStart = (line: string) => blockStartPattern.test(line.trim());
+
+const getCodeTokenStyle = (token: string) => {
+  if (
+    token.startsWith('//') ||
+    token.startsWith('#') ||
+    token.startsWith('/*')
+  ) {
+    return styles.codeComment;
+  }
+
+  if (
+    token.startsWith('"') ||
+    token.startsWith("'") ||
+    token.startsWith('`')
+  ) {
+    return styles.codeString;
+  }
+
+  if (/^\d/.test(token)) {
+    return styles.codeNumber;
+  }
+
+  if (/^[{}[\]().,;:+\-*/%=<>!&|?]+$/.test(token)) {
+    return styles.codePunctuation;
+  }
+
+  return styles.codeKeyword;
+};
 
 function parseMarkdown(text: string): MarkdownBlock[] {
   const lines = text.replace(/\r\n/g, '\n').split('\n');
@@ -196,6 +231,118 @@ function renderInline(text: string, keyPrefix: string, depth = 0): ReactNode[] {
   return nodes;
 }
 
+function renderCodeLine(line: string, keyPrefix: string) {
+  const nodes: ReactNode[] = [];
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+
+  codeTokenPattern.lastIndex = 0;
+  while ((match = codeTokenPattern.exec(line))) {
+    const token = match[0];
+
+    if (match.index > lastIndex) {
+      nodes.push(line.slice(lastIndex, match.index));
+    }
+
+    nodes.push(
+      <Text key={`${keyPrefix}-${match.index}`} style={getCodeTokenStyle(token)}>
+        {token}
+      </Text>,
+    );
+    lastIndex = match.index + token.length;
+  }
+
+  if (lastIndex < line.length) {
+    nodes.push(line.slice(lastIndex));
+  }
+
+  return nodes.length > 0 ? nodes : ' ';
+}
+
+type CodeBlockProps = {
+  code: string;
+  language?: string;
+};
+
+function CodeBlock({ code, language }: CodeBlockProps) {
+  const [copied, setCopied] = useState(false);
+  const copiedTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const codeLines = code.split('\n');
+  const languageLabel = language?.trim() || 'code';
+
+  useEffect(
+    () => () => {
+      if (copiedTimeoutRef.current) {
+        clearTimeout(copiedTimeoutRef.current);
+      }
+    },
+    [],
+  );
+
+  const handleCopy = async () => {
+    const didCopy = await copyToClipboard(code);
+    if (!didCopy) {
+      return;
+    }
+
+    setCopied(true);
+    if (copiedTimeoutRef.current) {
+      clearTimeout(copiedTimeoutRef.current);
+    }
+    copiedTimeoutRef.current = setTimeout(() => {
+      setCopied(false);
+    }, 1400);
+  };
+
+  return (
+    <View style={styles.codeBlock}>
+      <View style={styles.codeHeader}>
+        <Text style={styles.codeLanguage}>{languageLabel}</Text>
+        <Pressable
+          accessibilityLabel="코드 복사"
+          accessibilityRole="button"
+          onPress={handleCopy}
+          style={({ pressed }) => [
+            styles.copyButton,
+            pressed && styles.copyButtonPressed,
+          ]}
+        >
+          <AppIcon
+            color={copied ? colors.success : '#CBD5E1'}
+            icon={appIcons.copy}
+            size={12}
+          />
+          <Text
+            style={[
+              styles.copyButtonText,
+              copied && styles.copyButtonTextCopied,
+            ]}
+          >
+            {copied ? '복사됨' : '복사'}
+          </Text>
+        </Pressable>
+      </View>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={styles.codeScroll}
+      >
+        <View>
+          {codeLines.map((line, index) => (
+            <Text
+              key={`${index}-${line}`}
+              selectable
+              style={styles.codeText}
+            >
+              {renderCodeLine(line, `code-${index}`)}
+            </Text>
+          ))}
+        </View>
+      </ScrollView>
+    </View>
+  );
+}
+
 function MarkdownText({ style, text }: MarkdownTextProps) {
   const blocks = parseMarkdown(text);
 
@@ -220,14 +367,11 @@ function MarkdownText({ style, text }: MarkdownTextProps) {
 
         if (block.type === 'code') {
           return (
-            <View key={`code-${index}`} style={styles.codeBlock}>
-              {block.language ? (
-                <Text style={styles.codeLanguage}>{block.language}</Text>
-              ) : null}
-              <Text selectable style={styles.codeText}>
-                {block.text}
-              </Text>
-            </View>
+            <CodeBlock
+              code={block.text}
+              key={`code-${index}`}
+              language={block.language}
+            />
           );
         }
 
@@ -247,7 +391,7 @@ function MarkdownText({ style, text }: MarkdownTextProps) {
               {block.items.map((item, itemIndex) => (
                 <View key={`${item}-${itemIndex}`} style={styles.listItem}>
                   <Text style={[styles.text, style, styles.listMarker]}>
-                    {'\\u2022'}
+                    {'\u2022'}
                   </Text>
                   <Text style={[styles.text, style, styles.listText]}>
                     {renderInline(item, `bullet-${index}-${itemIndex}`)}
@@ -356,13 +500,45 @@ const styles = StyleSheet.create({
   codeBlock: {
     backgroundColor: '#111827',
     borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
+    overflow: 'hidden',
+  },
+  codeHeader: {
+    alignItems: 'center',
+    backgroundColor: '#0F172A',
+    borderBottomColor: 'rgba(203,213,225,0.16)',
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    minHeight: 34,
+    paddingHorizontal: 10,
   },
   codeLanguage: {
     ...typography.caption,
     color: '#CBD5E1',
-    marginBottom: 6,
+    textTransform: 'lowercase',
+  },
+  copyButton: {
+    alignItems: 'center',
+    borderRadius: 6,
+    flexDirection: 'row',
+    gap: 5,
+    minHeight: 26,
+    paddingHorizontal: 7,
+  },
+  copyButtonPressed: {
+    backgroundColor: 'rgba(203,213,225,0.12)',
+  },
+  copyButtonText: {
+    ...typography.caption,
+    color: '#CBD5E1',
+    fontSize: 11,
+  },
+  copyButtonTextCopied: {
+    color: colors.success,
+  },
+  codeScroll: {
+    paddingHorizontal: 12,
+    paddingVertical: 10,
   },
   codeText: {
     ...typography.caption,
@@ -371,6 +547,22 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '500',
     lineHeight: 19,
+  },
+  codeKeyword: {
+    color: '#93C5FD',
+  },
+  codeString: {
+    color: '#86EFAC',
+  },
+  codeNumber: {
+    color: '#FDE68A',
+  },
+  codeComment: {
+    color: '#94A3B8',
+    fontStyle: 'italic',
+  },
+  codePunctuation: {
+    color: '#CBD5E1',
   },
 });
 

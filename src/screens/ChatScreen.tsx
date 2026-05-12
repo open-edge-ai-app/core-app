@@ -57,12 +57,17 @@ type MessagesChangeResult = {
   sessionId: string | null;
 };
 
+type MessagesChangeOptions = {
+  persist?: boolean;
+};
+
 type ChatScreenProps = {
   commonSystemPrompt?: string;
   messages: ChatMessage[];
   onMessagesChange: (
     nextMessages: ChatMessage[],
     sessionTitleCandidate?: string,
+    options?: MessagesChangeOptions,
   ) => MessagesChangeResult;
   onSessionTitleChange?: (title: string) => void;
   selectedModelLabel?: string;
@@ -226,6 +231,17 @@ const createSystemHistory = (commonSystemPrompt: string): AIChatMessage[] => [
       ]
     : []),
 ];
+
+export const createConversationHistory = (
+  messages: ChatMessage[],
+): AIChatMessage[] =>
+  messages
+    .filter(message => message.id !== 'welcome' && message.role !== 'system')
+    .map(message => ({
+      content: message.text.trim(),
+      role: message.role,
+    }))
+    .filter(message => message.content.length > 0);
 
 function ChatScreen({
   commonSystemPrompt = '',
@@ -451,6 +467,7 @@ function ChatScreen({
       const requestHistory = [
         ...systemHistory,
         createRuntimeContextMessage(),
+        ...createConversationHistory(messages),
       ];
 
       const updateAssistantMessage = (text: string) => {
@@ -463,6 +480,7 @@ function ChatScreen({
             },
           ],
           nextSessionTitle,
+          { persist: false },
         );
       };
 
@@ -591,6 +609,8 @@ function ChatScreen({
               ? { ...retriedAssistantMessage, text }
               : message,
           ),
+          undefined,
+          { persist: false },
         );
       };
 
@@ -612,6 +632,7 @@ function ChatScreen({
         const requestHistory = [
           ...createSystemHistory(commonSystemPrompt),
           createRuntimeContextMessage(),
+          ...createConversationHistory(messages.slice(0, userIndex + 1)),
         ];
 
         const response = await AIEngine.generateResponseStream(

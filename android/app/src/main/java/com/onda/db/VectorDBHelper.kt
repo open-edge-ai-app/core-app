@@ -204,20 +204,47 @@ class VectorDBHelper(
                 )
             }
             if (historyEvent != null) {
-                writableDatabase.insert(
-                    "chat_history",
-                    null,
-                    ContentValues().apply {
-                        put("chat_id", historyEvent.chatId)
-                        put("event_type", historyEvent.eventType)
-                        put("payload", historyEvent.payload)
-                        put("created_at", historyEvent.createdAt)
-                    },
-                )
+                insertChatHistory(writableDatabase, historyEvent)
             }
             writableDatabase.setTransactionSuccessful()
         } finally {
             writableDatabase.endTransaction()
+        }
+    }
+
+    fun insertChatHistory(historyEvent: ChatHistoryRecord): Long =
+        insertChatHistory(writableDatabase, historyEvent)
+
+    fun getLatestChatHistory(
+        chatId: String,
+        eventTypes: List<String>,
+    ): ChatHistoryRecord? {
+        if (eventTypes.isEmpty()) {
+            return null
+        }
+
+        val placeholders = eventTypes.joinToString(",") { "?" }
+        val args = arrayOf(chatId, *eventTypes.toTypedArray())
+        return readableDatabase.rawQuery(
+            """
+            SELECT id, chat_id, event_type, payload, created_at
+            FROM chat_history
+            WHERE chat_id = ? AND event_type IN ($placeholders)
+            ORDER BY created_at DESC, id DESC
+            LIMIT 1
+            """.trimIndent(),
+            args,
+        ).use { cursor ->
+            if (!cursor.moveToFirst()) {
+                return@use null
+            }
+            ChatHistoryRecord(
+                id = cursor.getLong(0),
+                chatId = cursor.getString(1),
+                eventType = cursor.getString(2),
+                payload = cursor.getString(3),
+                createdAt = cursor.getLong(4),
+            )
         }
     }
 
@@ -327,6 +354,21 @@ class VectorDBHelper(
             }
             history
         }
+
+    private fun insertChatHistory(
+        db: SQLiteDatabase,
+        historyEvent: ChatHistoryRecord,
+    ): Long =
+        db.insert(
+            "chat_history",
+            null,
+            ContentValues().apply {
+                put("chat_id", historyEvent.chatId)
+                put("event_type", historyEvent.eventType)
+                put("payload", historyEvent.payload)
+                put("created_at", historyEvent.createdAt)
+            },
+        )
 
     private fun FloatArray.toBlob(): ByteArray {
         val buffer = ByteBuffer.allocate(size * FLOAT_BYTES).order(ByteOrder.LITTLE_ENDIAN)

@@ -20,6 +20,9 @@ import com.facebook.react.bridge.WritableArray
 import com.facebook.react.bridge.WritableMap
 import com.facebook.react.modules.core.DeviceEventManagerModule
 import com.onda.core.AIResponse
+import com.onda.core.ChatCompactionResult
+import com.onda.core.ChatContextManager
+import com.onda.core.GemmaManager
 import com.onda.core.IndexingResult
 import com.onda.core.IndexingStatus
 import com.onda.core.MemoryIndexer
@@ -52,6 +55,7 @@ class AIEngineModule(
     private val vectorDBHelper = VectorDBHelper(reactContext)
     private val queryRouter = QueryRouter(reactContext, vectorDBHelper)
     private val memoryIndexer = MemoryIndexer(reactContext, vectorDBHelper)
+    private val chatContextManager = ChatContextManager(vectorDBHelper, GemmaManager())
     private var filePickerPromise: Promise? = null
 
     init {
@@ -188,17 +192,66 @@ class AIEngineModule(
                     updatedAt = now,
                 ),
                 messages = chatMessages,
-                historyEvent = ChatHistoryRecord(
-                    id = 0,
-                    chatId = sessionId,
-                    eventType = "messages_saved",
-                    payload = "{\"messageCount\":${chatMessages.size}}",
-                    createdAt = now,
-                ),
+                historyEvent = null,
+            )
+            chatContextManager.recordContextSnapshot(
+                chatId = sessionId,
+                messages = chatMessages,
             )
             promise.resolve(null)
         } catch (error: Exception) {
             promise.reject("CHAT_SAVE_ERROR", error)
+        }
+    }
+
+    @ReactMethod
+    fun compactChatSession(
+        sessionId: String,
+        trigger: String,
+        promise: Promise,
+    ) {
+        try {
+            promise.resolve(
+                chatContextManager.compactIfNeeded(
+                    chatId = sessionId,
+                    trigger = trigger.ifBlank { "manual" },
+                    force = trigger == "manual",
+                ).toWritableMap(),
+            )
+        } catch (error: Exception) {
+            promise.reject("CHAT_COMPACT_ERROR", error)
+        }
+    }
+
+    @ReactMethod
+    fun generateChatTitle(
+        userMessage: String,
+        assistantMessage: String,
+        promise: Promise,
+    ) {
+        try {
+            val prompt = """
+            Create a short chat title from this first exchange.
+            Rules:
+            - Match the user's language.
+            - Use 3 to 8 words when possible.
+            - Do not use quotes.
+            - Do not add trailing punctuation.
+            - Return only the title.
+
+            User:
+            $userMessage
+
+            Assistant:
+            $assistantMessage
+            """.trimIndent()
+            val title = GemmaManager()
+                .generate(prompt, useRag = false)
+                .toChatTitle()
+                .ifBlank { userMessage.toChatTitle() }
+            promise.resolve(title)
+        } catch (error: Exception) {
+            promise.reject("CHAT_TITLE_ERROR", error)
         }
     }
 
@@ -475,6 +528,7 @@ class AIEngineModule(
             },
             useRag = options?.getOptionalBoolean("useRag"),
             stream = options?.getOptionalBoolean("stream") ?: false,
+            chatSessionId = options?.getOptionalString("chatSessionId"),
         )
     }
 
@@ -706,6 +760,22 @@ class AIEngineModule(
             putMap("status", status.toWritableMap())
         }
 
+    private fun ChatCompactionResult.toWritableMap(): WritableMap =
+        Arguments.createMap().apply {
+            putString("chatId", chatId)
+            putBoolean("compacted", compacted)
+            putString("trigger", trigger)
+            putString("message", message)
+            putInt("beforeTokenEstimate", beforeTokenEstimate)
+            putInt("afterTokenEstimate", afterTokenEstimate)
+            if (compactedUntilMessageId == null) {
+                putNull("compactedUntilMessageId")
+            } else {
+                putString("compactedUntilMessageId", compactedUntilMessageId)
+            }
+            putDouble("snapshotId", snapshotId.toDouble())
+        }
+
     private fun ChatSessionRecord.toWritableMap(): WritableMap =
         Arguments.createMap().apply {
             putMap("chat", chat.toWritableMap())
@@ -774,16 +844,31 @@ class AIEngineModule(
     private fun ReadableMap.getOptionalDouble(key: String): Double? =
         if (hasKey(key) && !isNull(key)) getDouble(key) else null
 
+    private fun Long.toIsoString(): String = synchronized(ISO_FORMAT) {
+        ISO_FORMAT.format(Date(this))
+    }
+
+    private fun String.toChatTitle(): String =
+        trim()
+            .lineSequence()
+            .firstOrNull { it.isNotBlank() }
+            .orEmpty()
+            .trim()
+            .removeSurrounding("\"")
+            .removeSurrounding("'")
+            .replace(Regex("[\\r\\n]+"), " ")
+            .replace(Regex("\\s+"), " ")
+            .trim()
+            .trimEnd('.', '!', '?', '。', '！', '？')
+            .take(MAX_CHAT_TITLE_LENGTH)
+
     companion object {
         const val NAME = "AIEngine"
         private const val FILE_PICKER_REQUEST_CODE = 41042
         private const val STREAM_EVENT_NAME = "AIEngineStreamChunk"
+        private const val MAX_CHAT_TITLE_LENGTH = 40
         private val ISO_FORMAT = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.US).apply {
             timeZone = TimeZone.getTimeZone("UTC")
         }
-    }
-
-    private fun Long.toIsoString(): String = synchronized(ISO_FORMAT) {
-        ISO_FORMAT.format(Date(this))
     }
 }

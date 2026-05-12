@@ -5,4 +5,5 @@ data class MultimodalRequest(
     val attachments: List<MultimodalAttachment>,
     val useRag: Boolean?,
     val stream: Boolean,
+    val chatSessionId: String?,
 )

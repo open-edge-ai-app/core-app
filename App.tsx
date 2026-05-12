@@ -786,6 +786,36 @@ function App() {
     [sessionTitle],
   );
 
+  const handleActiveSessionTitleChange = useCallback((title: string) => {
+    const normalizedTitle = title.trim();
+    const currentSessionId = activeSessionIdRef.current;
+
+    if (!normalizedTitle) {
+      return;
+    }
+
+    setSessionTitle(normalizedTitle);
+
+    if (!currentSessionId) {
+      return;
+    }
+
+    setRecentSessions(current =>
+      current.map(session =>
+        session.id === currentSessionId
+          ? { ...session, title: normalizedTitle }
+          : session,
+      ),
+    );
+    setWorkFolderSessions(current =>
+      current.map(session =>
+        session.id === currentSessionId
+          ? { ...session, title: normalizedTitle }
+          : session,
+      ),
+    );
+  }, []);
+
   const handleRenameSession = (sessionId: string, title: string) => {
     setRecentSessions(current =>
       current.map(session =>
@@ -1024,8 +1054,9 @@ function App() {
                 key={`chat-${chatInstanceKey}`}
                 messages={activeMessages}
                 onMessagesChange={handleChatMessagesChange}
-                onSessionTitleChange={setSessionTitle}
+                onSessionTitleChange={handleActiveSessionTitleChange}
                 selectedModelLabel={selectedModel.label}
+                sessionId={activeSessionId}
               />
             ) : (
               <Settings

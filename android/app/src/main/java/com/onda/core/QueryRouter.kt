@@ -13,6 +13,7 @@ class QueryRouter(
     private val gemmaManager = GemmaManager()
     private val embedManager = EmbedManager(context)
     private val vectorDao = VectorDao(vectorDBHelper)
+    private val chatContextManager = ChatContextManager(vectorDBHelper, gemmaManager)
 
     fun route(message: String): String {
         val normalized = message.trim()
@@ -41,6 +42,11 @@ class QueryRouter(
         }
 
         val modalities = request.attachments.map { attachment -> attachment.type }.distinct()
+        val promptWithHistory = chatContextManager.buildPromptWithHistory(
+            chatId = request.chatSessionId,
+            currentPrompt = normalized,
+        )
+        val requestWithHistory = request.copy(text = promptWithHistory)
         val toolCall = if (request.useRag == true) {
             RagToolCall(TOOL_RAG_SEARCH, normalized)
         } else {
@@ -48,11 +54,11 @@ class QueryRouter(
         }
 
         if (toolCall?.name != TOOL_RAG_SEARCH) {
-            return gemmaManager.generateMultimodal(request, useRag = false, modalities = modalities)
+            return gemmaManager.generateMultimodal(requestWithHistory, useRag = false, modalities = modalities)
         }
 
         val memories = searchMemories(toolCall.query.ifBlank { normalized })
-        val ragRequest = request.copy(text = buildRagPrompt(normalized, memories))
+        val ragRequest = request.copy(text = buildRagPrompt(promptWithHistory, memories))
         return gemmaManager.generateMultimodal(ragRequest, useRag = true, modalities = modalities)
     }
 
@@ -76,6 +82,11 @@ class QueryRouter(
         }
 
         val modalities = request.attachments.map { attachment -> attachment.type }.distinct()
+        val promptWithHistory = chatContextManager.buildPromptWithHistory(
+            chatId = request.chatSessionId,
+            currentPrompt = normalized,
+        )
+        val requestWithHistory = request.copy(text = promptWithHistory)
         val toolCall = if (request.useRag == true) {
             RagToolCall(TOOL_RAG_SEARCH, normalized)
         } else {
@@ -83,9 +94,9 @@ class QueryRouter(
         }
         val routedRequest = if (toolCall?.name == TOOL_RAG_SEARCH) {
             val memories = searchMemories(toolCall.query.ifBlank { normalized })
-            request.copy(text = buildRagPrompt(normalized, memories))
+            request.copy(text = buildRagPrompt(promptWithHistory, memories))
         } else {
-            request
+            requestWithHistory
         }
 
         return gemmaManager.generateMultimodalStream(

@@ -61,6 +61,7 @@ type ChatScreenProps = {
   ) => void;
   onSessionTitleChange?: (title: string) => void;
   selectedModelLabel?: string;
+  sessionId?: string | null;
 };
 
 export const createInitialChatMessages = (): ChatMessage[] => [
@@ -216,6 +217,7 @@ function ChatScreen({
   onMessagesChange,
   onSessionTitleChange,
   selectedModelLabel = 'Gemma 4',
+  sessionId = null,
 }: ChatScreenProps) {
   const scrollViewRef = useRef<ScrollView>(null);
   const isNearThreadEndRef = useRef(true);
@@ -376,6 +378,50 @@ function ChatScreen({
           prompt || createAttachmentSummary(attachmentsForPrompt),
         )
       : undefined;
+    const shouldGenerateSessionTitle = !hasUserMessages;
+
+    if (prompt === '/compact') {
+      setDraft('');
+      setIsGenerating(true);
+      const pendingAssistant = createMessage(
+        'assistant',
+        'Compacting context...',
+        responseModelName,
+      );
+      onMessagesChange([...messagesWithUserPrompt, pendingAssistant]);
+
+      try {
+        if (!sessionId) {
+          throw new Error(
+            'A saved chat session is required before compacting.',
+          );
+        }
+
+        const result = await AIEngine.compactChatSession(sessionId, 'manual');
+        onMessagesChange([
+          ...messagesWithUserPrompt,
+          {
+            ...pendingAssistant,
+            text: result.compacted
+              ? `Context compacted. Token estimate ${result.beforeTokenEstimate} -> ${result.afterTokenEstimate}.`
+              : result.message,
+          },
+        ]);
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : 'Context compact failed.';
+        onMessagesChange([
+          ...messagesWithUserPrompt,
+          {
+            ...pendingAssistant,
+            text: `Context compact failed: ${message}`,
+          },
+        ]);
+      } finally {
+        setIsGenerating(false);
+      }
+      return;
+    }
 
     onMessagesChange(
       [...messagesWithUserPrompt, assistantMessage],
@@ -392,6 +438,12 @@ function ChatScreen({
 
     let streamedResponse = '';
     try {
+      if (sessionId) {
+        await AIEngine.compactChatSession(sessionId, 'auto').catch(
+          () => undefined,
+        );
+      }
+
       const requestHistory = [
         ...history,
         createRuntimeContextMessage(),
@@ -425,7 +477,10 @@ function ChatScreen({
             updateAssistantMessage(streamedResponse);
           },
         },
-        attachmentsForPrompt,
+        {
+          attachments: attachmentsForPrompt,
+          chatSessionId: sessionId ?? undefined,
+        },
       );
 
       if (response !== streamedResponse) {
@@ -442,6 +497,17 @@ function ChatScreen({
         ],
         nextSessionTitle,
       );
+
+      if (shouldGenerateSessionTitle) {
+        AIEngine.generateChatTitle(userMessageText || promptForModel, response)
+          .then(title => {
+            const normalizedTitle = title.trim();
+            if (normalizedTitle) {
+              onSessionTitleChange?.(normalizedTitle);
+            }
+          })
+          .catch(() => undefined);
+      }
     } catch (error) {
       const message =
         error instanceof Error
@@ -472,6 +538,7 @@ function ChatScreen({
     onSessionTitleChange,
     selectedModelLabel,
     selectedAttachments,
+    sessionId,
   ]);
 
   const handleAttachFile = useCallback(async () => {

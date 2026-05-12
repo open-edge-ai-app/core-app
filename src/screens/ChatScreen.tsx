@@ -965,46 +965,6 @@ function ChatScreen({
                   size={19}
                 />
               </Pressable>
-              <Pressable
-                accessibilityLabel="자동 모드"
-                accessibilityRole="button"
-                style={({ pressed }) => [
-                  styles.textTool,
-                  pressed && styles.promptRowPressed,
-                ]}
-              >
-                <AppIcon
-                  color={colors.foreground}
-                  icon={appIcons.autoMode}
-                  size={14}
-                />
-                <Text style={styles.textToolLabel}>Auto</Text>
-                <AppIcon
-                  color={colors.mutedForeground}
-                  icon={appIcons.chevronDown}
-                  size={9}
-                />
-              </Pressable>
-              <Pressable
-                accessibilityLabel="전체 소스"
-                accessibilityRole="button"
-                style={({ pressed }) => [
-                  styles.sourceTool,
-                  pressed && styles.promptRowPressed,
-                ]}
-              >
-                <AppIcon
-                  color={colors.mutedForeground}
-                  icon={appIcons.sources}
-                  size={20}
-                />
-                <Text style={styles.textToolLabel}>All Sources</Text>
-                <AppIcon
-                  color={colors.mutedForeground}
-                  icon={appIcons.chevronDown}
-                  size={9}
-                />
-              </Pressable>
             </View>
 
             <Pressable
@@ -1305,24 +1265,6 @@ const styles = StyleSheet.create({
   },
   disabledTool: {
     opacity: 0.38,
-  },
-  textTool: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    gap: 6,
-    justifyContent: 'center',
-    minHeight: 34,
-  },
-  textToolLabel: {
-    ...typography.label,
-    color: colors.foreground,
-    fontSize: 14,
-  },
-  sourceTool: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    gap: 7,
-    minHeight: 34,
   },
   sendButton: {
     alignItems: 'center',

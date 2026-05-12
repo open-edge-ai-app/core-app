@@ -213,7 +213,7 @@ class MemoryIndexer(
         }
     }
 
-    private fun indexSms(limit: Int = DEFAULT_SMS_LIMIT): Int {
+    private fun indexSms(limit: Int? = null): Int {
         if (!hasPermission(Manifest.permission.READ_SMS)) {
             return 0
         }
@@ -234,7 +234,7 @@ class MemoryIndexer(
             projection,
             null,
             null,
-            "${Telephony.Sms.DATE} DESC LIMIT $limit",
+            buildSortOrder(Telephony.Sms.DATE, limit),
         )?.use { cursor ->
             while (cursor.moveToNext()) {
                 val id = cursor.getLong(0)
@@ -265,7 +265,7 @@ class MemoryIndexer(
         return indexed
     }
 
-    private fun indexGallery(limit: Int = DEFAULT_GALLERY_LIMIT): Int {
+    private fun indexGallery(limit: Int? = null): Int {
         if (!hasImagePermission()) {
             return 0
         }
@@ -285,7 +285,7 @@ class MemoryIndexer(
             projection,
             null,
             null,
-            "${MediaStore.Images.Media.DATE_TAKEN} DESC LIMIT $limit",
+            buildSortOrder(MediaStore.Images.Media.DATE_TAKEN, limit),
         )?.use { cursor ->
             while (cursor.moveToNext()) {
                 val id = cursor.getLong(0)
@@ -352,6 +352,13 @@ class MemoryIndexer(
     private fun hasPermission(permission: String): Boolean =
         appContext.checkSelfPermission(permission) == PackageManager.PERMISSION_GRANTED
 
+    private fun buildSortOrder(column: String, limit: Int?): String =
+        if (limit == null) {
+            "$column DESC"
+        } else {
+            "$column DESC LIMIT $limit"
+        }
+
     private fun isSourceEnabled(source: String): Boolean =
         preferences.getBoolean(enabledKey(source), DEFAULT_SOURCE_ENABLED)
 
@@ -374,9 +381,7 @@ class MemoryIndexer(
         private const val SOURCE_SMS = "sms"
         private const val SOURCE_IMAGE = "image"
         private const val PREFS_NAME = "onda_indexing"
-        private const val DEFAULT_SOURCE_ENABLED = true
-        private const val DEFAULT_SMS_LIMIT = 200
-        private const val DEFAULT_GALLERY_LIMIT = 100
+        private const val DEFAULT_SOURCE_ENABLED = false
         private val DATE_FORMAT = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.KOREA)
     }
 }

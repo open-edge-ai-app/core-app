@@ -119,13 +119,43 @@ function Settings({
   }, [onModelStateChange, runtimeStatus]);
 
   const handleLoadModel = useCallback(async () => {
-    const nextStatus = await AIEngine.loadModel();
-    setRuntimeStatus(nextStatus);
+    const loadingStatus: RuntimeStatus = {
+      canGenerate: false,
+      error: null,
+      loaded: false,
+      loading: true,
+      localPath: modelStatus?.localPath ?? runtimeStatus?.localPath ?? '',
+      modelInstalled: Boolean(modelStatus?.installed),
+    };
+    setRuntimeStatus(loadingStatus);
     onModelStateChange?.({
       modelStatus,
-      runtimeStatus: nextStatus,
+      runtimeStatus: loadingStatus,
     });
-  }, [modelStatus, onModelStateChange]);
+
+    try {
+      const nextStatus = await AIEngine.loadModel();
+      setRuntimeStatus(nextStatus);
+      onModelStateChange?.({
+        modelStatus,
+        runtimeStatus: nextStatus,
+      });
+    } catch (error) {
+      const errorStatus: RuntimeStatus = {
+        ...loadingStatus,
+        error:
+          error instanceof Error
+            ? error.message
+            : '모델 런타임을 켜지 못했습니다.',
+        loading: false,
+      };
+      setRuntimeStatus(errorStatus);
+      onModelStateChange?.({
+        modelStatus,
+        runtimeStatus: errorStatus,
+      });
+    }
+  }, [modelStatus, onModelStateChange, runtimeStatus?.localPath]);
 
   const handleUnloadModel = useCallback(async () => {
     const nextStatus = await AIEngine.unloadModel();

@@ -457,6 +457,7 @@ function Settings({
             <Text style={styles.sectionCaption}>문자 임베딩</Text>
           </View>
           <SettingsToggle
+            disabled={status.isIndexing}
             onValueChange={handleSmsToggle}
             value={status.smsEnabled}
           />
@@ -468,6 +469,7 @@ function Settings({
             <Text style={styles.sectionCaption}>사진 임베딩</Text>
           </View>
           <SettingsToggle
+            disabled={status.isIndexing}
             onValueChange={handleGalleryToggle}
             value={status.galleryEnabled}
           />
@@ -596,20 +598,27 @@ function StatusRow({ label, value }: StatusRowProps) {
 }
 
 type SettingsToggleProps = {
+  disabled?: boolean;
   onValueChange: (value: boolean) => void;
   value: boolean;
 };
 
-function SettingsToggle({ onValueChange, value }: SettingsToggleProps) {
+function SettingsToggle({
+  disabled = false,
+  onValueChange,
+  value,
+}: SettingsToggleProps) {
   return (
     <Pressable
       accessibilityRole="switch"
-      accessibilityState={{ checked: value }}
+      accessibilityState={{ checked: value, disabled }}
+      disabled={disabled}
       hitSlop={8}
       onPress={() => onValueChange(!value)}
       style={({ pressed }) => [
         styles.settingsToggle,
         value && styles.settingsToggleOn,
+        disabled && styles.settingsToggleDisabled,
         pressed && styles.settingsTogglePressed,
       ]}
     >
@@ -830,6 +839,9 @@ const styles = StyleSheet.create({
   },
   settingsTogglePressed: {
     opacity: 0.72,
+  },
+  settingsToggleDisabled: {
+    opacity: 0.54,
   },
   settingsToggleThumb: {
     backgroundColor: colors.card,

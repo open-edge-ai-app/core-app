@@ -2,6 +2,7 @@ import React from 'react';
 import { Image, ImageSourcePropType, StyleSheet, View } from 'react-native';
 
 import AppIcon from './AppIcon';
+import MarkdownText from './MarkdownText';
 import { Button } from './ui';
 import { ScaledText as Text } from '../theme/display';
 import { appIcons } from '../theme/icons';
@@ -68,7 +69,7 @@ function ChatBubble({
           <Image source={thumbnail} style={styles.thumbnail} />
         ) : null}
 
-        <Text style={styles.assistantText}>{text}</Text>
+        <MarkdownText style={styles.assistantText} text={text} />
 
         {actions.length > 0 ? (
           <View style={styles.actions}>

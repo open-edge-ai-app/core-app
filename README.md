@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="src/assets/logo.png" alt="Open Edge AI" width="360" />
+  <img src="docs/assets/open-edge-ai-logo.png" alt="Open Edge AI" width="720" />
 
   <h1>Open Edge AI</h1>
 

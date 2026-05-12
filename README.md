@@ -144,6 +144,13 @@ npm test -- --runInBand
 More setup and troubleshooting notes are available in
 [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md).
 
+## Branding
+
+Brand-facing names and assets are centralized through
+[docs/BRANDING.md](docs/BRANDING.md). Use `npm run branding:apply` with a local
+`.env` file to update runtime branding, launcher labels, bundle identifiers,
+logos, and prepared app icon sets.
+
 ## Architecture
 
 Open Edge AI is split into a cross-platform React Native shell and native model

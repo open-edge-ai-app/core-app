@@ -30,6 +30,7 @@ open-edge-ai/
 │   └── settings.gradle
 ├── docs/
 │   ├── ARCHITECTURE.md
+│   ├── BRANDING.md
 │   ├── DEVELOPMENT.md
 │   ├── MODEL_ASSETS.md
 │   └── PROJECT_STRUCTURE.md
@@ -37,6 +38,8 @@ open-edge-ai/
 │   ├── OpenEdgeAI/
 │   ├── OpenEdgeAI.xcodeproj/
 │   └── Podfile
+├── scripts/
+│   └── apply-branding.mjs
 ├── src/
 │   ├── assets/
 │   ├── components/
@@ -46,6 +49,8 @@ open-edge-ai/
 │   │   ├── FloatingSelect.tsx
 │   │   ├── LoadingDots.tsx
 │   │   └── PastelBackground.tsx
+│   ├── config/
+│   │   └── branding.ts
 │   ├── native/
 │   │   └── AIEngine.ts
 │   ├── screens/
@@ -87,9 +92,11 @@ open-edge-ai/
 | `android/`           | Android app shell and Kotlin native AI implementation.   |
 | `docs/`              | Long-form documentation.                                 |
 | `ios/`               | iOS app shell and future native AI implementation.       |
+| `scripts/`           | Repository maintenance scripts.                          |
 | `src/assets/`        | Static assets used by the React Native app.              |
 | `src/components/`    | Reusable UI components.                                  |
 | `src/components/ui/` | shadcn-inspired local UI component exports.              |
+| `src/config/`        | App-level generated configuration such as branding.      |
 | `src/native/`        | Typed React Native native module wrappers.               |
 | `src/screens/`       | Top-level app screens.                                   |
 | `src/theme/`         | Shared icons, tokens, and display scaling utilities.     |

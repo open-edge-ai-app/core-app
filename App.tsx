@@ -41,7 +41,7 @@ import {
 } from './src/theme/display';
 import { appIcons } from './src/theme/icons';
 import { colors, typography } from './src/theme/tokens';
-import logoSource from './src/assets/logo.png';
+import { brandAssets, branding } from './src/config/branding';
 
 const textDefaults = RNText as unknown as {
   defaultProps?: { allowFontScaling?: boolean; maxFontSizeMultiplier?: number };
@@ -1539,9 +1539,10 @@ function FullScreenMenu({
 
             <View style={styles.menuHeader}>
               <Image
+                accessibilityLabel={branding.displayName}
                 accessibilityIgnoresInvertColors
                 resizeMode="contain"
-                source={logoSource}
+                source={brandAssets.logo}
                 style={styles.menuHeaderLogo}
               />
               <View style={styles.menuHeaderActions}>

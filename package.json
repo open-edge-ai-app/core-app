@@ -25,6 +25,7 @@
   "scripts": {
     "android": "react-native run-android",
     "android:8082": "react-native run-android --port 8082",
+    "branding:apply": "node scripts/apply-branding.mjs",
     "ios": "react-native run-ios",
     "lint": "eslint .",
     "start": "react-native start",

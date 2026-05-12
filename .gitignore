@@ -42,6 +42,11 @@ dist/
 npm-debug.log
 yarn-error.log
 
+# Environment overrides
+.env
+.env.*
+!.env.example
+
 # fastlane
 #
 # It is recommended to not store the screenshots in the git repo. Instead, use fastlane to re-generate the

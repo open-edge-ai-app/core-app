@@ -224,13 +224,6 @@ const mainMenuRows: MenuIconRow[] = [
   },
 ];
 
-const workFolderRows: MenuIconRow[] = [
-  {
-    icon: appIcons.newFolder,
-    label: '새 작업 폴더',
-  },
-];
-
 const DEFAULT_WORK_FOLDER_ICON_ID: WorkFolderIconId = 'folder';
 
 const workFolderIconOptions: FloatingSelectOption<WorkFolderIconId>[] = [
@@ -1606,12 +1599,31 @@ function FullScreenMenu({
               </View>
 
               <View style={styles.menuSectionBlock}>
-                <Text style={styles.menuSectionTitle}>작업 폴더</Text>
-                <MenuRow
-                  icon={workFolderRows[0].icon}
-                  label={workFolderRows[0].label}
-                  onPress={handleOpenWorkFolderDialog}
-                />
+                <View style={styles.menuSectionHeader}>
+                  <Text
+                    style={[
+                      styles.menuSectionTitle,
+                      styles.menuSectionHeaderTitle,
+                    ]}
+                  >
+                    작업 폴더
+                  </Text>
+                  <Pressable
+                    accessibilityLabel="새 작업 폴더"
+                    accessibilityRole="button"
+                    onPress={handleOpenWorkFolderDialog}
+                    style={({ pressed }) => [
+                      styles.menuSectionAddButton,
+                      pressed && styles.menuButtonPressed,
+                    ]}
+                  >
+                    <AppIcon
+                      color={colors.foreground}
+                      icon={appIcons.plus}
+                      size={15}
+                    />
+                  </Pressable>
+                </View>
                 <View style={styles.workFolderTree}>
                   {workFolders.map(folder => {
                     const folderSessions =
@@ -1674,15 +1686,6 @@ function FullScreenMenu({
                       onPress={() => onSelectSession(session.title, session.id)}
                     />
                   ))}
-                {workFolderRows.slice(1).map(row => (
-                  <MenuRow
-                    icon={row.icon}
-                    iconColor={row.iconColor}
-                    key={row.label}
-                    label={row.label}
-                    onPress={() => onSelectSession(row.label)}
-                  />
-                ))}
               </View>
 
               <View style={[styles.menuSectionBlock, styles.menuRecentSection]}>
@@ -2340,7 +2343,6 @@ function TreeSessionRow({
         pressed && styles.menuRowPressed,
       ]}
     >
-      <View style={styles.workFolderChildBranch} />
       <View style={styles.workFolderChildIcon}>
         <AppIcon
           color={colors.mutedForeground}
@@ -2551,6 +2553,21 @@ const styles = StyleSheet.create({
     lineHeight: 22,
     marginBottom: 8,
   },
+  menuSectionHeader: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  menuSectionHeaderTitle: {
+    marginBottom: 0,
+  },
+  menuSectionAddButton: {
+    alignItems: 'center',
+    height: 32,
+    justifyContent: 'center',
+    width: 32,
+  },
   menuRow: {
     alignItems: 'center',
     flexDirection: 'row',
@@ -2577,19 +2594,19 @@ const styles = StyleSheet.create({
     lineHeight: 21,
   },
   workFolderTree: {
-    marginTop: 4,
+    marginTop: 2,
   },
   workFolderTreeItem: {
     marginBottom: 2,
   },
   workFolderTreeRow: {
     alignItems: 'center',
-    borderRadius: 10,
+    borderRadius: 8,
     flexDirection: 'row',
-    minHeight: 50,
+    minHeight: 44,
   },
   workFolderTreeIconSlot: {
-    height: 34,
+    height: 32,
     justifyContent: 'center',
     position: 'relative',
     width: 46,
@@ -2603,7 +2620,7 @@ const styles = StyleSheet.create({
   },
   workFolderTreeChevron: {
     alignItems: 'center',
-    height: 28,
+    height: 26,
     justifyContent: 'center',
     position: 'absolute',
     left: 0,
@@ -2614,9 +2631,9 @@ const styles = StyleSheet.create({
     ...typography.label,
     color: colors.foreground,
     flex: 1,
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '600',
-    lineHeight: 21,
+    lineHeight: 20,
     minWidth: 0,
   },
   workFolderTreeCount: {
@@ -2627,24 +2644,15 @@ const styles = StyleSheet.create({
     paddingLeft: 10,
   },
   workFolderTreeChildren: {
-    borderLeftColor: colors.border,
-    borderLeftWidth: StyleSheet.hairlineWidth,
-    marginLeft: 18,
-    paddingLeft: 22,
-    paddingVertical: 2,
+    marginLeft: 30,
+    paddingVertical: 1,
   },
   workFolderChildRow: {
     alignItems: 'center',
-    borderRadius: 10,
+    borderRadius: 8,
     flexDirection: 'row',
-    minHeight: 42,
-    paddingRight: 8,
-  },
-  workFolderChildBranch: {
-    backgroundColor: colors.border,
-    height: StyleSheet.hairlineWidth,
-    marginRight: 9,
-    width: 14,
+    minHeight: 38,
+    paddingHorizontal: 2,
   },
   workFolderChildIcon: {
     alignItems: 'center',

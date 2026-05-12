@@ -17,9 +17,13 @@ import { appIcons } from '../theme/icons';
 import { colors, typography } from '../theme/tokens';
 
 const defaultStatus: IndexingStatus = {
+  galleryEnabled: false,
+  galleryIndexedItems: 0,
   indexedItems: 0,
   isAvailable: false,
   isIndexing: false,
+  smsEnabled: false,
+  smsIndexedItems: 0,
 };
 
 const formatBytes = (bytes: number) => {
@@ -49,7 +53,6 @@ function Settings({
   const [runtimeStatus, setRuntimeStatus] = useState<RuntimeStatus | null>(
     null,
   );
-  const [galleryIndexingEnabled, setGalleryIndexingEnabled] = useState(false);
   const { selectedTextSize, setTextSize, textSize, textSizes } =
     useDisplaySettings();
 
@@ -121,6 +124,31 @@ function Settings({
       runtimeStatus: nextStatus,
     });
   }, [modelStatus, onModelStateChange]);
+
+  const handleStartIndexing = useCallback(async () => {
+    const result = await AIEngine.startIndexing();
+    setStatus(result.status);
+  }, []);
+
+  const handleSmsToggle = useCallback(async (enabled: boolean) => {
+    const result = await AIEngine.setIndexingSourceEnabled('sms', enabled);
+    setStatus(result.status);
+  }, []);
+
+  const handleGalleryToggle = useCallback(async (enabled: boolean) => {
+    const result = await AIEngine.setIndexingSourceEnabled('gallery', enabled);
+    setStatus(result.status);
+  }, []);
+
+  const handleDeleteSms = useCallback(async () => {
+    const result = await AIEngine.deleteIndexingSource('sms');
+    setStatus(result.status);
+  }, []);
+
+  const handleDeleteGallery = useCallback(async () => {
+    const result = await AIEngine.deleteIndexingSource('gallery');
+    setStatus(result.status);
+  }, []);
 
   return (
     <ScrollView
@@ -311,6 +339,14 @@ function Settings({
           value={`${status.indexedItems.toLocaleString('ko-KR')}개`}
         />
         <StatusRow
+          label="SMS embeddings"
+          value={`${status.smsIndexedItems.toLocaleString('ko-KR')}개`}
+        />
+        <StatusRow
+          label="Gallery embeddings"
+          value={`${status.galleryIndexedItems.toLocaleString('ko-KR')}개`}
+        />
+        <StatusRow
           label="마지막 인덱싱"
           value={status.lastIndexedAt ?? '기록 없음'}
         />
@@ -320,22 +356,66 @@ function Settings({
         <View style={styles.sectionHeader}>
           <View style={styles.switchCopy}>
             <Text style={styles.sectionTitle}>인덱싱</Text>
-            <Text style={styles.sectionCaption}>파일과 일정 인덱싱</Text>
+            <Text style={styles.sectionCaption}>소스별 임베딩 생성/삭제</Text>
           </View>
-          <SettingsToggle
-            onValueChange={setGalleryIndexingEnabled}
-            value={galleryIndexingEnabled}
-          />
         </View>
 
         <Separator style={styles.separator} />
+
+        <View style={styles.toggleRow}>
+          <View style={styles.switchCopy}>
+            <Text style={styles.rowLabel}>SMS</Text>
+            <Text style={styles.sectionCaption}>문자 임베딩</Text>
+          </View>
+          <SettingsToggle
+            onValueChange={handleSmsToggle}
+            value={status.smsEnabled}
+          />
+        </View>
+
+        <View style={styles.toggleRow}>
+          <View style={styles.switchCopy}>
+            <Text style={styles.rowLabel}>Gallery</Text>
+            <Text style={styles.sectionCaption}>사진 임베딩</Text>
+          </View>
+          <SettingsToggle
+            onValueChange={handleGalleryToggle}
+            value={status.galleryEnabled}
+          />
+        </View>
 
         <Text style={styles.description}>
           백그라운드 작업과 권한 상태는 네이티브 엔진 연결에 맞춰 갱신됩니다.
         </Text>
 
         <Button
-          label="상태 새로고침"
+          disabled={status.isIndexing}
+          label="SMS/Gallery indexing"
+          textStyle={styles.refreshButtonText}
+          onPress={handleStartIndexing}
+          style={styles.refreshButton}
+          variant="ghost"
+        />
+
+        <View style={styles.actionRow}>
+          <Button
+            label="Delete SMS embeddings"
+            textStyle={styles.refreshButtonText}
+            onPress={handleDeleteSms}
+            style={styles.modelButton}
+            variant="ghost"
+          />
+          <Button
+            label="Delete gallery embeddings"
+            textStyle={styles.refreshButtonText}
+            onPress={handleDeleteGallery}
+            style={styles.modelButton}
+            variant="ghost"
+          />
+        </View>
+
+        <Button
+          label="Refresh status"
           textStyle={styles.refreshButtonText}
           onPress={refreshStatus}
           style={styles.refreshButton}
@@ -540,6 +620,11 @@ const styles = StyleSheet.create({
   switchCopy: {
     flex: 1,
     paddingRight: 16,
+  },
+  toggleRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    minHeight: 54,
   },
   settingsToggle: {
     backgroundColor: colors.input,

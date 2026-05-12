@@ -30,7 +30,11 @@ import FloatingSelect, {
   FloatingSelectOption,
 } from './src/components/FloatingSelect';
 import PastelBackground from './src/components/PastelBackground';
-import AIEngine, { ModelStatus, RuntimeStatus } from './src/native/AIEngine';
+import AIEngine, {
+  ModelStatus,
+  RuntimeStatus,
+  StoredChatMessage,
+} from './src/native/AIEngine';
 import ChatScreen, {
   ChatMessage,
   createInitialChatMessages,
@@ -330,6 +334,15 @@ const hydrateMessages = (
   });
 };
 
+const toStoredChatMessages = (messages: ChatMessage[]): StoredChatMessage[] =>
+  messages.map(message => ({
+    createdAt: message.createdAt.getTime(),
+    id: message.id,
+    modelName: message.modelName,
+    role: message.role,
+    text: message.text,
+  }));
+
 const isModelOptionId = (value: string): value is ModelOption['id'] =>
   modelOptions.some(model => model.id === value);
 
@@ -628,6 +641,17 @@ function App() {
       APP_STATE_STORAGE_KEY,
       JSON.stringify(nextState),
     ).catch(() => undefined);
+
+    Object.entries(chatMessagesBySessionId).forEach(([sessionId, messages]) => {
+      const session = [...recentSessions, ...workFolderSessions].find(
+        candidate => candidate.id === sessionId,
+      );
+      AIEngine.saveChatSession(
+        sessionId,
+        session?.title ?? sessionTitle,
+        toStoredChatMessages(messages),
+      ).catch(() => undefined);
+    });
   }, [
     activeSessionId,
     chatMessagesBySessionId,
@@ -919,6 +943,7 @@ function App() {
       current.filter(session => session.id !== sessionId),
     );
     setChatMessagesBySessionId(current => omitRecordKey(current, sessionId));
+    AIEngine.deleteChatSession(sessionId).catch(() => undefined);
 
     if (activeSessionId === sessionId) {
       activeSessionIdRef.current = null;

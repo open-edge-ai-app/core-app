@@ -7,11 +7,53 @@ export type AIChatMessage = {
   content: string;
 };
 
+export type StoredChatMessage = {
+  id: string;
+  role: AIChatRole;
+  text: string;
+  createdAt: number;
+  modelName?: string | null;
+};
+
+export type StoredChatHistoryEvent = {
+  id: number;
+  chatId: string;
+  eventType: string;
+  payload: string;
+  createdAt: number;
+};
+
+export type StoredChatSession = {
+  chat: {
+    id: string;
+    title: string;
+    createdAt: number;
+    updatedAt: number;
+  };
+  messages: StoredChatMessage[];
+  history: StoredChatHistoryEvent[];
+};
+
 export type IndexingStatus = {
   isAvailable: boolean;
   isIndexing: boolean;
   indexedItems: number;
   lastIndexedAt?: string;
+  lastError?: string | null;
+  smsEnabled: boolean;
+  galleryEnabled: boolean;
+  smsIndexedItems: number;
+  galleryIndexedItems: number;
+};
+
+export type IndexingSource = 'sms' | 'gallery' | 'image';
+
+export type IndexingResult = {
+  smsIndexed: number;
+  galleryIndexed: number;
+  deleted: number;
+  skipped: number;
+  status: IndexingStatus;
 };
 
 export type ModelStatus = {
@@ -107,13 +149,46 @@ type AIEngineNativeModule = {
   downloadModel?: () => Promise<ModelStatus>;
   ensureModelDownloaded?: () => Promise<ModelStatus>;
   cancelModelDownload?: () => Promise<ModelStatus>;
-  startIndexing?: () => Promise<void>;
+  startIndexing?: () => Promise<IndexingResult>;
+  startIndexingSource?: (source: IndexingSource) => Promise<IndexingResult>;
+  setIndexingSourceEnabled?: (
+    source: IndexingSource,
+    enabled: boolean,
+  ) => Promise<IndexingResult>;
+  deleteIndexingSource?: (source: IndexingSource) => Promise<IndexingResult>;
+  saveChatSession?: (
+    sessionId: string,
+    title: string,
+    messages: StoredChatMessage[],
+  ) => Promise<void>;
+  loadChatSession?: (sessionId: string) => Promise<StoredChatSession | null>;
+  listChatSessions?: () => Promise<StoredChatSession['chat'][]>;
+  deleteChatSession?: (sessionId: string) => Promise<number>;
   addListener: (eventName: string) => void;
   removeListeners: (count: number) => void;
 };
 
+type NativePermissionsAndroidModule = {
+  requestMultiplePermissions?: (
+    permissions: string[],
+  ) => Promise<Record<string, string>>;
+};
+
 const nativeModule = NativeModules.AIEngine as AIEngineNativeModule | undefined;
+const nativePermissionsAndroid = NativeModules.PermissionsAndroid as
+  | NativePermissionsAndroidModule
+  | undefined;
 const AI_ENGINE_STREAM_EVENT = 'AIEngineStreamChunk';
+
+const androidPermissions = {
+  READ_EXTERNAL_STORAGE: 'android.permission.READ_EXTERNAL_STORAGE',
+  READ_MEDIA_IMAGES: 'android.permission.READ_MEDIA_IMAGES',
+  READ_SMS: 'android.permission.READ_SMS',
+} as const;
+
+const androidPermissionResults = {
+  GRANTED: 'granted',
+} as const;
 
 const modelDownloadUrl =
   'https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm/resolve/main/gemma-4-E2B-it.litertlm?download=true';
@@ -440,7 +515,12 @@ export const AIEngine = {
         indexedItems: status.indexedItems,
         isAvailable: status.isAvailable ?? isNativeAvailable(),
         isIndexing: status.isIndexing,
+        lastError: status.lastError,
         lastIndexedAt: status.lastIndexedAt,
+        smsEnabled: status.smsEnabled ?? true,
+        galleryEnabled: status.galleryEnabled ?? true,
+        smsIndexedItems: status.smsIndexedItems ?? 0,
+        galleryIndexedItems: status.galleryIndexedItems ?? 0,
       };
     }
 
@@ -448,7 +528,12 @@ export const AIEngine = {
       indexedItems: 0,
       isAvailable: false,
       isIndexing: false,
+      lastError: undefined,
       lastIndexedAt: undefined,
+      smsEnabled: false,
+      galleryEnabled: false,
+      smsIndexedItems: 0,
+      galleryIndexedItems: 0,
     };
   },
 
@@ -500,12 +585,96 @@ export const AIEngine = {
     return nativeModule?.cancelModelDownload?.() ?? fallbackModelStatus;
   },
 
-  async startIndexing() {
+  async startIndexing(): Promise<IndexingResult> {
+    await this.requestIndexingPermissions();
+
     if (nativeModule?.startIndexing) {
       return nativeModule.startIndexing();
     }
 
     throw new Error(`AIEngine native module is not linked on ${Platform.OS}.`);
+  },
+
+  async startIndexingSource(source: IndexingSource): Promise<IndexingResult> {
+    await this.requestIndexingPermissions(source);
+
+    if (nativeModule?.startIndexingSource) {
+      return nativeModule.startIndexingSource(source);
+    }
+
+    throw new Error(`AIEngine native module is not linked on ${Platform.OS}.`);
+  },
+
+  async setIndexingSourceEnabled(
+    source: IndexingSource,
+    enabled: boolean,
+  ): Promise<IndexingResult> {
+    if (enabled) {
+      await this.requestIndexingPermissions(source);
+    }
+
+    if (nativeModule?.setIndexingSourceEnabled) {
+      return nativeModule.setIndexingSourceEnabled(source, enabled);
+    }
+
+    throw new Error(`AIEngine native module is not linked on ${Platform.OS}.`);
+  },
+
+  async deleteIndexingSource(source: IndexingSource): Promise<IndexingResult> {
+    if (nativeModule?.deleteIndexingSource) {
+      return nativeModule.deleteIndexingSource(source);
+    }
+
+    throw new Error(`AIEngine native module is not linked on ${Platform.OS}.`);
+  },
+
+  async requestIndexingPermissions(source?: IndexingSource) {
+    if (Platform.OS !== 'android') {
+      return true;
+    }
+
+    const mediaPermission =
+      Number(Platform.Version) >= 33
+        ? 'android.permission.READ_MEDIA_IMAGES'
+        : androidPermissions.READ_EXTERNAL_STORAGE;
+    const permissions =
+      source === 'sms'
+        ? [androidPermissions.READ_SMS]
+        : source === 'gallery' || source === 'image'
+        ? [mediaPermission]
+        : [androidPermissions.READ_SMS, mediaPermission];
+
+    if (!nativePermissionsAndroid?.requestMultiplePermissions) {
+      throw new Error('Android permission module is not available.');
+    }
+
+    const results = await nativePermissionsAndroid.requestMultiplePermissions(
+      permissions,
+    );
+
+    return permissions.every(
+      permission => results[permission] === androidPermissionResults.GRANTED,
+    );
+  },
+
+  async saveChatSession(
+    sessionId: string,
+    title: string,
+    messages: StoredChatMessage[],
+  ) {
+    return nativeModule?.saveChatSession?.(sessionId, title, messages);
+  },
+
+  async loadChatSession(sessionId: string): Promise<StoredChatSession | null> {
+    return nativeModule?.loadChatSession?.(sessionId) ?? null;
+  },
+
+  async listChatSessions(): Promise<StoredChatSession['chat'][]> {
+    return nativeModule?.listChatSessions?.() ?? [];
+  },
+
+  async deleteChatSession(sessionId: string): Promise<number> {
+    return nativeModule?.deleteChatSession?.(sessionId) ?? 0;
   },
 };
 

@@ -106,7 +106,7 @@ android {
         }
     }
     androidResources {
-        noCompress += ["litertlm", "task"]
+        noCompress += ["litertlm", "task", "tflite"]
     }
 }
 
@@ -114,6 +114,8 @@ dependencies {
     // The version of react-native is set by the React Native Gradle Plugin
     implementation("com.facebook.react:react-android")
     implementation("com.google.mediapipe:tasks-genai:0.10.29")
+    implementation("com.google.mediapipe:tasks-text:0.10.29")
+    implementation("com.google.mediapipe:tasks-vision:0.10.29")
 
     if (hermesEnabled.toBoolean()) {
         implementation("com.facebook.react:hermes-android")

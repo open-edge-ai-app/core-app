@@ -1021,21 +1021,23 @@ function App() {
             </Text>
 
             <View style={[styles.headerSide, styles.headerSideRight]}>
-              <FloatingSelect
-                accessibilityLabel="모델 선택"
-                expanded={isModelMenuOpen}
-                menuAlignment="right"
-                menuStyle={styles.modelMenu}
-                onExpandedChange={handleModelMenuExpandedChange}
-                onValueChange={handleSelectModel}
-                optionIconSize={16}
-                options={modelSelectOptions}
-                selectedValue={headerSelectedModelId}
-                showTriggerIcon={false}
-                triggerStyle={styles.modelSelector}
-                valueTextStyle={styles.modelSelectorText}
-                variant="header"
-              />
+              {activeScreen === 'settings' ? null : (
+                <FloatingSelect
+                  accessibilityLabel="모델 선택"
+                  expanded={isModelMenuOpen}
+                  menuAlignment="right"
+                  menuStyle={styles.modelMenu}
+                  onExpandedChange={handleModelMenuExpandedChange}
+                  onValueChange={handleSelectModel}
+                  optionIconSize={16}
+                  options={modelSelectOptions}
+                  selectedValue={headerSelectedModelId}
+                  showTriggerIcon={false}
+                  triggerStyle={styles.modelSelector}
+                  valueTextStyle={styles.modelSelectorText}
+                  variant="header"
+                />
+              )}
             </View>
           </View>
 

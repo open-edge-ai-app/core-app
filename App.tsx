@@ -207,20 +207,16 @@ const modelOptions: ModelOption[] = [
 
 const mainMenuRows: MenuIconRow[] = [
   {
-    icon: appIcons.menuImage,
-    label: '이미지',
+    icon: appIcons.menuDocumentImage,
+    label: '문서 및 이미지',
   },
   {
-    icon: appIcons.menuPulse,
-    label: 'Pulse',
+    icon: appIcons.menuScheduling,
+    label: '스케줄링',
   },
   {
     icon: appIcons.menuCodex,
-    label: 'Codex',
-  },
-  {
-    icon: appIcons.menuApps,
-    label: '앱',
+    label: '코드 작성',
   },
 ];
 
@@ -1589,11 +1585,7 @@ function FullScreenMenu({
                     icon={row.icon}
                     key={row.label}
                     label={row.label}
-                    onPress={
-                      row.label === '앱'
-                        ? handleOpenSettingsFromMenu
-                        : () => onSelectSession(row.label)
-                    }
+                    onPress={() => onSelectSession(row.label)}
                   />
                 ))}
               </View>

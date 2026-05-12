@@ -119,6 +119,12 @@ object MediaPipeLlmReflector {
                         onComplete(response.toString())
                     }
                 },
+                onComplete = { finalResponse ->
+                    if (completed.compareAndSet(false, true)) {
+                        session.close()
+                        onComplete(response.toString().ifBlank { finalResponse })
+                    }
+                },
                 onError = { error ->
                     if (completed.compareAndSet(false, true)) {
                         session.close()
@@ -262,6 +268,7 @@ object MediaPipeLlmReflector {
 
         fun generateResponseStream(
             onPartial: (String, Boolean) -> Unit,
+            onComplete: (String) -> Unit,
             onError: (Throwable) -> Unit,
         ) {
             val listenerClass = Class.forName("$PACKAGE_NAME.ProgressListener")
@@ -282,7 +289,13 @@ object MediaPipeLlmReflector {
 
             thread(name = "open-edge-ai-stream-watch") {
                 try {
-                    future?.javaClass?.getMethod("get")?.invoke(future)
+                    val finalResponse = future
+                        ?.javaClass
+                        ?.getMethod("get")
+                        ?.invoke(future)
+                        ?.toString()
+                        .orEmpty()
+                    onComplete(finalResponse)
                 } catch (error: Exception) {
                     onError(error.cause ?: error)
                 }

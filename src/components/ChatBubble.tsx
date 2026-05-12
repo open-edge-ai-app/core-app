@@ -1,6 +1,16 @@
 import React from 'react';
 import { Image, ImageSourcePropType, StyleSheet, View } from 'react-native';
 
+import claudeLogo from '@lobehub/icons-static-png/light/claude-color.png';
+import deepseekLogo from '@lobehub/icons-static-png/light/deepseek-color.png';
+import geminiLogo from '@lobehub/icons-static-png/light/gemini-color.png';
+import gemmaLogo from '@lobehub/icons-static-png/light/gemma-color.png';
+import huggingFaceLogo from '@lobehub/icons-static-png/light/huggingface-color.png';
+import mistralLogo from '@lobehub/icons-static-png/light/mistral-color.png';
+import ollamaLogo from '@lobehub/icons-static-png/light/ollama.png';
+import openaiLogo from '@lobehub/icons-static-png/light/openai.png';
+import qwenLogo from '@lobehub/icons-static-png/light/qwen-color.png';
+
 import MarkdownText from './MarkdownText';
 import { Button } from './ui';
 import { ScaledText as Text } from '../theme/display';
@@ -22,38 +32,77 @@ type ChatBubbleProps = {
   timestamp?: string;
 };
 
-const getAssistantProfile = (assistantName: string) => {
+type AssistantProfile = {
+  backgroundColor: string;
+  foregroundColor: string;
+  label: string;
+  logoSource?: ImageSourcePropType;
+};
+
+const modelLogoProfiles: Array<{
+  label: string;
+  matches: string[];
+  source: ImageSourcePropType;
+}> = [
+  {
+    label: 'Gemma',
+    matches: ['gemma'],
+    source: gemmaLogo,
+  },
+  {
+    label: 'Gemini',
+    matches: ['gemini'],
+    source: geminiLogo,
+  },
+  {
+    label: 'OpenAI',
+    matches: ['openai', 'gpt'],
+    source: openaiLogo,
+  },
+  {
+    label: 'Claude',
+    matches: ['claude', 'anthropic'],
+    source: claudeLogo,
+  },
+  {
+    label: 'DeepSeek',
+    matches: ['deepseek'],
+    source: deepseekLogo,
+  },
+  {
+    label: 'Mistral',
+    matches: ['mistral'],
+    source: mistralLogo,
+  },
+  {
+    label: 'Qwen',
+    matches: ['qwen'],
+    source: qwenLogo,
+  },
+  {
+    label: 'Hugging Face',
+    matches: ['hugging face', 'huggingface', 'hf '],
+    source: huggingFaceLogo,
+  },
+  {
+    label: 'Ollama',
+    matches: ['ollama'],
+    source: ollamaLogo,
+  },
+];
+
+const getAssistantProfile = (assistantName: string): AssistantProfile => {
   const normalizedName = assistantName.toLowerCase();
+  const matchedLogo = modelLogoProfiles.find(profile =>
+    profile.matches.some(match => normalizedName.includes(match)),
+  );
 
-  if (normalizedName.includes('deep')) {
+  if (matchedLogo) {
     return {
-      backgroundColor: '#EEF2FF',
-      foregroundColor: '#3048A8',
-      label: 'GD',
-    };
-  }
-
-  if (normalizedName.includes('lite')) {
-    return {
-      backgroundColor: '#ECFDF3',
-      foregroundColor: '#167044',
-      label: 'GL',
-    };
-  }
-
-  if (normalizedName.includes('auto')) {
-    return {
-      backgroundColor: '#FFF7E6',
-      foregroundColor: '#9A5B00',
-      label: 'AI',
-    };
-  }
-
-  if (normalizedName.includes('gemma')) {
-    return {
-      backgroundColor: '#EEF6FF',
-      foregroundColor: colors.accentForeground,
-      label: 'G4',
+      backgroundColor: '#FFFFFF',
+      foregroundColor: colors.foreground,
+      label: matchedLogo.label,
+      logoSource: matchedLogo.source,
     };
   }
 
@@ -102,14 +151,22 @@ function ChatBubble({
           { backgroundColor: assistantProfile.backgroundColor },
         ]}
       >
-        <Text
-          style={[
-            styles.avatarModelLabel,
-            { color: assistantProfile.foregroundColor },
-          ]}
-        >
-          {assistantProfile.label}
-        </Text>
+        {assistantProfile.logoSource ? (
+          <Image
+            resizeMode="contain"
+            source={assistantProfile.logoSource}
+            style={styles.avatarLogo}
+          />
+        ) : (
+          <Text
+            style={[
+              styles.avatarModelLabel,
+              { color: assistantProfile.foregroundColor },
+            ]}
+          >
+            {assistantProfile.label}
+          </Text>
+        )}
       </View>
 
       <View style={styles.assistantContent}>
@@ -157,6 +214,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     overflow: 'hidden',
     width: 28,
+  },
+  avatarLogo: {
+    height: 20,
+    width: 20,
   },
   avatarModelLabel: {
     ...typography.caption,

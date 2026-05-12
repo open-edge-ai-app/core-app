@@ -1,4 +1,7 @@
 module.exports = {
+  moduleNameMapper: {
+    '\\.(png)$': '<rootDir>/__mocks__/fileMock.js',
+  },
   preset: '@react-native/jest-preset',
   setupFiles: ['./jest.setup.js'],
   transformIgnorePatterns: [

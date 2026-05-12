@@ -1,5 +1,11 @@
-import React from 'react';
-import { Image, ImageSourcePropType, StyleSheet, View } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import {
+  Image,
+  ImageSourcePropType,
+  Pressable,
+  StyleSheet,
+  View,
+} from 'react-native';
 
 import claudeLogo from '@lobehub/icons-static-png/light/claude-color.png';
 import deepseekLogo from '@lobehub/icons-static-png/light/deepseek-color.png';
@@ -12,8 +18,11 @@ import openaiLogo from '@lobehub/icons-static-png/light/openai.png';
 import qwenLogo from '@lobehub/icons-static-png/light/qwen-color.png';
 
 import MarkdownText from './MarkdownText';
+import AppIcon from './AppIcon';
 import { Button } from './ui';
+import { copyToClipboard } from '../native/Clipboard';
 import { ScaledText as Text } from '../theme/display';
+import { appIcons } from '../theme/icons';
 import { colors, typography } from '../theme/tokens';
 
 export type ChatRole = 'assistant' | 'user' | 'system';
@@ -26,6 +35,8 @@ export type ChatBubbleAction = {
 type ChatBubbleProps = {
   actions?: ChatBubbleAction[];
   assistantName?: string;
+  isRetryDisabled?: boolean;
+  onRetry?: () => void;
   role: ChatRole;
   text: string;
   thumbnail?: ImageSourcePropType;
@@ -116,12 +127,41 @@ const getAssistantProfile = (assistantName: string): AssistantProfile => {
 function ChatBubble({
   actions = [],
   assistantName = 'Gemma 4',
+  isRetryDisabled = false,
+  onRetry,
   role,
   text,
   thumbnail,
   timestamp,
 }: ChatBubbleProps) {
   const assistantProfile = getAssistantProfile(assistantName);
+  const [isCopied, setIsCopied] = useState(false);
+  const copiedTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const canUseAssistantActions = role === 'assistant' && text.trim().length > 0;
+
+  useEffect(
+    () => () => {
+      if (copiedTimeoutRef.current) {
+        clearTimeout(copiedTimeoutRef.current);
+      }
+    },
+    [],
+  );
+
+  const handleCopyResponse = async () => {
+    const didCopy = await copyToClipboard(text);
+    if (!didCopy) {
+      return;
+    }
+
+    setIsCopied(true);
+    if (copiedTimeoutRef.current) {
+      clearTimeout(copiedTimeoutRef.current);
+    }
+    copiedTimeoutRef.current = setTimeout(() => {
+      setIsCopied(false);
+    }, 1400);
+  };
 
   if (role === 'system') {
     return (
@@ -179,7 +219,52 @@ function ChatBubble({
           <Image source={thumbnail} style={styles.thumbnail} />
         ) : null}
 
-        <MarkdownText style={styles.assistantText} text={text} />
+        <MarkdownText selectable style={styles.assistantText} text={text} />
+
+        {canUseAssistantActions ? (
+          <View style={styles.assistantActions}>
+            <Pressable
+              accessibilityLabel="AI 응답 전체 복사"
+              accessibilityRole="button"
+              hitSlop={6}
+              onPress={handleCopyResponse}
+              style={({ pressed }) => [
+                styles.assistantActionButton,
+                pressed && styles.assistantActionButtonPressed,
+              ]}
+            >
+              <AppIcon
+                color={isCopied ? colors.success : colors.mutedForeground}
+                icon={appIcons.copy}
+                size={13}
+              />
+              {isCopied ? (
+                <Text style={styles.assistantActionFeedback}>복사됨</Text>
+              ) : null}
+            </Pressable>
+
+            {onRetry ? (
+              <Pressable
+                accessibilityLabel="AI 응답 다시 시도"
+                accessibilityRole="button"
+                disabled={isRetryDisabled}
+                hitSlop={6}
+                onPress={onRetry}
+                style={({ pressed }) => [
+                  styles.assistantActionButton,
+                  pressed && styles.assistantActionButtonPressed,
+                  isRetryDisabled && styles.assistantActionButtonDisabled,
+                ]}
+              >
+                <AppIcon
+                  color={colors.mutedForeground}
+                  icon={appIcons.retry}
+                  size={13}
+                />
+              </Pressable>
+            ) : null}
+          </View>
+        ) : null}
 
         {actions.length > 0 ? (
           <View style={styles.actions}>
@@ -249,6 +334,36 @@ const styles = StyleSheet.create({
     color: colors.cardForeground,
     fontWeight: '400',
     lineHeight: 24,
+  },
+  assistantActions: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 6,
+    marginTop: 10,
+  },
+  assistantActionButton: {
+    alignItems: 'center',
+    borderColor: colors.border,
+    borderRadius: 8,
+    borderWidth: StyleSheet.hairlineWidth,
+    flexDirection: 'row',
+    gap: 5,
+    height: 30,
+    justifyContent: 'center',
+    minWidth: 30,
+    paddingHorizontal: 8,
+  },
+  assistantActionButtonDisabled: {
+    opacity: 0.42,
+  },
+  assistantActionButtonPressed: {
+    backgroundColor: colors.muted,
+  },
+  assistantActionFeedback: {
+    ...typography.caption,
+    color: colors.success,
+    fontSize: 11,
+    fontWeight: '700',
   },
   userRow: {
     alignItems: 'flex-end',

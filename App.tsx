@@ -169,7 +169,6 @@ const RECENT_ACTION_MENU_OFFSET = 10;
 const RECENT_ACTION_MENU_WIDTH = 214;
 const RECENT_ACTION_MENU_HEIGHT = 160;
 const WORK_FOLDER_ACTION_MENU_HEIGHT = 122;
-const WORK_FOLDER_SESSION_ACTION_MENU_HEIGHT = 46;
 
 const modelOptions: ModelOption[] = [
   {
@@ -662,6 +661,13 @@ function App() {
           : session,
       ),
     );
+    setWorkFolderSessions(current =>
+      current.map(session =>
+        session.id === sessionId
+          ? { ...session, pinned: !session.pinned }
+          : session,
+      ),
+    );
   };
 
   const handleMoveSessionToWorkFolder = (
@@ -782,7 +788,7 @@ function App() {
       return [
         {
           id: removedSession.id,
-          pinned: false,
+          pinned: removedSession.pinned ?? false,
           title: removedSession.title,
         },
         ...current,
@@ -1273,15 +1279,8 @@ function FullScreenMenu({
 
     const openMenu = (anchor: RecentActionMenuAnchor) => {
       closeWorkFolderActionMenu();
-      const menuSize =
-        scope === 'workFolder'
-          ? {
-              height: WORK_FOLDER_SESSION_ACTION_MENU_HEIGHT,
-              width: RECENT_ACTION_MENU_WIDTH,
-            }
-          : undefined;
       actionMenuAnchorRef.current = anchor;
-      setActionSheetPosition(getBoundedActionMenuPosition(anchor, menuSize));
+      setActionSheetPosition(getBoundedActionMenuPosition(anchor));
       setActionSheetScope(scope);
       setActionSheetSession(session);
     };
@@ -1737,6 +1736,23 @@ function FullScreenMenu({
                     },
                   ]}
                 >
+                  <RecentActionButton
+                    icon={appIcons.rename}
+                    label="이름 바꾸기"
+                    onPress={() =>
+                      handleOpenRecentDialog('rename', actionSheetSession)
+                    }
+                  />
+                  <RecentActionButton
+                    icon={appIcons.pin}
+                    label={
+                      actionSheetSession.pinned ? '채팅 고정 해제' : '채팅 고정'
+                    }
+                    onPress={() => {
+                      onTogglePinnedSession(actionSheetSession.id);
+                      closeRecentActionMenu();
+                    }}
+                  />
                   {actionSheetScope === 'workFolder' ? (
                     <RecentActionButton
                       icon={appIcons.moveToFolder}
@@ -1747,43 +1763,22 @@ function FullScreenMenu({
                       }}
                     />
                   ) : (
-                    <>
-                      <RecentActionButton
-                        icon={appIcons.rename}
-                        label="이름 바꾸기"
-                        onPress={() =>
-                          handleOpenRecentDialog('rename', actionSheetSession)
-                        }
-                      />
-                      <RecentActionButton
-                        icon={appIcons.pin}
-                        label={
-                          actionSheetSession.pinned
-                            ? '채팅 고정 해제'
-                            : '채팅 고정'
-                        }
-                        onPress={() => {
-                          onTogglePinnedSession(actionSheetSession.id);
-                          closeRecentActionMenu();
-                        }}
-                      />
-                      <RecentActionButton
-                        icon={appIcons.moveToFolder}
-                        label="작업 폴더로 이동"
-                        onPress={() =>
-                          handleOpenRecentDialog('move', actionSheetSession)
-                        }
-                      />
-                      <RecentActionButton
-                        destructive
-                        icon={appIcons.delete}
-                        label="삭제"
-                        onPress={() =>
-                          handleOpenRecentDialog('delete', actionSheetSession)
-                        }
-                      />
-                    </>
+                    <RecentActionButton
+                      icon={appIcons.moveToFolder}
+                      label="작업 폴더로 이동"
+                      onPress={() =>
+                        handleOpenRecentDialog('move', actionSheetSession)
+                      }
+                    />
                   )}
+                  <RecentActionButton
+                    destructive
+                    icon={appIcons.delete}
+                    label="삭제"
+                    onPress={() =>
+                      handleOpenRecentDialog('delete', actionSheetSession)
+                    }
+                  />
                 </View>
               </View>
             ) : null}
@@ -2283,19 +2278,21 @@ function WorkFolderTreeRow({
         pressed && styles.menuRowPressed,
       ]}
     >
-      <View style={styles.workFolderTreeChevron}>
-        <AppIcon
-          color={colors.mutedForeground}
-          icon={expanded ? appIcons.chevronDown : appIcons.openPrompt}
-          size={12}
-        />
-      </View>
-      <View style={styles.workFolderTreeIcon}>
-        <AppIcon
-          color={colors.foreground}
-          icon={getWorkFolderIcon(folder.iconId)}
-          size={18}
-        />
+      <View style={styles.workFolderTreeIconSlot}>
+        <View style={styles.workFolderTreeIcon}>
+          <AppIcon
+            color={colors.foreground}
+            icon={getWorkFolderIcon(folder.iconId)}
+            size={18}
+          />
+        </View>
+        <View style={styles.workFolderTreeChevron}>
+          <AppIcon
+            color={colors.mutedForeground}
+            icon={expanded ? appIcons.chevronDown : appIcons.openPrompt}
+            size={12}
+          />
+        </View>
       </View>
       <Text numberOfLines={1} style={styles.workFolderTreeLabel}>
         {folder.title}
@@ -2578,20 +2575,27 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     flexDirection: 'row',
     minHeight: 50,
-    paddingHorizontal: 4,
+  },
+  workFolderTreeIconSlot: {
+    height: 34,
+    justifyContent: 'center',
+    position: 'relative',
+    width: 46,
+  },
+  workFolderTreeIcon: {
+    alignItems: 'flex-start',
+    height: 30,
+    justifyContent: 'center',
+    width: 26,
   },
   workFolderTreeChevron: {
     alignItems: 'center',
     height: 28,
     justifyContent: 'center',
-    width: 24,
-  },
-  workFolderTreeIcon: {
-    alignItems: 'center',
-    height: 30,
-    justifyContent: 'center',
-    marginRight: 10,
-    width: 26,
+    position: 'absolute',
+    right: 4,
+    top: 3,
+    width: 16,
   },
   workFolderTreeLabel: {
     ...typography.label,

@@ -18,6 +18,7 @@ import java.util.Locale
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.zip.ZipInputStream
 
 class MemoryIndexer(
     context: Context,
@@ -337,22 +338,26 @@ class MemoryIndexer(
                 val size = cursor.getLong(4)
                 val relativePath = if (relativePathIndex >= 0) cursor.getString(relativePathIndex) else null
                 val uri = ContentUris.withAppendedId(externalFiles, id)
-                val text = buildDocumentText(name, modified, mimeType, relativePath, uri)
-                val embedding = embedManager.embed(text)
-                val insertedId = dao.insert(
-                    VectorRecord(
-                        id = 0,
-                        source = SOURCE_DOCUMENT,
-                        sourceId = id.toString(),
-                        text = text,
-                        embedding = embedding,
-                        uri = uri.toString(),
-                        timestamp = modified,
-                        metadata = "mimeType=${mimeType.orEmpty()};size=$size;relativePath=${relativePath.orEmpty()}",
-                    ),
-                )
-                if (insertedId > 0) {
-                    indexed += 1
+                val baseText = buildDocumentText(name, modified, mimeType, relativePath, uri)
+                val extractedText = extractDocumentText(uri, mimeType)
+                val chunks = buildDocumentChunks(baseText, extractedText)
+                chunks.forEachIndexed { chunkIndex, chunk ->
+                    val embedding = embedManager.embed(chunk)
+                    val insertedId = dao.insert(
+                        VectorRecord(
+                            id = 0,
+                            source = SOURCE_DOCUMENT,
+                            sourceId = "$id:$chunkIndex",
+                            text = chunk,
+                            embedding = embedding,
+                            uri = uri.toString(),
+                            timestamp = modified,
+                            metadata = "mimeType=${mimeType.orEmpty()};size=$size;relativePath=${relativePath.orEmpty()};chunk=$chunkIndex;chunks=${chunks.size}",
+                        ),
+                    )
+                    if (insertedId > 0) {
+                        indexed += 1
+                    }
                 }
             }
         }
@@ -438,6 +443,85 @@ class MemoryIndexer(
     ): String =
         "${formatDate(timestamp)} document file ${name.orEmpty()} ${mimeType.orEmpty()} from ${relativePath.orEmpty()} at $uri"
 
+    private fun extractDocumentText(uri: Uri, mimeType: String?): String =
+        try {
+            when (mimeType?.lowercase(Locale.US)) {
+                "text/plain",
+                "text/csv",
+                "text/markdown",
+                "application/json" -> readTextDocument(uri)
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document" -> readDocxDocument(uri)
+                else -> ""
+            }
+        } catch (error: Exception) {
+            ""
+        }
+
+    private fun readTextDocument(uri: Uri): String =
+        appContext.contentResolver.openInputStream(uri).use { input ->
+            requireNotNull(input) { "Unable to open document: $uri" }
+            input.bufferedReader(Charsets.UTF_8).use { reader ->
+                reader.readText().take(MAX_DOCUMENT_TEXT_CHARS)
+            }
+        }
+
+    private fun readDocxDocument(uri: Uri): String {
+        val text = StringBuilder()
+        appContext.contentResolver.openInputStream(uri).use { input ->
+            requireNotNull(input) { "Unable to open document: $uri" }
+            ZipInputStream(input.buffered()).use { zip ->
+                while (true) {
+                    val entry = zip.nextEntry ?: break
+                    if (entry.name == "word/document.xml") {
+                        val xml = zip.bufferedReader(Charsets.UTF_8).use { reader ->
+                            reader.readText()
+                        }
+                        text.append(
+                            xml
+                                .replace(Regex("<w:tab\\b[^>]*/>"), "\t")
+                                .replace(Regex("</w:p>"), "\n")
+                                .replace(Regex("<[^>]+>"), " ")
+                                .replace("&amp;", "&")
+                                .replace("&lt;", "<")
+                                .replace("&gt;", ">")
+                                .replace("&quot;", "\"")
+                                .replace("&apos;", "'"),
+                        )
+                        break
+                    }
+                }
+            }
+        }
+        return normalizeDocumentBody(text.toString()).take(MAX_DOCUMENT_TEXT_CHARS)
+    }
+
+    private fun buildDocumentChunks(baseText: String, extractedText: String): List<String> {
+        val body = normalizeDocumentBody(extractedText)
+        if (body.isBlank()) {
+            return listOf(baseText)
+        }
+
+        val chunks = mutableListOf<String>()
+        var start = 0
+        while (start < body.length && chunks.size < MAX_DOCUMENT_CHUNKS) {
+            val end = minOf(body.length, start + DOCUMENT_CHUNK_CHARS)
+            val chunkBody = body.substring(start, end).trim()
+            if (chunkBody.isNotBlank()) {
+                chunks.add("$baseText\nContent chunk ${chunks.size + 1}:\n$chunkBody")
+            }
+            if (end == body.length) {
+                break
+            }
+            start = maxOf(end - DOCUMENT_CHUNK_OVERLAP_CHARS, start + 1)
+        }
+        return chunks.ifEmpty { listOf(baseText) }
+    }
+
+    private fun normalizeDocumentBody(text: String): String =
+        text
+            .replace(Regex("\\s+"), " ")
+            .trim()
+
     private fun formatDate(timestamp: Long): String =
         if (timestamp <= 0) {
             "unknown date"
@@ -508,6 +592,10 @@ class MemoryIndexer(
         private const val SOURCE_DOCUMENT = "document"
         private const val PREFS_NAME = "onda_indexing"
         private const val DEFAULT_SOURCE_ENABLED = false
+        private const val DOCUMENT_CHUNK_CHARS = 1200
+        private const val DOCUMENT_CHUNK_OVERLAP_CHARS = 160
+        private const val MAX_DOCUMENT_CHUNKS = 24
+        private const val MAX_DOCUMENT_TEXT_CHARS = 30_000
         private val DATE_FORMAT = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.KOREA)
         private val DOCUMENT_MIME_TYPES = arrayOf(
             "application/pdf",

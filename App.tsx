@@ -169,6 +169,7 @@ const RECENT_ACTION_MENU_OFFSET = 10;
 const RECENT_ACTION_MENU_WIDTH = 214;
 const RECENT_ACTION_MENU_HEIGHT = 160;
 const WORK_FOLDER_ACTION_MENU_HEIGHT = 122;
+const WORK_FOLDER_SESSION_ACTION_MENU_HEIGHT = 122;
 
 const modelOptions: ModelOption[] = [
   {
@@ -1279,8 +1280,15 @@ function FullScreenMenu({
 
     const openMenu = (anchor: RecentActionMenuAnchor) => {
       closeWorkFolderActionMenu();
+      const menuSize =
+        scope === 'workFolder'
+          ? {
+              height: WORK_FOLDER_SESSION_ACTION_MENU_HEIGHT,
+              width: RECENT_ACTION_MENU_WIDTH,
+            }
+          : undefined;
       actionMenuAnchorRef.current = anchor;
-      setActionSheetPosition(getBoundedActionMenuPosition(anchor));
+      setActionSheetPosition(getBoundedActionMenuPosition(anchor, menuSize));
       setActionSheetScope(scope);
       setActionSheetSession(session);
     };
@@ -1743,16 +1751,20 @@ function FullScreenMenu({
                       handleOpenRecentDialog('rename', actionSheetSession)
                     }
                   />
-                  <RecentActionButton
-                    icon={appIcons.pin}
-                    label={
-                      actionSheetSession.pinned ? '채팅 고정 해제' : '채팅 고정'
-                    }
-                    onPress={() => {
-                      onTogglePinnedSession(actionSheetSession.id);
-                      closeRecentActionMenu();
-                    }}
-                  />
+                  {actionSheetScope === 'recent' ? (
+                    <RecentActionButton
+                      icon={appIcons.pin}
+                      label={
+                        actionSheetSession.pinned
+                          ? '채팅 고정 해제'
+                          : '채팅 고정'
+                      }
+                      onPress={() => {
+                        onTogglePinnedSession(actionSheetSession.id);
+                        closeRecentActionMenu();
+                      }}
+                    />
+                  ) : null}
                   {actionSheetScope === 'workFolder' ? (
                     <RecentActionButton
                       icon={appIcons.moveToFolder}

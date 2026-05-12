@@ -836,10 +836,7 @@ function ChatScreen({
 
               {isGenerating && isAwaitingFirstChunk ? (
                 <View style={styles.loadingRow}>
-                  <LoadingDots />
-                  <Text style={styles.loadingText}>
-                    {selectedModelLabel} 응답 준비 중
-                  </Text>
+                  <LoadingDots label={`${selectedModelLabel} 응답 준비 중`} />
                 </View>
               ) : null}
             </View>
@@ -1156,14 +1153,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     alignSelf: 'flex-start',
     flexDirection: 'row',
-    gap: 8,
     marginBottom: 12,
     paddingHorizontal: 12,
     paddingVertical: 9,
-  },
-  loadingText: {
-    ...typography.caption,
-    color: colors.mutedForeground,
   },
   scrollToBottomButton: {
     alignItems: 'center',

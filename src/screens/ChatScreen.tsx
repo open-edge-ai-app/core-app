@@ -47,6 +47,7 @@ type ChatMode = {
 };
 
 type ChatScreenProps = {
+  commonSystemPrompt?: string;
   messages: ChatMessage[];
   onMessagesChange: (
     nextMessages: ChatMessage[],
@@ -119,6 +120,7 @@ const createSessionTitle = (prompt: string) => {
 };
 
 function ChatScreen({
+  commonSystemPrompt = '',
   messages,
   onMessagesChange,
   onSessionTitleChange,
@@ -136,14 +138,23 @@ function ChatScreen({
   );
 
   const history = useMemo<AIChatMessage[]>(
-    () =>
-      messages
+    () => [
+      ...(commonSystemPrompt.trim()
+        ? [
+            {
+              content: commonSystemPrompt.trim(),
+              role: 'system' as const,
+            },
+          ]
+        : []),
+      ...messages
         .filter(message => message.role !== 'system')
         .map(message => ({
           content: message.text,
           role: message.role,
         })),
-    [messages],
+    ],
+    [commonSystemPrompt, messages],
   );
 
   const composerOffsetStyle = useMemo(

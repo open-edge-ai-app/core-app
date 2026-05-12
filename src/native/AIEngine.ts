@@ -1,4 +1,4 @@
-import {NativeModules, Platform} from 'react-native';
+import { NativeModules, Platform } from 'react-native';
 
 export type AIChatRole = 'assistant' | 'user' | 'system';
 
@@ -177,12 +177,39 @@ async function createDevelopmentResponse(prompt: string) {
   ].join('\n');
 }
 
+const getSystemInstructions = (history: AIChatMessage[]) =>
+  history
+    .filter(message => message.role === 'system')
+    .map(message => message.content.trim())
+    .filter(Boolean)
+    .join('\n\n');
+
+const applySystemInstructions = (prompt: string, history: AIChatMessage[]) => {
+  const systemInstructions = getSystemInstructions(history);
+
+  if (!systemInstructions) {
+    return prompt;
+  }
+
+  return [
+    '다음 시스템 지침을 우선 적용하세요.',
+    systemInstructions,
+    '사용자 요청:',
+    prompt,
+  ].join('\n\n');
+};
+
 export const AIEngine = {
   isAvailable() {
     return isNativeAvailable();
   },
 
   async generateResponse(prompt: string, history: AIChatMessage[] = []) {
+    const promptWithSystemInstructions = applySystemInstructions(
+      prompt,
+      history,
+    );
+
     if (nativeModule?.sendMultimodalMessage) {
       const blockedReason = await ensureRuntimeReadyForGeneration();
       if (blockedReason) {
@@ -190,7 +217,7 @@ export const AIEngine = {
       }
 
       const response = await nativeModule.sendMultimodalMessage({
-        text: prompt,
+        text: promptWithSystemInstructions,
         attachments: [],
       });
       return response.message;
@@ -201,7 +228,7 @@ export const AIEngine = {
     }
 
     if (nativeModule?.sendMessage) {
-      return nativeModule.sendMessage(prompt);
+      return nativeModule.sendMessage(promptWithSystemInstructions);
     }
 
     return createDevelopmentResponse(prompt);
@@ -223,7 +250,8 @@ export const AIEngine = {
       return nativeModule.sendMultimodalMessage(message);
     }
 
-    const modalities = message.attachments?.map(attachment => attachment.type) ?? [];
+    const modalities =
+      message.attachments?.map(attachment => attachment.type) ?? [];
     return {
       type: 'text',
       message: await createDevelopmentResponse(message.text ?? ''),
@@ -263,8 +291,8 @@ export const AIEngine = {
       nextAction: modelStatus.installed
         ? 'continue'
         : modelStatus.isDownloading
-          ? 'show_download_progress'
-          : 'show_model_download',
+        ? 'show_download_progress'
+        : 'show_model_download',
       message: modelStatus.installed
         ? 'Model is installed. On-device inference is ready.'
         : 'Model is required before local inference can start.',
@@ -305,9 +333,7 @@ export const AIEngine = {
       return nativeModule.startIndexing();
     }
 
-    throw new Error(
-      `AIEngine native module is not linked on ${Platform.OS}.`,
-    );
+    throw new Error(`AIEngine native module is not linked on ${Platform.OS}.`);
   },
 };
 

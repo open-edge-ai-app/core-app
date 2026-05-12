@@ -101,6 +101,7 @@ type WorkFolderIconId =
 type WorkFolder = {
   iconId?: WorkFolderIconId;
   id: string;
+  memory?: string;
   title: string;
 };
 
@@ -134,7 +135,6 @@ type RecentSessionDialog =
   | { session: ChatSession; type: 'delete' };
 
 type WorkFolderActionDialog =
-  | { folder: WorkFolder; type: 'rename' }
   | { folder: WorkFolder; type: 'settings' }
   | { folder: WorkFolder; type: 'delete' };
 
@@ -168,7 +168,7 @@ const RECENT_ACTION_MENU_EDGE_GAP = 16;
 const RECENT_ACTION_MENU_OFFSET = 10;
 const RECENT_ACTION_MENU_WIDTH = 214;
 const RECENT_ACTION_MENU_HEIGHT = 160;
-const WORK_FOLDER_ACTION_MENU_HEIGHT = 122;
+const WORK_FOLDER_ACTION_MENU_HEIGHT = 84;
 const WORK_FOLDER_SESSION_ACTION_MENU_HEIGHT = 122;
 
 const modelOptions: ModelOption[] = [
@@ -328,6 +328,7 @@ const hydrateWorkFolders = (
       iconId: isWorkFolderIconId(folder.iconId)
         ? folder.iconId
         : DEFAULT_WORK_FOLDER_ICON_ID,
+      memory: typeof folder.memory === 'string' ? folder.memory : '',
     }));
 };
 
@@ -557,6 +558,26 @@ function App() {
     );
   }, [activeSessionId, chatMessagesBySessionId, draftChatMessages]);
 
+  const activeWorkFolderMemory = useMemo(() => {
+    if (!activeSessionId) {
+      return '';
+    }
+
+    const activeWorkFolderId = workFolderSessions.find(
+      session => session.id === activeSessionId,
+    )?.workFolderId;
+
+    if (!activeWorkFolderId) {
+      return '';
+    }
+
+    return (
+      workFolders
+        .find(folder => folder.id === activeWorkFolderId)
+        ?.memory?.trim() ?? ''
+    );
+  }, [activeSessionId, workFolders, workFolderSessions]);
+
   const handleNewChat = () => {
     setActiveScreen('chat');
     activeSessionIdRef.current = null;
@@ -703,28 +724,17 @@ function App() {
       {
         iconId,
         id: `work-folder-${Date.now()}`,
+        memory: '',
         title: nextTitle,
       },
     ]);
-  };
-
-  const handleRenameWorkFolder = (folderId: string, title: string) => {
-    const nextTitle = title.trim();
-    if (!nextTitle) {
-      return;
-    }
-
-    setWorkFolders(current =>
-      current.map(folder =>
-        folder.id === folderId ? { ...folder, title: nextTitle } : folder,
-      ),
-    );
   };
 
   const handleUpdateWorkFolder = (
     folderId: string,
     title: string,
     iconId: WorkFolderIconId,
+    memory: string,
   ) => {
     const nextTitle = title.trim();
     if (!nextTitle) {
@@ -734,7 +744,7 @@ function App() {
     setWorkFolders(current =>
       current.map(folder =>
         folder.id === folderId
-          ? { ...folder, iconId, title: nextTitle }
+          ? { ...folder, iconId, memory: memory.trim(), title: nextTitle }
           : folder,
       ),
     );
@@ -874,6 +884,7 @@ function App() {
           <View style={styles.content}>
             {activeScreen === 'chat' ? (
               <ChatScreen
+                commonSystemPrompt={activeWorkFolderMemory}
                 key={`chat-${chatInstanceKey}`}
                 messages={activeMessages}
                 onMessagesChange={handleChatMessagesChange}
@@ -893,7 +904,6 @@ function App() {
             onMoveSessionToWorkFolder={handleMoveSessionToWorkFolder}
             onNewChat={handleNewChat}
             onOpenSettings={handleOpenSettings}
-            onRenameWorkFolder={handleRenameWorkFolder}
             onRenameSession={handleRenameSession}
             onRemoveSessionFromWorkFolder={handleRemoveSessionFromWorkFolder}
             onSelectSession={handleSelectSession}
@@ -918,7 +928,6 @@ function FullScreenMenu({
   onMoveSessionToWorkFolder,
   onNewChat,
   onOpenSettings,
-  onRenameWorkFolder,
   onRenameSession,
   onRemoveSessionFromWorkFolder,
   onSelectSession,
@@ -936,7 +945,6 @@ function FullScreenMenu({
   onMoveSessionToWorkFolder: (sessionId: string, workFolderId: string) => void;
   onNewChat: () => void;
   onOpenSettings: () => void;
-  onRenameWorkFolder: (folderId: string, title: string) => void;
   onRenameSession: (sessionId: string, title: string) => void;
   onRemoveSessionFromWorkFolder: (sessionId: string) => void;
   onSelectSession: (title: string, id?: string) => void;
@@ -945,6 +953,7 @@ function FullScreenMenu({
     folderId: string,
     title: string,
     iconId: WorkFolderIconId,
+    memory: string,
   ) => void;
   recentSessions: ChatSession[];
   visible: boolean;
@@ -995,6 +1004,8 @@ function FullScreenMenu({
   const [workFolderActionDialog, setWorkFolderActionDialog] =
     useState<WorkFolderActionDialog | null>(null);
   const [workFolderActionTitleDraft, setWorkFolderActionTitleDraft] =
+    useState('');
+  const [workFolderActionMemoryDraft, setWorkFolderActionMemoryDraft] =
     useState('');
   const [workFolderActionIconId, setWorkFolderActionIconId] =
     useState<WorkFolderIconId>(DEFAULT_WORK_FOLDER_ICON_ID);
@@ -1147,6 +1158,7 @@ function FullScreenMenu({
     setSearchDraft('');
     setWorkFolderActionDialog(null);
     setWorkFolderActionTitleDraft('');
+    setWorkFolderActionMemoryDraft('');
     setWorkFolderActionIconId(DEFAULT_WORK_FOLDER_ICON_ID);
     setIsWorkFolderActionIconMenuOpen(false);
   }, [visible]);
@@ -1416,6 +1428,7 @@ function FullScreenMenu({
     closeFloatingActionMenus();
     setWorkFolderActionDialog({ folder, type } as WorkFolderActionDialog);
     setWorkFolderActionTitleDraft(folder.title);
+    setWorkFolderActionMemoryDraft(folder.memory ?? '');
     setWorkFolderActionIconId(folder.iconId ?? DEFAULT_WORK_FOLDER_ICON_ID);
     setIsWorkFolderActionIconMenuOpen(false);
   };
@@ -1423,22 +1436,9 @@ function FullScreenMenu({
   const handleCloseWorkFolderActionDialog = () => {
     setWorkFolderActionDialog(null);
     setWorkFolderActionTitleDraft('');
+    setWorkFolderActionMemoryDraft('');
     setWorkFolderActionIconId(DEFAULT_WORK_FOLDER_ICON_ID);
     setIsWorkFolderActionIconMenuOpen(false);
-  };
-
-  const handleSubmitWorkFolderRename = () => {
-    if (workFolderActionDialog?.type !== 'rename') {
-      return;
-    }
-
-    const nextTitle = workFolderActionTitleDraft.trim();
-    if (!nextTitle) {
-      return;
-    }
-
-    onRenameWorkFolder(workFolderActionDialog.folder.id, nextTitle);
-    handleCloseWorkFolderActionDialog();
   };
 
   const handleSubmitWorkFolderSettings = () => {
@@ -1455,6 +1455,7 @@ function FullScreenMenu({
       workFolderActionDialog.folder.id,
       nextTitle,
       workFolderActionIconId,
+      workFolderActionMemoryDraft,
     );
     handleCloseWorkFolderActionDialog();
   };
@@ -1507,10 +1508,8 @@ function FullScreenMenu({
     (recentDialog?.type === 'rename' && !renameDraft.trim()) ||
     (recentDialog?.type === 'move' && !selectedWorkFolderId);
   const isWorkFolderActionPrimaryDisabled =
-    (workFolderActionDialog?.type === 'rename' &&
-      !workFolderActionTitleDraft.trim()) ||
-    (workFolderActionDialog?.type === 'settings' &&
-      !workFolderActionTitleDraft.trim());
+    workFolderActionDialog?.type === 'settings' &&
+    !workFolderActionTitleDraft.trim();
 
   return (
     <Modal
@@ -1817,16 +1816,6 @@ function FullScreenMenu({
                   ]}
                 >
                   <RecentActionButton
-                    icon={appIcons.rename}
-                    label="이름 바꾸기"
-                    onPress={() =>
-                      handleOpenWorkFolderActionDialog(
-                        'rename',
-                        workFolderActionSheetFolder,
-                      )
-                    }
-                  />
-                  <RecentActionButton
                     icon={appIcons.settings}
                     label="작업 폴더 설정"
                     onPress={() =>
@@ -2023,50 +2012,59 @@ function FullScreenMenu({
                 />
                 <View style={styles.recentDialogCard}>
                   <Text style={styles.recentDialogTitle}>
-                    {workFolderActionDialog.type === 'rename'
-                      ? '작업 폴더 이름 바꾸기'
-                      : workFolderActionDialog.type === 'settings'
+                    {workFolderActionDialog.type === 'settings'
                       ? '작업 폴더 설정'
                       : '작업 폴더 삭제'}
                   </Text>
-                  {workFolderActionDialog.type === 'rename' ? (
-                    <RNTextInput
-                      accessibilityLabel="작업 폴더 이름"
-                      autoFocus
-                      onChangeText={setWorkFolderActionTitleDraft}
-                      onSubmitEditing={handleSubmitWorkFolderRename}
-                      placeholder="작업 폴더 이름"
-                      placeholderTextColor={colors.mutedForeground}
-                      returnKeyType="done"
-                      style={styles.recentDialogInput}
-                      value={workFolderActionTitleDraft}
-                    />
-                  ) : workFolderActionDialog.type === 'settings' ? (
-                    <FloatingSelect
-                      accessibilityLabel="작업 폴더 아이콘 변경"
-                      expanded={isWorkFolderActionIconMenuOpen}
-                      onExpandedChange={setIsWorkFolderActionIconMenuOpen}
-                      onValueChange={setWorkFolderActionIconId}
-                      options={workFolderIconOptions}
-                      selectedValue={workFolderActionIconId}
-                      triggerIconSize={17}
-                      variant="compact"
-                    >
+                  {workFolderActionDialog.type === 'settings' ? (
+                    <View>
+                      <Text style={styles.workFolderSettingsLabel}>
+                        이름과 아이콘
+                      </Text>
+                      <FloatingSelect
+                        accessibilityLabel="작업 폴더 아이콘 변경"
+                        expanded={isWorkFolderActionIconMenuOpen}
+                        onExpandedChange={setIsWorkFolderActionIconMenuOpen}
+                        onValueChange={setWorkFolderActionIconId}
+                        options={workFolderIconOptions}
+                        selectedValue={workFolderActionIconId}
+                        triggerIconSize={17}
+                        variant="compact"
+                      >
+                        <RNTextInput
+                          accessibilityLabel="작업 폴더 이름"
+                          autoFocus
+                          onChangeText={setWorkFolderActionTitleDraft}
+                          onSubmitEditing={handleSubmitWorkFolderSettings}
+                          placeholder="작업 폴더 이름"
+                          placeholderTextColor={colors.mutedForeground}
+                          returnKeyType="done"
+                          style={[
+                            styles.recentDialogInput,
+                            styles.workFolderNameInput,
+                          ]}
+                          value={workFolderActionTitleDraft}
+                        />
+                      </FloatingSelect>
+                      <Text style={styles.workFolderSettingsLabel}>메모리</Text>
                       <RNTextInput
-                        accessibilityLabel="작업 폴더 이름"
-                        autoFocus
-                        onChangeText={setWorkFolderActionTitleDraft}
-                        onSubmitEditing={handleSubmitWorkFolderSettings}
-                        placeholder="작업 폴더 이름"
+                        accessibilityLabel="작업 폴더 메모리"
+                        multiline
+                        onChangeText={setWorkFolderActionMemoryDraft}
+                        placeholder="이 작업 폴더의 모든 채팅에 적용할 공통 시스템 프롬프트"
                         placeholderTextColor={colors.mutedForeground}
-                        returnKeyType="done"
                         style={[
                           styles.recentDialogInput,
-                          styles.workFolderNameInput,
+                          styles.workFolderMemoryInput,
                         ]}
-                        value={workFolderActionTitleDraft}
+                        textAlignVertical="top"
+                        value={workFolderActionMemoryDraft}
                       />
-                    </FloatingSelect>
+                      <Text style={styles.workFolderSettingsHelp}>
+                        이 내용은 폴더 안 채팅의 공통 시스템 지침으로 함께
+                        전달됩니다.
+                      </Text>
+                    </View>
                   ) : (
                     <Text style={styles.recentDialogMessage}>
                       이 작업 폴더를 삭제할까요? 폴더 안의 채팅은 최근 목록으로
@@ -2088,9 +2086,7 @@ function FullScreenMenu({
                       accessibilityRole="button"
                       disabled={isWorkFolderActionPrimaryDisabled}
                       onPress={
-                        workFolderActionDialog.type === 'rename'
-                          ? handleSubmitWorkFolderRename
-                          : workFolderActionDialog.type === 'settings'
+                        workFolderActionDialog.type === 'settings'
                           ? handleSubmitWorkFolderSettings
                           : handleConfirmWorkFolderDelete
                       }
@@ -2105,9 +2101,7 @@ function FullScreenMenu({
                       ]}
                     >
                       <Text style={styles.recentDialogPrimaryText}>
-                        {workFolderActionDialog.type === 'rename'
-                          ? '저장'
-                          : workFolderActionDialog.type === 'settings'
+                        {workFolderActionDialog.type === 'settings'
                           ? '적용'
                           : '삭제'}
                       </Text>
@@ -2835,6 +2829,26 @@ const styles = StyleSheet.create({
   },
   workFolderNameInput: {
     flex: 1,
+  },
+  workFolderSettingsLabel: {
+    ...typography.caption,
+    color: colors.mutedForeground,
+    fontSize: 12,
+    fontWeight: '700',
+    marginBottom: 8,
+    marginTop: 14,
+  },
+  workFolderMemoryInput: {
+    minHeight: 112,
+    paddingTop: 12,
+  },
+  workFolderSettingsHelp: {
+    ...typography.caption,
+    color: colors.mutedForeground,
+    fontSize: 12,
+    fontWeight: '500',
+    lineHeight: 17,
+    marginTop: 8,
   },
   searchInputWrap: {
     alignItems: 'center',

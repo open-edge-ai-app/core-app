@@ -58,7 +58,7 @@ type ChatScreenProps = {
   onMessagesChange: (
     nextMessages: ChatMessage[],
     sessionTitleCandidate?: string,
-  ) => void;
+  ) => string | null;
   onSessionTitleChange?: (title: string) => void;
   selectedModelLabel?: string;
   sessionId?: string | null;
@@ -241,7 +241,7 @@ function ChatScreen({
     (draft.trim().length > 0 || selectedAttachments.length > 0) &&
     !isGenerating;
 
-  const history = useMemo<AIChatMessage[]>(
+  const systemHistory = useMemo<AIChatMessage[]>(
     () => [
       ...(commonSystemPrompt.trim()
         ? [
@@ -251,14 +251,8 @@ function ChatScreen({
             },
           ]
         : []),
-      ...messages
-        .filter(message => message.role !== 'system')
-        .map(message => ({
-          content: message.text,
-          role: message.role,
-        })),
     ],
-    [commonSystemPrompt, messages],
+    [commonSystemPrompt],
   );
 
   const composerOffsetStyle = useMemo(
@@ -423,10 +417,11 @@ function ChatScreen({
       return;
     }
 
-    onMessagesChange(
-      [...messagesWithUserPrompt, assistantMessage],
-      nextSessionTitle,
-    );
+    const resolvedSessionId =
+      onMessagesChange(
+        [...messagesWithUserPrompt, assistantMessage],
+        nextSessionTitle,
+      ) ?? sessionId;
     if (!hasUserMessages) {
       onSessionTitleChange?.(nextSessionTitle ?? '새 채팅');
     }
@@ -438,16 +433,15 @@ function ChatScreen({
 
     let streamedResponse = '';
     try {
-      if (sessionId) {
-        await AIEngine.compactChatSession(sessionId, 'auto').catch(
+      if (resolvedSessionId) {
+        await AIEngine.compactChatSession(resolvedSessionId, 'auto').catch(
           () => undefined,
         );
       }
 
       const requestHistory = [
-        ...history,
+        ...systemHistory,
         createRuntimeContextMessage(),
-        { content: promptForModel, role: 'user' as const },
       ];
 
       const updateAssistantMessage = (text: string) => {
@@ -479,7 +473,7 @@ function ChatScreen({
         },
         {
           attachments: attachmentsForPrompt,
-          chatSessionId: sessionId ?? undefined,
+          chatSessionId: resolvedSessionId ?? undefined,
         },
       );
 
@@ -531,7 +525,6 @@ function ChatScreen({
   }, [
     draft,
     hasUserMessages,
-    history,
     isGenerating,
     messages,
     onMessagesChange,
@@ -539,6 +532,7 @@ function ChatScreen({
     selectedModelLabel,
     selectedAttachments,
     sessionId,
+    systemHistory,
   ]);
 
   const handleAttachFile = useCallback(async () => {

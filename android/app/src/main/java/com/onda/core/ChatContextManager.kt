@@ -163,7 +163,7 @@ class ChatContextManager(
 
         val snapshot = getLatestSnapshot(chatId) ?: return currentPrompt
         val contextMessages = snapshot.optJSONArray("messages") ?: return currentPrompt
-        val renderedContext = renderMessages(contextMessages)
+        val renderedContext = renderMessages(contextMessages, currentPrompt)
         if (renderedContext.isBlank()) {
             return currentPrompt
         }
@@ -348,17 +348,41 @@ class ChatContextManager(
         }
     }
 
-    private fun renderMessages(messages: JSONArray): String {
+    private fun renderMessages(messages: JSONArray, currentPrompt: String): String {
         val rendered = mutableListOf<String>()
+        val normalizedCurrentPrompt = currentPrompt.trim()
+        val lastNonBlankIndex = findLastNonBlankMessageIndex(messages)
         for (index in 0 until messages.length()) {
             val message = messages.optJSONObject(index) ?: continue
             val role = message.optString("role", "user")
             val content = message.optString("content", "").trim()
+            val isCurrentPromptAlreadyInSnapshot =
+                index == lastNonBlankIndex &&
+                    role == "user" &&
+                    normalizedCurrentPrompt.isNotBlank() &&
+                    content == normalizedCurrentPrompt
+            if (isCurrentPromptAlreadyInSnapshot) {
+                continue
+            }
             if (content.isNotBlank()) {
                 rendered.add("$role: $content")
             }
         }
         return rendered.joinToString("\n")
+    }
+
+    private fun findLastNonBlankMessageIndex(messages: JSONArray): Int {
+        for (index in messages.length() - 1 downTo 0) {
+            val content = messages
+                .optJSONObject(index)
+                ?.optString("content", "")
+                ?.trim()
+                .orEmpty()
+            if (content.isNotBlank()) {
+                return index
+            }
+        }
+        return -1
     }
 
     private fun JSONObject.compactSummary(): String? {

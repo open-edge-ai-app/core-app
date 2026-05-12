@@ -1,0 +1,18 @@
+# Default reviewer for all changes.
+* @minjuun05
+
+# Repository operations and community health files.
+/.github/ @minjuun05
+/CODE_OF_CONDUCT.md @minjuun05
+/CONTRIBUTING.md @minjuun05
+/SECURITY.md @minjuun05
+/SUPPORT.md @minjuun05
+
+# Product and architecture documentation.
+/README.md @minjuun05
+/docs/ @minjuun05
+
+# Platform-specific implementation areas.
+/android/ @minjuun05
+/ios/ @minjuun05
+/src/ @minjuun05

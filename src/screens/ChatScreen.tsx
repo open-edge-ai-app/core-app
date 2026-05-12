@@ -58,7 +58,7 @@ type ChatScreenProps = {
   onMessagesChange: (
     nextMessages: ChatMessage[],
     sessionTitleCandidate?: string,
-  ) => void;
+  ) => string | null;
   onSessionTitleChange?: (title: string) => void;
   selectedModelLabel?: string;
   sessionId?: string | null;
@@ -211,10 +211,7 @@ const createUserMessageText = (
     .join('\n\n');
 };
 
-const createModelHistory = (
-  commonSystemPrompt: string,
-  sourceMessages: ChatMessage[],
-): AIChatMessage[] => [
+const createSystemHistory = (commonSystemPrompt: string): AIChatMessage[] => [
   ...(commonSystemPrompt.trim()
     ? [
         {
@@ -223,12 +220,6 @@ const createModelHistory = (
         },
       ]
     : []),
-  ...sourceMessages
-    .filter(message => message.role !== 'system')
-    .map(message => ({
-      content: message.text,
-      role: message.role,
-    })),
 ];
 
 function ChatScreen({
@@ -261,9 +252,9 @@ function ChatScreen({
     (draft.trim().length > 0 || selectedAttachments.length > 0) &&
     !isGenerating;
 
-  const history = useMemo<AIChatMessage[]>(
-    () => createModelHistory(commonSystemPrompt, messages),
-    [commonSystemPrompt, messages],
+  const systemHistory = useMemo<AIChatMessage[]>(
+    () => createSystemHistory(commonSystemPrompt),
+    [commonSystemPrompt],
   );
 
   const composerOffsetStyle = useMemo(
@@ -428,10 +419,11 @@ function ChatScreen({
       return;
     }
 
-    onMessagesChange(
-      [...messagesWithUserPrompt, assistantMessage],
-      nextSessionTitle,
-    );
+    const resolvedSessionId =
+      onMessagesChange(
+        [...messagesWithUserPrompt, assistantMessage],
+        nextSessionTitle,
+      ) ?? sessionId;
     if (!hasUserMessages) {
       onSessionTitleChange?.(nextSessionTitle ?? '새 채팅');
     }
@@ -443,16 +435,15 @@ function ChatScreen({
 
     let streamedResponse = '';
     try {
-      if (sessionId) {
-        await AIEngine.compactChatSession(sessionId, 'auto').catch(
+      if (resolvedSessionId) {
+        await AIEngine.compactChatSession(resolvedSessionId, 'auto').catch(
           () => undefined,
         );
       }
 
       const requestHistory = [
-        ...history,
+        ...systemHistory,
         createRuntimeContextMessage(),
-        { content: promptForModel, role: 'user' as const },
       ];
 
       const updateAssistantMessage = (text: string) => {
@@ -484,7 +475,7 @@ function ChatScreen({
         },
         {
           attachments: attachmentsForPrompt,
-          chatSessionId: sessionId ?? undefined,
+          chatSessionId: resolvedSessionId ?? undefined,
         },
       );
 
@@ -536,7 +527,6 @@ function ChatScreen({
   }, [
     draft,
     hasUserMessages,
-    history,
     isGenerating,
     messages,
     onMessagesChange,
@@ -544,6 +534,7 @@ function ChatScreen({
     selectedModelLabel,
     selectedAttachments,
     sessionId,
+    systemHistory,
   ]);
 
   const handleRetryResponse = useCallback(
@@ -610,9 +601,8 @@ function ChatScreen({
         }
 
         const requestHistory = [
-          ...createModelHistory(commonSystemPrompt, messages.slice(0, userIndex)),
+          ...createSystemHistory(commonSystemPrompt),
           createRuntimeContextMessage(),
-          { content: promptForModel, role: 'user' as const },
         ];
 
         const response = await AIEngine.generateResponseStream(

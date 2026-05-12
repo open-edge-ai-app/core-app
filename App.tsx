@@ -763,12 +763,12 @@ function App() {
           ...current,
           [currentSessionId]: nextMessages,
         }));
-        return;
+        return currentSessionId;
       }
 
       if (!nextMessages.some(message => message.role === 'user')) {
         setDraftChatMessages(nextMessages);
-        return;
+        return null;
       }
 
       const nextSessionId = createChatSessionId();
@@ -790,6 +790,7 @@ function App() {
         [nextSessionId]: nextMessages,
       }));
       setDraftChatMessages(createInitialChatMessages());
+      return nextSessionId;
     },
     [sessionTitle],
   );

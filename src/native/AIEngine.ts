@@ -39,6 +39,17 @@ export type StoredChatSession = {
   history: StoredChatHistoryEvent[];
 };
 
+export type ChatCompactionResult = {
+  chatId: string;
+  compacted: boolean;
+  trigger: 'manual' | 'auto' | string;
+  message: string;
+  beforeTokenEstimate: number;
+  afterTokenEstimate: number;
+  compactedUntilMessageId?: string | null;
+  snapshotId: number;
+};
+
 export type IndexingStatus = {
   isAvailable: boolean;
   isIndexing: boolean;
@@ -106,6 +117,7 @@ export type MultimodalMessage = {
   text?: string;
   attachments?: MultimodalAttachment[];
   options?: {
+    chatSessionId?: string;
     useRag?: boolean;
     stream?: boolean;
   };
@@ -169,6 +181,14 @@ type AIEngineNativeModule = {
   loadChatSession?: (sessionId: string) => Promise<StoredChatSession | null>;
   listChatSessions?: () => Promise<StoredChatSession['chat'][]>;
   deleteChatSession?: (sessionId: string) => Promise<number>;
+  compactChatSession?: (
+    sessionId: string,
+    trigger: 'manual' | 'auto' | string,
+  ) => Promise<ChatCompactionResult>;
+  generateChatTitle?: (
+    userMessage: string,
+    assistantMessage: string,
+  ) => Promise<string>;
   addListener: (eventName: string) => void;
   removeListeners: (count: number) => void;
 };
@@ -257,6 +277,16 @@ async function createDevelopmentResponse(prompt: string) {
   ].join('\n');
 }
 
+const createFallbackChatTitle = (text: string) => {
+  const normalized = text.replace(/\s+/g, ' ').trim();
+
+  if (!normalized) {
+    return 'New chat';
+  }
+
+  return normalized.length <= 40 ? normalized : `${normalized.slice(0, 40)}...`;
+};
+
 const createStreamRequestId = () =>
   `stream-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
@@ -333,7 +363,11 @@ export const AIEngine = {
     return isNativeAvailable();
   },
 
-  async generateResponse(prompt: string, history: AIChatMessage[] = []) {
+  async generateResponse(
+    prompt: string,
+    history: AIChatMessage[] = [],
+    options: { chatSessionId?: string } = {},
+  ) {
     const promptWithSystemInstructions = applySystemInstructions(
       prompt,
       history,
@@ -348,6 +382,9 @@ export const AIEngine = {
       const response = await nativeModule.sendMultimodalMessage({
         text: promptWithSystemInstructions,
         attachments: [],
+        options: {
+          chatSessionId: options.chatSessionId,
+        },
       });
       return response.message;
     }
@@ -367,6 +404,7 @@ export const AIEngine = {
     prompt: string,
     history: AIChatMessage[] = [],
     callbacks: AIResponseStreamCallbacks,
+    options: { chatSessionId?: string } = {},
   ) {
     const promptWithSystemInstructions = applySystemInstructions(
       prompt,
@@ -440,6 +478,7 @@ export const AIEngine = {
           sendMultimodalMessageStream(requestId, {
             attachments: [],
             options: {
+              chatSessionId: options.chatSessionId,
               stream: true,
             },
             text: promptWithSystemInstructions,
@@ -455,7 +494,7 @@ export const AIEngine = {
       }
     }
 
-    const response = await this.generateResponse(prompt, history);
+    const response = await this.generateResponse(prompt, history, options);
     return streamCompletedText(response, callbacks);
   },
 
@@ -652,6 +691,60 @@ export const AIEngine = {
 
   async deleteChatSession(sessionId: string): Promise<number> {
     return nativeModule?.deleteChatSession?.(sessionId) ?? 0;
+  },
+
+  async compactChatSession(
+    sessionId: string,
+    trigger: 'manual' | 'auto' | string = 'manual',
+  ): Promise<ChatCompactionResult> {
+    if (!nativeModule?.compactChatSession) {
+      return {
+        afterTokenEstimate: 0,
+        beforeTokenEstimate: 0,
+        chatId: sessionId,
+        compacted: false,
+        message: 'AIEngine native module is not linked.',
+        snapshotId: 0,
+        trigger,
+      };
+    }
+
+    const blockedReason = await ensureRuntimeReadyForGeneration();
+    if (blockedReason) {
+      return {
+        afterTokenEstimate: 0,
+        beforeTokenEstimate: 0,
+        chatId: sessionId,
+        compacted: false,
+        message: blockedReason,
+        snapshotId: 0,
+        trigger,
+      };
+    }
+
+    return nativeModule.compactChatSession(sessionId, trigger);
+  },
+
+  async generateChatTitle(
+    userMessage: string,
+    assistantMessage: string,
+  ): Promise<string> {
+    const fallbackTitle = createFallbackChatTitle(userMessage);
+
+    if (!nativeModule?.generateChatTitle) {
+      return fallbackTitle;
+    }
+
+    const blockedReason = await ensureRuntimeReadyForGeneration();
+    if (blockedReason) {
+      return fallbackTitle;
+    }
+
+    const title = await nativeModule.generateChatTitle(
+      userMessage,
+      assistantMessage,
+    );
+    return createFallbackChatTitle(title || fallbackTitle);
   },
 };
 

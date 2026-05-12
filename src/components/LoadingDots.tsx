@@ -1,5 +1,5 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { Animated, StyleSheet, View } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { StyleSheet, View } from 'react-native';
 
 import { ScaledText as Text } from '../theme/display';
 import { colors, typography } from '../theme/tokens';
@@ -11,82 +11,39 @@ type LoadingDotsProps = {
 const ellipsisFrames = ['.', '..', '...'];
 
 function LoadingDots({ label }: LoadingDotsProps) {
-  const [ellipsisIndex, setEllipsisIndex] = useState(0);
-  const dotValues = useRef([
-    new Animated.Value(0.3),
-    new Animated.Value(0.3),
-    new Animated.Value(0.3),
-  ]).current;
+  const [frameIndex, setFrameIndex] = useState(0);
 
   useEffect(() => {
-    if (!label) {
-      return undefined;
-    }
-
     const intervalId = setInterval(() => {
-      setEllipsisIndex(currentIndex =>
+      setFrameIndex(currentIndex =>
         currentIndex >= ellipsisFrames.length - 1 ? 0 : currentIndex + 1,
       );
-    }, 360);
+    }, 260);
 
     return () => clearInterval(intervalId);
-  }, [label]);
-
-  useEffect(() => {
-    const animations = dotValues.map(value =>
-      Animated.sequence([
-        Animated.timing(value, {
-          duration: 280,
-          toValue: 1,
-          useNativeDriver: true,
-        }),
-        Animated.timing(value, {
-          duration: 280,
-          toValue: 0.3,
-          useNativeDriver: true,
-        }),
-      ]),
-    );
-    const loop = Animated.loop(Animated.stagger(140, animations));
-
-    loop.start();
-
-    return () => loop.stop();
-  }, [dotValues]);
+  }, []);
 
   return (
     <View accessibilityLabel="AI response loading" style={styles.container}>
       <View style={styles.dots}>
-        {dotValues.map((value, index) => (
-          <Animated.View
-            key={index}
-            style={[
-              styles.dot,
-              {
-                opacity: value,
-                transform: [
-                  {
-                    scale: value.interpolate({
-                      inputRange: [0.3, 1],
-                      outputRange: [0.76, 1],
-                    }),
-                  },
-                  {
-                    translateY: value.interpolate({
-                      inputRange: [0.3, 1],
-                      outputRange: [1.5, -2],
-                    }),
-                  },
-                ],
-              },
-            ]}
-          />
-        ))}
+        {ellipsisFrames.map((_, index) => {
+          const isActive = index === frameIndex;
+
+          return (
+            <View
+              key={index}
+              style={[
+                styles.dot,
+                isActive ? styles.dotActive : styles.dotIdle,
+              ]}
+            />
+          );
+        })}
       </View>
       {label ? (
         <Text style={styles.label}>
           {label}
-          {ellipsisFrames[ellipsisIndex]}
+          {ellipsisFrames[frameIndex]}
         </Text>
       ) : null}
     </View>
@@ -111,6 +68,14 @@ const styles = StyleSheet.create({
     height: 8,
     marginHorizontal: 3,
     width: 8,
+  },
+  dotActive: {
+    opacity: 1,
+    transform: [{ scale: 1.18 }, { translateY: -3 }],
+  },
+  dotIdle: {
+    opacity: 0.34,
+    transform: [{ scale: 0.76 }, { translateY: 1 }],
   },
   label: {
     ...typography.caption,

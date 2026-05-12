@@ -16,6 +16,9 @@ import com.facebook.react.bridge.WritableArray
 import com.facebook.react.bridge.WritableMap
 import com.facebook.react.modules.core.DeviceEventManagerModule
 import com.onda.core.AIResponse
+import com.onda.core.IndexingResult
+import com.onda.core.IndexingStatus
+import com.onda.core.MemoryIndexer
 import com.onda.core.ModelDownloader
 import com.onda.core.ModelFileManager
 import com.onda.core.ModelRuntimeManager
@@ -25,15 +28,26 @@ import com.onda.core.MultimodalRequest
 import com.onda.core.QueryRouter
 import com.onda.core.RuntimeStatus
 import com.onda.core.StartupState
+import com.onda.db.ChatHistoryRecord
+import com.onda.db.ChatMessageRecord
+import com.onda.db.ChatRecord
+import com.onda.db.ChatSessionRecord
+import com.onda.db.VectorDBHelper
 import java.io.File
 import java.io.FileOutputStream
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+import java.util.TimeZone
 
 class AIEngineModule(
     private val reactContext: ReactApplicationContext,
 ) : ReactContextBaseJavaModule(reactContext), LifecycleEventListener {
 
-    private val queryRouter = QueryRouter()
     private val modelFileManager = ModelFileManager(reactContext)
+    private val vectorDBHelper = VectorDBHelper(reactContext)
+    private val queryRouter = QueryRouter(reactContext, vectorDBHelper)
+    private val memoryIndexer = MemoryIndexer(reactContext, vectorDBHelper)
 
     init {
         reactContext.addLifecycleEventListener(this)
@@ -100,11 +114,124 @@ class AIEngineModule(
 
     @ReactMethod
     fun getIndexingStatus(promise: Promise) {
-        val status = Arguments.createMap().apply {
-            putInt("indexedItems", 0)
-            putBoolean("isIndexing", false)
+        promise.resolve(memoryIndexer.getStatus().toWritableMap())
+    }
+
+    @ReactMethod
+    fun startIndexing(promise: Promise) {
+        memoryIndexer.startIndexing { result ->
+            result
+                .onSuccess { indexingResult -> promise.resolve(indexingResult.toWritableMap()) }
+                .onFailure { error -> promise.reject("INDEXING_ERROR", error) }
         }
-        promise.resolve(status)
+    }
+
+    @ReactMethod
+    fun setIndexingSourceEnabled(
+        source: String,
+        enabled: Boolean,
+        promise: Promise,
+    ) {
+        memoryIndexer.setSourceEnabled(source, enabled) { result ->
+            result
+                .onSuccess { indexingResult -> promise.resolve(indexingResult.toWritableMap()) }
+                .onFailure { error -> promise.reject("INDEXING_SOURCE_ERROR", error) }
+        }
+    }
+
+    @ReactMethod
+    fun startIndexingSource(
+        source: String,
+        promise: Promise,
+    ) {
+        memoryIndexer.startSourceIndexing(source) { result ->
+            result
+                .onSuccess { indexingResult -> promise.resolve(indexingResult.toWritableMap()) }
+                .onFailure { error -> promise.reject("INDEXING_SOURCE_ERROR", error) }
+        }
+    }
+
+    @ReactMethod
+    fun deleteIndexingSource(
+        source: String,
+        promise: Promise,
+    ) {
+        memoryIndexer.deleteSourceEmbeddings(source) { result ->
+            result
+                .onSuccess { indexingResult -> promise.resolve(indexingResult.toWritableMap()) }
+                .onFailure { error -> promise.reject("INDEXING_DELETE_ERROR", error) }
+        }
+    }
+
+    @ReactMethod
+    fun saveChatSession(
+        sessionId: String,
+        title: String,
+        messages: ReadableArray,
+        promise: Promise,
+    ) {
+        try {
+            val now = System.currentTimeMillis()
+            val existing = vectorDBHelper.getChatSession(sessionId)
+            val chatMessages = messages.toChatMessageList(sessionId)
+            vectorDBHelper.upsertChatSession(
+                chat = ChatRecord(
+                    id = sessionId,
+                    title = title.ifBlank { "New chat" },
+                    createdAt = existing?.chat?.createdAt ?: now,
+                    updatedAt = now,
+                ),
+                messages = chatMessages,
+                historyEvent = ChatHistoryRecord(
+                    id = 0,
+                    chatId = sessionId,
+                    eventType = "messages_saved",
+                    payload = "{\"messageCount\":${chatMessages.size}}",
+                    createdAt = now,
+                ),
+            )
+            promise.resolve(null)
+        } catch (error: Exception) {
+            promise.reject("CHAT_SAVE_ERROR", error)
+        }
+    }
+
+    @ReactMethod
+    fun loadChatSession(
+        sessionId: String,
+        promise: Promise,
+    ) {
+        try {
+            val session = vectorDBHelper.getChatSession(sessionId)
+            if (session == null) {
+                promise.resolve(null)
+            } else {
+                promise.resolve(session.toWritableMap())
+            }
+        } catch (error: Exception) {
+            promise.reject("CHAT_LOAD_ERROR", error)
+        }
+    }
+
+    @ReactMethod
+    fun listChatSessions(promise: Promise) {
+        try {
+            promise.resolve(vectorDBHelper.listChats().toWritableChatArray())
+        } catch (error: Exception) {
+            promise.reject("CHAT_LIST_ERROR", error)
+        }
+    }
+
+    @ReactMethod
+    fun deleteChatSession(
+        sessionId: String,
+        promise: Promise,
+    ) {
+        try {
+            promise.resolve(vectorDBHelper.deleteChat(sessionId))
+        } catch (error: Exception) {
+            promise.reject("CHAT_DELETE_ERROR", error)
+        }
     }
 
     @ReactMethod
@@ -197,11 +324,15 @@ class AIEngineModule(
 
     override fun onHostDestroy() {
         ModelRuntimeManager.unload()
+        queryRouter.close()
+        memoryIndexer.close()
     }
 
     override fun invalidate() {
         reactContext.removeLifecycleEventListener(this)
         ModelRuntimeManager.unload()
+        queryRouter.close()
+        memoryIndexer.close()
         super.invalidate()
     }
 
@@ -277,6 +408,29 @@ class AIEngineModule(
             )
         }
         return attachments
+    }
+
+    private fun ReadableArray.toChatMessageList(chatId: String): List<ChatMessageRecord> {
+        val messages = mutableListOf<ChatMessageRecord>()
+        for (index in 0 until size()) {
+            val map = getMap(index) ?: continue
+            val id = map.getOptionalString("id") ?: "message_${System.nanoTime()}_$index"
+            val role = map.getOptionalString("role") ?: "user"
+            val text = map.getOptionalString("text").orEmpty()
+            val createdAt = map.getOptionalDouble("createdAt")?.toLong() ?: System.currentTimeMillis()
+            messages.add(
+                ChatMessageRecord(
+                    id = id,
+                    chatId = chatId,
+                    role = role,
+                    text = text,
+                    modelName = map.getOptionalString("modelName"),
+                    createdAt = createdAt,
+                    sortOrder = index,
+                ),
+            )
+        }
+        return messages
     }
 
     private fun resolveAttachmentPath(
@@ -366,6 +520,90 @@ class AIEngineModule(
             }
         }
 
+    private fun IndexingStatus.toWritableMap(): WritableMap =
+        Arguments.createMap().apply {
+            putBoolean("isAvailable", isAvailable)
+            putBoolean("isIndexing", isIndexing)
+            putInt("indexedItems", indexedItems)
+            putBoolean("smsEnabled", smsEnabled)
+            putBoolean("galleryEnabled", galleryEnabled)
+            putInt("smsIndexedItems", smsIndexedItems)
+            putInt("galleryIndexedItems", galleryIndexedItems)
+            if (lastIndexedAt == null) {
+                putNull("lastIndexedAt")
+            } else {
+                putString("lastIndexedAt", lastIndexedAt.toIsoString())
+            }
+            if (lastError == null) {
+                putNull("lastError")
+            } else {
+                putString("lastError", lastError)
+            }
+        }
+
+    private fun IndexingResult.toWritableMap(): WritableMap =
+        Arguments.createMap().apply {
+            putInt("smsIndexed", smsIndexed)
+            putInt("galleryIndexed", galleryIndexed)
+            putInt("deleted", deleted)
+            putInt("skipped", skipped)
+            putMap("status", status.toWritableMap())
+        }
+
+    private fun ChatSessionRecord.toWritableMap(): WritableMap =
+        Arguments.createMap().apply {
+            putMap("chat", chat.toWritableMap())
+            putArray("messages", messages.toWritableMessageArray())
+            putArray("history", history.toWritableHistoryArray())
+        }
+
+    private fun ChatRecord.toWritableMap(): WritableMap =
+        Arguments.createMap().apply {
+            putString("id", id)
+            putString("title", title)
+            putDouble("createdAt", createdAt.toDouble())
+            putDouble("updatedAt", updatedAt.toDouble())
+        }
+
+    private fun List<ChatRecord>.toWritableChatArray(): WritableArray =
+        Arguments.createArray().apply {
+            forEach { chat -> pushMap(chat.toWritableMap()) }
+        }
+
+    private fun List<ChatMessageRecord>.toWritableMessageArray(): WritableArray =
+        Arguments.createArray().apply {
+            forEach { message ->
+                pushMap(
+                    Arguments.createMap().apply {
+                        putString("id", message.id)
+                        putString("role", message.role)
+                        putString("text", message.text)
+                        if (message.modelName == null) {
+                            putNull("modelName")
+                        } else {
+                            putString("modelName", message.modelName)
+                        }
+                        putDouble("createdAt", message.createdAt.toDouble())
+                    },
+                )
+            }
+        }
+
+    private fun List<ChatHistoryRecord>.toWritableHistoryArray(): WritableArray =
+        Arguments.createArray().apply {
+            forEach { event ->
+                pushMap(
+                    Arguments.createMap().apply {
+                        putDouble("id", event.id.toDouble())
+                        putString("chatId", event.chatId)
+                        putString("eventType", event.eventType)
+                        putString("payload", event.payload)
+                        putDouble("createdAt", event.createdAt.toDouble())
+                    },
+                )
+            }
+        }
+
     private fun List<String>.toWritableArray(): WritableArray =
         Arguments.createArray().apply {
             forEach { value -> pushString(value) }
@@ -383,5 +621,12 @@ class AIEngineModule(
     companion object {
         const val NAME = "AIEngine"
         private const val STREAM_EVENT_NAME = "AIEngineStreamChunk"
+        private val ISO_FORMAT = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.US).apply {
+            timeZone = TimeZone.getTimeZone("UTC")
+        }
+    }
+
+    private fun Long.toIsoString(): String = synchronized(ISO_FORMAT) {
+        ISO_FORMAT.format(Date(this))
     }
 }

@@ -526,11 +526,6 @@ function App() {
     : isHeaderModelDownloading
     ? '다운로드 중'
     : '모델 선택';
-  const headerModelStatusColor = activeModelOption
-    ? colors.success
-    : isHeaderModelDownloading
-    ? colors.primary
-    : colors.warning;
   const modelDownloadProgress =
     modelStatus == null || modelStatus.totalBytes <= 0
       ? 0
@@ -1173,12 +1168,6 @@ function App() {
                     pressed && styles.menuButtonPressed,
                   ]}
                 >
-                  <View
-                    style={[
-                      styles.modelSelectorStatusDot,
-                      { backgroundColor: headerModelStatusColor },
-                    ]}
-                  />
                   <Text numberOfLines={1} style={styles.modelSelectorText}>
                     {headerModelLabel}
                   </Text>
@@ -2865,9 +2854,9 @@ const styles = StyleSheet.create({
   modelSelector: {
     alignItems: 'center',
     backgroundColor: 'rgba(255,255,255,0.86)',
-    borderColor: 'rgba(21,25,34,0.09)',
+    borderColor: '#D3D9E3',
     borderRadius: 17,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: 1,
     flexDirection: 'row',
     gap: 6,
     justifyContent: 'space-between',
@@ -2877,12 +2866,7 @@ const styles = StyleSheet.create({
   },
   modelSelectorActive: {
     backgroundColor: colors.card,
-    borderColor: 'rgba(0,122,255,0.24)',
-  },
-  modelSelectorStatusDot: {
-    borderRadius: 3,
-    height: 6,
-    width: 6,
+    borderColor: 'rgba(0,122,255,0.34)',
   },
   modelSelectorText: {
     ...typography.caption,

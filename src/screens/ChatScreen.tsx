@@ -6,6 +6,7 @@ import React, {
   useState,
 } from 'react';
 import {
+  ActivityIndicator,
   Keyboard,
   KeyboardAvoidingView,
   KeyboardEvent,
@@ -37,6 +38,7 @@ export type ChatMessage = {
   createdAt: Date;
   id: string;
   modelName?: string;
+  reasoning?: string;
   role: ChatRole;
   text: string;
 };
@@ -114,42 +116,6 @@ const formatTime = (date: Date) =>
     minute: '2-digit',
   }).format(date);
 
-const formatLocalDate = (date: Date) => {
-  const year = date.getFullYear();
-  const month = `${date.getMonth() + 1}`.padStart(2, '0');
-  const day = `${date.getDate()}`.padStart(2, '0');
-
-  return `${year}-${month}-${day}`;
-};
-
-const createRuntimeContextMessage = (date = new Date()): AIChatMessage => {
-  const localDate = formatLocalDate(date);
-  const readableDate = new Intl.DateTimeFormat('ko-KR', {
-    day: 'numeric',
-    month: 'long',
-    weekday: 'long',
-    year: 'numeric',
-  }).format(date);
-  const readableTime = new Intl.DateTimeFormat('ko-KR', {
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(date);
-  const timeZone =
-    Intl.DateTimeFormat().resolvedOptions().timeZone || 'local time';
-
-  return {
-    content: [
-      '현재 날짜/시간 컨텍스트입니다.',
-      `오늘은 ${readableDate}입니다.`,
-      `로컬 날짜: ${localDate}`,
-      `현재 로컬 시각: ${readableTime}`,
-      `시간대: ${timeZone}`,
-      '사용자가 "오늘", "내일", "어제", "이번 주"처럼 상대 날짜를 말하면 이 값을 기준으로 해석하세요.',
-    ].join('\n'),
-    role: 'system',
-  };
-};
-
 const createMessage = (
   role: ChatRole,
   text: string,
@@ -216,19 +182,7 @@ const createUserMessageText = (
     .join('\n\n');
 };
 
-const createSystemHistory = (commonSystemPrompt: string): AIChatMessage[] => [
-  ...(commonSystemPrompt.trim()
-    ? [
-        {
-          content: commonSystemPrompt.trim(),
-          role: 'system' as const,
-        },
-      ]
-    : []),
-];
-
 function ChatScreen({
-  commonSystemPrompt = '',
   messages,
   onMessagesChange,
   onSessionTitleChange,
@@ -256,11 +210,6 @@ function ChatScreen({
   const canSend =
     (draft.trim().length > 0 || selectedAttachments.length > 0) &&
     !isGenerating;
-
-  const systemHistory = useMemo<AIChatMessage[]>(
-    () => createSystemHistory(commonSystemPrompt),
-    [commonSystemPrompt],
-  );
 
   const composerOffsetStyle = useMemo(
     () => ({
@@ -448,10 +397,7 @@ function ChatScreen({
         );
       }
 
-      const requestHistory = [
-        ...systemHistory,
-        createRuntimeContextMessage(),
-      ];
+      const requestHistory: AIChatMessage[] = [];
 
       const updateAssistantMessage = (text: string) => {
         onMessagesChange(
@@ -459,7 +405,23 @@ function ChatScreen({
             ...messagesWithUserPrompt,
             {
               ...assistantMessage,
+              reasoning: assistantMessage.reasoning,
               text,
+            },
+          ],
+          nextSessionTitle,
+        );
+      };
+
+      const updateAssistantReasoning = (reasoning: string) => {
+        assistantMessage.reasoning = reasoning;
+        onMessagesChange(
+          [
+            ...messagesWithUserPrompt,
+            {
+              ...assistantMessage,
+              reasoning,
+              text: streamedResponse,
             },
           ],
           nextSessionTitle,
@@ -479,6 +441,7 @@ function ChatScreen({
             setIsAwaitingFirstChunk(false);
             updateAssistantMessage(streamedResponse);
           },
+          onReasoning: updateAssistantReasoning,
         },
         {
           attachments: attachmentsForPrompt,
@@ -494,6 +457,7 @@ function ChatScreen({
         ...messagesWithUserPrompt,
         {
           ...assistantMessage,
+          reasoning: assistantMessage.reasoning,
           text: response,
         },
       ];
@@ -541,7 +505,6 @@ function ChatScreen({
     selectedModelLabel,
     selectedAttachments,
     sessionId,
-    systemHistory,
   ]);
 
   const handleRetryResponse = useCallback(
@@ -609,10 +572,7 @@ function ChatScreen({
           );
         }
 
-        const requestHistory = [
-          ...createSystemHistory(commonSystemPrompt),
-          createRuntimeContextMessage(),
-        ];
+        const requestHistory: AIChatMessage[] = [];
 
         const response = await AIEngine.generateResponseStream(
           promptForModel,
@@ -656,7 +616,6 @@ function ChatScreen({
       }
     },
     [
-      commonSystemPrompt,
       isGenerating,
       messages,
       onMessagesChange,
@@ -834,6 +793,7 @@ function ChatScreen({
                         ? () => handleRetryResponse(message.id)
                         : undefined
                     }
+                    reasoning={message.reasoning}
                     role={message.role}
                     text={message.text}
                     timestamp={formatTime(message.createdAt)}
@@ -1008,7 +968,7 @@ function ChatScreen({
             </View>
 
             <Pressable
-              accessibilityLabel="메시지 보내기"
+              accessibilityLabel={isGenerating ? '응답 생성 중' : '메시지 보내기'}
               accessibilityRole="button"
               disabled={!canSend}
               onPress={handleSend}
@@ -1018,7 +978,11 @@ function ChatScreen({
                 !canSend && styles.sendButtonDisabled,
               ]}
             >
-              <AppIcon color={colors.card} icon={appIcons.send} size={20} />
+              {isGenerating ? (
+                <ActivityIndicator color={colors.card} size="small" />
+              ) : (
+                <AppIcon color={colors.card} icon={appIcons.send} size={20} />
+              )}
             </Pressable>
           </View>
         </View>

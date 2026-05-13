@@ -275,7 +275,7 @@
 					"-ObjC",
 					"-lc++",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = "com.onda";
+				PRODUCT_BUNDLE_IDENTIFIER = "com.openedgeai";
 				PRODUCT_NAME = OpenEdgeAI;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
@@ -304,7 +304,7 @@
 					"-ObjC",
 					"-lc++",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = "com.onda";
+				PRODUCT_BUNDLE_IDENTIFIER = "com.openedgeai";
 				PRODUCT_NAME = OpenEdgeAI;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SWIFT_VERSION = 5.0;

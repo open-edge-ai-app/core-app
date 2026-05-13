@@ -77,9 +77,9 @@ android {
     buildToolsVersion rootProject.ext.buildToolsVersion
     compileSdk rootProject.ext.compileSdkVersion
 
-    namespace "com.onda"
+    namespace "com.openedgeai"
     defaultConfig {
-        applicationId "com.onda"
+        applicationId "com.openedgeai"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1
@@ -105,6 +105,14 @@ android {
             proguardFiles getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro"
         }
     }
+    splits {
+        abi {
+            reset()
+            enable true
+            universalApk true
+            include "armeabi-v7a", "arm64-v8a", "x86", "x86_64"
+        }
+    }
     androidResources {
         noCompress += ["litertlm", "task", "tflite"]
     }
@@ -113,6 +121,7 @@ android {
 dependencies {
     // The version of react-native is set by the React Native Gradle Plugin
     implementation("com.facebook.react:react-android")
+    implementation("com.google.ai.edge.litertlm:litertlm-android:0.11.0")
     implementation("com.google.mediapipe:tasks-genai:0.10.35")
     implementation("com.google.mediapipe:tasks-text:0.10.35")
     implementation("com.google.mediapipe:tasks-vision:0.10.35")

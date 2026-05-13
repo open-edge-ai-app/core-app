@@ -67,7 +67,7 @@ const escapeTsString = value =>
 const branding = {
   androidAppName: getEnv('OPEN_EDGE_AI_ANDROID_APP_NAME', 'OpenEdgeAI'),
   appRegistryName: getEnv('OPEN_EDGE_AI_APP_NAME', 'OpenEdgeAI'),
-  bundleIdentifier: getEnv('OPEN_EDGE_AI_BUNDLE_IDENTIFIER', 'com.onda'),
+  bundleIdentifier: getEnv('OPEN_EDGE_AI_BUNDLE_IDENTIFIER', 'com.openedgeai'),
   displayName: getEnv('OPEN_EDGE_AI_DISPLAY_NAME', 'Open Edge AI'),
   iosDisplayName: getEnv('OPEN_EDGE_AI_IOS_DISPLAY_NAME', 'OpenEdgeAI'),
   productName: getEnv('OPEN_EDGE_AI_PRODUCT_NAME', 'Open Edge AI'),
@@ -180,7 +180,7 @@ const updateAndroidBuild = () => {
 
 const updateAndroidMainActivity = () => {
   const activityPath = repoPath(
-    'android/app/src/main/java/com/onda/MainActivity.kt',
+    'android/app/src/main/java/com/openedgeai/MainActivity.kt',
   );
   const activity = readText(activityPath).replace(
     /getMainComponentName\(\): String = ".*?"/,

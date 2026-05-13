@@ -21,7 +21,7 @@ open-edge-ai/
 ├── android/
 │   ├── app/
 │   │   ├── src/main/assets/
-│   │   └── src/main/java/com/onda/
+│   │   └── src/main/java/com/openedgeai/
 │   │       ├── bridge/
 │   │       ├── core/
 │   │       ├── db/
@@ -108,6 +108,6 @@ open-edge-ai/
 - React components use `PascalCase.tsx`.
 - TypeScript utilities use clear domain names.
 - Native bridge files should mirror the public TypeScript contract.
-- Android package ownership stays under `com.onda`.
+- Android package ownership stays under `com.openedgeai`.
 - Documentation files use uppercase names for repository-level docs and
   descriptive uppercase names under `docs/`.

@@ -53,15 +53,18 @@ export type IndexingStatus = {
   lastError?: string | null;
   smsEnabled: boolean;
   galleryEnabled: boolean;
+  documentEnabled: boolean;
   smsIndexedItems: number;
   galleryIndexedItems: number;
+  documentIndexedItems: number;
 };
 
-export type IndexingSource = 'sms' | 'gallery' | 'image';
+export type IndexingSource = 'sms' | 'gallery' | 'image' | 'document';
 
 export type IndexingResult = {
   smsIndexed: number;
   galleryIndexed: number;
+  documentIndexed: number;
   deleted: number;
   skipped: number;
   status: IndexingStatus;
@@ -121,6 +124,7 @@ export type MultimodalMessage = {
 
 export type AIResponseStreamCallbacks = {
   onChunk: (chunk: string) => void;
+  onReasoning?: (reasoning: string) => void;
 };
 
 export type AIResponseStreamOptions = {
@@ -131,6 +135,7 @@ export type AIResponseStreamOptions = {
 export type AIResponse = {
   type: 'text' | 'memory' | 'action' | 'error';
   message: string;
+  reasoning?: string | null;
   route: 'direct' | 'rag' | 'agent' | 'invalid';
   modalities: MultimodalAttachmentType[];
 };
@@ -140,6 +145,7 @@ type NativeStreamEvent = {
   done?: boolean;
   error?: string;
   message?: string;
+  reasoning?: string;
   requestId?: string;
 };
 
@@ -164,6 +170,7 @@ type AIEngineNativeModule = {
   getRuntimeStatus?: () => Promise<RuntimeStatus>;
   loadModel?: () => Promise<RuntimeStatus>;
   unloadModel?: () => Promise<RuntimeStatus>;
+  cancelActiveGeneration?: () => Promise<boolean>;
   downloadModel?: () => Promise<ModelStatus>;
   ensureModelDownloaded?: () => Promise<ModelStatus>;
   cancelModelDownload?: () => Promise<ModelStatus>;
@@ -205,6 +212,8 @@ const nativePermissionsAndroid = NativeModules.PermissionsAndroid as
   | NativePermissionsAndroidModule
   | undefined;
 const AI_ENGINE_STREAM_EVENT = 'AIEngineStreamChunk';
+const STREAM_IDLE_COMPLETION_MS = 45_000;
+const STREAM_HARD_TIMEOUT_MS = 120_000;
 
 const androidPermissions = {
   READ_EXTERNAL_STORAGE: 'android.permission.READ_EXTERNAL_STORAGE',
@@ -511,8 +520,18 @@ export const AIEngine = {
           let response = '';
           let settled = false;
           let subscription: { remove: () => void } | null = null;
+          let idleCompletionTimer: ReturnType<typeof setTimeout> | null = null;
+          let hardTimeoutTimer: ReturnType<typeof setTimeout> | null = null;
 
           const cleanup = () => {
+            if (idleCompletionTimer) {
+              clearTimeout(idleCompletionTimer);
+              idleCompletionTimer = null;
+            }
+            if (hardTimeoutTimer) {
+              clearTimeout(hardTimeoutTimer);
+              hardTimeoutTimer = null;
+            }
             subscription?.remove();
           };
 
@@ -536,6 +555,29 @@ export const AIEngine = {
             reject(error);
           };
 
+          const scheduleIdleCompletion = () => {
+            if (idleCompletionTimer) {
+              clearTimeout(idleCompletionTimer);
+            }
+
+            if (!response.trim()) {
+              return;
+            }
+
+            idleCompletionTimer = setTimeout(() => {
+              complete(response);
+            }, STREAM_IDLE_COMPLETION_MS);
+          };
+
+          hardTimeoutTimer = setTimeout(() => {
+            if (response.trim()) {
+              complete(response);
+              return;
+            }
+
+            fail(new Error('AI response timed out.'));
+          }, STREAM_HARD_TIMEOUT_MS);
+
           subscription = emitter.addListener(
             AI_ENGINE_STREAM_EVENT,
             (event: NativeStreamEvent) => {
@@ -551,9 +593,13 @@ export const AIEngine = {
               if (event.chunk) {
                 response += event.chunk;
                 callbacks.onChunk(event.chunk);
+                scheduleIdleCompletion();
               }
 
               if (event.done) {
+                if (event.reasoning) {
+                  callbacks.onReasoning?.(event.reasoning);
+                }
                 complete(event.message ?? response);
               }
             },
@@ -567,13 +613,19 @@ export const AIEngine = {
               stream: true,
             },
             text: prompt,
-          }).catch(error => {
-            fail(
-              error instanceof Error
-                ? error
-                : new Error('AI 응답 스트리밍을 시작하지 못했습니다.'),
-            );
-          });
+          })
+            .then(result => {
+              if (!result?.started) {
+                fail(new Error('AI response stream did not start.'));
+              }
+            })
+            .catch(error => {
+              fail(
+                error instanceof Error
+                  ? error
+                  : new Error('Failed to start AI response stream.'),
+              );
+            });
         });
       }
     }
@@ -633,10 +685,12 @@ export const AIEngine = {
         isIndexing: status.isIndexing,
         lastError: status.lastError,
         lastIndexedAt: status.lastIndexedAt,
-        smsEnabled: status.smsEnabled ?? true,
-        galleryEnabled: status.galleryEnabled ?? true,
+        smsEnabled: status.smsEnabled ?? false,
+        galleryEnabled: status.galleryEnabled ?? false,
+        documentEnabled: status.documentEnabled ?? false,
         smsIndexedItems: status.smsIndexedItems ?? 0,
         galleryIndexedItems: status.galleryIndexedItems ?? 0,
+        documentIndexedItems: status.documentIndexedItems ?? 0,
       };
     }
 
@@ -648,8 +702,10 @@ export const AIEngine = {
       lastIndexedAt: undefined,
       smsEnabled: false,
       galleryEnabled: false,
+      documentEnabled: false,
       smsIndexedItems: 0,
       galleryIndexedItems: 0,
+      documentIndexedItems: 0,
     };
   },
 
@@ -758,7 +814,15 @@ export const AIEngine = {
         ? [androidPermissions.READ_SMS]
         : source === 'gallery' || source === 'image'
         ? [mediaPermission]
+        : source === 'document'
+        ? Number(Platform.Version) >= 33
+          ? []
+          : [androidPermissions.READ_EXTERNAL_STORAGE]
         : [androidPermissions.READ_SMS, mediaPermission];
+
+    if (permissions.length === 0) {
+      return true;
+    }
 
     if (!nativePermissionsAndroid?.requestMultiplePermissions) {
       throw new Error('Android permission module is not available.');

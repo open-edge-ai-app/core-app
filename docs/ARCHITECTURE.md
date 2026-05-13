@@ -50,7 +50,7 @@ The bridge currently covers:
 
 ### Android Native Core
 
-Android native code lives under `android/app/src/main/java/com/onda`.
+Android native code lives under `android/app/src/main/java/com/openedgeai`.
 
 - `bridge/` registers and exposes React Native methods.
 - `core/` owns routing, model lifecycle, runtime status, embeddings, vision, and

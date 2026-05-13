@@ -4,7 +4,6 @@ import android.content.Context
 import com.onda.db.VectorDao
 import com.onda.db.VectorDBHelper
 import com.onda.db.VectorRecord
-import org.json.JSONObject
 
 class QueryRouter(
     context: Context,
@@ -14,7 +13,7 @@ class QueryRouter(
     private val embedManager = EmbedManager(context)
     private val vectorDao = VectorDao(vectorDBHelper)
     private val chatContextManager = ChatContextManager(vectorDBHelper, gemmaManager)
-    private val webSearchManager = WebSearchManager(gemmaManager)
+    private val webSearchManager = WebSearchManager()
 
     fun route(message: String): String {
         val normalized = message.trim()
@@ -129,23 +128,7 @@ class QueryRouter(
     }
 
     private fun decideToolCall(message: String): ToolCall? {
-        val decision = gemmaManager.generate(buildToolDecisionPrompt(message), useRag = false)
-        val json = extractJsonObject(decision) ?: return fallbackToolDecision(message)
-        return try {
-            val parsed = JSONObject(json)
-            val tool = parsed.optString("tool", "none")
-            if (tool == TOOL_RAG_SEARCH || tool == TOOL_WEB_SEARCH) {
-                val arguments = parsed.optJSONObject("arguments")
-                ToolCall(
-                    name = tool,
-                    query = arguments?.optString("query").orEmpty().ifBlank { message },
-                )
-            } else {
-                null
-            }
-        } catch (_: Exception) {
-            fallbackToolDecision(message)
-        }
+        return fallbackToolDecision(message)
     }
 
     private fun fallbackToolDecision(message: String): ToolCall? {
@@ -186,28 +169,6 @@ class QueryRouter(
         val queryEmbedding = embedManager.embed(query)
         return vectorDao.search(queryEmbedding, RAG_RESULT_LIMIT)
     }
-
-    private fun buildToolDecisionPrompt(message: String): String =
-        """
-        You are the tool router for an on-device assistant.
-        Decide whether the user question requires searching the local memory database.
-
-        Available tool:
-        - rag.search: Search private local device memories such as SMS, gallery photos, and saved chat context.
-        - web.search: Search the public web for current, recent, external, or generally public information.
-
-        Use rag.search only when the user asks about personal past events, private records, photos, receipts, messages, locations, dates, or something that must be remembered from the device.
-        Use web.search only when the user asks about current news, recent public facts, public people or companies, market data, product information, weather, sports, or anything likely to have changed.
-        Never include private local memory, SMS body, photo path, file path, phone number, email, account number, exact address, or secret values in a web.search query.
-        If no memory search is needed, return {"tool":"none","arguments":{}}.
-        If private local memory search is needed, return {"tool":"rag.search","arguments":{"query":"short search query"}}.
-        If public web search is needed, return {"tool":"web.search","arguments":{"query":"sanitized public search query"}}.
-
-        Return only compact JSON. Do not explain.
-
-        User question:
-        $message
-        """.trimIndent()
 
     private fun buildRagPrompt(
         question: String,
@@ -267,16 +228,6 @@ class QueryRouter(
         User question:
         $question
         """.trimIndent()
-    }
-
-    private fun extractJsonObject(text: String): String? {
-        val start = text.indexOf('{')
-        val end = text.lastIndexOf('}')
-        return if (start >= 0 && end > start) {
-            text.substring(start, end + 1)
-        } else {
-            null
-        }
     }
 
     override fun close() {

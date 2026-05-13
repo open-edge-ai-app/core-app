@@ -5,6 +5,8 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import java.io.File
 import java.lang.reflect.Proxy
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.concurrent.thread
 
@@ -12,11 +14,13 @@ object MediaPipeLlmReflector {
     private const val PACKAGE_NAME = "com.google.mediapipe.tasks.genai.llminference"
     private const val IMAGE_BUILDER_CLASS = "com.google.mediapipe.framework.image.BitmapImageBuilder"
     private const val MP_IMAGE_CLASS = "com.google.mediapipe.framework.image.MPImage"
-    private const val MAX_TOKENS = 1024
-    private const val MAX_IMAGES = 10
+    // Keep the on-device KV cache small enough for emulator and mid-range RAM.
+    private const val MAX_TOKENS = 256
+    private const val MAX_IMAGES = 1
     private const val TEMPERATURE = 0.7f
     private const val TOP_K = 64
     private const val TOP_P = 0.95f
+    private const val GENERATION_TIMEOUT_SECONDS = 120L
     // MediaPipe's GPU/OpenCL path can SIGSEGV before Kotlin can catch it.
     private const val SAFE_BACKEND = "CPU"
 
@@ -268,8 +272,38 @@ object MediaPipeLlmReflector {
             delegate.javaClass.getMethod("addAudio", ByteArray::class.java).invoke(delegate, audioData)
         }
 
-        fun generateResponse(): String =
-            delegate.javaClass.getMethod("generateResponse").invoke(delegate)?.toString().orEmpty()
+        fun generateResponse(): String {
+            val latch = CountDownLatch(1)
+            val partialResponse = StringBuilder()
+            var finalResponse = ""
+            var failure: Throwable? = null
+
+            generateResponseStream(
+                onPartial = { partial, _ ->
+                    if (partial.isNotEmpty()) {
+                        partialResponse.append(partial)
+                    }
+                },
+                onComplete = { response ->
+                    finalResponse = partialResponse.toString().ifBlank { response }
+                    latch.countDown()
+                },
+                onError = { error ->
+                    failure = error
+                    latch.countDown()
+                },
+            )
+
+            if (!latch.await(GENERATION_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
+                throw IllegalStateException("MediaPipe LLM generation timed out.")
+            }
+
+            failure?.let { error ->
+                throw IllegalStateException("MediaPipe LLM generation failed.", error)
+            }
+
+            return finalResponse
+        }
 
         fun generateResponseStream(
             onPartial: (String, Boolean) -> Unit,

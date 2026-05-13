@@ -33,14 +33,23 @@ import PastelBackground from './src/components/PastelBackground';
 import AIEngine, {
   ModelStatus,
   RuntimeStatus,
-  StoredChatMessage,
-  StoredChatSession,
 } from './src/native/AIEngine';
 import ChatScreen, {
   ChatMessage,
   createInitialChatMessages,
 } from './src/screens/ChatScreen';
 import Settings, { type SettingsPanelId } from './src/screens/Settings';
+import {
+  ChatSession,
+  hydrateMessages,
+  loadNativeChatSnapshots,
+  mergeSessionLists,
+  PersistedChatMessage,
+  serializeMessages,
+  shouldUseNativeMessages,
+  toStoredChatMessages,
+} from './src/state/chatStorage';
+import { createCommonSystemPrompt } from './src/state/systemPrompt';
 import {
   DisplaySettingsProvider,
   ScaledText as Text,
@@ -86,13 +95,6 @@ type ModelOption = {
   icon: IconDefinition;
   id: 'gemma-4' | 'gemma-lite' | 'gemma-deep' | 'auto' | 'manage';
   label: string;
-};
-
-type ChatSession = {
-  id: string;
-  pinned?: boolean;
-  title: string;
-  workFolderId?: string;
 };
 
 type WorkFolderIconId =
@@ -148,10 +150,6 @@ type RecentSessionDialog =
 type WorkFolderActionDialog =
   | { folder: WorkFolder; type: 'settings' }
   | { folder: WorkFolder; type: 'delete' };
-
-type PersistedChatMessage = Omit<ChatMessage, 'createdAt'> & {
-  createdAt: string;
-};
 
 type PersistedAppState = {
   activeSessionId: string | null;
@@ -312,122 +310,6 @@ const initialRecentSessions: ChatSession[] = [
 const createChatSessionId = () =>
   `chat-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
-const serializeMessages = (messages: ChatMessage[]): PersistedChatMessage[] =>
-  messages.map(message => ({
-    ...message,
-    createdAt: message.createdAt.toISOString(),
-  }));
-
-const hydrateMessages = (
-  messages: PersistedChatMessage[] | undefined,
-): ChatMessage[] => {
-  if (!Array.isArray(messages) || messages.length === 0) {
-    return createInitialChatMessages();
-  }
-
-  return messages.map(message => {
-    const createdAt = new Date(message.createdAt);
-
-    return {
-      ...message,
-      createdAt: Number.isNaN(createdAt.getTime()) ? new Date() : createdAt,
-    };
-  });
-};
-
-const isChatMessageRole = (role: string): role is ChatMessage['role'] =>
-  role === 'assistant' || role === 'user' || role === 'system';
-
-const hydrateStoredChatMessages = (
-  messages: StoredChatMessage[] | undefined,
-): ChatMessage[] => {
-  if (!Array.isArray(messages) || messages.length === 0) {
-    return createInitialChatMessages();
-  }
-
-  return messages.map(message => {
-    const createdAt = new Date(message.createdAt);
-
-    return {
-      createdAt: Number.isNaN(createdAt.getTime()) ? new Date() : createdAt,
-      id: message.id,
-      modelName: message.modelName ?? undefined,
-      role: isChatMessageRole(message.role) ? message.role : 'user',
-      text: message.text,
-    };
-  });
-};
-
-const toStoredChatMessages = (messages: ChatMessage[]): StoredChatMessage[] =>
-  messages.map(message => ({
-    createdAt: message.createdAt.getTime(),
-    id: message.id,
-    modelName: message.modelName,
-    role: message.role,
-    text: message.text,
-  }));
-
-type NativeChatSessionSnapshot = {
-  messages: ChatMessage[];
-  session: ChatSession;
-};
-
-const getConversationContentWeight = (messages: ChatMessage[] | undefined) =>
-  messages
-    ?.filter(message => message.id !== 'welcome')
-    .reduce((total, message) => total + message.text.trim().length, 0) ?? 0;
-
-const shouldUseNativeMessages = (
-  currentMessages: ChatMessage[] | undefined,
-  nativeMessages: ChatMessage[],
-) => {
-  if (!currentMessages) {
-    return true;
-  }
-
-  return (
-    getConversationContentWeight(nativeMessages) >
-    getConversationContentWeight(currentMessages)
-  );
-};
-
-const loadNativeChatSnapshots = async (): Promise<
-  NativeChatSessionSnapshot[]
-> => {
-  const nativeSessions = await AIEngine.listChatSessions().catch(() => []);
-  const loadedSessions = await Promise.all(
-    nativeSessions.map(session =>
-      AIEngine.loadChatSession(session.id).catch(() => null),
-    ),
-  );
-
-  return loadedSessions
-    .filter((session): session is StoredChatSession => session != null)
-    .map(session => ({
-      messages: hydrateStoredChatMessages(session.messages),
-      session: {
-        id: session.chat.id,
-        title: session.chat.title,
-      },
-    }));
-};
-
-const mergeSessionLists = (
-  primary: ChatSession[],
-  secondary: ChatSession[],
-): ChatSession[] => {
-  const seenSessionIds = new Set<string>();
-
-  return [...primary, ...secondary].filter(session => {
-    if (seenSessionIds.has(session.id)) {
-      return false;
-    }
-
-    seenSessionIds.add(session.id);
-    return true;
-  });
-};
-
 const isModelOptionId = (value: string): value is ModelOption['id'] =>
   modelOptions.some(model => model.id === value);
 
@@ -525,21 +407,6 @@ const omitRecordKey = <Value,>(
   delete nextRecord[key];
   return nextRecord;
 };
-
-const createCommonSystemPrompt = (
-  personalSystemPrompt: string,
-  workFolderMemory: string,
-) =>
-  [
-    personalSystemPrompt.trim()
-      ? `개인 시스템 프롬프트:\n${personalSystemPrompt.trim()}`
-      : '',
-    workFolderMemory.trim()
-      ? `작업 폴더 시스템 프롬프트(메모리):\n${workFolderMemory.trim()}`
-      : '',
-  ]
-    .filter(Boolean)
-    .join('\n\n');
 
 function App() {
   const activeSessionIdRef = useRef<string | null>(null);

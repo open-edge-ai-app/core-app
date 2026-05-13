@@ -48,6 +48,18 @@ class QueryRouter(
         val modalities = request.attachments.map { attachment -> attachment.type }.distinct()
         val requestWithHistory = request.withBackendContext(normalized)
 
+        if (request.useRag != true && shouldUseWebSearch(normalized)) {
+            val webContext = webSearchManager.search(
+                query = normalized,
+                useLocalLlmSanitizer = false,
+            )
+            val webRequest = requestWithHistory.copy(
+                text = buildWebSearchPrompt(normalized, webContext),
+                nativeTools = null,
+            )
+            return gemmaManager.generateMultimodal(webRequest, useRag = false, modalities = modalities)
+        }
+
         if (request.useRag == true) {
             val memories = searchMemories(normalized)
             val ragRequest = requestWithHistory.copy(
@@ -109,6 +121,25 @@ class QueryRouter(
                 return gemmaManager.generateMultimodalStream(
                     request = ragRequest,
                     useRag = true,
+                    modalities = modalities,
+                    onPartial = onPartial,
+                    onComplete = ::completeOnce,
+                    onError = ::errorOnce,
+                )
+            }
+
+            if (shouldUseWebSearch(normalized)) {
+                val webContext = webSearchManager.search(
+                    query = normalized,
+                    useLocalLlmSanitizer = false,
+                )
+                val webRequest = requestWithHistory.copy(
+                    text = buildWebSearchPrompt(normalized, webContext),
+                    nativeTools = null,
+                )
+                return gemmaManager.generateMultimodalStream(
+                    request = webRequest,
+                    useRag = false,
                     modalities = modalities,
                     onPartial = onPartial,
                     onComplete = ::completeOnce,
@@ -178,11 +209,53 @@ class QueryRouter(
         """.trimIndent()
     }
 
+    private fun shouldUseWebSearch(query: String): Boolean {
+        val normalized = query.lowercase()
+        return WEB_SEARCH_TRIGGERS.any { trigger -> normalized.contains(trigger) }
+    }
+
+    private fun buildWebSearchPrompt(
+        question: String,
+        webContext: WebSearchContext,
+    ): String =
+        """
+        Answer the user's question using the web search tool results below.
+        Treat these results as fetched live from the public web.
+        If the results are empty or failed, say that web search did not return enough information.
+        Cite the source title or URL when useful.
+        Do not say that you cannot browse the web; the web search has already been performed.
+
+        Sanitized web query:
+        ${webContext.sanitizedQuery}
+
+        Privacy:
+        ${if (webContext.privacyMasked) "Private data was masked before external search." else "No private data was detected in the public query."}
+
+        Web search results:
+        ${webContext.resultsText}
+
+        User question:
+        $question
+        """.trimIndent()
+
     override fun close() {
         embedManager.close()
     }
 
     companion object {
         private const val RAG_RESULT_LIMIT = 5
+        private val WEB_SEARCH_TRIGGERS = listOf(
+            "웹",
+            "검색",
+            "찾아봐",
+            "찾아줘",
+            "뒤져",
+            "구글",
+            "뉴스",
+            "최신",
+            "실시간",
+            "현재",
+            "요즘",
+        )
     }
 }

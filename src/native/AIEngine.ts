@@ -675,6 +675,14 @@ export const AIEngine = {
     };
   },
 
+  async cancelActiveGeneration(): Promise<boolean> {
+    if (nativeModule?.cancelActiveGeneration) {
+      return nativeModule.cancelActiveGeneration();
+    }
+
+    return false;
+  },
+
   async getIndexingStatus(): Promise<IndexingStatus> {
     if (nativeModule?.getIndexingStatus) {
       const status = await nativeModule.getIndexingStatus();

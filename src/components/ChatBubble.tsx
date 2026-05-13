@@ -48,57 +48,46 @@ type ChatBubbleProps = {
 type AssistantProfile = {
   backgroundColor: string;
   foregroundColor: string;
-  label: string;
   logoSource?: ImageSourcePropType;
 };
 
 const modelLogoProfiles: Array<{
-  label: string;
   matches: string[];
   source: ImageSourcePropType;
 }> = [
   {
-    label: 'Gemma',
     matches: ['gemma'],
     source: gemmaLogo,
   },
   {
-    label: 'Gemini',
     matches: ['gemini'],
     source: geminiLogo,
   },
   {
-    label: 'OpenAI',
     matches: ['openai', 'gpt'],
     source: openaiLogo,
   },
   {
-    label: 'Claude',
     matches: ['claude', 'anthropic'],
     source: claudeLogo,
   },
   {
-    label: 'DeepSeek',
     matches: ['deepseek'],
     source: deepseekLogo,
   },
   {
-    label: 'Mistral',
     matches: ['mistral'],
     source: mistralLogo,
   },
   {
-    label: 'Qwen',
     matches: ['qwen'],
     source: qwenLogo,
   },
   {
-    label: 'Hugging Face',
     matches: ['hugging face', 'huggingface', 'hf '],
     source: huggingFaceLogo,
   },
   {
-    label: 'Ollama',
     matches: ['ollama'],
     source: ollamaLogo,
   },
@@ -114,7 +103,6 @@ const getAssistantProfile = (assistantName: string): AssistantProfile => {
     return {
       backgroundColor: '#FFFFFF',
       foregroundColor: colors.foreground,
-      label: matchedLogo.label,
       logoSource: matchedLogo.source,
     };
   }
@@ -122,7 +110,6 @@ const getAssistantProfile = (assistantName: string): AssistantProfile => {
   return {
     backgroundColor: colors.muted,
     foregroundColor: colors.foreground,
-    label: assistantName.trim().slice(0, 2).toUpperCase() || 'AI',
   };
 };
 
@@ -203,14 +190,11 @@ function ChatBubble({
             style={styles.avatarLogo}
           />
         ) : (
-          <Text
-            style={[
-              styles.avatarModelLabel,
-              { color: assistantProfile.foregroundColor },
-            ]}
-          >
-            {assistantProfile.label}
-          </Text>
+          <AppIcon
+            color={assistantProfile.foregroundColor}
+            icon={appIcons.chatAssistant}
+            size={14}
+          />
         )}
       </View>
 
@@ -349,12 +333,6 @@ const styles = StyleSheet.create({
   avatarLogo: {
     height: 20,
     width: 20,
-  },
-  avatarModelLabel: {
-    ...typography.caption,
-    fontSize: 10,
-    fontWeight: '800',
-    lineHeight: 12,
   },
   assistantContent: {
     flex: 1,

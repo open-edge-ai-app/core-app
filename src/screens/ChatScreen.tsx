@@ -42,6 +42,13 @@ export type ChatMessage = {
   text: string;
 };
 
+type QueuedChatRequest = {
+  attachments: MultimodalAttachment[];
+  createdAt: Date;
+  id: string;
+  prompt: string;
+};
+
 type QuickPrompt = {
   description: string;
   prompt: string;
@@ -127,6 +134,16 @@ const createMessage = (
   text,
 });
 
+const createQueuedChatRequest = (
+  prompt: string,
+  attachments: MultimodalAttachment[],
+): QueuedChatRequest => ({
+  attachments,
+  createdAt: new Date(),
+  id: `queued-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+  prompt,
+});
+
 const createSessionTitle = (prompt: string) => {
   const normalizedPrompt = prompt.replace(/\s+/g, ' ').trim();
 
@@ -194,6 +211,7 @@ function ChatScreen({
   const stopRequestedRef = useRef(false);
   const [draft, setDraft] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isStoppingGeneration, setIsStoppingGeneration] = useState(false);
   const [isAwaitingFirstChunk, setIsAwaitingFirstChunk] = useState(false);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
   const [showScrollToBottom, setShowScrollToBottom] = useState(false);
@@ -202,15 +220,21 @@ function ChatScreen({
   >([]);
   const [attachmentError, setAttachmentError] = useState<string | null>(null);
   const [selectedMode, setSelectedMode] = useState<ChatMode['id']>('chat');
+  const [queuedRequests, setQueuedRequests] = useState<QueuedChatRequest[]>(
+    [],
+  );
+  const [editingQueuedRequestId, setEditingQueuedRequestId] = useState<
+    string | null
+  >(null);
+  const [editingQueuedDraft, setEditingQueuedDraft] = useState('');
 
   const hasUserMessages = useMemo(
     () => messages.some(message => message.role === 'user'),
     [messages],
   );
   const latestMessageText = messages[messages.length - 1]?.text ?? '';
-  const canSend =
-    (draft.trim().length > 0 || selectedAttachments.length > 0) &&
-    !isGenerating;
+  const isGenerationBusy = isGenerating || isStoppingGeneration;
+  const canSubmit = draft.trim().length > 0 || selectedAttachments.length > 0;
 
   const composerOffsetStyle = useMemo(
     () => ({
@@ -311,24 +335,24 @@ function ChatScreen({
   }, [hasUserMessages]);
 
   const handleStopGeneration = useCallback(() => {
-    if (!isGenerating) {
+    if (!isGenerating || isStoppingGeneration) {
       return;
     }
 
     stopRequestedRef.current = true;
-    generationTokenRef.current += 1;
-    setIsGenerating(false);
+    setIsStoppingGeneration(true);
     setIsAwaitingFirstChunk(false);
-    AIEngine.cancelActiveGeneration().catch(() => undefined);
-  }, [isGenerating]);
+    AIEngine.cancelActiveGeneration()
+      .catch(() => undefined)
+      .finally(() => {
+        setIsGenerating(false);
+        setIsStoppingGeneration(false);
+      });
+  }, [isGenerating, isStoppingGeneration]);
 
-  const handleSend = useCallback(async () => {
-    const prompt = draft.trim();
-    const attachmentsForPrompt = selectedAttachments;
-
-    if ((!prompt && attachmentsForPrompt.length === 0) || isGenerating) {
-      return;
-    }
+  const runChatRequest = useCallback(async (request: QueuedChatRequest) => {
+    const prompt = request.prompt.trim();
+    const attachmentsForPrompt = request.attachments;
 
     const promptForModel = prompt || '첨부한 파일을 분석해줘';
     const userMessageText = createUserMessageText(prompt, attachmentsForPrompt);
@@ -344,8 +368,8 @@ function ChatScreen({
     const shouldGenerateSessionTitle = !hasUserMessages;
 
     if (prompt === '/compact') {
-      setDraft('');
       setIsGenerating(true);
+      setIsStoppingGeneration(false);
       const pendingAssistant = createMessage(
         'assistant',
         'Compacting context...',
@@ -382,6 +406,7 @@ function ChatScreen({
         ]);
       } finally {
         setIsGenerating(false);
+        setIsStoppingGeneration(false);
       }
       return;
     }
@@ -394,13 +419,11 @@ function ChatScreen({
     if (!hasUserMessages) {
       onSessionTitleChange?.(nextSessionTitle ?? '새 채팅');
     }
-    setDraft('');
-    setSelectedAttachments([]);
-    setAttachmentError(null);
     const generationToken = generationTokenRef.current + 1;
     generationTokenRef.current = generationToken;
     stopRequestedRef.current = false;
     setIsGenerating(true);
+    setIsStoppingGeneration(false);
     setIsAwaitingFirstChunk(true);
 
     let streamedResponse = '';
@@ -544,24 +567,111 @@ function ChatScreen({
     } finally {
       if (generationTokenRef.current === generationToken) {
         setIsGenerating(false);
+        setIsStoppingGeneration(false);
         setIsAwaitingFirstChunk(false);
       }
     }
   }, [
-    draft,
     hasUserMessages,
-    isGenerating,
     messages,
     onMessagesChange,
     onSessionTitleChange,
     selectedModelLabel,
-    selectedAttachments,
     sessionId,
+  ]);
+
+  const handleSend = useCallback(() => {
+    const prompt = draft.trim();
+    const attachmentsForPrompt = [...selectedAttachments];
+
+    if (!prompt && attachmentsForPrompt.length === 0) {
+      return;
+    }
+
+    const request = createQueuedChatRequest(prompt, attachmentsForPrompt);
+    setDraft('');
+    setSelectedAttachments([]);
+    setAttachmentError(null);
+
+    if (isGenerationBusy) {
+      setQueuedRequests(currentRequests => [...currentRequests, request]);
+      return;
+    }
+
+    runChatRequest(request).catch(() => undefined);
+  }, [
+    draft,
+    isGenerationBusy,
+    runChatRequest,
+    selectedAttachments,
+  ]);
+
+  const handleEditQueuedRequest = useCallback((request: QueuedChatRequest) => {
+    setEditingQueuedRequestId(request.id);
+    setEditingQueuedDraft(request.prompt);
+  }, []);
+
+  const handleCancelQueuedRequestEdit = useCallback(() => {
+    setEditingQueuedRequestId(null);
+    setEditingQueuedDraft('');
+  }, []);
+
+  const handleSaveQueuedRequestEdit = useCallback(
+    (requestId: string) => {
+      const nextPrompt = editingQueuedDraft.trim();
+
+      setQueuedRequests(currentRequests =>
+        currentRequests.flatMap(request => {
+          if (request.id !== requestId) {
+            return [request];
+          }
+
+          if (!nextPrompt && request.attachments.length === 0) {
+            return [];
+          }
+
+          return [{ ...request, prompt: nextPrompt }];
+        }),
+      );
+      setEditingQueuedRequestId(null);
+      setEditingQueuedDraft('');
+    },
+    [editingQueuedDraft],
+  );
+
+  const handleDeleteQueuedRequest = useCallback((requestId: string) => {
+    setQueuedRequests(currentRequests =>
+      currentRequests.filter(request => request.id !== requestId),
+    );
+    setEditingQueuedRequestId(currentEditingId =>
+      currentEditingId === requestId ? null : currentEditingId,
+    );
+  }, []);
+
+  useEffect(() => {
+    if (
+      isGenerationBusy ||
+      editingQueuedRequestId ||
+      queuedRequests.length === 0
+    ) {
+      return;
+    }
+
+    const [nextRequest] = queuedRequests;
+    setQueuedRequests(currentRequests =>
+      currentRequests.filter(request => request.id !== nextRequest.id),
+    );
+    runChatRequest(nextRequest).catch(() => undefined);
+  }, [
+    editingQueuedRequestId,
+    isGenerationBusy,
+    queuedRequests,
+    runChatRequest,
   ]);
 
   const handleRetryResponse = useCallback(
     async (assistantMessageId: string) => {
-      if (isGenerating) {
+      if (isGenerationBusy) {
         return;
       }
 
@@ -615,6 +725,7 @@ function ChatScreen({
       generationTokenRef.current = generationToken;
       stopRequestedRef.current = false;
       setIsGenerating(true);
+      setIsStoppingGeneration(false);
       setIsAwaitingFirstChunk(false);
 
       let streamedResponse = '';
@@ -688,12 +799,13 @@ function ChatScreen({
       } finally {
         if (generationTokenRef.current === generationToken) {
           setIsGenerating(false);
+          setIsStoppingGeneration(false);
           setIsAwaitingFirstChunk(false);
         }
       }
     },
     [
-      isGenerating,
+      isGenerationBusy,
       messages,
       onMessagesChange,
       selectedModelLabel,
@@ -702,10 +814,6 @@ function ChatScreen({
   );
 
   const handleAttachFile = useCallback(async () => {
-    if (isGenerating) {
-      return;
-    }
-
     setAttachmentError(null);
 
     try {
@@ -729,7 +837,7 @@ function ChatScreen({
         error instanceof Error ? error.message : '파일을 선택하지 못했습니다.';
       setAttachmentError(`파일 첨부 실패: ${message}`);
     }
-  }, [isGenerating]);
+  }, []);
 
   const handleRemoveAttachment = useCallback(
     (attachment: MultimodalAttachment) => {
@@ -863,7 +971,7 @@ function ChatScreen({
                 return (
                   <ChatBubble
                     assistantName={message.modelName ?? selectedModelLabel}
-                    isRetryDisabled={isGenerating}
+                    isRetryDisabled={isGenerationBusy}
                     key={message.id}
                     onRetry={
                       canRetryAssistantMessage
@@ -983,17 +1091,140 @@ function ChatScreen({
             <Text style={styles.attachmentError}>{attachmentError}</Text>
           ) : null}
 
+          {queuedRequests.length > 0 ? (
+            <View style={styles.queuePanel}>
+              <View style={styles.queueHeader}>
+                <Text style={styles.queueTitle}>대기열</Text>
+                <Text style={styles.queueCount}>
+                  {queuedRequests.length}개 대기 중
+                </Text>
+              </View>
+
+              <ScrollView
+                keyboardShouldPersistTaps="handled"
+                nestedScrollEnabled
+                showsVerticalScrollIndicator={false}
+                style={styles.queueList}
+              >
+                {queuedRequests.map((request, index) => {
+                  const isEditing = editingQueuedRequestId === request.id;
+                  const queuedPrompt =
+                    request.prompt || '첨부한 파일을 분석해줘';
+                  const attachmentSummary = createAttachmentSummary(
+                    request.attachments,
+                  );
+
+                  return (
+                    <View key={request.id} style={styles.queueItem}>
+                      <View style={styles.queueIndexBadge}>
+                        <Text style={styles.queueIndexText}>{index + 1}</Text>
+                      </View>
+
+                      <View style={styles.queueItemBody}>
+                        {isEditing ? (
+                          <TextInput
+                            multiline
+                            onChangeText={setEditingQueuedDraft}
+                            placeholder="대기 중인 메시지 수정"
+                            placeholderTextColor={colors.mutedForeground}
+                            style={styles.queueEditInput}
+                            value={editingQueuedDraft}
+                          />
+                        ) : (
+                          <>
+                            <Text numberOfLines={2} style={styles.queueText}>
+                              {queuedPrompt}
+                            </Text>
+                            {attachmentSummary ? (
+                              <Text numberOfLines={1} style={styles.queueMeta}>
+                                첨부: {attachmentSummary}
+                              </Text>
+                            ) : null}
+                          </>
+                        )}
+                      </View>
+
+                      {isEditing ? (
+                        <View style={styles.queueTextActions}>
+                          <Pressable
+                            accessibilityLabel="대기 메시지 저장"
+                            accessibilityRole="button"
+                            onPress={() =>
+                              handleSaveQueuedRequestEdit(request.id)
+                            }
+                            style={({ pressed }) => [
+                              styles.queueTextActionButton,
+                              pressed && styles.promptRowPressed,
+                            ]}
+                          >
+                            <Text style={styles.queueTextActionLabel}>
+                              저장
+                            </Text>
+                          </Pressable>
+                          <Pressable
+                            accessibilityLabel="대기 메시지 수정 취소"
+                            accessibilityRole="button"
+                            onPress={handleCancelQueuedRequestEdit}
+                            style={({ pressed }) => [
+                              styles.queueTextActionButton,
+                              pressed && styles.promptRowPressed,
+                            ]}
+                          >
+                            <Text style={styles.queueTextActionLabelMuted}>
+                              취소
+                            </Text>
+                          </Pressable>
+                        </View>
+                      ) : (
+                        <View style={styles.queueIconActions}>
+                          <Pressable
+                            accessibilityLabel="대기 메시지 수정"
+                            accessibilityRole="button"
+                            onPress={() => handleEditQueuedRequest(request)}
+                            style={({ pressed }) => [
+                              styles.queueIconButton,
+                              pressed && styles.promptRowPressed,
+                            ]}
+                          >
+                            <AppIcon
+                              color={colors.mutedForeground}
+                              icon={appIcons.rename}
+                              size={13}
+                            />
+                          </Pressable>
+                          <Pressable
+                            accessibilityLabel="대기 메시지 삭제"
+                            accessibilityRole="button"
+                            onPress={() => handleDeleteQueuedRequest(request.id)}
+                            style={({ pressed }) => [
+                              styles.queueIconButton,
+                              pressed && styles.promptRowPressed,
+                            ]}
+                          >
+                            <AppIcon
+                              color={colors.destructive}
+                              icon={appIcons.delete}
+                              size={13}
+                            />
+                          </Pressable>
+                        </View>
+                      )}
+                    </View>
+                  );
+                })}
+              </ScrollView>
+            </View>
+          ) : null}
+
           <View style={styles.inputFooter}>
             <View style={styles.inputTools}>
               <Pressable
                 accessibilityLabel="파일 첨부"
                 accessibilityRole="button"
-                disabled={isGenerating}
                 onPress={handleAttachFile}
                 style={({ pressed }) => [
                   styles.iconTool,
                   pressed && styles.promptRowPressed,
-                  isGenerating && styles.disabledTool,
                 ]}
               >
                 <AppIcon
@@ -1044,24 +1275,40 @@ function ChatScreen({
               </Pressable>
             </View>
 
+            {isGenerationBusy ? (
+              <Pressable
+                accessibilityLabel="AI 응답 중단"
+                accessibilityRole="button"
+                disabled={isStoppingGeneration}
+                onPress={handleStopGeneration}
+                style={({ pressed }) => [
+                  styles.stopButton,
+                  pressed && styles.sendButtonPressed,
+                  isStoppingGeneration && styles.stopButtonDisabled,
+                ]}
+              >
+                <AppIcon
+                  color={colors.foreground}
+                  icon={appIcons.stop}
+                  size={14}
+                />
+              </Pressable>
+            ) : null}
+
             <Pressable
               accessibilityLabel={
-                isGenerating ? 'Stop response' : 'Send message'
+                isGenerationBusy ? '대기열에 메시지 추가' : '메시지 보내기'
               }
               accessibilityRole="button"
-              disabled={!isGenerating && !canSend}
-              onPress={isGenerating ? handleStopGeneration : handleSend}
+              disabled={!canSubmit}
+              onPress={handleSend}
               style={({ pressed }) => [
                 styles.sendButton,
                 pressed && styles.sendButtonPressed,
-                !isGenerating && !canSend && styles.sendButtonDisabled,
+                !canSubmit && styles.sendButtonDisabled,
               ]}
             >
-              {isGenerating ? (
-                <AppIcon color={colors.card} icon={appIcons.stop} size={17} />
-              ) : (
-                <AppIcon color={colors.card} icon={appIcons.send} size={20} />
-              )}
+              <AppIcon color={colors.card} icon={appIcons.send} size={20} />
             </Pressable>
           </View>
         </View>
@@ -1328,6 +1575,125 @@ const styles = StyleSheet.create({
     color: colors.destructive,
     paddingBottom: 10,
   },
+  queuePanel: {
+    borderTopColor: colors.border,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    marginBottom: 10,
+    paddingTop: 10,
+  },
+  queueHeader: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  queueTitle: {
+    ...typography.label,
+    color: colors.foreground,
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  queueCount: {
+    ...typography.caption,
+    color: colors.mutedForeground,
+    fontSize: 11,
+  },
+  queueList: {
+    maxHeight: 146,
+  },
+  queueItem: {
+    alignItems: 'center',
+    backgroundColor: colors.muted,
+    borderColor: colors.border,
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 7,
+    minHeight: 48,
+    paddingHorizontal: 9,
+    paddingVertical: 8,
+  },
+  queueIndexBadge: {
+    alignItems: 'center',
+    backgroundColor: colors.card,
+    borderColor: colors.border,
+    borderRadius: 10,
+    borderWidth: StyleSheet.hairlineWidth,
+    height: 20,
+    justifyContent: 'center',
+    width: 20,
+  },
+  queueIndexText: {
+    ...typography.caption,
+    color: colors.mutedForeground,
+    fontSize: 10,
+    fontWeight: '800',
+  },
+  queueItemBody: {
+    flex: 1,
+    minWidth: 0,
+  },
+  queueText: {
+    ...typography.body,
+    color: colors.foreground,
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  queueMeta: {
+    ...typography.caption,
+    color: colors.mutedForeground,
+    fontSize: 11,
+    marginTop: 2,
+  },
+  queueEditInput: {
+    ...typography.body,
+    backgroundColor: colors.card,
+    borderColor: colors.border,
+    borderRadius: 10,
+    borderWidth: StyleSheet.hairlineWidth,
+    color: colors.foreground,
+    fontSize: 13,
+    lineHeight: 18,
+    maxHeight: 74,
+    minHeight: 40,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    textAlignVertical: 'top',
+  },
+  queueIconActions: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 2,
+  },
+  queueIconButton: {
+    alignItems: 'center',
+    height: 32,
+    justifyContent: 'center',
+    width: 30,
+  },
+  queueTextActions: {
+    alignItems: 'flex-end',
+    gap: 4,
+  },
+  queueTextActionButton: {
+    alignItems: 'center',
+    minHeight: 24,
+    justifyContent: 'center',
+    paddingHorizontal: 4,
+  },
+  queueTextActionLabel: {
+    ...typography.label,
+    color: colors.primary,
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  queueTextActionLabelMuted: {
+    ...typography.label,
+    color: colors.mutedForeground,
+    fontSize: 12,
+    fontWeight: '700',
+  },
   inputFooter: {
     alignItems: 'center',
     flexDirection: 'row',
@@ -1345,9 +1711,6 @@ const styles = StyleSheet.create({
     height: 36,
     justifyContent: 'center',
     width: 34,
-  },
-  disabledTool: {
-    opacity: 0.38,
   },
   textTool: {
     alignItems: 'center',
@@ -1381,6 +1744,20 @@ const styles = StyleSheet.create({
   sendButtonDisabled: {
     backgroundColor: colors.foreground,
     opacity: 1,
+  },
+  stopButton: {
+    alignItems: 'center',
+    backgroundColor: colors.card,
+    borderColor: colors.border,
+    borderRadius: 20,
+    borderWidth: StyleSheet.hairlineWidth,
+    height: 40,
+    justifyContent: 'center',
+    marginRight: 8,
+    width: 40,
+  },
+  stopButtonDisabled: {
+    opacity: 0.44,
   },
 });
 

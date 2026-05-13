@@ -39,7 +39,7 @@ details may change before the first stable release.
 - Persisted chat sessions, folders, selected model, and display settings.
 - FontAwesome/SVG icon pipeline for consistent cross-platform rendering.
 - Native AI bridge contract in TypeScript.
-- Android native AI engine scaffolding and implementation under `com.onda`.
+- Android native AI engine scaffolding and implementation under `com.openedgeai`.
 - Web preview for frontend-only development.
 
 ## Project Status
@@ -66,7 +66,7 @@ details may change before the first stable release.
 │   ├── theme/                  # Tokens, icons, and display scaling
 │   └── web/                    # React Native Web compatibility shims
 ├── android/                    # Android app and Kotlin on-device AI core
-│   └── app/src/main/java/com/onda/
+│   └── app/src/main/java/com/openedgeai/
 │       ├── bridge/             # React Native <-> Kotlin bridge
 │       ├── core/               # Model runtime, routing, embeddings, vision
 │       ├── db/                 # SQLite vector store helpers

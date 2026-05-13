@@ -16,7 +16,7 @@ export type BrandingConfig = {
 export const branding: BrandingConfig = {
   androidAppName: 'OpenEdgeAI',
   appRegistryName: 'OpenEdgeAI',
-  bundleIdentifier: 'com.onda',
+  bundleIdentifier: 'com.openedgeai',
   displayName: 'Open Edge AI',
   iosDisplayName: 'OpenEdgeAI',
   logo: logoSource,

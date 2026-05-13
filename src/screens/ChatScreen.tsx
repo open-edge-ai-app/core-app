@@ -6,7 +6,6 @@ import React, {
   useState,
 } from 'react';
 import {
-  ActivityIndicator,
   Keyboard,
   KeyboardAvoidingView,
   KeyboardEvent,
@@ -191,6 +190,8 @@ function ChatScreen({
 }: ChatScreenProps) {
   const scrollViewRef = useRef<ScrollView>(null);
   const isNearThreadEndRef = useRef(true);
+  const generationTokenRef = useRef(0);
+  const stopRequestedRef = useRef(false);
   const [draft, setDraft] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [isAwaitingFirstChunk, setIsAwaitingFirstChunk] = useState(false);
@@ -309,6 +310,18 @@ function ChatScreen({
     scrollViewRef.current?.scrollTo({ animated: false, y: 0 });
   }, [hasUserMessages]);
 
+  const handleStopGeneration = useCallback(() => {
+    if (!isGenerating) {
+      return;
+    }
+
+    stopRequestedRef.current = true;
+    generationTokenRef.current += 1;
+    setIsGenerating(false);
+    setIsAwaitingFirstChunk(false);
+    AIEngine.cancelActiveGeneration().catch(() => undefined);
+  }, [isGenerating]);
+
   const handleSend = useCallback(async () => {
     const prompt = draft.trim();
     const attachmentsForPrompt = selectedAttachments;
@@ -384,6 +397,9 @@ function ChatScreen({
     setDraft('');
     setSelectedAttachments([]);
     setAttachmentError(null);
+    const generationToken = generationTokenRef.current + 1;
+    generationTokenRef.current = generationToken;
+    stopRequestedRef.current = false;
     setIsGenerating(true);
     setIsAwaitingFirstChunk(true);
 
@@ -400,6 +416,13 @@ function ChatScreen({
       const requestHistory: AIChatMessage[] = [];
 
       const updateAssistantMessage = (text: string) => {
+        if (
+          generationTokenRef.current !== generationToken ||
+          stopRequestedRef.current
+        ) {
+          return;
+        }
+
         onMessagesChange(
           [
             ...messagesWithUserPrompt,
@@ -414,6 +437,13 @@ function ChatScreen({
       };
 
       const updateAssistantReasoning = (reasoning: string) => {
+        if (
+          generationTokenRef.current !== generationToken ||
+          stopRequestedRef.current
+        ) {
+          return;
+        }
+
         assistantMessage.reasoning = reasoning;
         onMessagesChange(
           [
@@ -436,6 +466,12 @@ function ChatScreen({
             if (!chunk) {
               return;
             }
+            if (
+              generationTokenRef.current !== generationToken ||
+              stopRequestedRef.current
+            ) {
+              return;
+            }
 
             streamedResponse += chunk;
             setIsAwaitingFirstChunk(false);
@@ -448,6 +484,13 @@ function ChatScreen({
           chatSessionId: resolvedSessionId ?? undefined,
         },
       );
+
+      if (
+        generationTokenRef.current !== generationToken ||
+        stopRequestedRef.current
+      ) {
+        return;
+      }
 
       if (response !== streamedResponse) {
         updateAssistantMessage(response);
@@ -476,6 +519,13 @@ function ChatScreen({
           .catch(() => undefined);
       }
     } catch (error) {
+      if (
+        generationTokenRef.current !== generationToken ||
+        stopRequestedRef.current
+      ) {
+        return;
+      }
+
       const message =
         error instanceof Error
           ? error.message
@@ -492,8 +542,10 @@ function ChatScreen({
         nextSessionTitle,
       );
     } finally {
-      setIsGenerating(false);
-      setIsAwaitingFirstChunk(false);
+      if (generationTokenRef.current === generationToken) {
+        setIsGenerating(false);
+        setIsAwaitingFirstChunk(false);
+      }
     }
   }, [
     draft,
@@ -559,6 +611,9 @@ function ChatScreen({
 
       const messagesChange = onMessagesChange(messagesWithPendingRetry);
       setAttachmentError(null);
+      const generationToken = generationTokenRef.current + 1;
+      generationTokenRef.current = generationToken;
+      stopRequestedRef.current = false;
       setIsGenerating(true);
       setIsAwaitingFirstChunk(false);
 
@@ -582,6 +637,12 @@ function ChatScreen({
               if (!chunk) {
                 return;
               }
+              if (
+                generationTokenRef.current !== generationToken ||
+                stopRequestedRef.current
+              ) {
+                return;
+              }
 
               streamedResponse += chunk;
               updateRetriedAssistantMessage(streamedResponse);
@@ -591,6 +652,13 @@ function ChatScreen({
             chatSessionId: sessionId ?? undefined,
           },
         );
+
+        if (
+          generationTokenRef.current !== generationToken ||
+          stopRequestedRef.current
+        ) {
+          return;
+        }
 
         const finalResponse = response || streamedResponse;
         updateRetriedAssistantMessage(finalResponse);
@@ -602,6 +670,13 @@ function ChatScreen({
           ),
         ).persisted?.catch(() => undefined);
       } catch (error) {
+        if (
+          generationTokenRef.current !== generationToken ||
+          stopRequestedRef.current
+        ) {
+          return;
+        }
+
         const message =
           error instanceof Error
             ? error.message
@@ -611,8 +686,10 @@ function ChatScreen({
           streamedResponse || `응답 실패: ${message}`,
         );
       } finally {
-        setIsGenerating(false);
-        setIsAwaitingFirstChunk(false);
+        if (generationTokenRef.current === generationToken) {
+          setIsGenerating(false);
+          setIsAwaitingFirstChunk(false);
+        }
       }
     },
     [
@@ -968,18 +1045,20 @@ function ChatScreen({
             </View>
 
             <Pressable
-              accessibilityLabel={isGenerating ? '응답 생성 중' : '메시지 보내기'}
+              accessibilityLabel={
+                isGenerating ? 'Stop response' : 'Send message'
+              }
               accessibilityRole="button"
-              disabled={!canSend}
-              onPress={handleSend}
+              disabled={!isGenerating && !canSend}
+              onPress={isGenerating ? handleStopGeneration : handleSend}
               style={({ pressed }) => [
                 styles.sendButton,
                 pressed && styles.sendButtonPressed,
-                !canSend && styles.sendButtonDisabled,
+                !isGenerating && !canSend && styles.sendButtonDisabled,
               ]}
             >
               {isGenerating ? (
-                <ActivityIndicator color={colors.card} size="small" />
+                <AppIcon color={colors.card} icon={appIcons.stop} size={17} />
               ) : (
                 <AppIcon color={colors.card} icon={appIcons.send} size={20} />
               )}

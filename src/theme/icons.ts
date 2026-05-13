@@ -25,6 +25,7 @@ import {
   faPlus,
   faRotateRight,
   faSliders,
+  faStop,
   faTerminal,
   faThumbtack,
 } from '@fortawesome/free-solid-svg-icons';
@@ -69,6 +70,7 @@ export const appIcons = {
   session: faCommentDots,
   settings: faGear,
   send: faArrowUp,
+  stop: faStop,
   sources: faGlobe,
   addContext: faCirclePlus,
   back: faAngleLeft,

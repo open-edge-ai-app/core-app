@@ -17,8 +17,11 @@ import { colors, typography } from '../theme/tokens';
 export type FloatingSelectOption<Value extends string> = {
   description?: string;
   dividerBefore?: boolean;
+  disabled?: boolean;
   icon?: IconDefinition;
   label: string;
+  trailingIcon?: IconDefinition;
+  trailingIconColor?: string;
   value: Value;
 };
 
@@ -87,8 +90,12 @@ function FloatingSelect<Value extends string>({
     ? colors.primaryForeground
     : colors.mutedForeground;
 
-  const handleSelect = (value: Value) => {
-    onValueChange(value);
+  const handleSelect = (option: FloatingSelectOption<Value>) => {
+    if (option.disabled) {
+      return;
+    }
+
+    onValueChange(option.value);
     onExpandedChange(false);
   };
 
@@ -180,13 +187,18 @@ function FloatingSelect<Value extends string>({
               <Pressable
                 accessibilityLabel={`${option.label} 선택`}
                 accessibilityRole="button"
-                accessibilityState={{ selected: isSelected }}
+                accessibilityState={{
+                  disabled: option.disabled,
+                  selected: isSelected,
+                }}
+                disabled={option.disabled}
                 key={option.value}
-                onPress={() => handleSelect(option.value)}
+                onPress={() => handleSelect(option)}
                 style={({ pressed }) => [
                   styles.optionRow,
                   option.dividerBefore && styles.optionRowDivider,
                   isSelected && styles.optionRowActive,
+                  option.disabled && styles.optionRowDisabled,
                   pressed && styles.pressed,
                 ]}
               >
@@ -213,6 +225,12 @@ function FloatingSelect<Value extends string>({
                   <AppIcon
                     color={colors.primary}
                     icon={appIcons.selected}
+                    size={15}
+                  />
+                ) : option.trailingIcon ? (
+                  <AppIcon
+                    color={option.trailingIconColor ?? colors.mutedForeground}
+                    icon={option.trailingIcon}
                     size={15}
                   />
                 ) : null}
@@ -358,6 +376,9 @@ const styles = StyleSheet.create({
   },
   optionRowActive: {
     backgroundColor: 'rgba(0,122,255,0.08)',
+  },
+  optionRowDisabled: {
+    opacity: 0.54,
   },
   optionRowDivider: {
     borderTopColor: colors.border,

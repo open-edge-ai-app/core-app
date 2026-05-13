@@ -217,6 +217,45 @@ const modelOptions: ModelOption[] = [
 ];
 
 const modelManageOption = modelOptions.find(model => model.id === 'manage')!;
+const defaultDownloadableModelOption = modelOptions.find(
+  model => model.id === 'gemma-4',
+)!;
+
+const formatModelDownloadProgress = (modelStatus: ModelStatus | null) => {
+  if (!modelStatus?.totalBytes) {
+    return '';
+  }
+
+  const progress = Math.max(
+    0,
+    Math.min(
+      100,
+      Math.floor((modelStatus.bytesDownloaded / modelStatus.totalBytes) * 100),
+    ),
+  );
+
+  return `${progress}%`;
+};
+
+const getModelDownloadDescription = (
+  modelStatus: ModelStatus | null,
+  isDownloadStarting: boolean,
+) => {
+  if (modelStatus?.isDownloading) {
+    const progress = formatModelDownloadProgress(modelStatus);
+    return progress ? `다운로드 중 ${progress}` : '다운로드 중';
+  }
+
+  if (isDownloadStarting) {
+    return '다운로드 시작 중';
+  }
+
+  if (modelStatus?.error) {
+    return `다운로드 실패: ${modelStatus.error}`;
+  }
+
+  return '설치되지 않음. 눌러서 다운로드';
+};
 
 const getActiveModelOption = (
   modelStatus: ModelStatus | null,
@@ -480,6 +519,8 @@ function App() {
   const [selectedModelId, setSelectedModelId] =
     useState<ModelOption['id']>('gemma-4');
   const [modelStatus, setModelStatus] = useState<ModelStatus | null>(null);
+  const [isModelDownloadStarting, setIsModelDownloadStarting] =
+    useState(false);
 
   const handleModelStateChange = useCallback(
     ({
@@ -515,21 +556,65 @@ function App() {
   const headerSelectedModelId = activeModelOption?.id ?? modelManageOption.id;
   const isSettingsDetailPanel =
     activeScreen === 'settings' && settingsPanel !== 'root';
+
+  const handleDownloadModelFromMenu = useCallback(async () => {
+    if (
+      isModelDownloadStarting ||
+      modelStatus?.installed ||
+      modelStatus?.isDownloading
+    ) {
+      return;
+    }
+
+    setIsModelDownloadStarting(true);
+
+    try {
+      const nextModelStatus = await AIEngine.downloadModel();
+      setModelStatus(nextModelStatus);
+    } finally {
+      setIsModelDownloadStarting(false);
+    }
+  }, [
+    isModelDownloadStarting,
+    modelStatus?.installed,
+    modelStatus?.isDownloading,
+  ]);
+
   const modelSelectOptions = useMemo<
     FloatingSelectOption<ModelOption['id']>[]
   >(() => {
     const visibleModelOptions = activeModelOption
       ? [activeModelOption, modelManageOption]
-      : [modelManageOption];
+      : [defaultDownloadableModelOption, modelManageOption];
 
-    return visibleModelOptions.map((model, index) => ({
-      description: model.detail,
-      dividerBefore: index > 0 && model.action === 'settings',
-      icon: model.icon,
-      label: model.label,
-      value: model.id,
-    }));
-  }, [activeModelOption]);
+    return visibleModelOptions.map((model, index) => {
+      const isDownloadableMissingModel =
+        !activeModelOption && model.id === defaultDownloadableModelOption.id;
+
+      return {
+        description: isDownloadableMissingModel
+          ? getModelDownloadDescription(modelStatus, isModelDownloadStarting)
+          : model.detail,
+        disabled:
+          isDownloadableMissingModel &&
+          (modelStatus?.isDownloading || isModelDownloadStarting),
+        dividerBefore: index > 0 && model.action === 'settings',
+        icon: model.icon,
+        label: model.label,
+        trailingIcon: isDownloadableMissingModel
+          ? appIcons.download
+          : undefined,
+        trailingIconColor: modelStatus?.error
+          ? colors.destructive
+          : colors.primary,
+        value: model.id,
+      };
+    });
+  }, [
+    activeModelOption,
+    isModelDownloadStarting,
+    modelStatus,
+  ]);
 
   const handleModelMenuExpandedChange = useCallback((expanded: boolean) => {
     if (expanded) {
@@ -538,17 +623,28 @@ function App() {
     setIsModelMenuOpen(expanded);
   }, []);
 
-  const handleSelectModel = useCallback((modelId: ModelOption['id']) => {
-    const nextModel = modelOptions.find(model => model.id === modelId);
+  const handleSelectModel = useCallback(
+    (modelId: ModelOption['id']) => {
+      const nextModel = modelOptions.find(model => model.id === modelId);
 
-    if (nextModel?.action === 'settings') {
-      setActiveScreen('settings');
-      setSettingsPanel('root');
-      return;
-    }
+      if (!nextModel) {
+        return;
+      }
 
-    setSelectedModelId(modelId);
-  }, []);
+      if (nextModel.action === 'settings') {
+        setActiveScreen('settings');
+        setSettingsPanel('root');
+        return;
+      }
+
+      setSelectedModelId(modelId);
+
+      if (!modelStatus?.installed) {
+        handleDownloadModelFromMenu().catch(() => undefined);
+      }
+    },
+    [handleDownloadModelFromMenu, modelStatus?.installed],
+  );
 
   useEffect(() => {
     refreshModelState().catch(() => undefined);
@@ -559,6 +655,18 @@ function App() {
       refreshModelState().catch(() => undefined);
     }
   }, [isModelMenuOpen, refreshModelState]);
+
+  useEffect(() => {
+    if (!modelStatus?.isDownloading) {
+      return;
+    }
+
+    const intervalId = setInterval(() => {
+      refreshModelState().catch(() => undefined);
+    }, 1200);
+
+    return () => clearInterval(intervalId);
+  }, [modelStatus?.isDownloading, refreshModelState]);
 
   useEffect(() => {
     activeSessionIdRef.current = activeSessionId;

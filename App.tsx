@@ -168,7 +168,7 @@ type PersistedAppState = {
 const APP_STATE_STORAGE_KEY = 'open-edge-ai:app-state:v1';
 const MODEL_MENU_GAP = 6;
 const MODEL_MENU_TOP = 52 + MODEL_MENU_GAP;
-const MODEL_MENU_WIDTH = 252;
+const MODEL_MENU_WIDTH = 220;
 const WEB_APP_MAX_WIDTH = 430;
 const MENU_HORIZONTAL_PADDING = 24;
 const MENU_HEADER_LOGO_LEFT_OFFSET = -16;
@@ -2844,9 +2844,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 5,
     justifyContent: 'space-between',
-    maxWidth: 106,
+    maxWidth: 92,
     minHeight: 32,
-    paddingHorizontal: 11,
+    paddingHorizontal: 10,
   },
   modelSelectorActive: {
     backgroundColor: colors.card,
@@ -2856,9 +2856,9 @@ const styles = StyleSheet.create({
     color: colors.foreground,
     flex: 1,
     flexShrink: 1,
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '700',
-    marginRight: 5,
+    marginRight: 4,
   },
   modelMenuBackdrop: {
     bottom: 0,
@@ -2891,7 +2891,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     minHeight: 48,
-    paddingHorizontal: 12,
+    paddingHorizontal: 10,
     paddingVertical: 8,
   },
   modelMenuOptionSelected: {
@@ -2910,11 +2910,11 @@ const styles = StyleSheet.create({
     flex: 1,
     flexDirection: 'row',
     minWidth: 0,
-    paddingRight: 10,
+    paddingRight: 8,
   },
   modelMenuOptionCopy: {
     flex: 1,
-    marginLeft: 10,
+    marginLeft: 9,
     minWidth: 0,
   },
   modelMenuOptionLabel: {

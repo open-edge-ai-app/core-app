@@ -554,7 +554,7 @@ function App() {
       modelOptions[0],
     [activeModelOption, selectedModelId],
   );
-  const headerSelectedModelId = activeModelOption?.id ?? modelManageOption.id;
+  const headerSelectedModelId = activeModelOption?.id ?? null;
   const isSettingsDetailPanel =
     activeScreen === 'settings' && settingsPanel !== 'root';
 

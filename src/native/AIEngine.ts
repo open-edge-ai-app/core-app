@@ -170,6 +170,7 @@ type AIEngineNativeModule = {
   getRuntimeStatus?: () => Promise<RuntimeStatus>;
   loadModel?: () => Promise<RuntimeStatus>;
   unloadModel?: () => Promise<RuntimeStatus>;
+  cancelActiveGeneration?: () => Promise<boolean>;
   downloadModel?: () => Promise<ModelStatus>;
   ensureModelDownloaded?: () => Promise<ModelStatus>;
   cancelModelDownload?: () => Promise<ModelStatus>;
@@ -211,6 +212,8 @@ const nativePermissionsAndroid = NativeModules.PermissionsAndroid as
   | NativePermissionsAndroidModule
   | undefined;
 const AI_ENGINE_STREAM_EVENT = 'AIEngineStreamChunk';
+const STREAM_IDLE_COMPLETION_MS = 45_000;
+const STREAM_HARD_TIMEOUT_MS = 120_000;
 
 const androidPermissions = {
   READ_EXTERNAL_STORAGE: 'android.permission.READ_EXTERNAL_STORAGE',
@@ -517,8 +520,18 @@ export const AIEngine = {
           let response = '';
           let settled = false;
           let subscription: { remove: () => void } | null = null;
+          let idleCompletionTimer: ReturnType<typeof setTimeout> | null = null;
+          let hardTimeoutTimer: ReturnType<typeof setTimeout> | null = null;
 
           const cleanup = () => {
+            if (idleCompletionTimer) {
+              clearTimeout(idleCompletionTimer);
+              idleCompletionTimer = null;
+            }
+            if (hardTimeoutTimer) {
+              clearTimeout(hardTimeoutTimer);
+              hardTimeoutTimer = null;
+            }
             subscription?.remove();
           };
 
@@ -542,6 +555,29 @@ export const AIEngine = {
             reject(error);
           };
 
+          const scheduleIdleCompletion = () => {
+            if (idleCompletionTimer) {
+              clearTimeout(idleCompletionTimer);
+            }
+
+            if (!response.trim()) {
+              return;
+            }
+
+            idleCompletionTimer = setTimeout(() => {
+              complete(response);
+            }, STREAM_IDLE_COMPLETION_MS);
+          };
+
+          hardTimeoutTimer = setTimeout(() => {
+            if (response.trim()) {
+              complete(response);
+              return;
+            }
+
+            fail(new Error('AI response timed out.'));
+          }, STREAM_HARD_TIMEOUT_MS);
+
           subscription = emitter.addListener(
             AI_ENGINE_STREAM_EVENT,
             (event: NativeStreamEvent) => {
@@ -557,6 +593,7 @@ export const AIEngine = {
               if (event.chunk) {
                 response += event.chunk;
                 callbacks.onChunk(event.chunk);
+                scheduleIdleCompletion();
               }
 
               if (event.done) {
@@ -576,13 +613,19 @@ export const AIEngine = {
               stream: true,
             },
             text: prompt,
-          }).catch(error => {
-            fail(
-              error instanceof Error
-                ? error
-                : new Error('AI 응답 스트리밍을 시작하지 못했습니다.'),
-            );
-          });
+          })
+            .then(result => {
+              if (!result?.started) {
+                fail(new Error('AI response stream did not start.'));
+              }
+            })
+            .catch(error => {
+              fail(
+                error instanceof Error
+                  ? error
+                  : new Error('Failed to start AI response stream.'),
+              );
+            });
         });
       }
     }

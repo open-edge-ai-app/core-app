@@ -64,6 +64,7 @@ object ModelRuntimeManager {
     fun generateText(
         message: String,
         useRag: Boolean,
+        nativeTools: OpenEdgeAiToolSet? = null,
     ): AIResponse = lock.withLock {
         val currentEngine = engine
             ?: return AIResponse(
@@ -73,7 +74,11 @@ object ModelRuntimeManager {
                 modalities = emptyList(),
             )
 
-        val response = LiteRtLmReflector.sendText(currentEngine as LiteRtLmReflector.EngineHandle, message)
+        val response = LiteRtLmReflector.sendText(
+            handle = currentEngine as LiteRtLmReflector.EngineHandle,
+            text = message,
+            nativeTools = nativeTools,
+        )
         AIResponse(
             type = "text",
             message = response.message,
@@ -162,6 +167,13 @@ object ModelRuntimeManager {
     }
 
     fun isReady(): Boolean = engine != null
+
+    fun cancelActiveGeneration(): Boolean {
+        val currentEngine = lock.withLock { engine } as? LiteRtLmReflector.EngineHandle
+            ?: return false
+        currentEngine.cancelActiveConversation()
+        return true
+    }
 
     private fun closeEngineLocked() {
         try {

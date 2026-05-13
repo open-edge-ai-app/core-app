@@ -15,14 +15,19 @@ import com.google.ai.edge.litertlm.EngineConfig
 import com.google.ai.edge.litertlm.Message
 import com.google.ai.edge.litertlm.MessageCallback
 import com.google.ai.edge.litertlm.SamplerConfig
+import com.google.ai.edge.litertlm.ToolProvider
+import com.google.ai.edge.litertlm.tool
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.util.concurrent.CancellationException
 import java.util.concurrent.Executors
 import java.util.concurrent.ScheduledFuture
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.TimeoutException
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
+import java.util.concurrent.locks.ReentrantLock
+import kotlin.concurrent.withLock
 
 object LiteRtLmReflector {
     private const val TAG = "OpenEdgeAILiteRtLm"
@@ -30,7 +35,9 @@ object LiteRtLmReflector {
     private const val TEMPERATURE = 0.7
     private const val TOP_K = 64
     private const val TOP_P = 0.95
-    private const val STREAM_IDLE_COMPLETE_MS = 2_500L
+    private const val STREAM_IDLE_COMPLETE_MS = 15_000L
+    private const val STREAM_FIRST_TOKEN_TIMEOUT_MS = 90_000L
+    private const val MIN_WEIGHT_CACHE_SPACE_BYTES = 1_500_000_000L
     private val OPENCL_LIBRARY_PATHS = listOf(
         "/system/lib64/libOpenCL.so",
         "/system/vendor/lib64/libOpenCL.so",
@@ -49,20 +56,99 @@ object LiteRtLmReflector {
         private val context: Context,
         val engine: Engine,
     ) : AutoCloseable {
-        fun createConversation(initialMessages: List<ConversationMessage>): Conversation =
+        private data class ConversationKey(
+            val chatSessionId: String,
+            val toolsEnabled: Boolean,
+        )
+
+        private val conversationLock = ReentrantLock()
+        private var activeConversation: Conversation? = null
+        private var activeConversationKey: ConversationKey? = null
+
+        fun getConversation(
+            initialMessages: List<ConversationMessage>,
+            chatSessionId: String?,
+            nativeTools: OpenEdgeAiToolSet? = null,
+        ): Conversation = conversationLock.withLock {
+            val key = chatSessionId
+                ?.takeIf { it.isNotBlank() }
+                ?.let { ConversationKey(it, nativeTools != null) }
+            if (
+                key != null &&
+                key == activeConversationKey &&
+                activeConversation?.isAlive == true
+            ) {
+                return@withLock requireNotNull(activeConversation)
+            }
+
+            closeActiveConversationLocked(cancelGeneration = true)
             engine.createConversation(
                 ConversationConfig(
+                    systemInstruction = nativeTools?.let { toolSystemInstruction() },
                     initialMessages = initialMessages.toLiteRtMessages(),
+                    tools = nativeTools.toToolProviders(),
                     samplerConfig = SamplerConfig(
                         topK = TOP_K,
                         topP = TOP_P,
                         temperature = TEMPERATURE,
                     ),
+                    automaticToolCalling = nativeTools != null,
                 ),
-            )
+            ).also { conversation ->
+                activeConversation = conversation
+                activeConversationKey = key
+            }
+        }
+
+        fun closeConversation(
+            conversation: Conversation,
+            cancelGeneration: Boolean = false,
+        ) = conversationLock.withLock {
+            if (activeConversation !== conversation) {
+                closeConversationLocked(conversation, cancelGeneration)
+                return@withLock
+            }
+
+            closeConversationLocked(conversation, cancelGeneration)
+            activeConversation = null
+            activeConversationKey = null
+        }
+
+        fun cancelActiveConversation() = conversationLock.withLock {
+            closeActiveConversationLocked(cancelGeneration = true)
+        }
 
         override fun close() {
+            conversationLock.withLock {
+                closeActiveConversationLocked(cancelGeneration = true)
+            }
             engine.close()
+        }
+
+        private fun closeActiveConversationLocked(cancelGeneration: Boolean) {
+            activeConversation?.let { conversation ->
+                closeConversationLocked(conversation, cancelGeneration)
+            }
+            activeConversation = null
+            activeConversationKey = null
+        }
+
+        private fun closeConversationLocked(
+            conversation: Conversation,
+            cancelGeneration: Boolean,
+        ) {
+            if (cancelGeneration) {
+                try {
+                    conversation.cancelProcess()
+                } catch (error: Exception) {
+                    Log.w(TAG, "Failed to cancel LiteRT-LM generation", error)
+                }
+            }
+            try {
+                conversation.close()
+            } catch (error: Exception) {
+                Log.w(TAG, "Failed to close conversation", error)
+            }
         }
     }
 
@@ -77,7 +163,7 @@ object LiteRtLmReflector {
             visionBackend = preferredBackend,
             audioBackend = Backend.CPU(),
             maxNumTokens = MAX_NUM_TOKENS,
-            cacheDir = context.cacheDir.absolutePath,
+            cacheDir = resolveCacheDir(context),
         )
         val engine = Engine(engineConfig)
         return try {
@@ -99,7 +185,7 @@ object LiteRtLmReflector {
                 visionBackend = Backend.CPU(),
                 audioBackend = Backend.CPU(),
                 maxNumTokens = MAX_NUM_TOKENS,
-                cacheDir = context.cacheDir.absolutePath,
+                cacheDir = resolveCacheDir(context),
             )
             val cpuEngine = Engine(cpuConfig)
             cpuEngine.initialize()
@@ -110,20 +196,39 @@ object LiteRtLmReflector {
     fun sendText(
         handle: EngineHandle,
         text: String,
-    ): ParsedOutput =
-        handle.createConversation(emptyList()).use { conversation ->
+        nativeTools: OpenEdgeAiToolSet? = null,
+    ): ParsedOutput {
+        val conversation = handle.getConversation(
+            initialMessages = emptyList(),
+            chatSessionId = null,
+            nativeTools = nativeTools,
+        )
+        return try {
             val message = conversation.sendMessage(text, noThinkingContext())
             ParsedOutput(message = message.toFinalText())
+        } finally {
+            handle.closeConversation(conversation)
         }
+    }
 
     fun sendMultimodal(
         handle: EngineHandle,
         request: MultimodalRequest,
-    ): ParsedOutput =
-        handle.createConversation(request.history).use { conversation ->
+    ): ParsedOutput {
+        val conversation = handle.getConversation(
+            initialMessages = request.history,
+            chatSessionId = request.chatSessionId,
+            nativeTools = request.nativeTools,
+        )
+        return try {
             val message = conversation.sendMessage(request.toContents(), noThinkingContext())
             ParsedOutput(message = message.toFinalText())
+        } finally {
+            if (request.chatSessionId.isNullOrBlank()) {
+                handle.closeConversation(conversation)
+            }
         }
+    }
 
     fun sendMultimodalStream(
         handle: EngineHandle,
@@ -132,7 +237,11 @@ object LiteRtLmReflector {
         onComplete: (ParsedOutput) -> Unit,
         onError: (Throwable) -> Unit,
     ) {
-        val conversation = handle.createConversation(request.history)
+        val conversation = handle.getConversation(
+            initialMessages = request.history,
+            chatSessionId = request.chatSessionId,
+            nativeTools = request.nativeTools,
+        )
         val output = StringBuilder()
         val completed = AtomicBoolean(false)
         val lastOutputAt = AtomicLong(System.currentTimeMillis())
@@ -150,14 +259,9 @@ object LiteRtLmReflector {
 
             watchdog?.cancel(false)
             watchdogExecutor.shutdownNow()
-            if (cancelGeneration) {
-                try {
-                    conversation.cancelProcess()
-                } catch (error: Exception) {
-                    Log.w(TAG, "Failed to cancel LiteRT-LM generation", error)
-                }
+            if (cancelGeneration || request.chatSessionId.isNullOrBlank()) {
+                handle.closeConversation(conversation, cancelGeneration)
             }
-            closeConversation(conversation)
             onComplete(ParsedOutput(message = output.toString().cleanModelOutput()))
         }
 
@@ -168,18 +272,25 @@ object LiteRtLmReflector {
 
             watchdog?.cancel(false)
             watchdogExecutor.shutdownNow()
-            closeConversation(conversation)
+            handle.closeConversation(conversation)
             Log.e(TAG, "LiteRT-LM stream error", error)
             onError(error)
         }
 
         watchdog = watchdogExecutor.scheduleWithFixedDelay(
             {
-                if (completed.get() || output.isBlank()) {
+                if (completed.get()) {
                     return@scheduleWithFixedDelay
                 }
 
                 val idleMs = System.currentTimeMillis() - lastOutputAt.get()
+                if (output.isBlank()) {
+                    if (idleMs >= STREAM_FIRST_TOKEN_TIMEOUT_MS) {
+                        fail(TimeoutException("AI response timed out before the first token."))
+                    }
+                    return@scheduleWithFixedDelay
+                }
+
                 if (idleMs >= STREAM_IDLE_COMPLETE_MS) {
                     Log.d(TAG, "stream idle complete idleMs=$idleMs chars=${output.length}")
                     finish(cancelGeneration = true)
@@ -277,15 +388,26 @@ object LiteRtLmReflector {
     }
 
     private fun noThinkingContext(): Map<String, Any> =
-        mapOf("enable_thinking" to false)
+        emptyMap()
 
-    private fun closeConversation(conversation: Conversation) {
-        try {
-            conversation.close()
-        } catch (error: Exception) {
-            Log.w(TAG, "Failed to close conversation", error)
-        }
-    }
+    private fun OpenEdgeAiToolSet?.toToolProviders(): List<ToolProvider> =
+        this?.let { listOf(tool(it)) }.orEmpty()
+
+    private fun toolSystemInstruction(): Contents =
+        Contents.of(
+            Content.Text(
+                """
+                You are Open Edge AI, an on-device assistant.
+                Use tools only when they are clearly needed.
+                Use rag_search for private local memories such as SMS, gallery photos, documents, receipts, and saved chat context.
+                Use web_search for current or public web information only.
+                Before calling web_search, remove private data from the query. Never send names, phone numbers, emails, addresses, account numbers, local file paths, photo paths, SMS contents, document contents, or secrets to web_search.
+                If a request mixes private/local memory and public information, use rag_search for the private part and use only sanitized public terms for web_search.
+                Do not reveal tool internals. Answer naturally from the final tool results.
+                Do not output hidden reasoning, analysis steps, Thinking Process text, or channel tags.
+                """.trimIndent(),
+            ),
+        )
 
     private fun String.cleanModelOutput(): String =
         replace("<turn|>", "")
@@ -378,5 +500,18 @@ object LiteRtLmReflector {
             product.contains("sdk") ||
             hardware.contains("ranchu") ||
             hardware.contains("goldfish")
+    }
+
+    private fun resolveCacheDir(context: Context): String? {
+        val cacheDir = context.cacheDir
+        return if (cacheDir.usableSpace >= MIN_WEIGHT_CACHE_SPACE_BYTES) {
+            cacheDir.absolutePath
+        } else {
+            Log.w(
+                TAG,
+                "Disabling LiteRT-LM weight cache because free space is low: ${cacheDir.usableSpace}",
+            )
+            null
+        }
     }
 }

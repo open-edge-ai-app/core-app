@@ -1,8 +1,12 @@
 package com.openedgeai.core
 
 class GemmaManager {
-    fun generate(message: String, useRag: Boolean): String {
-        return ModelRuntimeManager.generateText(message, useRag).message
+    fun generate(
+        message: String,
+        useRag: Boolean,
+        nativeTools: OpenEdgeAiToolSet? = null,
+    ): String {
+        return ModelRuntimeManager.generateText(message, useRag, nativeTools).message
     }
 
     fun generateMultimodal(

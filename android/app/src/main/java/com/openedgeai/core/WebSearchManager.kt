@@ -12,16 +12,25 @@ data class WebSearchContext(
 class WebSearchManager(
     private val gemmaManager: GemmaManager,
 ) {
-    fun search(query: String): WebSearchContext {
+    fun search(
+        query: String,
+        useLocalLlmSanitizer: Boolean = true,
+    ): WebSearchContext {
         val firstPass = PrivacyMasker.maskForExternalSearch(query)
-        val llmSanitized = sanitizeWithLocalModel(
-            originalQuery = query,
-            regexMaskedQuery = firstPass.masked,
-        )
+        val llmSanitized = if (useLocalLlmSanitizer) {
+            sanitizeWithLocalModel(
+                originalQuery = query,
+                regexMaskedQuery = firstPass.masked,
+            )
+        } else {
+            firstPass.masked
+        }
         val finalCandidate = llmSanitized
             .takeUnless { candidate -> isInvalidSanitizedQuery(candidate) }
             ?: firstPass.masked
-        val usedLlmSanitized = finalCandidate == llmSanitized && llmSanitized != firstPass.masked
+        val usedLlmSanitized = useLocalLlmSanitizer &&
+            finalCandidate == llmSanitized &&
+            llmSanitized != firstPass.masked
         val finalPass = PrivacyMasker.maskForExternalSearch(finalCandidate)
         val maskedTypes = (firstPass.findings + finalPass.findings)
             .distinct()

@@ -220,12 +220,8 @@ const modelManageOption = modelOptions.find(model => model.id === 'manage')!;
 
 const getActiveModelOption = (
   modelStatus: ModelStatus | null,
-  runtimeStatus: RuntimeStatus | null,
 ) => {
-  if (
-    !modelStatus?.installed ||
-    !(runtimeStatus?.loaded || runtimeStatus?.canGenerate)
-  ) {
+  if (!modelStatus?.installed) {
     return null;
   }
 
@@ -484,35 +480,27 @@ function App() {
   const [selectedModelId, setSelectedModelId] =
     useState<ModelOption['id']>('gemma-4');
   const [modelStatus, setModelStatus] = useState<ModelStatus | null>(null);
-  const [runtimeStatus, setRuntimeStatus] = useState<RuntimeStatus | null>(
-    null,
-  );
 
   const handleModelStateChange = useCallback(
     ({
       modelStatus: nextModelStatus,
-      runtimeStatus: nextRuntimeStatus,
     }: ModelStateSnapshot) => {
       setModelStatus(nextModelStatus);
-      setRuntimeStatus(nextRuntimeStatus);
     },
     [],
   );
 
   const refreshModelState = useCallback(async () => {
-    const [nextModelStatus, nextRuntimeStatus] = await Promise.all([
-      AIEngine.getModelStatus(),
-      AIEngine.getRuntimeStatus(),
-    ]);
+    const nextModelStatus = await AIEngine.getModelStatus();
     handleModelStateChange({
       modelStatus: nextModelStatus,
-      runtimeStatus: nextRuntimeStatus,
+      runtimeStatus: null,
     });
   }, [handleModelStateChange]);
 
   const activeModelOption = useMemo(
-    () => getActiveModelOption(modelStatus, runtimeStatus),
-    [modelStatus, runtimeStatus],
+    () => getActiveModelOption(modelStatus),
+    [modelStatus],
   );
 
   const selectedModel = useMemo(

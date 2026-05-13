@@ -47,6 +47,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import java.util.TimeZone
+import java.util.concurrent.Executors
 
 class AIEngineModule(
     private val reactContext: ReactApplicationContext,
@@ -58,11 +59,20 @@ class AIEngineModule(
     private val memoryIndexer = MemoryIndexer(reactContext, vectorDBHelper)
     private val chatContextManager = ChatContextManager(vectorDBHelper, GemmaManager())
     private var filePickerPromise: Promise? = null
+    private val runtimeLifecycleExecutor = Executors.newSingleThreadExecutor { runnable ->
+        Thread(runnable, "open-edge-ai-runtime-lifecycle").apply {
+            isDaemon = true
+        }
+    }
+
+    @Volatile
+    private var disposed = false
 
     init {
         reactContext.addLifecycleEventListener(this)
         reactContext.addActivityEventListener(this)
         cleanupStoredChatText()
+        warmRuntime()
     }
 
     override fun getName(): String = NAME
@@ -335,6 +345,15 @@ class AIEngineModule(
     }
 
     @ReactMethod
+    fun cancelActiveGeneration(promise: Promise) {
+        try {
+            promise.resolve(ModelRuntimeManager.cancelActiveGeneration())
+        } catch (error: Exception) {
+            promise.reject("MODEL_CANCEL_ERROR", error)
+        }
+    }
+
+    @ReactMethod
     fun downloadModel(promise: Promise) {
         try {
             val started = ModelDownloader.start(modelFileManager)
@@ -424,26 +443,20 @@ class AIEngineModule(
         }
     }
 
-    override fun onHostResume() = Unit
+    override fun onHostResume() {
+        warmRuntime()
+    }
 
-    override fun onHostPause() = Unit
+    override fun onHostPause() {
+        unloadRuntimeAsync()
+    }
 
     override fun onHostDestroy() {
-        filePickerPromise?.resolve(null)
-        filePickerPromise = null
-        ModelRuntimeManager.unload()
-        queryRouter.close()
-        memoryIndexer.close()
+        cleanupModule()
     }
 
     override fun invalidate() {
-        filePickerPromise?.resolve(null)
-        filePickerPromise = null
-        reactContext.removeLifecycleEventListener(this)
-        reactContext.removeActivityEventListener(this)
-        ModelRuntimeManager.unload()
-        queryRouter.close()
-        memoryIndexer.close()
+        cleanupModule()
         super.invalidate()
     }
 
@@ -494,6 +507,54 @@ class AIEngineModule(
 
     @ReactMethod
     fun removeListeners(count: Int) = Unit
+
+    private fun warmRuntime() {
+        if (disposed) {
+            return
+        }
+
+        runtimeLifecycleExecutor.execute {
+            if (disposed || ModelRuntimeManager.isReady()) {
+                return@execute
+            }
+
+            val status = modelFileManager.getStatus()
+            if (!status.installed || status.isDownloading) {
+                return@execute
+            }
+
+            ModelRuntimeManager.load(
+                reactContext.applicationContext,
+                modelFileManager,
+            )
+        }
+    }
+
+    private fun unloadRuntimeAsync() {
+        if (disposed) {
+            return
+        }
+
+        runtimeLifecycleExecutor.execute {
+            ModelRuntimeManager.unload()
+        }
+    }
+
+    private fun cleanupModule() {
+        if (disposed) {
+            return
+        }
+
+        disposed = true
+        filePickerPromise?.resolve(null)
+        filePickerPromise = null
+        reactContext.removeLifecycleEventListener(this)
+        reactContext.removeActivityEventListener(this)
+        runtimeLifecycleExecutor.shutdownNow()
+        ModelRuntimeManager.unload()
+        queryRouter.close()
+        memoryIndexer.close()
+    }
 
     private fun emitStreamEvent(
         requestId: String,

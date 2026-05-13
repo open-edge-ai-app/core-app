@@ -608,7 +608,7 @@ function SettingsNavigationRow({
       ]}
     >
       <View style={styles.navigationIconSlot}>
-        <AppIcon color={iconColor} icon={icon} size={23} />
+        <AppIcon color={iconColor} icon={icon} size={18} />
       </View>
       <View style={styles.navigationCopy}>
         <Text style={styles.navigationTitle}>{title}</Text>
@@ -700,19 +700,19 @@ const styles = StyleSheet.create({
     backgroundColor: '#F4F5F8',
   },
   container: {
-    paddingBottom: 48,
+    paddingBottom: 38,
     paddingHorizontal: 18,
-    paddingTop: 30,
+    paddingTop: 20,
   },
   profileHeader: {
     alignItems: 'center',
-    marginBottom: 38,
+    marginBottom: 22,
     paddingTop: 2,
   },
   profileName: {
     ...typography.label,
     color: '#A2A5AC',
-    fontSize: 24,
+    fontSize: 18,
     fontWeight: '800',
   },
   header: {
@@ -721,8 +721,8 @@ const styles = StyleSheet.create({
   title: {
     ...typography.title,
     color: colors.foreground,
-    fontSize: 30,
-    lineHeight: 36,
+    fontSize: 28,
+    lineHeight: 34,
   },
   description: {
     ...typography.body,
@@ -732,29 +732,29 @@ const styles = StyleSheet.create({
     marginTop: 10,
   },
   settingsSection: {
-    marginBottom: 34,
+    marginBottom: 24,
   },
   settingsSectionTitle: {
     ...typography.label,
     color: '#93969D',
-    fontSize: 23,
+    fontSize: 17,
     fontWeight: '800',
-    marginBottom: 12,
-    paddingHorizontal: 22,
+    marginBottom: 8,
+    paddingHorizontal: 16,
   },
   settingsCard: {
     backgroundColor: colors.card,
     borderColor: 'rgba(21,25,34,0.04)',
-    borderRadius: 28,
+    borderRadius: 18,
     borderWidth: StyleSheet.hairlineWidth,
     overflow: 'hidden',
   },
   navigationRow: {
     alignItems: 'center',
     flexDirection: 'row',
-    minHeight: 78,
-    paddingHorizontal: 18,
-    paddingVertical: 13,
+    minHeight: 54,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
   },
   navigationRowDivider: {
     borderBottomColor: '#E7E7EA',
@@ -762,19 +762,19 @@ const styles = StyleSheet.create({
   },
   navigationIconSlot: {
     alignItems: 'center',
-    height: 36,
+    height: 28,
     justifyContent: 'center',
-    marginRight: 12,
-    width: 36,
+    marginRight: 10,
+    width: 28,
   },
   navigationCopy: {
     flex: 1,
-    paddingRight: 16,
+    paddingRight: 12,
   },
   navigationTitle: {
     ...typography.body,
     color: colors.foreground,
-    fontSize: 21,
+    fontSize: 16,
     fontWeight: '600',
   },
   navigationCaption: {
@@ -793,16 +793,16 @@ const styles = StyleSheet.create({
     ...typography.body,
     color: '#8D9097',
     flexShrink: 1,
-    fontSize: 18,
+    fontSize: 15,
     fontWeight: '500',
   },
   section: {
     backgroundColor: colors.card,
     borderColor: 'rgba(21,25,34,0.05)',
-    borderRadius: 24,
+    borderRadius: 20,
     borderWidth: StyleSheet.hairlineWidth,
-    marginBottom: 34,
-    padding: 18,
+    marginBottom: 28,
+    padding: 16,
   },
   sectionHeader: {
     alignItems: 'center',
@@ -812,7 +812,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     ...typography.label,
     color: colors.foreground,
-    fontSize: 18,
+    fontSize: 17,
   },
   sectionCaption: {
     ...typography.caption,

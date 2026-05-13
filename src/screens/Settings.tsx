@@ -182,9 +182,6 @@ function Settings({
     : modelStatus?.isDownloading
     ? '다운로드 중'
     : '설치 필요';
-  const indexingSummary = status.isIndexing
-    ? '인덱싱 중'
-    : `${status.indexedItems.toLocaleString('ko-KR')}개`;
   const renderDetailHeader = (title: string, description: string) => (
     <View style={styles.header}>
       <Text style={styles.title}>{title}</Text>
@@ -208,20 +205,17 @@ function Settings({
           icon={appIcons.personalSettings}
           onPress={() => onPanelChange('personalization')}
           title="개인 맞춤 설정"
-          value={selectedTextSize.label}
         />
         <SettingsNavigationRow
           icon={appIcons.memory}
           onPress={() => onPanelChange('systemPrompt')}
           title="메모리"
-          value={personalSystemPrompt.trim() ? '적용 중' : '비어 있음'}
         />
         <SettingsNavigationRow
           icon={appIcons.appsGrid}
           isLast
           onPress={() => onPanelChange('indexing')}
           title="앱"
-          value={indexingSummary}
         />
       </SettingsSection>
 

@@ -169,7 +169,7 @@ type PersistedAppState = {
 const APP_STATE_STORAGE_KEY = 'open-edge-ai:app-state:v1';
 const MODEL_MENU_GAP = 6;
 const MODEL_MENU_TOP = 52 + MODEL_MENU_GAP;
-const MODEL_MENU_WIDTH = 220;
+const MODEL_MENU_WIDTH = 228;
 const WEB_APP_MAX_WIDTH = 430;
 const MENU_HORIZONTAL_PADDING = 24;
 const MENU_HEADER_LOGO_LEFT_OFFSET = -16;
@@ -519,6 +519,22 @@ function App() {
     [activeModelOption, selectedModelId],
   );
   const headerSelectedModelId = activeModelOption?.id ?? null;
+  const isHeaderModelDownloading =
+    Boolean(modelStatus?.isDownloading) || isModelDownloadStarting;
+  const headerModelLabel = activeModelOption
+    ? activeModelOption.label
+    : isHeaderModelDownloading
+    ? '다운로드 중'
+    : '모델 선택';
+  const headerModelStatusColor = activeModelOption
+    ? colors.success
+    : isHeaderModelDownloading
+    ? colors.primary
+    : colors.warning;
+  const modelDownloadProgress =
+    modelStatus == null || modelStatus.totalBytes <= 0
+      ? 0
+      : Math.min(1, modelStatus.bytesDownloaded / modelStatus.totalBytes);
   const isSettingsDetailPanel =
     activeScreen === 'settings' && settingsPanel !== 'root';
 
@@ -573,10 +589,6 @@ function App() {
     activeModelOption,
     modelStatus,
   ]);
-  const headerSelectedModelOption =
-    modelSelectOptions.find(option => option.value === headerSelectedModelId) ??
-    modelManageOption;
-
   const handleModelMenuExpandedChange = useCallback((expanded: boolean) => {
     if (expanded) {
       setIsMenuOpen(false);
@@ -1161,8 +1173,14 @@ function App() {
                     pressed && styles.menuButtonPressed,
                   ]}
                 >
+                  <View
+                    style={[
+                      styles.modelSelectorStatusDot,
+                      { backgroundColor: headerModelStatusColor },
+                    ]}
+                  />
                   <Text numberOfLines={1} style={styles.modelSelectorText}>
-                    {headerSelectedModelOption.label}
+                    {headerModelLabel}
                   </Text>
                   <AppIcon
                     color={colors.mutedForeground}
@@ -1184,6 +1202,42 @@ function App() {
 
           {isModelMenuOpen ? (
             <View style={styles.modelMenuOverlay}>
+              <View style={styles.modelMenuHeader}>
+                <View style={styles.modelMenuHeaderCopy}>
+                  <Text style={styles.modelMenuEyebrow}>LOCAL MODEL</Text>
+                  <Text numberOfLines={1} style={styles.modelMenuTitle}>
+                    온디바이스 모델
+                  </Text>
+                </View>
+                <View
+                  style={[
+                    styles.modelMenuStatusBadge,
+                    activeModelOption
+                      ? styles.modelMenuStatusBadgeReady
+                      : isHeaderModelDownloading
+                      ? styles.modelMenuStatusBadgeProgress
+                      : styles.modelMenuStatusBadgePending,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.modelMenuStatusBadgeText,
+                      activeModelOption
+                        ? styles.modelMenuStatusBadgeTextReady
+                        : isHeaderModelDownloading
+                        ? styles.modelMenuStatusBadgeTextProgress
+                        : styles.modelMenuStatusBadgeTextPending,
+                    ]}
+                  >
+                    {activeModelOption
+                      ? '사용 가능'
+                      : isHeaderModelDownloading
+                      ? '진행 중'
+                      : '필요'}
+                  </Text>
+                </View>
+              </View>
+
               {modelSelectOptions.map(option => {
                 const isSelected = option.value === headerSelectedModelId;
                 const isDownloadableMissingModel =
@@ -1213,6 +1267,18 @@ function App() {
                     ]}
                   >
                     <View style={styles.modelMenuOptionValue}>
+                      <View
+                        style={[
+                          styles.modelMenuOptionIndicator,
+                          isSelected && styles.modelMenuOptionIndicatorReady,
+                          isDownloadableMissingModel &&
+                            styles.modelMenuOptionIndicatorPending,
+                          isDownloadInProgress &&
+                            styles.modelMenuOptionIndicatorProgress,
+                          option.value === 'manage' &&
+                            styles.modelMenuOptionIndicatorManage,
+                        ]}
+                      />
                       <View style={styles.modelMenuOptionCopy}>
                         <Text
                           numberOfLines={1}
@@ -1228,22 +1294,41 @@ function App() {
                             {option.description}
                           </Text>
                         ) : null}
+                        {isDownloadInProgress ? (
+                          <View style={styles.modelMenuProgressTrack}>
+                            <View
+                              style={[
+                                styles.modelMenuProgressFill,
+                                { width: `${modelDownloadProgress * 100}%` },
+                              ]}
+                            />
+                          </View>
+                        ) : null}
                       </View>
                     </View>
                     {isSelected ? (
-                      <AppIcon
-                        color={colors.primary}
-                        icon={appIcons.selected}
-                        size={15}
-                      />
+                      <View style={styles.modelMenuTrailingCircle}>
+                        <AppIcon
+                          color={colors.primary}
+                          icon={appIcons.selected}
+                          size={14}
+                        />
+                      </View>
                     ) : isDownloadInProgress ? (
-                      <ActivityIndicator color={colors.primary} size="small" />
+                      <View style={styles.modelMenuTrailingCircle}>
+                        <ActivityIndicator
+                          color={colors.primary}
+                          size="small"
+                        />
+                      </View>
                     ) : option.trailingIcon ? (
-                      <AppIcon
-                        color={option.trailingIconColor ?? colors.primary}
-                        icon={option.trailingIcon}
-                        size={15}
-                      />
+                      <View style={styles.modelMenuTrailingCircle}>
+                        <AppIcon
+                          color={option.trailingIconColor ?? colors.primary}
+                          icon={option.trailingIcon}
+                          size={14}
+                        />
+                      </View>
                     ) : null}
                   </Pressable>
                 );
@@ -2815,18 +2900,30 @@ const styles = StyleSheet.create({
   },
   modelSelector: {
     alignItems: 'center',
-    borderColor: colors.input,
-    borderRadius: 18,
+    backgroundColor: 'rgba(255,255,255,0.86)',
+    borderColor: 'rgba(21,25,34,0.09)',
+    borderRadius: 17,
     borderWidth: StyleSheet.hairlineWidth,
+    elevation: 4,
     flexDirection: 'row',
-    gap: 5,
+    gap: 6,
     justifyContent: 'space-between',
-    maxWidth: 92,
-    minHeight: 32,
-    paddingHorizontal: 10,
+    maxWidth: 104,
+    minHeight: 34,
+    paddingHorizontal: 9,
+    shadowColor: '#000000',
+    shadowOffset: { height: 4, width: 0 },
+    shadowOpacity: 0.06,
+    shadowRadius: 10,
   },
   modelSelectorActive: {
     backgroundColor: colors.card,
+    borderColor: 'rgba(0,122,255,0.24)',
+  },
+  modelSelectorStatusDot: {
+    borderRadius: 3,
+    height: 6,
+    width: 6,
   },
   modelSelectorText: {
     ...typography.caption,
@@ -2848,31 +2945,87 @@ const styles = StyleSheet.create({
   },
   modelMenuOverlay: {
     backgroundColor: colors.card,
-    borderColor: colors.border,
-    borderRadius: 12,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(21,25,34,0.08)',
+    borderRadius: 18,
+    borderWidth: 1,
     elevation: 10002,
     overflow: 'hidden',
     position: 'absolute',
     right: 12,
     shadowColor: '#000000',
-    shadowOffset: { height: 12, width: 0 },
-    shadowOpacity: 0.16,
-    shadowRadius: 22,
+    shadowOffset: { height: 16, width: 0 },
+    shadowOpacity: 0.14,
+    shadowRadius: 26,
     top: MODEL_MENU_TOP,
     width: MODEL_MENU_WIDTH,
     zIndex: 10002,
+  },
+  modelMenuHeader: {
+    alignItems: 'center',
+    backgroundColor: colors.muted,
+    borderBottomColor: colors.border,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  modelMenuHeaderCopy: {
+    flex: 1,
+    minWidth: 0,
+    paddingRight: 12,
+  },
+  modelMenuEyebrow: {
+    ...typography.caption,
+    color: colors.mutedForeground,
+    fontSize: 10,
+    fontWeight: '800',
+  },
+  modelMenuTitle: {
+    ...typography.label,
+    color: colors.foreground,
+    fontSize: 14,
+    fontWeight: '800',
+    marginTop: 3,
+  },
+  modelMenuStatusBadge: {
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+  },
+  modelMenuStatusBadgeReady: {
+    backgroundColor: 'rgba(52,199,89,0.13)',
+  },
+  modelMenuStatusBadgeProgress: {
+    backgroundColor: 'rgba(0,122,255,0.12)',
+  },
+  modelMenuStatusBadgePending: {
+    backgroundColor: 'rgba(255,149,0,0.13)',
+  },
+  modelMenuStatusBadgeText: {
+    ...typography.caption,
+    fontSize: 10,
+    fontWeight: '800',
+  },
+  modelMenuStatusBadgeTextReady: {
+    color: '#16883A',
+  },
+  modelMenuStatusBadgeTextProgress: {
+    color: colors.primary,
+  },
+  modelMenuStatusBadgeTextPending: {
+    color: '#A45B00',
   },
   modelMenuOption: {
     alignItems: 'center',
     flexDirection: 'row',
     justifyContent: 'space-between',
-    minHeight: 48,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
+    minHeight: 54,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
   },
   modelMenuOptionSelected: {
-    backgroundColor: 'rgba(0,122,255,0.08)',
+    backgroundColor: 'rgba(0,122,255,0.06)',
   },
   modelMenuOptionDisabled: {
     opacity: 0.54,
@@ -2887,7 +3040,26 @@ const styles = StyleSheet.create({
     flex: 1,
     flexDirection: 'row',
     minWidth: 0,
-    paddingRight: 8,
+    paddingRight: 10,
+  },
+  modelMenuOptionIndicator: {
+    backgroundColor: colors.border,
+    borderRadius: 999,
+    height: 8,
+    marginRight: 10,
+    width: 8,
+  },
+  modelMenuOptionIndicatorReady: {
+    backgroundColor: colors.success,
+  },
+  modelMenuOptionIndicatorPending: {
+    backgroundColor: colors.warning,
+  },
+  modelMenuOptionIndicatorProgress: {
+    backgroundColor: colors.primary,
+  },
+  modelMenuOptionIndicatorManage: {
+    backgroundColor: colors.ring,
   },
   modelMenuOptionCopy: {
     flex: 1,
@@ -2906,6 +3078,26 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '500',
     marginTop: 3,
+  },
+  modelMenuProgressTrack: {
+    backgroundColor: colors.border,
+    borderRadius: 999,
+    height: 4,
+    marginTop: 7,
+    overflow: 'hidden',
+  },
+  modelMenuProgressFill: {
+    backgroundColor: colors.primary,
+    borderRadius: 999,
+    height: '100%',
+  },
+  modelMenuTrailingCircle: {
+    alignItems: 'center',
+    backgroundColor: colors.accent,
+    borderRadius: 16,
+    height: 30,
+    justifyContent: 'center',
+    width: 30,
   },
   content: {
     flex: 1,

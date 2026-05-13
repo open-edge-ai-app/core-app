@@ -46,7 +46,7 @@ import {
 } from './src/theme/display';
 import { appIcons } from './src/theme/icons';
 import { colors, typography } from './src/theme/tokens';
-import { brandAssets, branding } from './src/config/branding';
+import { brandAssets } from './src/config/branding';
 
 const textDefaults = RNText as unknown as {
   defaultProps?: { allowFontScaling?: boolean; maxFontSizeMultiplier?: number };
@@ -1737,13 +1737,24 @@ function FullScreenMenu({
             <View style={styles.menuBackground} />
 
             <View style={styles.menuHeader}>
-              <Image
-                accessibilityLabel={branding.displayName}
-                accessibilityIgnoresInvertColors
-                resizeMode="contain"
-                source={brandAssets.logo}
-                style={styles.menuHeaderLogo}
-              />
+              <Pressable
+                accessibilityLabel="새 채팅 시작"
+                accessibilityRole="button"
+                hitSlop={8}
+                onPress={onNewChat}
+                style={({ pressed }) => [
+                  styles.menuHeaderLogoButton,
+                  pressed && styles.menuButtonPressed,
+                ]}
+              >
+                <Image
+                  accessible={false}
+                  accessibilityIgnoresInvertColors
+                  resizeMode="contain"
+                  source={brandAssets.logo}
+                  style={styles.menuHeaderLogo}
+                />
+              </Pressable>
               <View style={styles.menuHeaderActions}>
                 <Pressable
                   accessibilityLabel="검색"
@@ -2694,13 +2705,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: MENU_HORIZONTAL_PADDING,
     paddingTop: 8,
   },
-  menuHeaderLogo: {
+  menuHeaderLogoButton: {
+    alignItems: 'flex-start',
     flexShrink: 1,
-    height: 32,
+    height: 44,
+    justifyContent: 'center',
     marginLeft: MENU_HEADER_LOGO_LEFT_OFFSET,
     marginRight: 16,
     maxWidth: 152,
     width: 152,
+  },
+  menuHeaderLogo: {
+    height: 32,
+    width: '100%',
   },
   menuHeaderActions: {
     alignItems: 'center',

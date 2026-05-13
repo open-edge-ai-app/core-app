@@ -1,4 +1,5 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import { IconDefinition } from '@fortawesome/fontawesome-svg-core';
+import React, { ReactNode, useCallback, useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import AppIcon from '../components/AppIcon';
@@ -192,43 +193,41 @@ function Settings({
 
   const renderRoot = () => (
     <>
-      <View style={styles.header}>
-        <Text style={styles.title}>설정</Text>
-        <Text style={styles.description}>
-          필요한 항목을 선택해서 상세 설정으로 들어갑니다.
-        </Text>
+      <View style={styles.profileHeader}>
+        <Text style={styles.profileName}>Open Edge AI</Text>
       </View>
 
-      <View style={styles.settingsList}>
+      <SettingsSection title="Open Edge AI 맞춤 설정">
         <SettingsNavigationRow
-          caption="개인 기본 지침과 작업 폴더 메모리 적용 순서"
-          onPress={() => onPanelChange('systemPrompt')}
-          title="시스템 프롬프트"
-          value={personalSystemPrompt.trim() ? '적용 중' : '비어 있음'}
-          valueVariant={personalSystemPrompt.trim() ? 'success' : 'outline'}
-        />
-        <SettingsNavigationRow
-          caption="앱 전체 텍스트 크기"
+          icon={appIcons.personalSettings}
           onPress={() => onPanelChange('personalization')}
-          title="개인화"
+          title="개인 맞춤 설정"
           value={selectedTextSize.label}
-          valueVariant="outline"
         />
         <SettingsNavigationRow
-          caption="모델 다운로드, 런타임 로드, 엔진 연결 상태"
+          icon={appIcons.memory}
+          onPress={() => onPanelChange('systemPrompt')}
+          title="메모리"
+          value={personalSystemPrompt.trim() ? '적용 중' : '비어 있음'}
+        />
+        <SettingsNavigationRow
+          icon={appIcons.appsGrid}
+          isLast
+          onPress={() => onPanelChange('indexing')}
+          title="앱"
+          value={indexingSummary}
+        />
+      </SettingsSection>
+
+      <SettingsSection title="AI">
+        <SettingsNavigationRow
+          icon={appIcons.modelBalanced}
+          isLast
           onPress={() => onPanelChange('model')}
           title="모델"
           value={modelSummary}
-          valueVariant={runtimeStatus?.loaded ? 'success' : 'secondary'}
         />
-        <SettingsNavigationRow
-          caption="SMS/Gallery 임베딩 생성과 삭제"
-          onPress={() => onPanelChange('indexing')}
-          title="인덱싱"
-          value={indexingSummary}
-          valueVariant={status.isIndexing ? 'success' : 'outline'}
-        />
-      </View>
+      </SettingsSection>
     </>
   );
 
@@ -571,6 +570,7 @@ function Settings({
     <ScrollView
       key={activePanel}
       contentContainerStyle={styles.container}
+      style={styles.scroll}
       showsVerticalScrollIndicator={false}
     >
       {renderActivePanel()}
@@ -579,19 +579,23 @@ function Settings({
 }
 
 type SettingsNavigationRowProps = {
-  caption: string;
+  caption?: string;
+  icon: IconDefinition;
+  iconColor?: string;
+  isLast?: boolean;
   onPress: () => void;
   title: string;
-  value: string;
-  valueVariant?: 'default' | 'secondary' | 'outline' | 'success';
+  value?: string;
 };
 
 function SettingsNavigationRow({
   caption,
+  icon,
+  iconColor = colors.foreground,
+  isLast = false,
   onPress,
   title,
   value,
-  valueVariant = 'secondary',
 }: SettingsNavigationRowProps) {
   return (
     <Pressable
@@ -599,15 +603,25 @@ function SettingsNavigationRow({
       onPress={onPress}
       style={({ pressed }) => [
         styles.navigationRow,
+        !isLast && styles.navigationRowDivider,
         pressed && styles.rowPressed,
       ]}
     >
+      <View style={styles.navigationIconSlot}>
+        <AppIcon color={iconColor} icon={icon} size={23} />
+      </View>
       <View style={styles.navigationCopy}>
         <Text style={styles.navigationTitle}>{title}</Text>
-        <Text style={styles.navigationCaption}>{caption}</Text>
+        {caption ? (
+          <Text style={styles.navigationCaption}>{caption}</Text>
+        ) : null}
       </View>
       <View style={styles.navigationMeta}>
-        <Badge variant={valueVariant}>{value}</Badge>
+        {value ? (
+          <Text numberOfLines={1} style={styles.navigationValue}>
+            {value}
+          </Text>
+        ) : null}
         <AppIcon
           color={colors.mutedForeground}
           icon={appIcons.openPrompt}
@@ -615,6 +629,20 @@ function SettingsNavigationRow({
         />
       </View>
     </Pressable>
+  );
+}
+
+type SettingsSectionProps = {
+  children: ReactNode;
+  title: string;
+};
+
+function SettingsSection({ children, title }: SettingsSectionProps) {
+  return (
+    <View style={styles.settingsSection}>
+      <Text style={styles.settingsSectionTitle}>{title}</Text>
+      <View style={styles.settingsCard}>{children}</View>
+    </View>
   );
 }
 
@@ -668,19 +696,33 @@ function SettingsToggle({
 }
 
 const styles = StyleSheet.create({
+  scroll: {
+    backgroundColor: '#F4F5F8',
+  },
   container: {
-    paddingBottom: 42,
-    paddingHorizontal: 24,
-    paddingTop: 86,
+    paddingBottom: 48,
+    paddingHorizontal: 18,
+    paddingTop: 30,
+  },
+  profileHeader: {
+    alignItems: 'center',
+    marginBottom: 38,
+    paddingTop: 2,
+  },
+  profileName: {
+    ...typography.label,
+    color: '#A2A5AC',
+    fontSize: 24,
+    fontWeight: '800',
   },
   header: {
-    marginBottom: 42,
+    marginBottom: 24,
   },
   title: {
     ...typography.title,
     color: colors.foreground,
-    fontSize: 34,
-    lineHeight: 40,
+    fontSize: 30,
+    lineHeight: 36,
   },
   description: {
     ...typography.body,
@@ -689,17 +731,41 @@ const styles = StyleSheet.create({
     lineHeight: 22,
     marginTop: 10,
   },
-  settingsList: {
-    borderTopColor: colors.border,
-    borderTopWidth: StyleSheet.hairlineWidth,
+  settingsSection: {
+    marginBottom: 34,
+  },
+  settingsSectionTitle: {
+    ...typography.label,
+    color: '#93969D',
+    fontSize: 23,
+    fontWeight: '800',
+    marginBottom: 12,
+    paddingHorizontal: 22,
+  },
+  settingsCard: {
+    backgroundColor: colors.card,
+    borderColor: 'rgba(21,25,34,0.04)',
+    borderRadius: 28,
+    borderWidth: StyleSheet.hairlineWidth,
+    overflow: 'hidden',
   },
   navigationRow: {
     alignItems: 'center',
-    borderBottomColor: colors.border,
-    borderBottomWidth: StyleSheet.hairlineWidth,
     flexDirection: 'row',
     minHeight: 78,
-    paddingVertical: 14,
+    paddingHorizontal: 18,
+    paddingVertical: 13,
+  },
+  navigationRowDivider: {
+    borderBottomColor: '#E7E7EA',
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  navigationIconSlot: {
+    alignItems: 'center',
+    height: 36,
+    justifyContent: 'center',
+    marginRight: 12,
+    width: 36,
   },
   navigationCopy: {
     flex: 1,
@@ -708,7 +774,7 @@ const styles = StyleSheet.create({
   navigationTitle: {
     ...typography.body,
     color: colors.foreground,
-    fontSize: 17,
+    fontSize: 21,
     fontWeight: '600',
   },
   navigationCaption: {
@@ -720,13 +786,23 @@ const styles = StyleSheet.create({
   navigationMeta: {
     alignItems: 'center',
     flexDirection: 'row',
-    gap: 10,
+    gap: 9,
+    maxWidth: '52%',
+  },
+  navigationValue: {
+    ...typography.body,
+    color: '#8D9097',
+    flexShrink: 1,
+    fontSize: 18,
+    fontWeight: '500',
   },
   section: {
-    borderTopColor: colors.border,
-    borderTopWidth: StyleSheet.hairlineWidth,
+    backgroundColor: colors.card,
+    borderColor: 'rgba(21,25,34,0.05)',
+    borderRadius: 24,
+    borderWidth: StyleSheet.hairlineWidth,
     marginBottom: 34,
-    paddingTop: 18,
+    padding: 18,
   },
   sectionHeader: {
     alignItems: 'center',

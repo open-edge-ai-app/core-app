@@ -222,42 +222,6 @@ const defaultDownloadableModelOption = modelOptions.find(
   model => model.id === 'gemma-4',
 )!;
 
-const formatModelDownloadProgress = (modelStatus: ModelStatus | null) => {
-  if (!modelStatus?.totalBytes) {
-    return '';
-  }
-
-  const progress = Math.max(
-    0,
-    Math.min(
-      100,
-      Math.floor((modelStatus.bytesDownloaded / modelStatus.totalBytes) * 100),
-    ),
-  );
-
-  return `${progress}%`;
-};
-
-const getModelDownloadDescription = (
-  modelStatus: ModelStatus | null,
-  isDownloadStarting: boolean,
-) => {
-  if (modelStatus?.isDownloading) {
-    const progress = formatModelDownloadProgress(modelStatus);
-    return progress ? `다운로드 중 ${progress}` : '다운로드 중';
-  }
-
-  if (isDownloadStarting) {
-    return '다운로드 시작 중';
-  }
-
-  if (modelStatus?.error) {
-    return `다운로드 실패: ${modelStatus.error}`;
-  }
-
-  return '설치되지 않음. 눌러서 다운로드';
-};
-
 const getActiveModelOption = (
   modelStatus: ModelStatus | null,
 ) => {
@@ -593,9 +557,7 @@ function App() {
         !activeModelOption && model.id === defaultDownloadableModelOption.id;
 
       return {
-        description: isDownloadableMissingModel
-          ? getModelDownloadDescription(modelStatus, isModelDownloadStarting)
-          : model.detail,
+        description: isDownloadableMissingModel ? undefined : model.detail,
         dividerBefore: index > 0 && model.action === 'settings',
         label: model.label,
         trailingIcon: isDownloadableMissingModel
@@ -609,7 +571,6 @@ function App() {
     });
   }, [
     activeModelOption,
-    isModelDownloadStarting,
     modelStatus,
   ]);
   const headerSelectedModelOption =

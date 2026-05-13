@@ -45,23 +45,33 @@ type SettingsProps = {
     runtimeStatus: RuntimeStatus | null;
   }) => void;
   onPanelChange: (panel: SettingsPanelId) => void;
-  onPersonalSystemPromptChange: (prompt: string) => void;
-  personalSystemPrompt: string;
+  onPersonalCustomizationChange: (
+    settings: PersonalCustomizationSettings,
+  ) => void;
+  personalCustomization: PersonalCustomizationSettings;
 };
 
 export type SettingsPanelId =
   | 'root'
-  | 'systemPrompt'
-  | 'personalization'
+  | 'personalCustomization'
+  | 'appearance'
   | 'model'
-  | 'indexing';
+  | 'embedding';
+
+export type PersonalCustomizationSettings = {
+  customInstructions: string;
+  memoryEnabled: boolean;
+  personality: string;
+  savedMemories: string[];
+  userName: string;
+};
 
 function Settings({
   activePanel,
   onModelStateChange,
   onPanelChange,
-  onPersonalSystemPromptChange,
-  personalSystemPrompt,
+  onPersonalCustomizationChange,
+  personalCustomization,
 }: SettingsProps) {
   const [status, setStatus] = useState<IndexingStatus>(defaultStatus);
   const [modelStatus, setModelStatus] = useState<ModelStatus | null>(null);
@@ -175,6 +185,16 @@ function Settings({
     setStatus(result.status);
   }, []);
 
+  const updatePersonalCustomization = useCallback(
+    (patch: Partial<PersonalCustomizationSettings>) => {
+      onPersonalCustomizationChange({
+        ...personalCustomization,
+        ...patch,
+      });
+    },
+    [onPersonalCustomizationChange, personalCustomization],
+  );
+
   const modelSummary = modelStatus?.installed
     ? runtimeStatus?.loaded
       ? '로드됨'
@@ -203,19 +223,19 @@ function Settings({
       <SettingsSection title="맞춤 설정">
         <SettingsNavigationRow
           icon={appIcons.personalSettings}
-          onPress={() => onPanelChange('personalization')}
-          title="개인 맞춤 설정"
+          onPress={() => onPanelChange('appearance')}
+          title="모양"
         />
         <SettingsNavigationRow
           icon={appIcons.memory}
-          onPress={() => onPanelChange('systemPrompt')}
-          title="메모리"
+          onPress={() => onPanelChange('personalCustomization')}
+          title="개인 맞춤 설정"
         />
         <SettingsNavigationRow
           icon={appIcons.appsGrid}
           isLast
-          onPress={() => onPanelChange('indexing')}
-          title="앱"
+          onPress={() => onPanelChange('embedding')}
+          title="임베딩 설정"
         />
       </SettingsSection>
 
@@ -231,52 +251,116 @@ function Settings({
     </>
   );
 
-  const renderSystemPrompt = () => (
+  const renderPersonalCustomization = () => (
     <>
       {renderDetailHeader(
-        '시스템 프롬프트',
-        '개인 기본 지침을 관리합니다. 작업 폴더의 시스템 프롬프트(메모리)는 이 지침 아래에 추가됩니다.',
+        '개인 맞춤 설정',
+        'AI가 사용자를 이해하고 응답 방식을 맞출 수 있도록 기본 정보를 관리합니다.',
       )}
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
           <View>
-            <Text style={styles.sectionTitle}>시스템 프롬프트</Text>
-            <Text style={styles.sectionCaption}>개인 기본 지침</Text>
+            <Text style={styles.sectionTitle}>개인 맞춤 설정</Text>
+            <Text style={styles.sectionCaption}>이름, 성격, 지침, 메모리</Text>
           </View>
-          <Badge variant={personalSystemPrompt.trim() ? 'success' : 'outline'}>
-            {personalSystemPrompt.trim() ? '적용 중' : '비어 있음'}
+          <Badge
+            variant={personalCustomization.memoryEnabled ? 'success' : 'outline'}
+          >
+            {personalCustomization.memoryEnabled ? '메모리 켜짐' : '메모리 꺼짐'}
           </Badge>
         </View>
 
-        <Text style={styles.personalizationDescription}>
-          모든 채팅에 먼저 적용됩니다. 작업 폴더의 시스템 프롬프트(메모리)는 이
-          지침 아래에 추가됩니다.
-        </Text>
+        <View style={styles.fieldGroup}>
+          <Text style={styles.fieldLabel}>이름</Text>
+          <TextInput
+            accessibilityLabel="이름"
+            onChangeText={userName => updatePersonalCustomization({ userName })}
+            placeholder="예: Minjun"
+            placeholderTextColor={colors.mutedForeground}
+            style={styles.settingsTextInput}
+            value={personalCustomization.userName}
+          />
+        </View>
 
-        <TextInput
-          accessibilityLabel="개인 시스템 프롬프트"
-          multiline
-          onChangeText={onPersonalSystemPromptChange}
-          placeholder="예: 항상 한국어로 간결하게 답하고, 모호한 요청은 필요한 가정을 먼저 밝혀줘."
-          placeholderTextColor={colors.mutedForeground}
-          style={styles.systemPromptInput}
-          textAlignVertical="top"
-          value={personalSystemPrompt}
-        />
+        <View style={styles.fieldGroup}>
+          <Text style={styles.fieldLabel}>성격</Text>
+          <TextInput
+            accessibilityLabel="성격"
+            multiline
+            onChangeText={personality =>
+              updatePersonalCustomization({ personality })
+            }
+            placeholder="예: 차분하고 직접적이며, 필요한 경우 근거를 짧게 설명해줘."
+            placeholderTextColor={colors.mutedForeground}
+            style={[styles.settingsTextInput, styles.shortTextArea]}
+            textAlignVertical="top"
+            value={personalCustomization.personality}
+          />
+        </View>
+
+        <View style={styles.fieldGroup}>
+          <Text style={styles.fieldLabel}>맞춤형 지침</Text>
+          <TextInput
+            accessibilityLabel="맞춤형 지침"
+            multiline
+            onChangeText={customInstructions =>
+              updatePersonalCustomization({ customInstructions })
+            }
+            placeholder="예: 항상 한국어로 간결하게 답하고, 모호한 요청은 필요한 가정을 먼저 밝혀줘."
+            placeholderTextColor={colors.mutedForeground}
+            style={[styles.settingsTextInput, styles.longTextArea]}
+            textAlignVertical="top"
+            value={personalCustomization.customInstructions}
+          />
+        </View>
+
+        <Separator style={styles.separator} />
+
+        <View style={styles.toggleRow}>
+          <View style={styles.switchCopy}>
+            <Text style={styles.rowLabel}>메모리 활성</Text>
+            <Text style={styles.sectionCaption}>
+              채팅 기록에서 기억을 생성하고 이후 응답에 반영합니다.
+            </Text>
+          </View>
+          <SettingsToggle
+            onValueChange={memoryEnabled =>
+              updatePersonalCustomization({ memoryEnabled })
+            }
+            value={personalCustomization.memoryEnabled}
+          />
+        </View>
+
+        <View style={styles.fieldGroup}>
+          <Text style={styles.fieldLabel}>저장된 메모리 리스트</Text>
+          <View style={styles.memoryList}>
+            {personalCustomization.savedMemories.length > 0 ? (
+              personalCustomization.savedMemories.map((memory, index) => (
+                <View key={`${memory}-${index}`} style={styles.memoryListItem}>
+                  <Text style={styles.memoryListText}>{memory}</Text>
+                </View>
+              ))
+            ) : (
+              <Text style={styles.emptyMemoryText}>
+                채팅 기록에서 생성된 메모리가 여기에 표시됩니다.
+              </Text>
+            )}
+          </View>
+        </View>
       </View>
     </>
   );
 
-  const renderPersonalization = () => (
+  const renderAppearance = () => (
     <>
       {renderDetailHeader(
-        '개인화',
+        '모양',
         '앱에서 반복적으로 보는 텍스트의 표시 크기를 설정합니다.',
       )}
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
           <View>
-            <Text style={styles.sectionTitle}>개인화</Text>
+            <Text style={styles.sectionTitle}>모양</Text>
             <Text style={styles.sectionCaption}>텍스트 크기</Text>
           </View>
           <Badge variant="outline">{selectedTextSize.label}</Badge>
@@ -429,16 +513,16 @@ function Settings({
     </>
   );
 
-  const renderIndexing = () => (
+  const renderEmbedding = () => (
     <>
       {renderDetailHeader(
-        '인덱싱',
+        '임베딩 설정',
         '검색과 개인 메모리에 사용할 소스별 임베딩을 관리합니다.',
       )}
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
           <View style={styles.switchCopy}>
-            <Text style={styles.sectionTitle}>인덱싱</Text>
+            <Text style={styles.sectionTitle}>임베딩 설정</Text>
             <Text style={styles.sectionCaption}>소스별 임베딩 생성/삭제</Text>
           </View>
         </View>
@@ -446,23 +530,23 @@ function Settings({
         <Separator style={styles.separator} />
 
         <StatusRow
-          label="인덱싱 항목"
+          label="임베딩 항목"
           value={`${status.indexedItems.toLocaleString('ko-KR')}개`}
         />
         <StatusRow
-          label="SMS embeddings"
+          label="SMS 임베딩"
           value={`${status.smsIndexedItems.toLocaleString('ko-KR')}개`}
         />
         <StatusRow
-          label="Gallery embeddings"
+          label="갤러리 임베딩"
           value={`${status.galleryIndexedItems.toLocaleString('ko-KR')}개`}
         />
         <StatusRow
-          label="Document embeddings"
+          label="문서 임베딩"
           value={`${status.documentIndexedItems.toLocaleString('ko-KR')}개`}
         />
         <StatusRow
-          label="마지막 인덱싱"
+          label="마지막 임베딩 생성"
           value={status.lastIndexedAt ?? '기록 없음'}
         />
 
@@ -480,7 +564,7 @@ function Settings({
 
         <View style={styles.toggleRow}>
           <View style={styles.switchCopy}>
-            <Text style={styles.rowLabel}>Gallery</Text>
+            <Text style={styles.rowLabel}>갤러리</Text>
             <Text style={styles.sectionCaption}>사진 임베딩</Text>
           </View>
           <SettingsToggle
@@ -492,7 +576,7 @@ function Settings({
 
         <View style={styles.toggleRow}>
           <View style={styles.switchCopy}>
-            <Text style={styles.rowLabel}>Documents</Text>
+            <Text style={styles.rowLabel}>문서</Text>
             <Text style={styles.sectionCaption}>다운로드/공유 문서 임베딩</Text>
           </View>
           <SettingsToggle
@@ -508,7 +592,7 @@ function Settings({
 
         <Button
           disabled={status.isIndexing}
-          label="SMS/Gallery/Document indexing"
+          label="SMS/갤러리/문서 임베딩 생성"
           textStyle={styles.refreshButtonText}
           onPress={handleStartIndexing}
           style={styles.refreshButton}
@@ -517,21 +601,21 @@ function Settings({
 
         <View style={styles.actionRow}>
           <Button
-            label="Delete SMS embeddings"
+            label="SMS 임베딩 삭제"
             textStyle={styles.refreshButtonText}
             onPress={handleDeleteSms}
             style={styles.modelButton}
             variant="ghost"
           />
           <Button
-            label="Delete gallery embeddings"
+            label="갤러리 임베딩 삭제"
             textStyle={styles.refreshButtonText}
             onPress={handleDeleteGallery}
             style={styles.modelButton}
             variant="ghost"
           />
           <Button
-            label="Delete document embeddings"
+            label="문서 임베딩 삭제"
             textStyle={styles.refreshButtonText}
             onPress={handleDeleteDocuments}
             style={styles.modelButton}
@@ -540,7 +624,7 @@ function Settings({
         </View>
 
         <Button
-          label="Refresh status"
+          label="상태 새로고침"
           textStyle={styles.refreshButtonText}
           onPress={refreshStatus}
           style={styles.refreshButton}
@@ -552,14 +636,14 @@ function Settings({
 
   const renderActivePanel = () => {
     switch (activePanel) {
-      case 'systemPrompt':
-        return renderSystemPrompt();
-      case 'personalization':
-        return renderPersonalization();
+      case 'personalCustomization':
+        return renderPersonalCustomization();
+      case 'appearance':
+        return renderAppearance();
       case 'model':
         return renderModel();
-      case 'indexing':
-        return renderIndexing();
+      case 'embedding':
+        return renderEmbedding();
       case 'root':
       default:
         return renderRoot();
@@ -860,7 +944,16 @@ const styles = StyleSheet.create({
     lineHeight: 16,
     marginTop: 4,
   },
-  systemPromptInput: {
+  fieldGroup: {
+    marginTop: 16,
+  },
+  fieldLabel: {
+    ...typography.label,
+    color: colors.foreground,
+    fontSize: 15,
+    marginBottom: 8,
+  },
+  settingsTextInput: {
     ...typography.body,
     backgroundColor: colors.muted,
     borderColor: colors.input,
@@ -869,10 +962,46 @@ const styles = StyleSheet.create({
     color: colors.foreground,
     fontSize: 15,
     lineHeight: 21,
-    marginTop: 16,
-    minHeight: 132,
+    minHeight: 46,
     paddingHorizontal: 14,
+    paddingVertical: 11,
+  },
+  shortTextArea: {
+    minHeight: 82,
     paddingTop: 12,
+  },
+  longTextArea: {
+    minHeight: 132,
+    paddingTop: 12,
+  },
+  memoryList: {
+    backgroundColor: colors.muted,
+    borderColor: colors.input,
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+    overflow: 'hidden',
+  },
+  memoryListItem: {
+    borderBottomColor: colors.border,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  memoryListText: {
+    ...typography.body,
+    color: colors.foreground,
+    fontSize: 15,
+    fontWeight: '400',
+    lineHeight: 21,
+  },
+  emptyMemoryText: {
+    ...typography.body,
+    color: colors.mutedForeground,
+    fontSize: 15,
+    fontWeight: '400',
+    lineHeight: 21,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
   },
   separator: {
     marginVertical: 14,

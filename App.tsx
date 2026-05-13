@@ -40,7 +40,10 @@ import ChatScreen, {
   ChatMessage,
   createInitialChatMessages,
 } from './src/screens/ChatScreen';
-import Settings, { type SettingsPanelId } from './src/screens/Settings';
+import Settings, {
+  type PersonalCustomizationSettings,
+  type SettingsPanelId,
+} from './src/screens/Settings';
 import {
   DisplaySettingsProvider,
   ScaledText as Text,
@@ -157,7 +160,8 @@ type PersistedAppState = {
   activeSessionId: string | null;
   chatMessagesBySessionId: Record<string, PersistedChatMessage[]>;
   draftChatMessages: PersistedChatMessage[];
-  personalSystemPrompt: string;
+  personalCustomization: PersonalCustomizationSettings;
+  personalSystemPrompt?: string;
   recentSessions: ChatSession[];
   selectedModelId: ModelOption['id'];
   sessionTitle: string;
@@ -182,6 +186,14 @@ const RECENT_ACTION_MENU_WIDTH = 214;
 const RECENT_ACTION_MENU_HEIGHT = 160;
 const WORK_FOLDER_ACTION_MENU_HEIGHT = 84;
 const WORK_FOLDER_SESSION_ACTION_MENU_HEIGHT = 122;
+
+const defaultPersonalCustomizationSettings: PersonalCustomizationSettings = {
+  customInstructions: '',
+  memoryEnabled: true,
+  personality: '',
+  savedMemories: [],
+  userName: '',
+};
 
 const modelOptions: ModelOption[] = [
   {
@@ -378,6 +390,42 @@ const hydrateWorkFolders = (
     }));
 };
 
+const hydratePersonalCustomization = (
+  settings: unknown,
+  legacySystemPrompt: unknown,
+): PersonalCustomizationSettings => {
+  const parsedSettings =
+    settings && typeof settings === 'object'
+      ? (settings as Partial<PersonalCustomizationSettings>)
+      : {};
+
+  return {
+    customInstructions:
+      typeof parsedSettings.customInstructions === 'string'
+        ? parsedSettings.customInstructions
+        : typeof legacySystemPrompt === 'string'
+        ? legacySystemPrompt
+        : defaultPersonalCustomizationSettings.customInstructions,
+    memoryEnabled:
+      typeof parsedSettings.memoryEnabled === 'boolean'
+        ? parsedSettings.memoryEnabled
+        : defaultPersonalCustomizationSettings.memoryEnabled,
+    personality:
+      typeof parsedSettings.personality === 'string'
+        ? parsedSettings.personality
+        : defaultPersonalCustomizationSettings.personality,
+    savedMemories: Array.isArray(parsedSettings.savedMemories)
+      ? parsedSettings.savedMemories.filter(
+          (memory): memory is string => typeof memory === 'string',
+        )
+      : defaultPersonalCustomizationSettings.savedMemories,
+    userName:
+      typeof parsedSettings.userName === 'string'
+        ? parsedSettings.userName
+        : defaultPersonalCustomizationSettings.userName,
+  };
+};
+
 const parseStoredAppState = (
   value: string | null,
 ): PersistedAppState | null => {
@@ -405,10 +453,10 @@ const parseStoredAppState = (
       draftChatMessages: Array.isArray(parsed.draftChatMessages)
         ? parsed.draftChatMessages
         : serializeMessages(createInitialChatMessages()),
-      personalSystemPrompt:
-        typeof parsed.personalSystemPrompt === 'string'
-          ? parsed.personalSystemPrompt
-          : '',
+      personalCustomization: hydratePersonalCustomization(
+        parsed.personalCustomization,
+        parsed.personalSystemPrompt,
+      ),
       recentSessions: Array.isArray(parsed.recentSessions)
         ? parsed.recentSessions
         : initialRecentSessions,
@@ -442,12 +490,30 @@ const omitRecordKey = <Value,>(
 };
 
 const createCommonSystemPrompt = (
-  personalSystemPrompt: string,
+  personalCustomization: PersonalCustomizationSettings,
   workFolderMemory: string,
-) =>
-  [
-    personalSystemPrompt.trim()
-      ? `개인 시스템 프롬프트:\n${personalSystemPrompt.trim()}`
+) => {
+  const personalPromptSections = [
+    personalCustomization.userName.trim()
+      ? `사용자 이름: ${personalCustomization.userName.trim()}`
+      : '',
+    personalCustomization.personality.trim()
+      ? `AI 응답 성격:\n${personalCustomization.personality.trim()}`
+      : '',
+    personalCustomization.customInstructions.trim()
+      ? `맞춤형 지침:\n${personalCustomization.customInstructions.trim()}`
+      : '',
+    personalCustomization.memoryEnabled &&
+    personalCustomization.savedMemories.length > 0
+      ? `저장된 메모리:\n${personalCustomization.savedMemories
+          .map(memory => `- ${memory}`)
+          .join('\n')}`
+      : '',
+  ].filter(Boolean);
+
+  return [
+    personalPromptSections.length > 0
+      ? `개인 맞춤 설정:\n${personalPromptSections.join('\n\n')}`
       : '',
     workFolderMemory.trim()
       ? `작업 폴더 시스템 프롬프트(메모리):\n${workFolderMemory.trim()}`
@@ -455,6 +521,7 @@ const createCommonSystemPrompt = (
   ]
     .filter(Boolean)
     .join('\n\n');
+};
 
 function App() {
   const activeSessionIdRef = useRef<string | null>(null);
@@ -474,7 +541,10 @@ function App() {
   const [draftChatMessages, setDraftChatMessages] = useState<ChatMessage[]>(
     createInitialChatMessages,
   );
-  const [personalSystemPrompt, setPersonalSystemPrompt] = useState('');
+  const [personalCustomization, setPersonalCustomization] =
+    useState<PersonalCustomizationSettings>(
+      defaultPersonalCustomizationSettings,
+    );
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isModelMenuOpen, setIsModelMenuOpen] = useState(false);
   const [chatInstanceKey, setChatInstanceKey] = useState(0);
@@ -698,7 +768,7 @@ function App() {
         setWorkFolderSessions(storedState.workFolderSessions);
         setWorkFolders(storedState.workFolders);
         setSelectedModelId(storedState.selectedModelId);
-        setPersonalSystemPrompt(storedState.personalSystemPrompt);
+        setPersonalCustomization(storedState.personalCustomization);
         setChatMessagesBySessionId(hydratedMessagesBySessionId);
         setDraftChatMessages(hydrateMessages(storedState.draftChatMessages));
       } finally {
@@ -729,7 +799,7 @@ function App() {
         ]),
       ),
       draftChatMessages: serializeMessages(draftChatMessages),
-      personalSystemPrompt,
+      personalCustomization,
       recentSessions,
       selectedModelId,
       sessionTitle,
@@ -758,7 +828,7 @@ function App() {
     chatMessagesBySessionId,
     draftChatMessages,
     isAppStateHydrated,
-    personalSystemPrompt,
+    personalCustomization,
     recentSessions,
     selectedModelId,
     sessionTitle,
@@ -810,8 +880,8 @@ function App() {
 
   const activeSystemPrompt = useMemo(
     () =>
-      createCommonSystemPrompt(personalSystemPrompt, activeWorkFolderMemory),
-    [activeWorkFolderMemory, personalSystemPrompt],
+      createCommonSystemPrompt(personalCustomization, activeWorkFolderMemory),
+    [activeWorkFolderMemory, personalCustomization],
   );
 
   const handleNewChat = () => {
@@ -1305,8 +1375,8 @@ function App() {
                 activePanel={settingsPanel}
                 onModelStateChange={handleModelStateChange}
                 onPanelChange={setSettingsPanel}
-                onPersonalSystemPromptChange={setPersonalSystemPrompt}
-                personalSystemPrompt={personalSystemPrompt}
+                onPersonalCustomizationChange={setPersonalCustomization}
+                personalCustomization={personalCustomization}
               />
             )}
           </View>

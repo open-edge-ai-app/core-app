@@ -1017,31 +1017,6 @@ function ChatScreen({
 
       <View style={[styles.composer, composerOffsetStyle]}>
         <View style={styles.inputPanel}>
-          <Pressable
-            accessibilityLabel="컨텍스트 추가"
-            accessibilityRole="button"
-            style={({ pressed }) => [
-              styles.contextPill,
-              pressed && styles.promptRowPressed,
-            ]}
-          >
-            <AppIcon
-              color={colors.mutedForeground}
-              icon={appIcons.addContext}
-              size={17}
-            />
-            <Text style={styles.contextText}>Add context</Text>
-          </Pressable>
-
-          <TextInput
-            multiline
-            onChangeText={setDraft}
-            placeholder="Ask, search, or make anything..."
-            placeholderTextColor={colors.mutedForeground}
-            style={styles.input}
-            value={draft}
-          />
-
           {selectedAttachments.length > 0 ? (
             <View style={styles.attachmentList}>
               {selectedAttachments.map(attachment => {
@@ -1086,6 +1061,15 @@ function ChatScreen({
               })}
             </View>
           ) : null}
+
+          <TextInput
+            multiline
+            onChangeText={setDraft}
+            placeholder="Ask, search, or make anything..."
+            placeholderTextColor={colors.mutedForeground}
+            style={styles.input}
+            value={draft}
+          />
 
           {attachmentError ? (
             <Text style={styles.attachmentError}>{attachmentError}</Text>
@@ -1231,46 +1215,6 @@ function ChatScreen({
                   color={colors.mutedForeground}
                   icon={appIcons.attachment}
                   size={19}
-                />
-              </Pressable>
-              <Pressable
-                accessibilityLabel="자동 모드"
-                accessibilityRole="button"
-                style={({ pressed }) => [
-                  styles.textTool,
-                  pressed && styles.promptRowPressed,
-                ]}
-              >
-                <AppIcon
-                  color={colors.foreground}
-                  icon={appIcons.autoMode}
-                  size={14}
-                />
-                <Text style={styles.textToolLabel}>Auto</Text>
-                <AppIcon
-                  color={colors.mutedForeground}
-                  icon={appIcons.chevronDown}
-                  size={9}
-                />
-              </Pressable>
-              <Pressable
-                accessibilityLabel="전체 소스"
-                accessibilityRole="button"
-                style={({ pressed }) => [
-                  styles.sourceTool,
-                  pressed && styles.promptRowPressed,
-                ]}
-              >
-                <AppIcon
-                  color={colors.mutedForeground}
-                  icon={appIcons.sources}
-                  size={20}
-                />
-                <Text style={styles.textToolLabel}>All Sources</Text>
-                <AppIcon
-                  color={colors.mutedForeground}
-                  icon={appIcons.chevronDown}
-                  size={9}
                 />
               </Pressable>
             </View>
@@ -1494,22 +1438,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.12,
     shadowRadius: 28,
   },
-  contextPill: {
-    alignItems: 'center',
-    alignSelf: 'flex-start',
-    borderColor: colors.input,
-    borderRadius: 10,
-    borderWidth: 1,
-    flexDirection: 'row',
-    gap: 7,
-    minHeight: 31,
-    paddingHorizontal: 10,
-  },
-  contextText: {
-    ...typography.label,
-    color: colors.mutedForeground,
-    fontSize: 14,
-  },
   input: {
     ...typography.body,
     backgroundColor: 'transparent',
@@ -1520,14 +1448,14 @@ const styles = StyleSheet.create({
     maxHeight: 82,
     minHeight: 54,
     paddingHorizontal: 4,
-    paddingTop: 18,
+    paddingTop: 4,
     textAlignVertical: 'top',
   },
   attachmentList: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 8,
-    paddingBottom: 10,
+    paddingBottom: 8,
   },
   attachmentChip: {
     alignItems: 'center',
@@ -1703,7 +1631,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     flex: 1,
     flexDirection: 'row',
-    gap: 14,
     paddingRight: 10,
   },
   iconTool: {
@@ -1711,24 +1638,6 @@ const styles = StyleSheet.create({
     height: 36,
     justifyContent: 'center',
     width: 34,
-  },
-  textTool: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    gap: 6,
-    justifyContent: 'center',
-    minHeight: 34,
-  },
-  textToolLabel: {
-    ...typography.label,
-    color: colors.foreground,
-    fontSize: 14,
-  },
-  sourceTool: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    gap: 7,
-    minHeight: 34,
   },
   sendButton: {
     alignItems: 'center',

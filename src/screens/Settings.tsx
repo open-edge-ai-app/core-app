@@ -22,6 +22,8 @@ const defaultStatus: IndexingStatus = {
   indexedItems: 0,
   isAvailable: false,
   isIndexing: false,
+  documentEnabled: false,
+  documentIndexedItems: 0,
   smsEnabled: false,
   smsIndexedItems: 0,
 };

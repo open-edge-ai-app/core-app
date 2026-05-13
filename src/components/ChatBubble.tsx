@@ -37,6 +37,7 @@ type ChatBubbleProps = {
   assistantName?: string;
   isRetryDisabled?: boolean;
   onRetry?: () => void;
+  reasoning?: string;
   role: ChatRole;
   text: string;
   thumbnail?: ImageSourcePropType;
@@ -129,6 +130,7 @@ function ChatBubble({
   assistantName = 'Gemma 4',
   isRetryDisabled = false,
   onRetry,
+  reasoning,
   role,
   text,
   thumbnail,
@@ -136,6 +138,7 @@ function ChatBubble({
 }: ChatBubbleProps) {
   const assistantProfile = getAssistantProfile(assistantName);
   const [isCopied, setIsCopied] = useState(false);
+  const [isReasoningExpanded, setIsReasoningExpanded] = useState(false);
   const copiedTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const canUseAssistantActions = role === 'assistant' && text.trim().length > 0;
 
@@ -217,6 +220,26 @@ function ChatBubble({
 
         {thumbnail ? (
           <Image source={thumbnail} style={styles.thumbnail} />
+        ) : null}
+
+        {reasoning?.trim() ? (
+          <View style={styles.reasoningBox}>
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => setIsReasoningExpanded(current => !current)}
+              style={styles.reasoningHeader}
+            >
+              <Text style={styles.reasoningTitle}>생각하는 과정 표시</Text>
+              <Text style={styles.reasoningChevron}>
+                {isReasoningExpanded ? '⌃' : '⌄'}
+              </Text>
+            </Pressable>
+            {isReasoningExpanded ? (
+              <Text selectable style={styles.reasoningText}>
+                {reasoning.trim()}
+              </Text>
+            ) : null}
+          </View>
         ) : null}
 
         <MarkdownText selectable style={styles.assistantText} text={text} />
@@ -334,6 +357,40 @@ const styles = StyleSheet.create({
     color: colors.cardForeground,
     fontWeight: '400',
     lineHeight: 24,
+  },
+  reasoningBox: {
+    borderColor: colors.border,
+    borderRadius: 8,
+    borderWidth: StyleSheet.hairlineWidth,
+    marginBottom: 10,
+    overflow: 'hidden',
+  },
+  reasoningHeader: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    minHeight: 36,
+    paddingHorizontal: 10,
+  },
+  reasoningTitle: {
+    ...typography.label,
+    color: colors.foreground,
+    fontSize: 13,
+  },
+  reasoningChevron: {
+    ...typography.label,
+    color: colors.mutedForeground,
+    fontSize: 17,
+    lineHeight: 18,
+  },
+  reasoningText: {
+    ...typography.caption,
+    borderTopColor: colors.border,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    color: colors.mutedForeground,
+    lineHeight: 18,
+    paddingHorizontal: 10,
+    paddingVertical: 9,
   },
   assistantActions: {
     alignItems: 'center',

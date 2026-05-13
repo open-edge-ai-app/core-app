@@ -124,6 +124,7 @@ export type MultimodalMessage = {
 
 export type AIResponseStreamCallbacks = {
   onChunk: (chunk: string) => void;
+  onReasoning?: (reasoning: string) => void;
 };
 
 export type AIResponseStreamOptions = {
@@ -134,6 +135,7 @@ export type AIResponseStreamOptions = {
 export type AIResponse = {
   type: 'text' | 'memory' | 'action' | 'error';
   message: string;
+  reasoning?: string | null;
   route: 'direct' | 'rag' | 'agent' | 'invalid';
   modalities: MultimodalAttachmentType[];
 };
@@ -143,6 +145,7 @@ type NativeStreamEvent = {
   done?: boolean;
   error?: string;
   message?: string;
+  reasoning?: string;
   requestId?: string;
 };
 
@@ -557,6 +560,9 @@ export const AIEngine = {
               }
 
               if (event.done) {
+                if (event.reasoning) {
+                  callbacks.onReasoning?.(event.reasoning);
+                }
                 complete(event.message ?? response);
               }
             },

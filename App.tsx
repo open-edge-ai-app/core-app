@@ -164,10 +164,16 @@ type PersistedAppState = {
   workFolderSessions: ChatSession[];
 };
 
+type SessionTitleChangeOptions = {
+  animated?: boolean;
+  sessionId?: string | null;
+};
+
 const APP_STATE_STORAGE_KEY = 'open-edge-ai:app-state:v1';
 const MODEL_MENU_GAP = 6;
 const MODEL_MENU_TOP = 32 + MODEL_MENU_GAP;
 const MODEL_MENU_WIDTH = 252;
+const TITLE_TYPING_INTERVAL_MS = 42;
 const WEB_APP_MAX_WIDTH = 430;
 const MENU_HORIZONTAL_PADDING = 24;
 const MENU_HEADER_LOGO_LEFT_OFFSET = -16;
@@ -410,6 +416,13 @@ const omitRecordKey = <Value,>(
 
 function App() {
   const activeSessionIdRef = useRef<string | null>(null);
+  const titleAnimationTimerRef = useRef<ReturnType<typeof setInterval> | null>(
+    null,
+  );
+  const pendingTitleAnimationRef = useRef<{
+    sessionId: string;
+    title: string;
+  } | null>(null);
   const [isAppStateHydrated, setIsAppStateHydrated] = useState(false);
   const [sessionTitle, setSessionTitle] = useState('새 채팅');
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
@@ -715,7 +728,68 @@ function App() {
     [activeWorkFolderMemory, personalSystemPrompt],
   );
 
+  const stopTitleAnimation = useCallback(() => {
+    if (titleAnimationTimerRef.current) {
+      clearInterval(titleAnimationTimerRef.current);
+      titleAnimationTimerRef.current = null;
+    }
+
+    pendingTitleAnimationRef.current = null;
+  }, []);
+
+  const applySessionTitle = useCallback(
+    (
+      sessionId: string,
+      title: string,
+      options: { persist?: boolean } = {},
+    ) => {
+      if (activeSessionIdRef.current === sessionId) {
+        setSessionTitle(title);
+      }
+
+      setRecentSessions(current =>
+        current.map(session =>
+          session.id === sessionId ? { ...session, title } : session,
+        ),
+      );
+      setWorkFolderSessions(current =>
+        current.map(session =>
+          session.id === sessionId ? { ...session, title } : session,
+        ),
+      );
+
+      if (options.persist === false) {
+        return;
+      }
+
+      const currentMessages = chatMessagesBySessionId[sessionId];
+      if (currentMessages) {
+        AIEngine.saveChatSession(
+          sessionId,
+          title,
+          toStoredChatMessages(currentMessages),
+        ).catch(() => undefined);
+      }
+    },
+    [chatMessagesBySessionId],
+  );
+
+  const clearTitleAnimation = useCallback(
+    (complete = false) => {
+      const pendingAnimation = pendingTitleAnimationRef.current;
+      stopTitleAnimation();
+
+      if (complete && pendingAnimation) {
+        applySessionTitle(pendingAnimation.sessionId, pendingAnimation.title);
+      }
+    },
+    [applySessionTitle, stopTitleAnimation],
+  );
+
+  useEffect(() => stopTitleAnimation, [stopTitleAnimation]);
+
   const handleNewChat = () => {
+    clearTitleAnimation(true);
     setActiveScreen('chat');
     setSettingsPanel('root');
     activeSessionIdRef.current = null;
@@ -727,6 +801,7 @@ function App() {
   };
 
   const handleSelectSession = (title: string, id?: string) => {
+    clearTitleAnimation(true);
     const isChatSession =
       id != null &&
       (recentSessions.some(session => session.id === id) ||
@@ -745,8 +820,10 @@ function App() {
   };
 
   const handleOpenSettings = () => {
+    clearTitleAnimation(true);
     setActiveScreen('settings');
     setSettingsPanel('root');
+    activeSessionIdRef.current = null;
     setActiveSessionId(null);
     setIsMenuOpen(false);
   };
@@ -770,7 +847,7 @@ function App() {
               sessionTitleCandidate?.trim() ||
                 session?.title ||
                 sessionTitle ||
-                'New chat',
+                '새 채팅',
               toStoredChatMessages(nextMessages),
             ).catch(() => undefined)
           : undefined;
@@ -819,48 +896,60 @@ function App() {
   );
 
   const handleActiveSessionTitleChange = useCallback(
-    (title: string) => {
+    (title: string, options: SessionTitleChangeOptions = {}) => {
       const normalizedTitle = title.trim();
-      const currentSessionId = activeSessionIdRef.current;
+      const targetSessionId = options.sessionId ?? activeSessionIdRef.current;
 
       if (!normalizedTitle) {
         return;
       }
 
-      setSessionTitle(normalizedTitle);
-
-      if (!currentSessionId) {
+      if (!targetSessionId) {
+        clearTitleAnimation(true);
+        setSessionTitle(normalizedTitle);
         return;
       }
 
-      setRecentSessions(current =>
-        current.map(session =>
-          session.id === currentSessionId
-            ? { ...session, title: normalizedTitle }
-            : session,
-        ),
-      );
-      setWorkFolderSessions(current =>
-        current.map(session =>
-          session.id === currentSessionId
-            ? { ...session, title: normalizedTitle }
-            : session,
-        ),
-      );
-
-      const currentMessages = chatMessagesBySessionId[currentSessionId];
-      if (currentMessages) {
-        AIEngine.saveChatSession(
-          currentSessionId,
-          normalizedTitle,
-          toStoredChatMessages(currentMessages),
-        ).catch(() => undefined);
+      const isActiveSession = targetSessionId === activeSessionIdRef.current;
+      if (!options.animated || !isActiveSession || normalizedTitle.length <= 1) {
+        clearTitleAnimation(true);
+        applySessionTitle(targetSessionId, normalizedTitle);
+        return;
       }
+
+      clearTitleAnimation(true);
+
+      let characterIndex = 0;
+      pendingTitleAnimationRef.current = {
+        sessionId: targetSessionId,
+        title: normalizedTitle,
+      };
+
+      const tickTitle = () => {
+        characterIndex += 1;
+        const nextTitle = normalizedTitle.slice(0, characterIndex);
+        const isComplete = characterIndex >= normalizedTitle.length;
+
+        applySessionTitle(targetSessionId, nextTitle, {
+          persist: isComplete,
+        });
+
+        if (isComplete) {
+          stopTitleAnimation();
+        }
+      };
+
+      tickTitle();
+      titleAnimationTimerRef.current = setInterval(
+        tickTitle,
+        TITLE_TYPING_INTERVAL_MS,
+      );
     },
-    [chatMessagesBySessionId],
+    [applySessionTitle, clearTitleAnimation, stopTitleAnimation],
   );
 
   const handleRenameSession = (sessionId: string, title: string) => {
+    clearTitleAnimation(true);
     setRecentSessions(current =>
       current.map(session =>
         session.id === sessionId ? { ...session, title } : session,
@@ -1029,6 +1118,7 @@ function App() {
     AIEngine.deleteChatSession(sessionId).catch(() => undefined);
 
     if (activeSessionId === sessionId) {
+      clearTitleAnimation(false);
       activeSessionIdRef.current = null;
       setActiveSessionId(null);
       setSessionTitle('새 채팅');

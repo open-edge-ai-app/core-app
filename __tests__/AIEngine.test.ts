@@ -44,6 +44,12 @@ test('uses prior chat history in development fallback responses', async () => {
   expect(response).toContain('현재 사용자 요청:\n내 이름이 뭐라고 했지?');
 });
 
+test('does not use the first user message as the chat title fallback', async () => {
+  await expect(
+    AIEngine.generateChatTitle('첫 질문 전체가 제목으로 나오면 안 돼', '응답'),
+  ).resolves.toBe('새 채팅');
+});
+
 test('converts visible chat messages into model history', () => {
   const history = createConversationHistory([
     {

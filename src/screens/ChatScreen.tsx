@@ -61,6 +61,11 @@ type MessagesChangeOptions = {
   persist?: boolean;
 };
 
+type SessionTitleChangeOptions = {
+  animated?: boolean;
+  sessionId?: string | null;
+};
+
 type ChatScreenProps = {
   commonSystemPrompt?: string;
   messages: ChatMessage[];
@@ -69,7 +74,10 @@ type ChatScreenProps = {
     sessionTitleCandidate?: string,
     options?: MessagesChangeOptions,
   ) => MessagesChangeResult;
-  onSessionTitleChange?: (title: string) => void;
+  onSessionTitleChange?: (
+    title: string,
+    options?: SessionTitleChangeOptions,
+  ) => void;
   selectedModelLabel?: string;
   sessionId?: string | null;
 };
@@ -112,6 +120,7 @@ const INITIAL_SCROLL_BOTTOM_INSET = 170;
 const THREAD_SCROLL_BOTTOM_INSET = 210;
 const SCROLL_TO_BOTTOM_THRESHOLD = 140;
 const SCROLL_TO_BOTTOM_BUTTON_OFFSET = 198;
+const PENDING_CHAT_TITLE = '제목 생성 중';
 
 const formatTime = (date: Date) =>
   new Intl.DateTimeFormat('ko-KR', {
@@ -166,16 +175,6 @@ const createMessage = (
   role,
   text,
 });
-
-const createSessionTitle = (prompt: string) => {
-  const normalizedPrompt = prompt.replace(/\s+/g, ' ').trim();
-
-  if (normalizedPrompt.length <= 18) {
-    return normalizedPrompt;
-  }
-
-  return `${normalizedPrompt.slice(0, 18)}...`;
-};
 
 const getAttachmentKey = (attachment: MultimodalAttachment) =>
   attachment.id ?? attachment.uri;
@@ -390,11 +389,7 @@ function ChatScreen({
     const userMessage = createMessage('user', userMessageText);
     const assistantMessage = createMessage('assistant', '', responseModelName);
     const messagesWithUserPrompt = [...messages, userMessage];
-    const nextSessionTitle = !hasUserMessages
-      ? createSessionTitle(
-          prompt || createAttachmentSummary(attachmentsForPrompt),
-        )
-      : undefined;
+    const nextSessionTitle = !hasUserMessages ? PENDING_CHAT_TITLE : undefined;
     const shouldGenerateSessionTitle = !hasUserMessages;
 
     if (prompt === '/compact') {
@@ -446,7 +441,9 @@ function ChatScreen({
     );
     const resolvedSessionId = messagesChange.sessionId ?? sessionId;
     if (!hasUserMessages) {
-      onSessionTitleChange?.(nextSessionTitle ?? '새 채팅');
+      onSessionTitleChange?.(PENDING_CHAT_TITLE, {
+        sessionId: resolvedSessionId,
+      });
     }
     setDraft('');
     setSelectedAttachments([]);
@@ -524,7 +521,10 @@ function ChatScreen({
           .then(title => {
             const normalizedTitle = title.trim();
             if (normalizedTitle) {
-              onSessionTitleChange?.(normalizedTitle);
+              onSessionTitleChange?.(normalizedTitle, {
+                animated: true,
+                sessionId: resolvedSessionId,
+              });
             }
           })
           .catch(() => undefined);

@@ -167,7 +167,7 @@ type PersistedAppState = {
 
 const APP_STATE_STORAGE_KEY = 'open-edge-ai:app-state:v1';
 const MODEL_MENU_GAP = 6;
-const MODEL_MENU_TOP = 32 + MODEL_MENU_GAP;
+const MODEL_MENU_TOP = 52 + MODEL_MENU_GAP;
 const MODEL_MENU_WIDTH = 252;
 const WEB_APP_MAX_WIDTH = 430;
 const MENU_HORIZONTAL_PADDING = 24;
@@ -615,6 +615,9 @@ function App() {
     isModelDownloadStarting,
     modelStatus,
   ]);
+  const headerSelectedModelOption =
+    modelSelectOptions.find(option => option.value === headerSelectedModelId) ??
+    modelManageOption;
 
   const handleModelMenuExpandedChange = useCallback((expanded: boolean) => {
     if (expanded) {
@@ -644,6 +647,18 @@ function App() {
       }
     },
     [handleDownloadModelFromMenu, modelStatus?.installed],
+  );
+
+  const handleHeaderModelOptionPress = useCallback(
+    (option: FloatingSelectOption<ModelOption['id']>) => {
+      if (option.disabled) {
+        return;
+      }
+
+      handleSelectModel(option.value);
+      setIsModelMenuOpen(false);
+    },
+    [handleSelectModel],
   );
 
   useEffect(() => {
@@ -1155,21 +1170,28 @@ function App() {
 
             <View style={[styles.headerSide, styles.headerSideRight]}>
               {activeScreen === 'settings' ? null : (
-                <FloatingSelect
+                <Pressable
                   accessibilityLabel="모델 선택"
-                  expanded={isModelMenuOpen}
-                  menuAlignment="right"
-                  menuStyle={styles.modelMenu}
-                  onExpandedChange={handleModelMenuExpandedChange}
-                  onValueChange={handleSelectModel}
-                  optionIconSize={16}
-                  options={modelSelectOptions}
-                  selectedValue={headerSelectedModelId}
-                  showTriggerIcon={false}
-                  triggerStyle={styles.modelSelector}
-                  valueTextStyle={styles.modelSelectorText}
-                  variant="header"
-                />
+                  accessibilityRole="button"
+                  accessibilityState={{ expanded: isModelMenuOpen }}
+                  onPress={() =>
+                    handleModelMenuExpandedChange(!isModelMenuOpen)
+                  }
+                  style={({ pressed }) => [
+                    styles.modelSelector,
+                    isModelMenuOpen && styles.modelSelectorActive,
+                    pressed && styles.menuButtonPressed,
+                  ]}
+                >
+                  <Text numberOfLines={1} style={styles.modelSelectorText}>
+                    {headerSelectedModelOption.label}
+                  </Text>
+                  <AppIcon
+                    color={colors.mutedForeground}
+                    icon={appIcons.chevronDown}
+                    size={9}
+                  />
+                </Pressable>
               )}
             </View>
           </View>
@@ -1180,6 +1202,76 @@ function App() {
               onPress={() => setIsModelMenuOpen(false)}
               style={styles.modelMenuBackdrop}
             />
+          ) : null}
+
+          {isModelMenuOpen ? (
+            <View style={styles.modelMenuOverlay}>
+              {modelSelectOptions.map(option => {
+                const isSelected = option.value === headerSelectedModelId;
+
+                return (
+                  <Pressable
+                    accessibilityLabel={`${option.label} 선택`}
+                    accessibilityRole="button"
+                    accessibilityState={{
+                      disabled: option.disabled,
+                      selected: isSelected,
+                    }}
+                    disabled={option.disabled}
+                    key={option.value}
+                    onPress={() => handleHeaderModelOptionPress(option)}
+                    style={({ pressed }) => [
+                      styles.modelMenuOption,
+                      option.dividerBefore && styles.modelMenuOptionDivider,
+                      isSelected && styles.modelMenuOptionSelected,
+                      option.disabled && styles.modelMenuOptionDisabled,
+                      pressed && styles.menuButtonPressed,
+                    ]}
+                  >
+                    <View style={styles.modelMenuOptionValue}>
+                      {option.icon ? (
+                        <AppIcon
+                          color={
+                            isSelected ? colors.primary : colors.foreground
+                          }
+                          icon={option.icon}
+                          size={16}
+                        />
+                      ) : null}
+                      <View style={styles.modelMenuOptionCopy}>
+                        <Text
+                          numberOfLines={1}
+                          style={styles.modelMenuOptionLabel}
+                        >
+                          {option.label}
+                        </Text>
+                        {option.description ? (
+                          <Text
+                            numberOfLines={1}
+                            style={styles.modelMenuOptionDescription}
+                          >
+                            {option.description}
+                          </Text>
+                        ) : null}
+                      </View>
+                    </View>
+                    {isSelected ? (
+                      <AppIcon
+                        color={colors.primary}
+                        icon={appIcons.selected}
+                        size={15}
+                      />
+                    ) : option.trailingIcon ? (
+                      <AppIcon
+                        color={option.trailingIconColor ?? colors.primary}
+                        icon={option.trailingIcon}
+                        size={15}
+                      />
+                    ) : null}
+                  </Pressable>
+                );
+              })}
+            </View>
           ) : null}
 
           <View style={styles.content}>
@@ -2751,16 +2843,22 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     flexDirection: 'row',
     gap: 5,
-    minHeight: 32,
+    justifyContent: 'space-between',
     maxWidth: 106,
+    minHeight: 32,
     paddingHorizontal: 11,
+  },
+  modelSelectorActive: {
+    backgroundColor: colors.card,
   },
   modelSelectorText: {
     ...typography.caption,
     color: colors.foreground,
+    flex: 1,
     flexShrink: 1,
     fontSize: 13,
     fontWeight: '700',
+    marginRight: 5,
   },
   modelMenuBackdrop: {
     bottom: 0,
@@ -2771,9 +2869,67 @@ const styles = StyleSheet.create({
     top: 0,
     zIndex: 9000,
   },
-  modelMenu: {
+  modelMenuOverlay: {
+    backgroundColor: colors.card,
+    borderColor: colors.border,
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+    elevation: 10002,
+    overflow: 'hidden',
+    position: 'absolute',
+    right: 12,
+    shadowColor: '#000000',
+    shadowOffset: { height: 12, width: 0 },
+    shadowOpacity: 0.16,
+    shadowRadius: 22,
     top: MODEL_MENU_TOP,
     width: MODEL_MENU_WIDTH,
+    zIndex: 10002,
+  },
+  modelMenuOption: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    minHeight: 48,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  modelMenuOptionSelected: {
+    backgroundColor: 'rgba(0,122,255,0.08)',
+  },
+  modelMenuOptionDisabled: {
+    opacity: 0.54,
+  },
+  modelMenuOptionDivider: {
+    borderTopColor: colors.border,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    marginTop: 6,
+  },
+  modelMenuOptionValue: {
+    alignItems: 'center',
+    flex: 1,
+    flexDirection: 'row',
+    minWidth: 0,
+    paddingRight: 10,
+  },
+  modelMenuOptionCopy: {
+    flex: 1,
+    marginLeft: 10,
+    minWidth: 0,
+  },
+  modelMenuOptionLabel: {
+    ...typography.label,
+    color: colors.foreground,
+    flex: 1,
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  modelMenuOptionDescription: {
+    ...typography.caption,
+    color: colors.mutedForeground,
+    fontSize: 12,
+    fontWeight: '500',
+    marginTop: 3,
   },
   content: {
     flex: 1,

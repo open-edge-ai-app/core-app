@@ -1210,7 +1210,6 @@ function App() {
                 const isDownloadInProgress =
                   isDownloadableMissingModel &&
                   (modelStatus?.isDownloading || isModelDownloadStarting);
-                const isManageOption = option.value === 'manage';
 
                 return (
                   <Pressable
@@ -1234,17 +1233,6 @@ function App() {
                     ]}
                   >
                     <View style={styles.modelMenuOptionValue}>
-                      <View
-                        style={[
-                          styles.modelMenuOptionIndicator,
-                          isSelected && styles.modelMenuOptionIndicatorReady,
-                          isDownloadableMissingModel &&
-                            styles.modelMenuOptionIndicatorPending,
-                          isDownloadInProgress &&
-                            styles.modelMenuOptionIndicatorProgress,
-                          isManageOption && styles.modelMenuOptionIndicatorManage,
-                        ]}
-                      />
                       <View style={styles.modelMenuOptionCopy}>
                         <Text
                           numberOfLines={1}
@@ -2965,39 +2953,22 @@ const styles = StyleSheet.create({
     minWidth: 0,
     paddingRight: 10,
   },
-  modelMenuOptionIndicator: {
-    backgroundColor: colors.border,
-    borderRadius: 999,
-    height: 8,
-    marginRight: 10,
-    width: 8,
-  },
-  modelMenuOptionIndicatorReady: {
-    backgroundColor: colors.success,
-  },
-  modelMenuOptionIndicatorPending: {
-    backgroundColor: colors.warning,
-  },
-  modelMenuOptionIndicatorProgress: {
-    backgroundColor: colors.primary,
-  },
-  modelMenuOptionIndicatorManage: {
-    backgroundColor: colors.ring,
-  },
   modelMenuOptionCopy: {
     flex: 1,
+    justifyContent: 'center',
     minWidth: 0,
   },
   modelMenuOptionLabel: {
     ...typography.label,
     color: colors.foreground,
-    flex: 1,
     fontSize: 14,
     fontWeight: '700',
+    lineHeight: 20,
   },
   modelMenuOptionLabelDownloadable: {
     fontSize: 15,
     fontWeight: '800',
+    lineHeight: 22,
   },
   modelMenuOptionDescription: {
     ...typography.caption,

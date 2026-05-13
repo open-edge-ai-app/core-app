@@ -47,7 +47,7 @@ object ModelRuntimeManager {
         loading = true
         lastError = null
         try {
-            engine = MediaPipeLlmReflector.createEngine(
+            engine = LiteRtLmReflector.createEngine(
                 context = context,
                 modelPath = modelStatus.localPath,
             )
@@ -73,12 +73,13 @@ object ModelRuntimeManager {
                 modalities = emptyList(),
             )
 
-        val response = MediaPipeLlmReflector.sendText(currentEngine, message)
+        val response = LiteRtLmReflector.sendText(currentEngine as LiteRtLmReflector.EngineHandle, message)
         AIResponse(
             type = "text",
-            message = response,
+            message = response.message,
             route = if (useRag) "rag" else "direct",
             modalities = emptyList(),
+            reasoning = response.reasoning,
         )
     }
 
@@ -95,12 +96,16 @@ object ModelRuntimeManager {
                 modalities = modalities,
             )
 
-        val response = MediaPipeLlmReflector.sendMultimodal(currentEngine, request)
+        val response = LiteRtLmReflector.sendMultimodal(
+            currentEngine as LiteRtLmReflector.EngineHandle,
+            request,
+        )
         AIResponse(
             type = "text",
-            message = response,
+            message = response.message,
             route = if (useRag) "rag" else "direct",
             modalities = modalities,
+            reasoning = response.reasoning,
         )
     }
 
@@ -126,17 +131,18 @@ object ModelRuntimeManager {
             }
 
         return try {
-            MediaPipeLlmReflector.sendMultimodalStream(
-                engine = currentEngine,
+            LiteRtLmReflector.sendMultimodalStream(
+                handle = currentEngine as LiteRtLmReflector.EngineHandle,
                 request = request,
                 onPartial = onPartial,
                 onComplete = { response ->
                     onComplete(
                         AIResponse(
                             type = "text",
-                            message = response,
+                            message = response.message,
                             route = if (useRag) "rag" else "direct",
                             modalities = modalities,
+                            reasoning = response.reasoning,
                         ),
                     )
                 },

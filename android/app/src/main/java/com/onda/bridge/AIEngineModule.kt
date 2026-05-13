@@ -62,6 +62,7 @@ class AIEngineModule(
     init {
         reactContext.addLifecycleEventListener(this)
         reactContext.addActivityEventListener(this)
+        cleanupStoredChatText()
     }
 
     override fun getName(): String = NAME
@@ -79,7 +80,9 @@ class AIEngineModule(
     fun sendMultimodalMessage(request: ReadableMap, promise: Promise) {
         try {
             val multimodalRequest = request.toMultimodalRequest()
-            promise.resolve(queryRouter.routeMultimodal(multimodalRequest).toWritableMap())
+            val response = queryRouter.routeMultimodal(multimodalRequest)
+            persistBackendChatTurn(multimodalRequest, response.message)
+            promise.resolve(response.toWritableMap())
         } catch (error: Exception) {
             promise.reject("AI_ENGINE_MULTIMODAL_ERROR", error)
         }
@@ -99,10 +102,12 @@ class AIEngineModule(
                     )
                 },
                 onComplete = { response ->
+                    persistBackendChatTurn(multimodalRequest, response.message)
                     emitStreamEvent(
                         requestId = requestId,
                         done = true,
                         message = response.message,
+                        reasoning = response.reasoning,
                     )
                 },
                 onError = { error ->
@@ -495,6 +500,7 @@ class AIEngineModule(
         chunk: String? = null,
         done: Boolean = false,
         message: String? = null,
+        reasoning: String? = null,
         error: String? = null,
     ) {
         reactContext.runOnJSQueueThread {
@@ -507,6 +513,9 @@ class AIEngineModule(
                 if (message != null) {
                     putString("message", message)
                 }
+                if (reasoning != null) {
+                    putString("reasoning", reasoning)
+                }
                 if (error != null) {
                     putString("error", error)
                 }
@@ -515,6 +524,121 @@ class AIEngineModule(
             reactContext
                 .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
                 .emit(STREAM_EVENT_NAME, event)
+        }
+    }
+
+    private fun persistBackendChatTurn(
+        request: MultimodalRequest,
+        responseText: String,
+    ) {
+        val chatId = request.chatSessionId?.takeIf { it.isNotBlank() } ?: return
+        val userText = request.text.trim()
+        val assistantText = responseText.cleanModelOutput()
+        if (userText.isBlank() && request.attachments.isEmpty()) {
+            return
+        }
+        if (assistantText.isBlank()) {
+            return
+        }
+
+        val now = System.currentTimeMillis()
+        val session = vectorDBHelper.getChatSession(chatId)
+        val existingMessages = session
+            ?.messages
+            .orEmpty()
+            .sortedBy { message -> message.sortOrder }
+            .filterNot { message -> message.role == "assistant" && message.text.isBlank() }
+            .toMutableList()
+
+        val normalizedUserText = userText.cleanModelOutput()
+        val hasRecentSameUserMessage = existingMessages
+            .takeLast(4)
+            .any { message ->
+                message.role == "user" &&
+                    message.text.cleanModelOutput() == normalizedUserText
+            }
+        if (!hasRecentSameUserMessage && normalizedUserText.isNotBlank()) {
+            existingMessages.add(
+                ChatMessageRecord(
+                    id = "message_${System.nanoTime()}_user",
+                    chatId = chatId,
+                    role = "user",
+                    text = normalizedUserText,
+                    modelName = null,
+                    createdAt = now,
+                    sortOrder = existingMessages.size,
+                ),
+            )
+        }
+
+        val hasRecentSameAssistantMessage = existingMessages
+            .takeLast(3)
+            .any { message ->
+                message.role == "assistant" &&
+                    message.text.cleanModelOutput() == assistantText
+            }
+        if (!hasRecentSameAssistantMessage) {
+            existingMessages.add(
+                ChatMessageRecord(
+                    id = "message_${System.nanoTime()}_assistant",
+                    chatId = chatId,
+                    role = "assistant",
+                    text = assistantText,
+                    modelName = "Gemma 4",
+                    createdAt = now,
+                    sortOrder = existingMessages.size,
+                ),
+            )
+        }
+
+        val normalizedMessages = existingMessages.mapIndexed { index, message ->
+            message.copy(
+                text = message.text.cleanModelOutput(),
+                sortOrder = index,
+            )
+        }
+        vectorDBHelper.upsertChatSession(
+            chat = ChatRecord(
+                id = chatId,
+                title = session?.chat?.title ?: normalizedUserText.toChatTitle().ifBlank { "New chat" },
+                createdAt = session?.chat?.createdAt ?: now,
+                updatedAt = now,
+            ),
+            messages = normalizedMessages,
+            historyEvent = null,
+        )
+        chatContextManager.recordContextSnapshot(
+            chatId = chatId,
+            messages = normalizedMessages,
+        )
+    }
+
+    private fun cleanupStoredChatText() {
+        try {
+            vectorDBHelper.listChats(limit = 100).forEach { chat ->
+                val session = vectorDBHelper.getChatSession(chat.id) ?: return@forEach
+                val cleanedMessages = session.messages
+                    .sortedBy { message -> message.sortOrder }
+                    .mapIndexedNotNull { index, message ->
+                        val cleanedText = message.text.cleanModelOutput()
+                        if (message.role == "assistant" && cleanedText.isBlank()) {
+                            null
+                        } else {
+                            message.copy(text = cleanedText, sortOrder = index)
+                        }
+                    }
+                vectorDBHelper.upsertChatSession(
+                    chat = session.chat,
+                    messages = cleanedMessages,
+                    historyEvent = null,
+                )
+                chatContextManager.recordContextSnapshot(
+                    chatId = chat.id,
+                    messages = cleanedMessages,
+                )
+            }
+        } catch (_: Exception) {
+            // Best-effort cleanup; normal chat flow still sanitizes new reads/writes.
         }
     }
 
@@ -546,7 +670,7 @@ class AIEngineModule(
         val messages = mutableListOf<ConversationMessage>()
         for (index in 0 until size()) {
             val map = getMap(index) ?: continue
-            val content = map.getOptionalString("content")?.trim().orEmpty()
+            val content = map.getOptionalString("content")?.cleanModelOutput().orEmpty()
             if (content.isBlank()) {
                 continue
             }
@@ -592,7 +716,7 @@ class AIEngineModule(
             val map = getMap(index) ?: continue
             val id = map.getOptionalString("id") ?: "message_${System.nanoTime()}_$index"
             val role = map.getOptionalString("role") ?: "user"
-            val text = map.getOptionalString("text").orEmpty()
+            val text = map.getOptionalString("text").orEmpty().cleanModelOutput()
             val createdAt = map.getOptionalDouble("createdAt")?.toLong() ?: System.currentTimeMillis()
             messages.add(
                 ChatMessageRecord(
@@ -718,6 +842,11 @@ class AIEngineModule(
             putString("message", message)
             putString("route", route)
             putArray("modalities", modalities.toWritableArray())
+            if (reasoning == null) {
+                putNull("reasoning")
+            } else {
+                putString("reasoning", reasoning)
+            }
         }
 
     private fun ModelStatus.toWritableMap(): WritableMap =
@@ -765,8 +894,10 @@ class AIEngineModule(
             putInt("indexedItems", indexedItems)
             putBoolean("smsEnabled", smsEnabled)
             putBoolean("galleryEnabled", galleryEnabled)
+            putBoolean("documentEnabled", documentEnabled)
             putInt("smsIndexedItems", smsIndexedItems)
             putInt("galleryIndexedItems", galleryIndexedItems)
+            putInt("documentIndexedItems", documentIndexedItems)
             if (lastIndexedAt == null) {
                 putNull("lastIndexedAt")
             } else {
@@ -783,6 +914,7 @@ class AIEngineModule(
         Arguments.createMap().apply {
             putInt("smsIndexed", smsIndexed)
             putInt("galleryIndexed", galleryIndexed)
+            putInt("documentIndexed", documentIndexed)
             putInt("deleted", deleted)
             putInt("skipped", skipped)
             putMap("status", status.toWritableMap())
@@ -831,7 +963,7 @@ class AIEngineModule(
                     Arguments.createMap().apply {
                         putString("id", message.id)
                         putString("role", message.role)
-                        putString("text", message.text)
+                        putString("text", message.text.cleanModelOutput())
                         if (message.modelName == null) {
                             putNull("modelName")
                         } else {
@@ -889,6 +1021,95 @@ class AIEngineModule(
             .trim()
             .trimEnd('.', '!', '?', '。', '！', '？')
             .take(MAX_CHAT_TITLE_LENGTH)
+
+    private fun String.cleanModelOutput(): String =
+        trim()
+            .keepAfterFinalChannel()
+            .replace("<turn|>", "")
+            .replace("<eos>", "")
+            .replace("<bos>", "")
+            .replace("<start_of_turn>", "")
+            .replace("<end_of_turn>", "")
+            .replace("<|channel>final", "")
+            .replace("<|channel|>final", "")
+            .stripPrivateReasoning()
+            .stripToolControlText()
+            .stripEmptyJsonFences()
+            .collapseRepeatedText()
+            .replace(Regex("\\s+"), " ")
+            .trim()
+
+    private fun String.keepAfterFinalChannel(): String {
+        val explicitMarkers = listOf("<|channel>final", "<|channel|>final")
+            .mapNotNull { value ->
+                val index = indexOf(value, ignoreCase = true)
+                if (index >= 0) index to value.length else null
+            }
+        val genericMarkers = Regex("""<channel>(?!thought)""", RegexOption.IGNORE_CASE)
+            .findAll(this)
+            .map { match -> match.range.first to (match.range.last + 1) }
+            .toList()
+        val marker = (explicitMarkers + genericMarkers).minByOrNull { it.first }
+            ?: return this
+        return substring(marker.first + marker.second)
+    }
+
+    private fun String.stripPrivateReasoning(): String {
+        val markers = listOf(
+            "<|channel>thought",
+            "<|channel|>thought",
+            "<channel>thought",
+            "Thinking Process:",
+        )
+        val firstMarker = markers
+            .map { marker -> indexOf(marker, ignoreCase = true) }
+            .filter { index -> index >= 0 }
+            .minOrNull()
+            ?: return this
+        return substring(0, firstMarker)
+    }
+
+    private fun String.stripToolControlText(): String =
+        replace(Regex("""\{\s*"tool_result"\s*:\s*"[^"]*"\s*\}\s*"""), "")
+            .replace(Regex("""\(\s*No tool call required\s*\)""", RegexOption.IGNORE_CASE), "")
+            .replace(Regex("""No tool call required\.?""", RegexOption.IGNORE_CASE), "")
+
+    private fun String.stripEmptyJsonFences(): String =
+        replace(Regex("""(?is)```\s*json\s*```\s*"""), "")
+
+    private fun String.collapseRepeatedText(): String {
+        val normalized = trim()
+        if (normalized.isEmpty()) {
+            return normalized
+        }
+
+        for (parts in 2..6) {
+            if (normalized.length % parts != 0) {
+                continue
+            }
+            val chunkLength = normalized.length / parts
+            val first = normalized.substring(0, chunkLength).trim()
+            if (first.isNotBlank() && (1 until parts).all { index ->
+                    normalized
+                        .substring(index * chunkLength, (index + 1) * chunkLength)
+                        .trim() == first
+                }
+            ) {
+                return first
+            }
+        }
+
+        return normalized
+            .split(Regex("""(?<=[.!?])\s+"""))
+            .fold(mutableListOf<String>()) { acc, sentence ->
+                val cleaned = sentence.trim()
+                if (cleaned.isNotBlank() && acc.lastOrNull() != cleaned) {
+                    acc.add(cleaned)
+                }
+                acc
+            }
+            .joinToString(" ")
+    }
 
     companion object {
         const val NAME = "AIEngine"

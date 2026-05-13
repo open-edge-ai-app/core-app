@@ -22,6 +22,8 @@ const defaultStatus: IndexingStatus = {
   indexedItems: 0,
   isAvailable: false,
   isIndexing: false,
+  documentEnabled: false,
+  documentIndexedItems: 0,
   smsEnabled: false,
   smsIndexedItems: 0,
 };
@@ -151,6 +153,11 @@ function Settings({
     setStatus(result.status);
   }, []);
 
+  const handleDocumentToggle = useCallback(async (enabled: boolean) => {
+    const result = await AIEngine.setIndexingSourceEnabled('document', enabled);
+    setStatus(result.status);
+  }, []);
+
   const handleDeleteSms = useCallback(async () => {
     const result = await AIEngine.deleteIndexingSource('sms');
     setStatus(result.status);
@@ -158,6 +165,11 @@ function Settings({
 
   const handleDeleteGallery = useCallback(async () => {
     const result = await AIEngine.deleteIndexingSource('gallery');
+    setStatus(result.status);
+  }, []);
+
+  const handleDeleteDocuments = useCallback(async () => {
+    const result = await AIEngine.deleteIndexingSource('document');
     setStatus(result.status);
   }, []);
 
@@ -447,6 +459,10 @@ function Settings({
           value={`${status.galleryIndexedItems.toLocaleString('ko-KR')}개`}
         />
         <StatusRow
+          label="Document embeddings"
+          value={`${status.documentIndexedItems.toLocaleString('ko-KR')}개`}
+        />
+        <StatusRow
           label="마지막 인덱싱"
           value={status.lastIndexedAt ?? '기록 없음'}
         />
@@ -475,13 +491,25 @@ function Settings({
           />
         </View>
 
+        <View style={styles.toggleRow}>
+          <View style={styles.switchCopy}>
+            <Text style={styles.rowLabel}>Documents</Text>
+            <Text style={styles.sectionCaption}>다운로드/공유 문서 임베딩</Text>
+          </View>
+          <SettingsToggle
+            disabled={status.isIndexing}
+            onValueChange={handleDocumentToggle}
+            value={status.documentEnabled}
+          />
+        </View>
+
         <Text style={styles.description}>
           백그라운드 작업과 권한 상태는 네이티브 엔진 연결에 맞춰 갱신됩니다.
         </Text>
 
         <Button
           disabled={status.isIndexing}
-          label="SMS/Gallery indexing"
+          label="SMS/Gallery/Document indexing"
           textStyle={styles.refreshButtonText}
           onPress={handleStartIndexing}
           style={styles.refreshButton}
@@ -500,6 +528,13 @@ function Settings({
             label="Delete gallery embeddings"
             textStyle={styles.refreshButtonText}
             onPress={handleDeleteGallery}
+            style={styles.modelButton}
+            variant="ghost"
+          />
+          <Button
+            label="Delete document embeddings"
+            textStyle={styles.refreshButtonText}
+            onPress={handleDeleteDocuments}
             style={styles.modelButton}
             variant="ghost"
           />

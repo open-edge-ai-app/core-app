@@ -162,7 +162,6 @@ class ChatContextManager(
             .filter { message -> message.role != "system" }
             .map { message -> message.copy(content = message.content.trim()) }
             .filter { message -> message.content.isNotBlank() }
-        val systemInstructions = renderSystemInstructions(requestHistory)
 
         if (requestConversationMessages.isNotEmpty()) {
             return buildPromptWithRequestHistory(
@@ -171,68 +170,92 @@ class ChatContextManager(
             )
         }
 
-        if (chatId.isNullOrBlank() && systemInstructions.isBlank()) {
+        if (chatId.isNullOrBlank()) {
             return currentPrompt
         }
 
-        val renderedContext = if (chatId.isNullOrBlank()) {
-            ""
+        val contextText = if (chatId.isNullOrBlank()) {
+            null
         } else {
-            val snapshot = getLatestSnapshot(chatId)
-            val contextMessages = snapshot?.optJSONArray("messages")
-            if (contextMessages == null) {
-                ""
-            } else {
-                renderMessages(contextMessages, currentPrompt)
-            }
+            buildContextPromptText(currentPrompt, getLatestSnapshot(chatId))
         }
 
-        if (renderedContext.isBlank() && systemInstructions.isBlank()) {
-            return currentPrompt
-        }
-
-        val sections = mutableListOf<String>()
-        if (systemInstructions.isNotBlank()) {
-            sections.add(
-                """
-                System instructions:
-                $systemInstructions
-                """.trimIndent(),
-            )
-        }
-        if (renderedContext.isNotBlank()) {
-            sections.add(
-                """
-                You are continuing a local chat session.
-                Use the context history below as the active conversation state. It may contain a compacted summary followed by recent exact messages.
-
-                Context history:
-                $renderedContext
-                """.trimIndent(),
-            )
-        }
-        sections.add(
-            """
-            Current user message:
-            $currentPrompt
-            """.trimIndent(),
-        )
-
-        return sections.joinToString("\n\n")
+        return contextText ?: currentPrompt
     }
 
-    private fun renderSystemInstructions(requestHistory: List<ConversationMessage>): String =
-        requestHistory
-            .filter { message -> message.role == "system" }
-            .map { message -> message.content.trim() }
-            .filter { content -> content.isNotBlank() }
-            .joinToString("\n\n")
+    fun buildHistoryMessages(
+        chatId: String?,
+        currentPrompt: String,
+        requestHistory: List<ConversationMessage> = emptyList(),
+    ): List<ConversationMessage> {
+        val normalizedCurrentPrompt = normalizePromptText(currentPrompt)
+        val requestMessages = requestHistory
+            .filter { message -> message.role != "system" }
+            .mapNotNull { message ->
+                val content = sanitizeMessageText(message.content)
+                if (content.isBlank()) {
+                    null
+                } else {
+                    ConversationMessage(
+                        role = message.role.toConversationRole(),
+                        content = content,
+                    )
+                }
+            }
+            .let { messages ->
+                val lastMessage = messages.lastOrNull()
+                if (
+                    lastMessage?.role == "user" &&
+                    normalizePromptText(lastMessage.content) == normalizedCurrentPrompt
+                ) {
+                    messages.dropLast(1)
+                } else {
+                    messages
+                }
+            }
+
+        if (requestMessages.isNotEmpty()) {
+            return requestMessages.takeLast(MAX_CONTEXT_MESSAGES_FOR_PROMPT)
+        }
+
+        if (chatId.isNullOrBlank()) {
+            return emptyList()
+        }
+
+        val messages = getLatestSnapshot(chatId)?.optJSONArray("messages") ?: return emptyList()
+        val historyMessages = mutableListOf<ConversationMessage>()
+        val lastNonBlankIndex = findLastNonBlankMessageIndex(messages)
+
+        for (index in 0 until messages.length()) {
+            val message = messages.optJSONObject(index) ?: continue
+            val role = message.optString("role", "user")
+            if (role == "system") {
+                continue
+            }
+            val content = sanitizeMessageText(message.optString("content", ""))
+            val isCurrentPromptAlreadyInSnapshot =
+                index == lastNonBlankIndex &&
+                    role == "user" &&
+                    normalizedCurrentPrompt.isNotBlank() &&
+                    normalizePromptText(content) == normalizedCurrentPrompt
+            if (isCurrentPromptAlreadyInSnapshot || content.isBlank()) {
+                continue
+            }
+            historyMessages.add(
+                ConversationMessage(
+                    role = role.toConversationRole(),
+                    content = content,
+                ),
+            )
+        }
+
+        return historyMessages.takeLast(MAX_CONTEXT_MESSAGES_FOR_PROMPT)
+    }
 
     private fun buildPromptWithRequestHistory(
         currentPrompt: String,
         requestHistory: List<ConversationMessage>,
     ): String {
-        val systemInstructions = renderSystemInstructions(requestHistory)
         val conversationMessages = requestHistory
             .filter { message -> message.role != "system" }
             .map { message -> message.copy(content = message.content.trim()) }
@@ -248,39 +271,76 @@ class ChatContextManager(
                     messages
                 }
             }
-        val sections = mutableListOf<String>()
+        val turns = conversationMessages
+            .map { message -> message.role.toGemmaTurn(message.content) }
+            .toMutableList()
 
-        if (systemInstructions.isNotBlank()) {
-            sections.add(
-                """
-                다음 시스템 지침을 우선 적용하세요.
-                $systemInstructions
-                """.trimIndent(),
-            )
+        if (currentPrompt.isNotBlank()) {
+            turns.add("user".toGemmaTurn(currentPrompt))
         }
 
-        if (conversationMessages.isNotEmpty()) {
-            sections.add(
-                """
-                이전 대화 내용입니다. 사용자가 이전 내용, 방금 말한 것, 위 내용, 이어서 등의 표현을 쓰면 이 대화 맥락을 기준으로 답하세요.
-                ${conversationMessages.joinToString("\n") { message -> "${message.role}: ${message.content}" }}
-                """.trimIndent(),
-            )
-        }
-
-        if (sections.isEmpty()) {
-            return currentPrompt
-        }
-
-        sections.add(
-            """
-            현재 사용자 요청:
-            $currentPrompt
-            """.trimIndent(),
-        )
-
-        return sections.joinToString("\n\n")
+        return turns.toGemmaPrompt(currentPrompt)
     }
+
+    private fun buildContextPromptText(
+        currentPrompt: String,
+        snapshot: JSONObject?,
+    ): String? {
+        val messages = snapshot?.optJSONArray("messages") ?: JSONArray()
+        val turns = mutableListOf<String>()
+        val normalizedCurrentPrompt = normalizePromptText(currentPrompt)
+        val lastNonBlankIndex = findLastNonBlankMessageIndex(messages)
+
+        for (index in 0 until messages.length()) {
+            val message = messages.optJSONObject(index) ?: continue
+            val role = message.optString("role", "user")
+            val content = sanitizeMessageText(message.optString("content", ""))
+            val isCurrentPromptAlreadyInSnapshot =
+                index == lastNonBlankIndex &&
+                    role == "user" &&
+                    normalizedCurrentPrompt.isNotBlank() &&
+                    normalizePromptText(content) == normalizedCurrentPrompt
+            if (isCurrentPromptAlreadyInSnapshot || content.isBlank()) {
+                continue
+            }
+            turns.add(role.toGemmaTurn(content))
+        }
+
+        if (turns.isEmpty() && currentPrompt.isBlank()) {
+            return null
+        }
+
+        if (currentPrompt.isNotBlank()) {
+            turns.add("user".toGemmaTurn(currentPrompt))
+        }
+        return turns.takeLast(MAX_CONTEXT_MESSAGES_FOR_PROMPT + 1).toGemmaPrompt(currentPrompt)
+    }
+
+    private fun String.toGemmaRole(): String =
+        when (lowercase()) {
+            "assistant", "model" -> "model"
+            else -> "user"
+        }
+
+    private fun String.toConversationRole(): String =
+        when (lowercase()) {
+            "assistant", "model" -> "assistant"
+            else -> "user"
+        }
+
+    private fun String.toGemmaTurn(content: String): String =
+        """
+        <start_of_turn>${toGemmaRole()}
+        $content
+        <end_of_turn>
+        """.trimIndent()
+
+    private fun List<String>.toGemmaPrompt(fallbackPrompt: String): String =
+        if (isEmpty()) {
+            fallbackPrompt
+        } else {
+            "${joinToString("\n")}\n<start_of_turn>model"
+        }
 
     private fun summarizeContext(
         previousSummary: String?,
@@ -450,14 +510,19 @@ class ChatContextManager(
         }
     }
 
-    private fun renderMessages(messages: JSONArray, currentPrompt: String): String {
-        val rendered = mutableListOf<String>()
+    private fun buildContextEnvelope(
+        chatId: String,
+        currentPrompt: String,
+        snapshot: JSONObject?,
+    ): JSONObject? {
+        val messages = snapshot?.optJSONArray("messages") ?: JSONArray()
+        val rendered = JSONArray()
         val normalizedCurrentPrompt = normalizePromptText(currentPrompt)
         val lastNonBlankIndex = findLastNonBlankMessageIndex(messages)
         for (index in 0 until messages.length()) {
             val message = messages.optJSONObject(index) ?: continue
             val role = message.optString("role", "user")
-            val content = message.optString("content", "").trim()
+            val content = sanitizeMessageText(message.optString("content", ""))
             val isCurrentPromptAlreadyInSnapshot =
                 index == lastNonBlankIndex &&
                     role == "user" &&
@@ -467,10 +532,24 @@ class ChatContextManager(
                 continue
             }
             if (content.isNotBlank()) {
-                rendered.add("$role: $content")
+                rendered.put(
+                    JSONObject().apply {
+                        put("role", role)
+                        put("content", content)
+                    },
+                )
             }
         }
-        return rendered.joinToString("\n")
+
+        if (rendered.length() == 0 && currentPrompt.isBlank()) {
+            return null
+        }
+
+        return JSONObject().apply {
+            put("chatId", chatId)
+            put("history", rendered)
+            put("currentUserMessage", currentPrompt)
+        }
     }
 
     private fun findLastNonBlankMessageIndex(messages: JSONArray): Int {
@@ -488,7 +567,96 @@ class ChatContextManager(
     }
 
     private fun normalizePromptText(text: String): String =
-        text.trim().replace(Regex("\\s+"), " ")
+        sanitizeMessageText(text).replace(Regex("\\s+"), " ")
+
+    private fun sanitizeMessageText(text: String): String =
+        text.trim()
+            .keepAfterFinalChannel()
+            .replace("<turn|>", "")
+            .replace("<eos>", "")
+            .replace("<bos>", "")
+            .replace("<start_of_turn>", "")
+            .replace("<end_of_turn>", "")
+            .replace("<|channel>final", "")
+            .replace("<|channel|>final", "")
+            .stripPrivateReasoning()
+            .stripToolControlText()
+            .stripEmptyJsonFences()
+            .collapseRepeatedText()
+            .replace(Regex("\\s+"), " ")
+            .trim()
+
+    private fun String.keepAfterFinalChannel(): String {
+        val explicitMarkers = listOf("<|channel>final", "<|channel|>final")
+            .mapNotNull { value ->
+                val index = indexOf(value, ignoreCase = true)
+                if (index >= 0) index to value.length else null
+            }
+        val genericMarkers = Regex("""<channel>(?!thought)""", RegexOption.IGNORE_CASE)
+            .findAll(this)
+            .map { match -> match.range.first to (match.range.last + 1) }
+            .toList()
+        val marker = (explicitMarkers + genericMarkers).minByOrNull { it.first }
+            ?: return this
+        return substring(marker.first + marker.second)
+    }
+
+    private fun String.stripPrivateReasoning(): String {
+        val markers = listOf(
+            "<|channel>thought",
+            "<|channel|>thought",
+            "<channel>thought",
+            "Thinking Process:",
+        )
+        val firstMarker = markers
+            .map { marker -> indexOf(marker, ignoreCase = true) }
+            .filter { index -> index >= 0 }
+            .minOrNull()
+            ?: return this
+        return substring(0, firstMarker)
+    }
+
+    private fun String.stripToolControlText(): String =
+        replace(Regex("""\{\s*"tool_result"\s*:\s*"[^"]*"\s*\}\s*"""), "")
+            .replace(Regex("""\(\s*No tool call required\s*\)""", RegexOption.IGNORE_CASE), "")
+            .replace(Regex("""No tool call required\.?""", RegexOption.IGNORE_CASE), "")
+
+    private fun String.stripEmptyJsonFences(): String =
+        replace(Regex("""(?is)```\s*json\s*```\s*"""), "")
+
+    private fun String.collapseRepeatedText(): String {
+        val normalized = trim()
+        if (normalized.isEmpty()) {
+            return normalized
+        }
+
+        for (parts in 2..6) {
+            if (normalized.length % parts != 0) {
+                continue
+            }
+            val chunkLength = normalized.length / parts
+            val first = normalized.substring(0, chunkLength).trim()
+            if (first.isNotBlank() && (1 until parts).all { index ->
+                    normalized
+                        .substring(index * chunkLength, (index + 1) * chunkLength)
+                        .trim() == first
+                }
+            ) {
+                return first
+            }
+        }
+
+        return normalized
+            .split(Regex("""(?<=[.!?])\s+"""))
+            .fold(mutableListOf<String>()) { acc, sentence ->
+                val cleaned = sentence.trim()
+                if (cleaned.isNotBlank() && acc.lastOrNull() != cleaned) {
+                    acc.add(cleaned)
+                }
+                acc
+            }
+            .joinToString(" ")
+    }
 
     private fun JSONObject.compactSummary(): String? {
         val compact = optJSONObject("compact") ?: return null
@@ -529,7 +697,7 @@ class ChatContextManager(
         JSONObject().apply {
             put("id", id)
             put("role", role)
-            put("content", text)
+            put("content", sanitizeMessageText(text))
             put("createdAt", createdAt)
             put("sortOrder", sortOrder)
             if (modelName == null) {
@@ -545,6 +713,7 @@ class ChatContextManager(
         private const val SNAPSHOT_VERSION = 1
         private const val AUTO_COMPACT_THRESHOLD_TOKENS = 6000
         private const val RECENT_MESSAGE_COUNT = 10
+        private const val MAX_CONTEXT_MESSAGES_FOR_PROMPT = 12
         private const val MAX_FALLBACK_SUMMARY_CHARS = 4000
         private const val WELCOME_MESSAGE_ID = "welcome"
 

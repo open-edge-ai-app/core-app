@@ -5,4 +5,5 @@ data class AIResponse(
     val message: String,
     val route: String,
     val modalities: List<String>,
+    val reasoning: String? = null,
 )

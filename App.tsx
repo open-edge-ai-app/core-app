@@ -9,6 +9,7 @@ import React, {
 import { IconDefinition } from '@fortawesome/fontawesome-svg-core';
 import type { GestureResponderEvent, LayoutChangeEvent } from 'react-native';
 import {
+  ActivityIndicator,
   Animated,
   Easing,
   Image,
@@ -595,11 +596,7 @@ function App() {
         description: isDownloadableMissingModel
           ? getModelDownloadDescription(modelStatus, isModelDownloadStarting)
           : model.detail,
-        disabled:
-          isDownloadableMissingModel &&
-          (modelStatus?.isDownloading || isModelDownloadStarting),
         dividerBefore: index > 0 && model.action === 'settings',
-        icon: model.icon,
         label: model.label,
         trailingIcon: isDownloadableMissingModel
           ? appIcons.download
@@ -655,10 +652,30 @@ function App() {
         return;
       }
 
+      const isDownloadableMissingModel =
+        !activeModelOption &&
+        option.value === defaultDownloadableModelOption.id;
+
+      if (isDownloadableMissingModel) {
+        if (modelStatus?.isDownloading || isModelDownloadStarting) {
+          return;
+        }
+
+        setSelectedModelId(option.value);
+        handleDownloadModelFromMenu().catch(() => undefined);
+        return;
+      }
+
       handleSelectModel(option.value);
       setIsModelMenuOpen(false);
     },
-    [handleSelectModel],
+    [
+      activeModelOption,
+      handleDownloadModelFromMenu,
+      handleSelectModel,
+      isModelDownloadStarting,
+      modelStatus?.isDownloading,
+    ],
   );
 
   useEffect(() => {
@@ -1208,6 +1225,12 @@ function App() {
             <View style={styles.modelMenuOverlay}>
               {modelSelectOptions.map(option => {
                 const isSelected = option.value === headerSelectedModelId;
+                const isDownloadableMissingModel =
+                  !activeModelOption &&
+                  option.value === defaultDownloadableModelOption.id;
+                const isDownloadInProgress =
+                  isDownloadableMissingModel &&
+                  (modelStatus?.isDownloading || isModelDownloadStarting);
 
                 return (
                   <Pressable
@@ -1229,15 +1252,6 @@ function App() {
                     ]}
                   >
                     <View style={styles.modelMenuOptionValue}>
-                      {option.icon ? (
-                        <AppIcon
-                          color={
-                            isSelected ? colors.primary : colors.foreground
-                          }
-                          icon={option.icon}
-                          size={16}
-                        />
-                      ) : null}
                       <View style={styles.modelMenuOptionCopy}>
                         <Text
                           numberOfLines={1}
@@ -1261,6 +1275,8 @@ function App() {
                         icon={appIcons.selected}
                         size={15}
                       />
+                    ) : isDownloadInProgress ? (
+                      <ActivityIndicator color={colors.primary} size="small" />
                     ) : option.trailingIcon ? (
                       <AppIcon
                         color={option.trailingIconColor ?? colors.primary}
@@ -2914,7 +2930,6 @@ const styles = StyleSheet.create({
   },
   modelMenuOptionCopy: {
     flex: 1,
-    marginLeft: 9,
     minWidth: 0,
   },
   modelMenuOptionLabel: {

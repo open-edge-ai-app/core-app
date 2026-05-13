@@ -236,6 +236,7 @@ function ChatScreen({
   const latestMessageText = messages[messages.length - 1]?.text ?? '';
   const isGenerationBusy = isGenerating || isStoppingGeneration;
   const canSubmit = draft.trim().length > 0 || selectedAttachments.length > 0;
+  const shouldShowStopButton = isGenerationBusy && !canSubmit;
 
   const composerOffsetStyle = useMemo(
     () => ({
@@ -1249,40 +1250,33 @@ function ChatScreen({
               </Pressable>
             </View>
 
-            {isGenerationBusy ? (
-              <Pressable
-                accessibilityLabel="AI 응답 중단"
-                accessibilityRole="button"
-                disabled={isStoppingGeneration}
-                onPress={handleStopGeneration}
-                style={({ pressed }) => [
-                  styles.stopButton,
-                  pressed && styles.sendButtonPressed,
-                  isStoppingGeneration && styles.stopButtonDisabled,
-                ]}
-              >
-                <AppIcon
-                  color={colors.foreground}
-                  icon={appIcons.stop}
-                  size={14}
-                />
-              </Pressable>
-            ) : null}
-
             <Pressable
               accessibilityLabel={
-                isGenerationBusy ? '대기열에 메시지 추가' : '메시지 보내기'
+                shouldShowStopButton
+                  ? 'AI 응답 중단'
+                  : isGenerationBusy
+                  ? '대기열에 메시지 추가'
+                  : '메시지 보내기'
               }
               accessibilityRole="button"
-              disabled={!canSubmit}
-              onPress={handleSend}
+              disabled={shouldShowStopButton ? isStoppingGeneration : !canSubmit}
+              onPress={shouldShowStopButton ? handleStopGeneration : handleSend}
               style={({ pressed }) => [
                 styles.sendButton,
                 pressed && styles.sendButtonPressed,
-                !canSubmit && styles.sendButtonDisabled,
+                shouldShowStopButton &&
+                  isStoppingGeneration &&
+                  styles.stopButtonDisabled,
+                !shouldShowStopButton &&
+                  !canSubmit &&
+                  styles.sendButtonDisabled,
               ]}
             >
-              <AppIcon color={colors.card} icon={appIcons.send} size={20} />
+              <AppIcon
+                color={colors.card}
+                icon={shouldShowStopButton ? appIcons.stop : appIcons.send}
+                size={shouldShowStopButton ? 17 : 20}
+              />
             </Pressable>
           </View>
         </View>
@@ -1683,17 +1677,6 @@ const styles = StyleSheet.create({
   sendButtonDisabled: {
     backgroundColor: colors.foreground,
     opacity: 1,
-  },
-  stopButton: {
-    alignItems: 'center',
-    backgroundColor: colors.card,
-    borderColor: colors.border,
-    borderRadius: 20,
-    borderWidth: StyleSheet.hairlineWidth,
-    height: 40,
-    justifyContent: 'center',
-    marginRight: 8,
-    width: 40,
   },
   stopButtonDisabled: {
     opacity: 0.44,

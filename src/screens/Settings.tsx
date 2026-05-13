@@ -200,7 +200,7 @@ function Settings({
         />
       </View>
 
-      <SettingsSection title="Open Edge AI 맞춤 설정">
+      <SettingsSection title="맞춤 설정">
         <SettingsNavigationRow
           icon={appIcons.personalSettings}
           onPress={() => onPanelChange('personalization')}

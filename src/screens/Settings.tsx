@@ -1,9 +1,10 @@
 import { IconDefinition } from '@fortawesome/fontawesome-svg-core';
 import React, { ReactNode, useCallback, useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Image, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import AppIcon from '../components/AppIcon';
 import { Badge, Button, Separator } from '../components/ui';
+import { brandAssets } from '../config/branding';
 import AIEngine, {
   IndexingStatus,
   ModelStatus,
@@ -194,7 +195,12 @@ function Settings({
   const renderRoot = () => (
     <>
       <View style={styles.profileHeader}>
-        <Text style={styles.profileName}>Open Edge AI</Text>
+        <Image
+          accessibilityLabel="Open Edge AI"
+          resizeMode="contain"
+          source={brandAssets.logo}
+          style={styles.profileLogo}
+        />
       </View>
 
       <SettingsSection title="Open Edge AI 맞춤 설정">
@@ -709,11 +715,10 @@ const styles = StyleSheet.create({
     marginBottom: 22,
     paddingTop: 2,
   },
-  profileName: {
-    ...typography.label,
-    color: '#A2A5AC',
-    fontSize: 18,
-    fontWeight: '800',
+  profileLogo: {
+    height: 34,
+    opacity: 0.54,
+    width: 152,
   },
   header: {
     marginBottom: 24,
@@ -738,7 +743,7 @@ const styles = StyleSheet.create({
     ...typography.label,
     color: '#93969D',
     fontSize: 17,
-    fontWeight: '800',
+    fontWeight: '600',
     marginBottom: 8,
     paddingHorizontal: 16,
   },

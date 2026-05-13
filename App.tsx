@@ -1202,42 +1202,6 @@ function App() {
 
           {isModelMenuOpen ? (
             <View style={styles.modelMenuOverlay}>
-              <View style={styles.modelMenuHeader}>
-                <View style={styles.modelMenuHeaderCopy}>
-                  <Text style={styles.modelMenuEyebrow}>LOCAL MODEL</Text>
-                  <Text numberOfLines={1} style={styles.modelMenuTitle}>
-                    온디바이스 모델
-                  </Text>
-                </View>
-                <View
-                  style={[
-                    styles.modelMenuStatusBadge,
-                    activeModelOption
-                      ? styles.modelMenuStatusBadgeReady
-                      : isHeaderModelDownloading
-                      ? styles.modelMenuStatusBadgeProgress
-                      : styles.modelMenuStatusBadgePending,
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.modelMenuStatusBadgeText,
-                      activeModelOption
-                        ? styles.modelMenuStatusBadgeTextReady
-                        : isHeaderModelDownloading
-                        ? styles.modelMenuStatusBadgeTextProgress
-                        : styles.modelMenuStatusBadgeTextPending,
-                    ]}
-                  >
-                    {activeModelOption
-                      ? '사용 가능'
-                      : isHeaderModelDownloading
-                      ? '진행 중'
-                      : '필요'}
-                  </Text>
-                </View>
-              </View>
-
               {modelSelectOptions.map(option => {
                 const isSelected = option.value === headerSelectedModelId;
                 const isDownloadableMissingModel =
@@ -1246,6 +1210,7 @@ function App() {
                 const isDownloadInProgress =
                   isDownloadableMissingModel &&
                   (modelStatus?.isDownloading || isModelDownloadStarting);
+                const isManageOption = option.value === 'manage';
 
                 return (
                   <Pressable
@@ -1260,6 +1225,8 @@ function App() {
                     onPress={() => handleHeaderModelOptionPress(option)}
                     style={({ pressed }) => [
                       styles.modelMenuOption,
+                      isDownloadableMissingModel &&
+                        styles.modelMenuOptionDownloadable,
                       option.dividerBefore && styles.modelMenuOptionDivider,
                       isSelected && styles.modelMenuOptionSelected,
                       option.disabled && styles.modelMenuOptionDisabled,
@@ -1275,14 +1242,17 @@ function App() {
                             styles.modelMenuOptionIndicatorPending,
                           isDownloadInProgress &&
                             styles.modelMenuOptionIndicatorProgress,
-                          option.value === 'manage' &&
-                            styles.modelMenuOptionIndicatorManage,
+                          isManageOption && styles.modelMenuOptionIndicatorManage,
                         ]}
                       />
                       <View style={styles.modelMenuOptionCopy}>
                         <Text
                           numberOfLines={1}
-                          style={styles.modelMenuOptionLabel}
+                          style={[
+                            styles.modelMenuOptionLabel,
+                            isDownloadableMissingModel &&
+                              styles.modelMenuOptionLabelDownloadable,
+                          ]}
                         >
                           {option.label}
                         </Text>
@@ -1315,14 +1285,20 @@ function App() {
                         />
                       </View>
                     ) : isDownloadInProgress ? (
-                      <View style={styles.modelMenuTrailingCircle}>
+                      <View style={styles.modelMenuDownloadPill}>
                         <ActivityIndicator
                           color={colors.primary}
                           size="small"
                         />
+                        <Text style={styles.modelMenuDownloadPillText}>
+                          받는 중
+                        </Text>
                       </View>
                     ) : option.trailingIcon ? (
-                      <View style={styles.modelMenuTrailingCircle}>
+                      <View style={styles.modelMenuDownloadPill}>
+                        <Text style={styles.modelMenuDownloadPillText}>
+                          받기
+                        </Text>
                         <AppIcon
                           color={option.trailingIconColor ?? colors.primary}
                           icon={option.trailingIcon}
@@ -2960,69 +2936,16 @@ const styles = StyleSheet.create({
     width: MODEL_MENU_WIDTH,
     zIndex: 10002,
   },
-  modelMenuHeader: {
-    alignItems: 'center',
-    backgroundColor: colors.muted,
-    borderBottomColor: colors.border,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-  },
-  modelMenuHeaderCopy: {
-    flex: 1,
-    minWidth: 0,
-    paddingRight: 12,
-  },
-  modelMenuEyebrow: {
-    ...typography.caption,
-    color: colors.mutedForeground,
-    fontSize: 10,
-    fontWeight: '800',
-  },
-  modelMenuTitle: {
-    ...typography.label,
-    color: colors.foreground,
-    fontSize: 14,
-    fontWeight: '800',
-    marginTop: 3,
-  },
-  modelMenuStatusBadge: {
-    borderRadius: 999,
-    paddingHorizontal: 8,
-    paddingVertical: 5,
-  },
-  modelMenuStatusBadgeReady: {
-    backgroundColor: 'rgba(52,199,89,0.13)',
-  },
-  modelMenuStatusBadgeProgress: {
-    backgroundColor: 'rgba(0,122,255,0.12)',
-  },
-  modelMenuStatusBadgePending: {
-    backgroundColor: 'rgba(255,149,0,0.13)',
-  },
-  modelMenuStatusBadgeText: {
-    ...typography.caption,
-    fontSize: 10,
-    fontWeight: '800',
-  },
-  modelMenuStatusBadgeTextReady: {
-    color: '#16883A',
-  },
-  modelMenuStatusBadgeTextProgress: {
-    color: colors.primary,
-  },
-  modelMenuStatusBadgeTextPending: {
-    color: '#A45B00',
-  },
   modelMenuOption: {
     alignItems: 'center',
     flexDirection: 'row',
     justifyContent: 'space-between',
-    minHeight: 54,
+    minHeight: 56,
     paddingHorizontal: 12,
     paddingVertical: 10,
+  },
+  modelMenuOptionDownloadable: {
+    backgroundColor: '#F8FBFF',
   },
   modelMenuOptionSelected: {
     backgroundColor: 'rgba(0,122,255,0.06)',
@@ -3072,6 +2995,10 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
   },
+  modelMenuOptionLabelDownloadable: {
+    fontSize: 15,
+    fontWeight: '800',
+  },
   modelMenuOptionDescription: {
     ...typography.caption,
     color: colors.mutedForeground,
@@ -3098,6 +3025,23 @@ const styles = StyleSheet.create({
     height: 30,
     justifyContent: 'center',
     width: 30,
+  },
+  modelMenuDownloadPill: {
+    alignItems: 'center',
+    backgroundColor: colors.accent,
+    borderColor: 'rgba(0,122,255,0.14)',
+    borderRadius: 999,
+    borderWidth: StyleSheet.hairlineWidth,
+    flexDirection: 'row',
+    gap: 5,
+    minHeight: 30,
+    paddingHorizontal: 9,
+  },
+  modelMenuDownloadPillText: {
+    ...typography.caption,
+    color: colors.primary,
+    fontSize: 11,
+    fontWeight: '800',
   },
   content: {
     flex: 1,

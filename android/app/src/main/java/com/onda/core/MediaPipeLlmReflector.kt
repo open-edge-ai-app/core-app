@@ -17,6 +17,8 @@ object MediaPipeLlmReflector {
     private const val TEMPERATURE = 0.7f
     private const val TOP_K = 64
     private const val TOP_P = 0.95f
+    // MediaPipe's GPU/OpenCL path can SIGSEGV before Kotlin can catch it.
+    private const val SAFE_BACKEND = "CPU"
 
     fun createEngine(
         context: Context,
@@ -24,23 +26,17 @@ object MediaPipeLlmReflector {
     ): Any {
         val llmInferenceClass = Class.forName("$PACKAGE_NAME.LlmInference")
         val optionsClass = Class.forName("$PACKAGE_NAME.LlmInference\$LlmInferenceOptions")
-        val options = buildInferenceOptions(optionsClass, modelPath, "GPU")
-            ?: buildInferenceOptions(optionsClass, modelPath, "CPU")
-            ?: error("Unable to create MediaPipe LLM options.")
+        val options = buildInferenceOptions(
+            optionsClass = optionsClass,
+            modelPath = modelPath,
+            backendName = SAFE_BACKEND,
+            requireBackend = true,
+        ) ?: error("MediaPipe LLM CPU backend is unavailable.")
 
-        return try {
-            llmInferenceClass
-                .getMethod("createFromOptions", Context::class.java, optionsClass)
-                .invoke(null, context.applicationContext, options)
-                ?: error("MediaPipe LLM returned a null engine.")
-        } catch (gpuError: Exception) {
-            val cpuOptions = buildInferenceOptions(optionsClass, modelPath, "CPU")
-                ?: throw gpuError
-            llmInferenceClass
-                .getMethod("createFromOptions", Context::class.java, optionsClass)
-                .invoke(null, context.applicationContext, cpuOptions)
-                ?: error("MediaPipe LLM returned a null CPU engine.")
-        }
+        return llmInferenceClass
+            .getMethod("createFromOptions", Context::class.java, optionsClass)
+            .invoke(null, context.applicationContext, options)
+            ?: error("MediaPipe LLM returned a null engine.")
     }
 
     fun sendText(
@@ -144,6 +140,7 @@ object MediaPipeLlmReflector {
         optionsClass: Class<*>,
         modelPath: String,
         backendName: String,
+        requireBackend: Boolean = false,
     ): Any? {
         val builder = optionsClass.getMethod("builder").invoke(null)
             ?: error("MediaPipe LLM options builder is unavailable.")
@@ -152,8 +149,16 @@ object MediaPipeLlmReflector {
         builder.callBuilderIfExists("setMaxNumImages", Int::class.javaPrimitiveType, MAX_IMAGES)
 
         val backend = createBackend(backendName)
+        if (requireBackend && backend == null) {
+            return null
+        }
+
         if (backend != null) {
-            builder.callBuilderIfExists("setPreferredBackend", backend.javaClass, backend)
+            if (requireBackend) {
+                builder.callBuilder("setPreferredBackend", backend.javaClass, backend)
+            } else {
+                builder.callBuilderIfExists("setPreferredBackend", backend.javaClass, backend)
+            }
         }
 
         return builder.callBuild()

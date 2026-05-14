@@ -458,16 +458,14 @@ function Settings({
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
           <View>
-            <Text style={styles.sectionTitle}>{t('settings.appearance')}</Text>
+            <Text style={styles.sectionTitle}>{t('settings.language')}</Text>
             <Text style={styles.sectionCaption}>
-              {t('settings.appearanceCaption')}
+              {t('settings.languageCaption')}
             </Text>
           </View>
-          <Badge variant="outline">{selectedTextSizeLabel}</Badge>
         </View>
 
-        <View style={styles.fieldGroup}>
-          <Text style={styles.fieldLabel}>{t('settings.language')}</Text>
+        <View style={styles.sectionContent}>
           <SearchableLanguageSelect
             expanded={isLanguageSelectOpen}
             locale={locale}
@@ -481,12 +479,18 @@ function Settings({
             selectedLocale={selectedLocale}
           />
         </View>
+      </View>
 
-        <Separator style={styles.separator} />
-
-        <Text style={styles.personalizationDescription}>
-          {selectedTextSizeDescription}
-        </Text>
+      <View style={styles.section}>
+        <View style={styles.sectionHeader}>
+          <View>
+            <Text style={styles.sectionTitle}>{t('settings.textSize')}</Text>
+            <Text style={styles.sectionCaption}>
+              {selectedTextSizeDescription}
+            </Text>
+          </View>
+          <Badge variant="outline">{selectedTextSizeLabel}</Badge>
+        </View>
 
         <View style={styles.textSizeList}>
           {textSizes.map(option => {
@@ -1282,6 +1286,9 @@ const styles = StyleSheet.create({
     fontWeight: '400',
     lineHeight: 21,
     marginTop: 12,
+  },
+  sectionContent: {
+    marginTop: 16,
   },
   textSizeList: {
     borderTopColor: colors.border,

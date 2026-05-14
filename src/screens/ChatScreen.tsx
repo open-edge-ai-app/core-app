@@ -894,29 +894,6 @@ function ChatScreen({
     setDraft(prompt);
   }, []);
 
-  const handleAddResponseToDraft = useCallback(
-    (responseText: string) => {
-      const normalizedResponse = responseText.trim();
-
-      if (!normalizedResponse) {
-        return;
-      }
-
-      setDraft(currentDraft => {
-        const normalizedDraft = currentDraft.trimEnd();
-        return normalizedDraft
-          ? `${normalizedDraft}\n\n${normalizedResponse}`
-          : normalizedResponse;
-      });
-
-      setTimeout(() => {
-        scrollToThreadEnd(true);
-        inputRef.current?.focus();
-      }, 0);
-    },
-    [scrollToThreadEnd],
-  );
-
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -1038,11 +1015,6 @@ function ChatScreen({
                     assistantName={message.modelName ?? selectedModelLabel}
                     isRetryDisabled={isGenerationBusy}
                     key={message.id}
-                    onAddToPrompt={
-                      message.role === 'assistant'
-                        ? () => handleAddResponseToDraft(message.text)
-                        : undefined
-                    }
                     onRetry={
                       canRetryAssistantMessage
                         ? () => handleRetryResponse(message.id)

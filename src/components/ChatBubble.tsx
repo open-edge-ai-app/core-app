@@ -36,7 +36,6 @@ type ChatBubbleProps = {
   actions?: ChatBubbleAction[];
   assistantName?: string;
   isRetryDisabled?: boolean;
-  onAddToPrompt?: () => void;
   onRetry?: () => void;
   reasoning?: string;
   role: ChatRole;
@@ -117,7 +116,6 @@ function ChatBubble({
   actions = [],
   assistantName = 'Gemma 4',
   isRetryDisabled = false,
-  onAddToPrompt,
   onRetry,
   reasoning,
   role,
@@ -251,27 +249,6 @@ function ChatBubble({
                 <Text style={styles.assistantActionFeedback}>복사됨</Text>
               ) : null}
             </Pressable>
-
-            {onAddToPrompt ? (
-              <Pressable
-                accessibilityLabel="AI 응답을 채팅에 추가"
-                accessibilityRole="button"
-                hitSlop={6}
-                onPress={onAddToPrompt}
-                style={({ pressed }) => [
-                  styles.assistantActionButton,
-                  styles.assistantActionButtonWide,
-                  pressed && styles.assistantActionButtonPressed,
-                ]}
-              >
-                <AppIcon
-                  color={colors.mutedForeground}
-                  icon={appIcons.plus}
-                  size={12}
-                />
-                <Text style={styles.assistantActionLabel}>채팅에 추가</Text>
-              </Pressable>
-            ) : null}
 
             {onRetry ? (
               <Pressable
@@ -411,9 +388,6 @@ const styles = StyleSheet.create({
     minWidth: 30,
     paddingHorizontal: 8,
   },
-  assistantActionButtonWide: {
-    minWidth: 92,
-  },
   assistantActionButtonDisabled: {
     opacity: 0.42,
   },
@@ -423,12 +397,6 @@ const styles = StyleSheet.create({
   assistantActionFeedback: {
     ...typography.caption,
     color: colors.success,
-    fontSize: 11,
-    fontWeight: '700',
-  },
-  assistantActionLabel: {
-    ...typography.caption,
-    color: colors.mutedForeground,
     fontSize: 11,
     fontWeight: '700',
   },

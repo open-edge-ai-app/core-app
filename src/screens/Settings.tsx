@@ -392,7 +392,7 @@ function Settings({
 
       <SettingsSection title={t('settings.aiSection')}>
         <SettingsNavigationRow
-          icon={appIcons.modelBalanced}
+          icon={appIcons.modelManage}
           isLast
           onPress={() => onPanelChange('model')}
           title={t('settings.model')}

@@ -66,6 +66,8 @@ const languageMenuGap = 8;
 const languageMenuMargin = 18;
 const languageMenuMaxHeight = 420;
 const languageMenuMinHeight = 220;
+const languageMenuBottomGap = 10;
+const languageSearchInputHeight = 47;
 
 const formatBytes = (bytes: number) => {
   if (bytes <= 0) {
@@ -938,28 +940,28 @@ function SearchableLanguageSelect({
       windowSize.height -
       triggerFrame.y -
       triggerFrame.height -
-      languageMenuMargin;
+      languageMenuBottomGap;
     const spaceAbove = triggerFrame.y - languageMenuMargin;
     const openUp = spaceBelow < languageMenuMinHeight && spaceAbove > spaceBelow;
     const availableSpace = Math.max(openUp ? spaceAbove : spaceBelow, 0);
-    const maxHeight = Math.max(
+    const height = Math.max(
       160,
       Math.min(languageMenuMaxHeight, availableSpace - languageMenuGap),
     );
     const top = openUp
       ? Math.max(
           languageMenuMargin,
-          triggerFrame.y - maxHeight - languageMenuGap,
+          triggerFrame.y - height - languageMenuGap,
         )
       : Math.min(
           triggerFrame.y + triggerFrame.height + languageMenuGap,
-          windowSize.height - maxHeight - languageMenuMargin,
+          windowSize.height - height - languageMenuBottomGap,
         );
 
     return {
+      height,
       left,
-      maxHeight,
-      optionListMaxHeight: Math.max(110, maxHeight - 47),
+      optionListHeight: Math.max(110, height - languageSearchInputHeight),
       top,
       width: menuWidth,
     };
@@ -1011,8 +1013,8 @@ function SearchableLanguageSelect({
               style={[
                 styles.languageSelectMenu,
                 {
+                  height: menuLayout.height,
                   left: menuLayout.left,
-                  maxHeight: menuLayout.maxHeight,
                   top: menuLayout.top,
                   width: menuLayout.width,
                 },
@@ -1032,7 +1034,7 @@ function SearchableLanguageSelect({
                 nestedScrollEnabled
                 style={[
                   styles.languageOptionList,
-                  { maxHeight: menuLayout.optionListMaxHeight },
+                  { height: menuLayout.optionListHeight },
                 ]}
               >
                 {options.length > 0 ? (

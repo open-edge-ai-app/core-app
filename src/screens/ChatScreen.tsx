@@ -78,14 +78,10 @@ type ChatScreenProps = {
   sessionId?: string | null;
 };
 
-export const createInitialChatMessages = (): ChatMessage[] => [
-  {
-    createdAt: new Date(),
-    id: 'welcome',
-    role: 'assistant',
-    text: '무엇을 만들고 싶은지 남겨주세요. 목표, 대상, 제약을 함께 주면 실행 순서까지 정리합니다.',
-  },
-];
+export const createInitialChatMessages = (): ChatMessage[] => [];
+
+const isInitialWelcomeMessage = (message: ChatMessage) =>
+  message.id === 'welcome';
 
 const quickPrompts: QuickPrompt[] = [
   {
@@ -255,11 +251,16 @@ function ChatScreen({
     [t],
   );
 
-  const hasUserMessages = useMemo(
-    () => messages.some(message => message.role === 'user'),
+  const conversationMessages = useMemo(
+    () => messages.filter(message => !isInitialWelcomeMessage(message)),
     [messages],
   );
-  const latestMessageText = messages[messages.length - 1]?.text ?? '';
+  const hasUserMessages = useMemo(
+    () => conversationMessages.some(message => message.role === 'user'),
+    [conversationMessages],
+  );
+  const latestMessageText =
+    conversationMessages[conversationMessages.length - 1]?.text ?? '';
   const isGenerationBusy = isGenerating || isStoppingGeneration;
   const canSubmit = draft.trim().length > 0 || selectedAttachments.length > 0;
   const shouldShowStopButton = isGenerationBusy && !canSubmit;
@@ -348,7 +349,7 @@ function ChatScreen({
     isGenerating,
     keyboardHeight,
     latestMessageText,
-    messages.length,
+    conversationMessages.length,
     scrollToThreadEnd,
   ]);
 
@@ -392,7 +393,7 @@ function ChatScreen({
     const responseModelName = selectedModelLabel;
     const userMessage = createMessage('user', userMessageText);
     const assistantMessage = createMessage('assistant', '', responseModelName);
-    const messagesWithUserPrompt = [...messages, userMessage];
+    const messagesWithUserPrompt = [...conversationMessages, userMessage];
     const nextSessionTitle = !hasUserMessages
       ? createSessionTitle(
           prompt ||
@@ -609,7 +610,7 @@ function ChatScreen({
     hasUserMessages,
     createLocalizedAttachmentPrefix,
     defaultAttachmentName,
-    messages,
+    conversationMessages,
     onMessagesChange,
     onSessionTitleChange,
     selectedModelLabel,
@@ -712,7 +713,7 @@ function ChatScreen({
         return;
       }
 
-      const assistantIndex = messages.findIndex(
+      const assistantIndex = conversationMessages.findIndex(
         message => message.id === assistantMessageId,
       );
       if (assistantIndex < 0) {
@@ -721,7 +722,7 @@ function ChatScreen({
 
       let userIndex = -1;
       for (let index = assistantIndex - 1; index >= 0; index -= 1) {
-        if (messages[index].role === 'user') {
+        if (conversationMessages[index].role === 'user') {
           userIndex = index;
           break;
         }
@@ -731,20 +732,21 @@ function ChatScreen({
         return;
       }
 
-      const sourceUserMessage = messages[userIndex];
+      const sourceUserMessage = conversationMessages[userIndex];
       const promptForModel = sourceUserMessage.text.trim();
       if (!promptForModel) {
         return;
       }
 
       const retriedAssistantMessage: ChatMessage = {
-        ...messages[assistantIndex],
+        ...conversationMessages[assistantIndex],
         createdAt: new Date(),
         modelName: selectedModelLabel,
         text: t('chat.retrying'),
       };
-      const messagesWithPendingRetry = messages.map((message, index) =>
-        index === assistantIndex ? retriedAssistantMessage : message,
+      const messagesWithPendingRetry = conversationMessages.map(
+        (message, index) =>
+          index === assistantIndex ? retriedAssistantMessage : message,
       );
       const updateRetriedAssistantMessage = (text: string) => {
         onMessagesChange(
@@ -843,7 +845,7 @@ function ChatScreen({
     },
     [
       isGenerationBusy,
-      messages,
+      conversationMessages,
       onMessagesChange,
       selectedModelLabel,
       sessionId,
@@ -912,16 +914,14 @@ function ChatScreen({
         scrollEnabled={hasUserMessages}
         showsVerticalScrollIndicator={hasUserMessages}
       >
-        <View style={[styles.hero, hasUserMessages && styles.heroCompact]}>
-          <Text style={styles.heroTitle}>
-            {hasUserMessages ? t('chat.threadTitle') : t('chat.heroTitle')}
-          </Text>
-          {!hasUserMessages ? (
+        {!hasUserMessages ? (
+          <View style={styles.hero}>
+            <Text style={styles.heroTitle}>{t('chat.heroTitle')}</Text>
             <Text style={styles.heroBody}>
               {t('chat.heroBody')}
             </Text>
-          ) : null}
-        </View>
+          </View>
+        ) : null}
 
         {!hasUserMessages ? (
           <View style={styles.quickSection}>
@@ -982,18 +982,8 @@ function ChatScreen({
 
         {hasUserMessages ? (
           <View style={styles.threadSection}>
-            <View style={styles.cardHeader}>
-              <Text style={styles.cardTitle}>{t('chat.threadTitle')}</Text>
-              <Text style={styles.sectionMeta}>
-                {t('chat.messageCount', {
-                  count: messages.length.toLocaleString(locale),
-                })}
-              </Text>
-            </View>
-            <View style={styles.cardSeparator} />
-
             <View style={styles.threadList}>
-              {messages.map((message, index) => {
+              {conversationMessages.map((message, index) => {
                 const isPendingAssistant =
                   isGenerating &&
                   isAwaitingFirstChunk &&
@@ -1006,7 +996,7 @@ function ChatScreen({
 
                 const canRetryAssistantMessage =
                   message.role === 'assistant' &&
-                  messages
+                  conversationMessages
                     .slice(0, index)
                     .some(previousMessage => previousMessage.role === 'user');
 
@@ -1332,9 +1322,6 @@ const styles = StyleSheet.create({
   hero: {
     paddingBottom: 28,
   },
-  heroCompact: {
-    paddingBottom: 20,
-  },
   heroTitle: {
     ...typography.title,
     color: colors.foreground,
@@ -1390,25 +1377,6 @@ const styles = StyleSheet.create({
   threadSection: {
     marginBottom: 22,
   },
-  cardHeader: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  cardTitle: {
-    ...typography.label,
-    color: colors.foreground,
-    fontSize: 17,
-  },
-  sectionMeta: {
-    ...typography.caption,
-    color: colors.mutedForeground,
-  },
-  cardSeparator: {
-    backgroundColor: colors.border,
-    height: StyleSheet.hairlineWidth,
-    marginTop: 12,
-  },
   promptList: {
     marginTop: 0,
   },
@@ -1438,7 +1406,7 @@ const styles = StyleSheet.create({
     lineHeight: 21,
   },
   threadList: {
-    paddingTop: 18,
+    paddingTop: 0,
   },
   loadingRow: {
     alignItems: 'center',

@@ -35,6 +35,7 @@ import { appIcons } from '../theme/icons';
 import { colors, typography } from '../theme/tokens';
 
 export type ChatMessage = {
+  attachments?: MultimodalAttachment[];
   createdAt: Date;
   id: string;
   modelName?: string;
@@ -130,7 +131,9 @@ const createMessage = (
   role: ChatRole,
   text: string,
   modelName?: string,
+  attachments?: MultimodalAttachment[],
 ): ChatMessage => ({
+  attachments: attachments?.length ? attachments : undefined,
   createdAt: new Date(),
   id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
   modelName,
@@ -194,26 +197,6 @@ const createAttachmentSummary = (
     .map(attachment => getAttachmentName(attachment, fallbackName))
     .join(', ');
 
-const createUserMessageText = (
-  prompt: string,
-  attachments: MultimodalAttachment[],
-  fallbackAttachmentName: string,
-  attachmentPrefix: (summary: string) => string,
-) => {
-  const attachmentSummary = createAttachmentSummary(
-    attachments,
-    fallbackAttachmentName,
-  );
-
-  if (!attachmentSummary) {
-    return prompt;
-  }
-
-  return [prompt, attachmentPrefix(attachmentSummary)]
-    .filter(Boolean)
-    .join('\n\n');
-};
-
 function ChatScreen({
   messages,
   onMessagesChange,
@@ -246,10 +229,6 @@ function ChatScreen({
   >(null);
   const [editingQueuedDraft, setEditingQueuedDraft] = useState('');
   const defaultAttachmentName = t('chat.defaultAttachment');
-  const createLocalizedAttachmentPrefix = useCallback(
-    (summary: string) => t('chat.attachmentPrefix', { summary }),
-    [t],
-  );
 
   const conversationMessages = useMemo(
     () => messages.filter(message => !isInitialWelcomeMessage(message)),
@@ -384,14 +363,14 @@ function ChatScreen({
     const attachmentsForPrompt = request.attachments;
 
     const promptForModel = prompt || t('chat.analyzeAttachedFile');
-    const userMessageText = createUserMessageText(
-      prompt,
-      attachmentsForPrompt,
-      defaultAttachmentName,
-      createLocalizedAttachmentPrefix,
-    );
+    const userMessageText = prompt || promptForModel;
     const responseModelName = selectedModelLabel;
-    const userMessage = createMessage('user', userMessageText);
+    const userMessage = createMessage(
+      'user',
+      userMessageText,
+      undefined,
+      attachmentsForPrompt,
+    );
     const assistantMessage = createMessage('assistant', '', responseModelName);
     const messagesWithUserPrompt = [...conversationMessages, userMessage];
     const nextSessionTitle = !hasUserMessages
@@ -608,7 +587,6 @@ function ChatScreen({
     }
   }, [
     hasUserMessages,
-    createLocalizedAttachmentPrefix,
     defaultAttachmentName,
     conversationMessages,
     onMessagesChange,
@@ -733,7 +711,10 @@ function ChatScreen({
       }
 
       const sourceUserMessage = conversationMessages[userIndex];
-      const promptForModel = sourceUserMessage.text.trim();
+      const sourceAttachments = sourceUserMessage.attachments ?? [];
+      const promptForModel =
+        sourceUserMessage.text.trim() ||
+        (sourceAttachments.length > 0 ? t('chat.analyzeAttachedFile') : '');
       if (!promptForModel) {
         return;
       }
@@ -799,6 +780,7 @@ function ChatScreen({
             },
           },
           {
+            attachments: sourceAttachments,
             chatSessionId: sessionId ?? undefined,
           },
         );
@@ -1013,6 +995,8 @@ function ChatScreen({
                     reasoning={message.reasoning}
                     role={message.role}
                     text={message.text}
+                    attachments={message.attachments}
+                    attachmentFallbackName={defaultAttachmentName}
                     timestamp={formatTime(message.createdAt, locale)}
                   />
                 );

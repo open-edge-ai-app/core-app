@@ -21,6 +21,7 @@ import MarkdownText from './MarkdownText';
 import AppIcon from './AppIcon';
 import { Button } from './ui';
 import { copyToClipboard } from '../native/Clipboard';
+import type { MultimodalAttachment } from '../native/AIEngine';
 import { ScaledText as Text } from '../theme/display';
 import { appIcons } from '../theme/icons';
 import { colors, typography } from '../theme/tokens';
@@ -34,6 +35,8 @@ export type ChatBubbleAction = {
 
 type ChatBubbleProps = {
   actions?: ChatBubbleAction[];
+  attachmentFallbackName?: string;
+  attachments?: MultimodalAttachment[];
   assistantName?: string;
   isRetryDisabled?: boolean;
   onRetry?: () => void;
@@ -112,8 +115,40 @@ const getAssistantProfile = (assistantName: string): AssistantProfile => {
   };
 };
 
+const getAttachmentDisplayName = (
+  attachment: MultimodalAttachment,
+  fallbackName: string,
+) => attachment.name?.trim() || fallbackName;
+
+const formatAttachmentSize = (sizeBytes?: number) => {
+  if (
+    typeof sizeBytes !== 'number' ||
+    !Number.isFinite(sizeBytes) ||
+    sizeBytes <= 0
+  ) {
+    return '';
+  }
+
+  if (sizeBytes < 1024) {
+    return `${Math.round(sizeBytes)} B`;
+  }
+
+  if (sizeBytes < 1024 * 1024) {
+    return `${(sizeBytes / 1024).toFixed(1)} KB`;
+  }
+
+  return `${(sizeBytes / (1024 * 1024)).toFixed(1)} MB`;
+};
+
+const getAttachmentMeta = (attachment: MultimodalAttachment) =>
+  [attachment.type.toUpperCase(), formatAttachmentSize(attachment.sizeBytes)]
+    .filter(Boolean)
+    .join(' / ');
+
 function ChatBubble({
   actions = [],
+  attachmentFallbackName = 'Attachment',
+  attachments = [],
   assistantName = 'Gemma 4',
   isRetryDisabled = false,
   onRetry,
@@ -165,7 +200,46 @@ function ChatBubble({
   if (role === 'user') {
     return (
       <View style={styles.userRow}>
-        <Text style={styles.userText}>{text}</Text>
+        {attachments.length > 0 ? (
+          <View style={styles.userAttachmentList}>
+            {attachments.map(attachment => {
+              const attachmentName = getAttachmentDisplayName(
+                attachment,
+                attachmentFallbackName,
+              );
+              const attachmentMeta = getAttachmentMeta(attachment);
+
+              return (
+                <View
+                  key={attachment.id ?? attachment.uri}
+                  style={styles.userAttachmentCard}
+                >
+                  <View style={styles.userAttachmentIcon}>
+                    <AppIcon
+                      color={colors.mutedForeground}
+                      icon={appIcons.attachment}
+                      size={14}
+                    />
+                  </View>
+                  <View style={styles.userAttachmentCopy}>
+                    <Text
+                      numberOfLines={1}
+                      style={styles.userAttachmentName}
+                    >
+                      {attachmentName}
+                    </Text>
+                    {attachmentMeta ? (
+                      <Text style={styles.userAttachmentMeta}>
+                        {attachmentMeta}
+                      </Text>
+                    ) : null}
+                  </View>
+                </View>
+              );
+            })}
+          </View>
+        ) : null}
+        {text.trim() ? <Text style={styles.userText}>{text}</Text> : null}
       </View>
     );
   }
@@ -404,6 +478,50 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
     marginBottom: 22,
     paddingLeft: 42,
+  },
+  userAttachmentList: {
+    alignItems: 'flex-end',
+    gap: 8,
+    marginBottom: 8,
+    maxWidth: 282,
+  },
+  userAttachmentCard: {
+    alignItems: 'center',
+    backgroundColor: colors.card,
+    borderColor: colors.border,
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+    flexDirection: 'row',
+    gap: 9,
+    maxWidth: 282,
+    minHeight: 48,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+  },
+  userAttachmentIcon: {
+    alignItems: 'center',
+    backgroundColor: colors.muted,
+    borderRadius: 9,
+    height: 30,
+    justifyContent: 'center',
+    width: 30,
+  },
+  userAttachmentCopy: {
+    flexShrink: 1,
+    minWidth: 0,
+  },
+  userAttachmentName: {
+    ...typography.label,
+    color: colors.foreground,
+    fontSize: 13,
+    lineHeight: 17,
+    maxWidth: 208,
+  },
+  userAttachmentMeta: {
+    ...typography.caption,
+    color: colors.mutedForeground,
+    fontSize: 10,
+    marginTop: 3,
   },
   userText: {
     ...typography.body,

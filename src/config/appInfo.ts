@@ -62,15 +62,17 @@ export const openSourcePackages = [
   },
 ] as const;
 
-export const contributors = [
+export const contributionLinks = [
   {
-    name: 'minjuun05',
-    role: 'maintainer',
-    url: 'https://github.com/minjuun05',
+    label: 'GitHub repository',
+    url: repositoryUrl,
   },
   {
-    name: 'Open Edge AI contributors',
-    role: 'community',
-    url: `${repositoryUrl}/graphs/contributors`,
+    label: 'Issues',
+    url: `${repositoryUrl}/issues`,
+  },
+  {
+    label: 'Pull requests',
+    url: `${repositoryUrl}/pulls`,
   },
 ] as const;

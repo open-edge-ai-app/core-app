@@ -23,7 +23,7 @@ import AppIcon from '../components/AppIcon';
 import { Badge, Button, Separator } from '../components/ui';
 import {
   appInfo,
-  contributors,
+  contributionLinks,
   openSourcePackages,
   repositoryUrl,
 } from '../config/appInfo';
@@ -965,25 +965,21 @@ function Settings({
         <View style={styles.sectionHeader}>
           <View style={styles.switchCopy}>
             <Text style={styles.sectionTitle}>
-              {t('settings.contributors')}
+              {t('settings.contribute')}
             </Text>
             <Text style={styles.sectionCaption}>
-              {t('settings.contributorsDescription')}
+              {t('settings.contributeDescription')}
             </Text>
           </View>
         </View>
 
         <View style={styles.infoList}>
-          {contributors.map(contributor => (
+          {contributionLinks.map(link => (
             <InfoLinkRow
-              key={contributor.name}
-              label={contributor.name}
-              onPress={() => openExternalUrl(contributor.url)}
-              value={
-                contributor.role === 'maintainer'
-                  ? t('settings.maintainer')
-                  : t('settings.communityContributors')
-              }
+              key={link.url}
+              label={link.label}
+              onPress={() => openExternalUrl(link.url)}
+              value={t('settings.open')}
             />
           ))}
         </View>

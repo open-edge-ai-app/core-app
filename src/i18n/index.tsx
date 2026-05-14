@@ -158,9 +158,9 @@ const defaultMessages = {
   'settings.reportIssue': '문제 신고하기',
   'settings.reportIssueCaption': 'GitHub 이슈로 오류나 제안을 남깁니다.',
   'settings.about': '정보',
-  'settings.aboutCaption': '버전, 오픈소스, 기여자',
+  'settings.aboutCaption': '버전, 오픈소스, 기여하기',
   'settings.aboutDescription':
-    '앱 정보, 사용 중인 오픈소스, 프로젝트 기여자를 확인합니다.',
+    '앱 정보, 사용 중인 오픈소스, 프로젝트 기여 경로를 확인합니다.',
   'settings.appInformation': '앱 정보',
   'settings.appName': '앱 이름',
   'settings.appVersion': '버전',
@@ -169,11 +169,10 @@ const defaultMessages = {
   'settings.openSource': '사용 오픈소스',
   'settings.openSourceDescription':
     '앱에서 사용하는 주요 오픈소스 패키지입니다.',
-  'settings.contributors': '기여자',
-  'settings.contributorsDescription':
-    '프로젝트를 만들고 개선하는 사람들입니다.',
-  'settings.maintainer': '관리자',
-  'settings.communityContributors': '커뮤니티 기여자',
+  'settings.contribute': '기여하기',
+  'settings.contributeDescription':
+    '오픈소스 프로젝트에 참여할 수 있는 경로입니다.',
+  'settings.open': '열기',
   'settings.loaded': '로드됨',
   'settings.installed': '설치됨',
   'settings.downloading': '다운로드 중',
@@ -319,9 +318,9 @@ const en: Record<I18nKey, string> = {
   'settings.reportIssue': 'Report an issue',
   'settings.reportIssueCaption': 'Open a GitHub issue for bugs or ideas.',
   'settings.about': 'About',
-  'settings.aboutCaption': 'Version, open source, contributors',
+  'settings.aboutCaption': 'Version, open source, contributing',
   'settings.aboutDescription':
-    'Review app details, open source packages, and project contributors.',
+    'Review app details, open source packages, and ways to contribute.',
   'settings.appInformation': 'App information',
   'settings.appName': 'App name',
   'settings.appVersion': 'Version',
@@ -330,11 +329,10 @@ const en: Record<I18nKey, string> = {
   'settings.openSource': 'Open source',
   'settings.openSourceDescription':
     'Major open source packages used by the app.',
-  'settings.contributors': 'Contributors',
-  'settings.contributorsDescription':
-    'People building and improving the project.',
-  'settings.maintainer': 'Maintainer',
-  'settings.communityContributors': 'Community contributors',
+  'settings.contribute': 'Contribute',
+  'settings.contributeDescription':
+    'Ways to participate in the open source project.',
+  'settings.open': 'Open',
   'settings.loaded': 'Loaded',
   'settings.installed': 'Installed',
   'settings.downloading': 'Downloading',

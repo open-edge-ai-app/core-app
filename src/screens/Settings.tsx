@@ -9,7 +9,9 @@ import React, {
 } from 'react';
 import {
   Image,
+  Linking,
   Modal,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -19,6 +21,12 @@ import {
 
 import AppIcon from '../components/AppIcon';
 import { Badge, Button, Separator } from '../components/ui';
+import {
+  appInfo,
+  contributors,
+  openSourcePackages,
+  repositoryUrl,
+} from '../config/appInfo';
 import { brandAssets } from '../config/branding';
 import {
   defaultPersonalityPresetId,
@@ -115,7 +123,8 @@ export type SettingsPanelId =
   | 'personalCustomization'
   | 'appearance'
   | 'model'
-  | 'embedding';
+  | 'embedding'
+  | 'about';
 
 export type PersonalCustomizationSettings = {
   customInstructions: string;
@@ -314,6 +323,28 @@ function Settings({
     },
     [handleLanguageExpandedChange, setLocale],
   );
+  const openExternalUrl = useCallback((url: string) => {
+    Linking.openURL(url).catch(() => undefined);
+  }, []);
+  const handleReportIssue = useCallback(() => {
+    const body = [
+      '## 문제 설명',
+      '',
+      '## 재현 방법',
+      '1. ',
+      '',
+      '## 기대 동작',
+      '',
+      '## 환경',
+      `- App version: ${appInfo.version}`,
+      `- Platform: ${Platform.OS}`,
+    ].join('\n');
+    const issueUrl = `${repositoryUrl}/issues/new?title=${encodeURIComponent(
+      '[Bug]: ',
+    )}&body=${encodeURIComponent(body)}`;
+
+    openExternalUrl(issueUrl);
+  }, [openExternalUrl]);
 
   const modelSummary = modelStatus?.installed
     ? runtimeStatus?.loaded
@@ -366,6 +397,22 @@ function Settings({
           onPress={() => onPanelChange('model')}
           title={t('settings.model')}
           value={modelSummary}
+        />
+      </SettingsSection>
+
+      <SettingsSection title={t('settings.supportSection')}>
+        <SettingsNavigationRow
+          caption={t('settings.reportIssueCaption')}
+          icon={appIcons.reportIssue}
+          onPress={handleReportIssue}
+          title={t('settings.reportIssue')}
+        />
+        <SettingsNavigationRow
+          caption={t('settings.aboutCaption')}
+          icon={appIcons.info}
+          isLast
+          onPress={() => onPanelChange('about')}
+          title={t('settings.about')}
         />
       </SettingsSection>
     </>
@@ -855,6 +902,95 @@ function Settings({
     </>
   );
 
+  const renderAbout = () => (
+    <>
+      {renderDetailHeader(t('settings.about'), t('settings.aboutDescription'))}
+
+      <View style={styles.section}>
+        <View style={styles.sectionHeader}>
+          <View>
+            <Text style={styles.sectionTitle}>
+              {t('settings.appInformation')}
+            </Text>
+            <Text style={styles.sectionCaption}>{appInfo.displayName}</Text>
+          </View>
+        </View>
+
+        <Separator style={styles.separator} />
+
+        <StatusRow
+          label={t('settings.appName')}
+          value={appInfo.displayName}
+        />
+        <StatusRow
+          label={t('settings.appVersion')}
+          value={appInfo.version}
+        />
+        <StatusRow
+          label={t('settings.bundleIdentifier')}
+          value={appInfo.bundleIdentifier}
+        />
+        <InfoLinkRow
+          label={t('settings.repository')}
+          onPress={() => openExternalUrl(appInfo.repositoryUrl)}
+          value={appInfo.repositoryName}
+        />
+      </View>
+
+      <View style={styles.section}>
+        <View style={styles.sectionHeader}>
+          <View style={styles.switchCopy}>
+            <Text style={styles.sectionTitle}>
+              {t('settings.openSource')}
+            </Text>
+            <Text style={styles.sectionCaption}>
+              {t('settings.openSourceDescription')}
+            </Text>
+          </View>
+        </View>
+
+        <View style={styles.infoList}>
+          {openSourcePackages.map(item => (
+            <InfoLinkRow
+              key={item.name}
+              label={item.name}
+              onPress={() => openExternalUrl(item.url)}
+              value={item.version}
+            />
+          ))}
+        </View>
+      </View>
+
+      <View style={styles.section}>
+        <View style={styles.sectionHeader}>
+          <View style={styles.switchCopy}>
+            <Text style={styles.sectionTitle}>
+              {t('settings.contributors')}
+            </Text>
+            <Text style={styles.sectionCaption}>
+              {t('settings.contributorsDescription')}
+            </Text>
+          </View>
+        </View>
+
+        <View style={styles.infoList}>
+          {contributors.map(contributor => (
+            <InfoLinkRow
+              key={contributor.name}
+              label={contributor.name}
+              onPress={() => openExternalUrl(contributor.url)}
+              value={
+                contributor.role === 'maintainer'
+                  ? t('settings.maintainer')
+                  : t('settings.communityContributors')
+              }
+            />
+          ))}
+        </View>
+      </View>
+    </>
+  );
+
   const renderActivePanel = () => {
     switch (activePanel) {
       case 'personalCustomization':
@@ -865,6 +1001,8 @@ function Settings({
         return renderModel();
       case 'embedding':
         return renderEmbedding();
+      case 'about':
+        return renderAbout();
       case 'root':
       default:
         return renderRoot();
@@ -1217,6 +1355,37 @@ function StatusRow({ label, value }: StatusRowProps) {
       <Text style={styles.rowLabel}>{label}</Text>
       <Text style={styles.rowValue}>{value}</Text>
     </View>
+  );
+}
+
+type InfoLinkRowProps = {
+  label: string;
+  onPress: () => void;
+  value: string;
+};
+
+function InfoLinkRow({ label, onPress, value }: InfoLinkRowProps) {
+  return (
+    <Pressable
+      accessibilityRole="link"
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.infoLinkRow,
+        pressed && styles.rowPressed,
+      ]}
+    >
+      <Text style={styles.rowLabel}>{label}</Text>
+      <View style={styles.infoLinkMeta}>
+        <Text numberOfLines={1} style={styles.rowValue}>
+          {value}
+        </Text>
+        <AppIcon
+          color={colors.mutedForeground}
+          icon={appIcons.openPrompt}
+          size={13}
+        />
+      </View>
+    </Pressable>
   );
 }
 
@@ -1664,6 +1833,25 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     minHeight: 48,
   },
+  infoList: {
+    borderTopColor: colors.border,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    marginTop: 16,
+  },
+  infoLinkRow: {
+    alignItems: 'center',
+    borderBottomColor: colors.border,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    minHeight: 48,
+  },
+  infoLinkMeta: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 8,
+    maxWidth: '58%',
+  },
   rowLabel: {
     ...typography.body,
     color: colors.foreground,
@@ -1673,6 +1861,7 @@ const styles = StyleSheet.create({
   rowValue: {
     ...typography.body,
     color: colors.mutedForeground,
+    flexShrink: 1,
     fontWeight: '400',
     textAlign: 'right',
   },

@@ -22,7 +22,7 @@ type MarkdownTextProps = {
   text: string;
 };
 
-type MarkdownBlock =
+export type MarkdownBlock =
   | { text: string; type: 'paragraph' }
   | { level: number; text: string; type: 'heading' }
   | { items: string[]; type: 'bulletList' }
@@ -38,6 +38,48 @@ const codeTokenPattern =
   /(\/\/.*$|#.*$|\/\*.*?\*\/|"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|`(?:\\.|[^`\\])*`|\b(?:abstract|and|as|async|await|break|catch|class|const|continue|data|def|do|else|enum|export|extends|false|finally|for|from|fun|function|if|implements|import|in|interface|is|let|new|null|object|or|override|private|public|return|static|struct|super|suspend|switch|this|throw|true|try|type|undefined|val|var|when|while|yield)\b|\b\d+(?:\.\d+)?\b|[{}[\]().,;:+\-*/%=<>!&|?]+)/g;
 
 const isBlockStart = (line: string) => blockStartPattern.test(line.trim());
+
+const normalizeMarkdownLine = (line: string) => {
+  const compactHeadingAfterBullet = line.match(
+    /^(\s*)-\s*(#{1,6})(\S.*)$/,
+  );
+  if (compactHeadingAfterBullet) {
+    return `${compactHeadingAfterBullet[1]}${compactHeadingAfterBullet[2]} ${compactHeadingAfterBullet[3]}`;
+  }
+
+  const compactHeading = line.match(/^(\s*)(#{1,6})(\S.*)$/);
+  if (compactHeading) {
+    return `${compactHeading[1]}${compactHeading[2]} ${compactHeading[3]}`;
+  }
+
+  const compactOrderedItem = line.match(/^(\s*)(\d+[.)])([^\s\d].*)$/);
+  if (compactOrderedItem) {
+    return `${compactOrderedItem[1]}${compactOrderedItem[2]} ${compactOrderedItem[3]}`;
+  }
+
+  return line;
+};
+
+export function normalizeMarkdownText(text: string) {
+  let isInsideCodeFence = false;
+
+  return text
+    .replace(/\r\n/g, '\n')
+    .split('\n')
+    .map(line => {
+      if (line.trim().startsWith('```')) {
+        isInsideCodeFence = !isInsideCodeFence;
+        return line;
+      }
+
+      if (isInsideCodeFence) {
+        return line;
+      }
+
+      return normalizeMarkdownLine(line);
+    })
+    .join('\n');
+}
 
 const getCodeTokenStyle = (token: string) => {
   if (
@@ -67,8 +109,8 @@ const getCodeTokenStyle = (token: string) => {
   return styles.codeKeyword;
 };
 
-function parseMarkdown(text: string): MarkdownBlock[] {
-  const lines = text.replace(/\r\n/g, '\n').split('\n');
+export function parseMarkdown(text: string): MarkdownBlock[] {
+  const lines = normalizeMarkdownText(text).split('\n');
   const blocks: MarkdownBlock[] = [];
   let index = 0;
 

@@ -9,6 +9,7 @@ import React, {
 import { IconDefinition } from '@fortawesome/fontawesome-svg-core';
 import type { GestureResponderEvent, LayoutChangeEvent } from 'react-native';
 import {
+  ActivityIndicator,
   Animated,
   Easing,
   Image,
@@ -39,14 +40,22 @@ import ChatScreen, {
   ChatMessage,
   createInitialChatMessages,
 } from './src/screens/ChatScreen';
-import Settings, { type SettingsPanelId } from './src/screens/Settings';
+import Settings, {
+  type PersonalCustomizationSettings,
+  type SettingsPanelId,
+} from './src/screens/Settings';
 import {
   DisplaySettingsProvider,
   ScaledText as Text,
 } from './src/theme/display';
 import { appIcons } from './src/theme/icons';
 import { colors, typography } from './src/theme/tokens';
-import { brandAssets, branding } from './src/config/branding';
+import { brandAssets } from './src/config/branding';
+import {
+  defaultPersonalityPresetId,
+  resolvePersonalityPrompt,
+} from './src/config/personalityPresets';
+import { I18nProvider, useI18n } from './src/i18n';
 
 const textDefaults = RNText as unknown as {
   defaultProps?: { allowFontScaling?: boolean; maxFontSizeMultiplier?: number };
@@ -156,7 +165,8 @@ type PersistedAppState = {
   activeSessionId: string | null;
   chatMessagesBySessionId: Record<string, PersistedChatMessage[]>;
   draftChatMessages: PersistedChatMessage[];
-  personalSystemPrompt: string;
+  personalCustomization: PersonalCustomizationSettings;
+  personalSystemPrompt?: string;
   recentSessions: ChatSession[];
   selectedModelId: ModelOption['id'];
   sessionTitle: string;
@@ -167,8 +177,8 @@ type PersistedAppState = {
 
 const APP_STATE_STORAGE_KEY = 'open-edge-ai:app-state:v1';
 const MODEL_MENU_GAP = 6;
-const MODEL_MENU_TOP = 32 + MODEL_MENU_GAP;
-const MODEL_MENU_WIDTH = 252;
+const MODEL_MENU_TOP = 52 + MODEL_MENU_GAP;
+const MODEL_MENU_WIDTH = 228;
 const WEB_APP_MAX_WIDTH = 430;
 const MENU_HORIZONTAL_PADDING = 24;
 const MENU_HEADER_LOGO_LEFT_OFFSET = -16;
@@ -181,6 +191,14 @@ const RECENT_ACTION_MENU_WIDTH = 214;
 const RECENT_ACTION_MENU_HEIGHT = 160;
 const WORK_FOLDER_ACTION_MENU_HEIGHT = 84;
 const WORK_FOLDER_SESSION_ACTION_MENU_HEIGHT = 122;
+
+const defaultPersonalCustomizationSettings: PersonalCustomizationSettings = {
+  customInstructions: '',
+  memoryEnabled: true,
+  personality: defaultPersonalityPresetId,
+  savedMemories: [],
+  userName: '',
+};
 
 const modelOptions: ModelOption[] = [
   {
@@ -217,6 +235,9 @@ const modelOptions: ModelOption[] = [
 ];
 
 const modelManageOption = modelOptions.find(model => model.id === 'manage')!;
+const defaultDownloadableModelOption = modelOptions.find(
+  model => model.id === 'gemma-4',
+)!;
 
 const getActiveModelOption = (
   modelStatus: ModelStatus | null,
@@ -374,6 +395,43 @@ const hydrateWorkFolders = (
     }));
 };
 
+const hydratePersonalCustomization = (
+  settings: unknown,
+  legacySystemPrompt: unknown,
+): PersonalCustomizationSettings => {
+  const parsedSettings =
+    settings && typeof settings === 'object'
+      ? (settings as Partial<PersonalCustomizationSettings>)
+      : {};
+
+  return {
+    customInstructions:
+      typeof parsedSettings.customInstructions === 'string'
+        ? parsedSettings.customInstructions
+        : typeof legacySystemPrompt === 'string'
+        ? legacySystemPrompt
+        : defaultPersonalCustomizationSettings.customInstructions,
+    memoryEnabled:
+      typeof parsedSettings.memoryEnabled === 'boolean'
+        ? parsedSettings.memoryEnabled
+        : defaultPersonalCustomizationSettings.memoryEnabled,
+    personality:
+      typeof parsedSettings.personality === 'string' &&
+      parsedSettings.personality.trim()
+        ? parsedSettings.personality
+        : defaultPersonalCustomizationSettings.personality,
+    savedMemories: Array.isArray(parsedSettings.savedMemories)
+      ? parsedSettings.savedMemories.filter(
+          (memory): memory is string => typeof memory === 'string',
+        )
+      : defaultPersonalCustomizationSettings.savedMemories,
+    userName:
+      typeof parsedSettings.userName === 'string'
+        ? parsedSettings.userName
+        : defaultPersonalCustomizationSettings.userName,
+  };
+};
+
 const parseStoredAppState = (
   value: string | null,
 ): PersistedAppState | null => {
@@ -401,10 +459,10 @@ const parseStoredAppState = (
       draftChatMessages: Array.isArray(parsed.draftChatMessages)
         ? parsed.draftChatMessages
         : serializeMessages(createInitialChatMessages()),
-      personalSystemPrompt:
-        typeof parsed.personalSystemPrompt === 'string'
-          ? parsed.personalSystemPrompt
-          : '',
+      personalCustomization: hydratePersonalCustomization(
+        parsed.personalCustomization,
+        parsed.personalSystemPrompt,
+      ),
       recentSessions: Array.isArray(parsed.recentSessions)
         ? parsed.recentSessions
         : initialRecentSessions,
@@ -438,12 +496,33 @@ const omitRecordKey = <Value,>(
 };
 
 const createCommonSystemPrompt = (
-  personalSystemPrompt: string,
+  personalCustomization: PersonalCustomizationSettings,
   workFolderMemory: string,
-) =>
-  [
-    personalSystemPrompt.trim()
-      ? `개인 시스템 프롬프트:\n${personalSystemPrompt.trim()}`
+) => {
+  const personalityPrompt = resolvePersonalityPrompt(
+    personalCustomization.personality,
+  );
+  const personalPromptSections = [
+    personalCustomization.userName.trim()
+      ? `사용자 이름: ${personalCustomization.userName.trim()}`
+      : '',
+    personalityPrompt.trim()
+      ? `AI 응답 성격:\n${personalityPrompt.trim()}`
+      : '',
+    personalCustomization.customInstructions.trim()
+      ? `맞춤형 지침:\n${personalCustomization.customInstructions.trim()}`
+      : '',
+    personalCustomization.memoryEnabled &&
+    personalCustomization.savedMemories.length > 0
+      ? `저장된 메모리:\n${personalCustomization.savedMemories
+          .map(memory => `- ${memory}`)
+          .join('\n')}`
+      : '',
+  ].filter(Boolean);
+
+  return [
+    personalPromptSections.length > 0
+      ? `개인 맞춤 설정:\n${personalPromptSections.join('\n\n')}`
       : '',
     workFolderMemory.trim()
       ? `작업 폴더 시스템 프롬프트(메모리):\n${workFolderMemory.trim()}`
@@ -451,8 +530,10 @@ const createCommonSystemPrompt = (
   ]
     .filter(Boolean)
     .join('\n\n');
+};
 
-function App() {
+function AppContent() {
+  const { t } = useI18n();
   const activeSessionIdRef = useRef<string | null>(null);
   const [isAppStateHydrated, setIsAppStateHydrated] = useState(false);
   const [sessionTitle, setSessionTitle] = useState('새 채팅');
@@ -470,7 +551,10 @@ function App() {
   const [draftChatMessages, setDraftChatMessages] = useState<ChatMessage[]>(
     createInitialChatMessages,
   );
-  const [personalSystemPrompt, setPersonalSystemPrompt] = useState('');
+  const [personalCustomization, setPersonalCustomization] =
+    useState<PersonalCustomizationSettings>(
+      defaultPersonalCustomizationSettings,
+    );
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isModelMenuOpen, setIsModelMenuOpen] = useState(false);
   const [chatInstanceKey, setChatInstanceKey] = useState(0);
@@ -480,6 +564,8 @@ function App() {
   const [selectedModelId, setSelectedModelId] =
     useState<ModelOption['id']>('gemma-4');
   const [modelStatus, setModelStatus] = useState<ModelStatus | null>(null);
+  const [isModelDownloadStarting, setIsModelDownloadStarting] =
+    useState(false);
 
   const handleModelStateChange = useCallback(
     ({
@@ -512,25 +598,72 @@ function App() {
       modelOptions[0],
     [activeModelOption, selectedModelId],
   );
-  const headerSelectedModelId = activeModelOption?.id ?? modelManageOption.id;
+  const headerSelectedModelId = activeModelOption?.id ?? null;
+  const isHeaderModelDownloading =
+    Boolean(modelStatus?.isDownloading) || isModelDownloadStarting;
+  const headerModelLabel = activeModelOption
+    ? activeModelOption.label
+    : isHeaderModelDownloading
+    ? '다운로드 중'
+    : '모델 선택';
+  const modelDownloadProgress =
+    modelStatus == null || modelStatus.totalBytes <= 0
+      ? 0
+      : Math.min(1, modelStatus.bytesDownloaded / modelStatus.totalBytes);
   const isSettingsDetailPanel =
     activeScreen === 'settings' && settingsPanel !== 'root';
+
+  const handleDownloadModelFromMenu = useCallback(async () => {
+    if (
+      isModelDownloadStarting ||
+      modelStatus?.installed ||
+      modelStatus?.isDownloading
+    ) {
+      return;
+    }
+
+    setIsModelDownloadStarting(true);
+
+    try {
+      const nextModelStatus = await AIEngine.downloadModel();
+      setModelStatus(nextModelStatus);
+    } finally {
+      setIsModelDownloadStarting(false);
+    }
+  }, [
+    isModelDownloadStarting,
+    modelStatus?.installed,
+    modelStatus?.isDownloading,
+  ]);
+
   const modelSelectOptions = useMemo<
     FloatingSelectOption<ModelOption['id']>[]
   >(() => {
     const visibleModelOptions = activeModelOption
       ? [activeModelOption, modelManageOption]
-      : [modelManageOption];
+      : [defaultDownloadableModelOption, modelManageOption];
 
-    return visibleModelOptions.map((model, index) => ({
-      description: model.detail,
-      dividerBefore: index > 0 && model.action === 'settings',
-      icon: model.icon,
-      label: model.label,
-      value: model.id,
-    }));
-  }, [activeModelOption]);
+    return visibleModelOptions.map((model, index) => {
+      const isDownloadableMissingModel =
+        !activeModelOption && model.id === defaultDownloadableModelOption.id;
 
+      return {
+        description: isDownloadableMissingModel ? undefined : model.detail,
+        dividerBefore: index > 0 && model.action === 'settings',
+        label: model.label,
+        trailingIcon: isDownloadableMissingModel
+          ? appIcons.download
+          : undefined,
+        trailingIconColor: modelStatus?.error
+          ? colors.destructive
+          : colors.primary,
+        value: model.id,
+      };
+    });
+  }, [
+    activeModelOption,
+    modelStatus,
+  ]);
   const handleModelMenuExpandedChange = useCallback((expanded: boolean) => {
     if (expanded) {
       setIsMenuOpen(false);
@@ -538,17 +671,60 @@ function App() {
     setIsModelMenuOpen(expanded);
   }, []);
 
-  const handleSelectModel = useCallback((modelId: ModelOption['id']) => {
-    const nextModel = modelOptions.find(model => model.id === modelId);
+  const handleSelectModel = useCallback(
+    (modelId: ModelOption['id']) => {
+      const nextModel = modelOptions.find(model => model.id === modelId);
 
-    if (nextModel?.action === 'settings') {
-      setActiveScreen('settings');
-      setSettingsPanel('root');
-      return;
-    }
+      if (!nextModel) {
+        return;
+      }
 
-    setSelectedModelId(modelId);
-  }, []);
+      if (nextModel.action === 'settings') {
+        setActiveScreen('settings');
+        setSettingsPanel('root');
+        return;
+      }
+
+      setSelectedModelId(modelId);
+
+      if (!modelStatus?.installed) {
+        handleDownloadModelFromMenu().catch(() => undefined);
+      }
+    },
+    [handleDownloadModelFromMenu, modelStatus?.installed],
+  );
+
+  const handleHeaderModelOptionPress = useCallback(
+    (option: FloatingSelectOption<ModelOption['id']>) => {
+      if (option.disabled) {
+        return;
+      }
+
+      const isDownloadableMissingModel =
+        !activeModelOption &&
+        option.value === defaultDownloadableModelOption.id;
+
+      if (isDownloadableMissingModel) {
+        if (modelStatus?.isDownloading || isModelDownloadStarting) {
+          return;
+        }
+
+        setSelectedModelId(option.value);
+        handleDownloadModelFromMenu().catch(() => undefined);
+        return;
+      }
+
+      handleSelectModel(option.value);
+      setIsModelMenuOpen(false);
+    },
+    [
+      activeModelOption,
+      handleDownloadModelFromMenu,
+      handleSelectModel,
+      isModelDownloadStarting,
+      modelStatus?.isDownloading,
+    ],
+  );
 
   useEffect(() => {
     refreshModelState().catch(() => undefined);
@@ -559,6 +735,18 @@ function App() {
       refreshModelState().catch(() => undefined);
     }
   }, [isModelMenuOpen, refreshModelState]);
+
+  useEffect(() => {
+    if (!modelStatus?.isDownloading) {
+      return;
+    }
+
+    const intervalId = setInterval(() => {
+      refreshModelState().catch(() => undefined);
+    }, 1200);
+
+    return () => clearInterval(intervalId);
+  }, [modelStatus?.isDownloading, refreshModelState]);
 
   useEffect(() => {
     activeSessionIdRef.current = activeSessionId;
@@ -590,7 +778,7 @@ function App() {
         setWorkFolderSessions(storedState.workFolderSessions);
         setWorkFolders(storedState.workFolders);
         setSelectedModelId(storedState.selectedModelId);
-        setPersonalSystemPrompt(storedState.personalSystemPrompt);
+        setPersonalCustomization(storedState.personalCustomization);
         setChatMessagesBySessionId(hydratedMessagesBySessionId);
         setDraftChatMessages(hydrateMessages(storedState.draftChatMessages));
       } finally {
@@ -621,7 +809,7 @@ function App() {
         ]),
       ),
       draftChatMessages: serializeMessages(draftChatMessages),
-      personalSystemPrompt,
+      personalCustomization,
       recentSessions,
       selectedModelId,
       sessionTitle,
@@ -650,7 +838,7 @@ function App() {
     chatMessagesBySessionId,
     draftChatMessages,
     isAppStateHydrated,
-    personalSystemPrompt,
+    personalCustomization,
     recentSessions,
     selectedModelId,
     sessionTitle,
@@ -702,8 +890,8 @@ function App() {
 
   const activeSystemPrompt = useMemo(
     () =>
-      createCommonSystemPrompt(personalSystemPrompt, activeWorkFolderMemory),
-    [activeWorkFolderMemory, personalSystemPrompt],
+      createCommonSystemPrompt(personalCustomization, activeWorkFolderMemory),
+    [activeWorkFolderMemory, personalCustomization],
   );
 
   const handleNewChat = () => {
@@ -1042,26 +1230,33 @@ function App() {
             </View>
 
             <Text numberOfLines={1} style={styles.sessionTitle}>
-              {activeScreen === 'settings' ? '설정' : sessionTitle}
+              {activeScreen === 'settings' ? t('settings.title') : sessionTitle}
             </Text>
 
             <View style={[styles.headerSide, styles.headerSideRight]}>
               {activeScreen === 'settings' ? null : (
-                <FloatingSelect
+                <Pressable
                   accessibilityLabel="모델 선택"
-                  expanded={isModelMenuOpen}
-                  menuAlignment="right"
-                  menuStyle={styles.modelMenu}
-                  onExpandedChange={handleModelMenuExpandedChange}
-                  onValueChange={handleSelectModel}
-                  optionIconSize={16}
-                  options={modelSelectOptions}
-                  selectedValue={headerSelectedModelId}
-                  showTriggerIcon={false}
-                  triggerStyle={styles.modelSelector}
-                  valueTextStyle={styles.modelSelectorText}
-                  variant="header"
-                />
+                  accessibilityRole="button"
+                  accessibilityState={{ expanded: isModelMenuOpen }}
+                  onPress={() =>
+                    handleModelMenuExpandedChange(!isModelMenuOpen)
+                  }
+                  style={({ pressed }) => [
+                    styles.modelSelector,
+                    isModelMenuOpen && styles.modelSelectorActive,
+                    pressed && styles.menuButtonPressed,
+                  ]}
+                >
+                  <Text numberOfLines={1} style={styles.modelSelectorText}>
+                    {headerModelLabel}
+                  </Text>
+                  <AppIcon
+                    color={colors.mutedForeground}
+                    icon={appIcons.chevronDown}
+                    size={9}
+                  />
+                </Pressable>
               )}
             </View>
           </View>
@@ -1072,6 +1267,106 @@ function App() {
               onPress={() => setIsModelMenuOpen(false)}
               style={styles.modelMenuBackdrop}
             />
+          ) : null}
+
+          {isModelMenuOpen ? (
+            <View style={styles.modelMenuOverlay}>
+              {modelSelectOptions.map(option => {
+                const isSelected = option.value === headerSelectedModelId;
+                const isDownloadableMissingModel =
+                  !activeModelOption &&
+                  option.value === defaultDownloadableModelOption.id;
+                const isDownloadInProgress =
+                  isDownloadableMissingModel &&
+                  (modelStatus?.isDownloading || isModelDownloadStarting);
+
+                return (
+                  <Pressable
+                    accessibilityLabel={`${option.label} 선택`}
+                    accessibilityRole="button"
+                    accessibilityState={{
+                      disabled: option.disabled,
+                      selected: isSelected,
+                    }}
+                    disabled={option.disabled}
+                    key={option.value}
+                    onPress={() => handleHeaderModelOptionPress(option)}
+                    style={({ pressed }) => [
+                      styles.modelMenuOption,
+                      isDownloadableMissingModel &&
+                        styles.modelMenuOptionDownloadable,
+                      option.dividerBefore && styles.modelMenuOptionDivider,
+                      isSelected && styles.modelMenuOptionSelected,
+                      option.disabled && styles.modelMenuOptionDisabled,
+                      pressed && styles.menuButtonPressed,
+                    ]}
+                  >
+                    <View style={styles.modelMenuOptionValue}>
+                      <View style={styles.modelMenuOptionCopy}>
+                        <Text
+                          numberOfLines={1}
+                          style={[
+                            styles.modelMenuOptionLabel,
+                            isDownloadableMissingModel &&
+                              styles.modelMenuOptionLabelDownloadable,
+                          ]}
+                        >
+                          {option.label}
+                        </Text>
+                        {option.description ? (
+                          <Text
+                            numberOfLines={1}
+                            style={styles.modelMenuOptionDescription}
+                          >
+                            {option.description}
+                          </Text>
+                        ) : null}
+                        {isDownloadInProgress ? (
+                          <View style={styles.modelMenuProgressTrack}>
+                            <View
+                              style={[
+                                styles.modelMenuProgressFill,
+                                { width: `${modelDownloadProgress * 100}%` },
+                              ]}
+                            />
+                          </View>
+                        ) : null}
+                      </View>
+                    </View>
+                    {isSelected ? (
+                      <View style={styles.modelMenuTrailingCircle}>
+                        <AppIcon
+                          color={colors.primary}
+                          icon={appIcons.selected}
+                          size={14}
+                        />
+                      </View>
+                    ) : isDownloadInProgress ? (
+                      <View style={styles.modelMenuDownloadPill}>
+                        <ActivityIndicator
+                          color={colors.primary}
+                          size="small"
+                        />
+                        <Text style={styles.modelMenuDownloadPillText}>
+                          받는 중
+                        </Text>
+                      </View>
+                    ) : option.trailingIcon ? (
+                      <View style={styles.modelMenuDownloadPill}>
+                        <Text style={styles.modelMenuDownloadPillText}>
+                          받기
+                        </Text>
+                        <AppIcon
+                          color={option.trailingIconColor ?? colors.primary}
+                          icon={option.trailingIcon}
+                          size={14}
+                        />
+                      </View>
+                    ) : null}
+                  </Pressable>
+                );
+              })}
+            </View>
           ) : null}
 
           <View style={styles.content}>
@@ -1090,8 +1385,8 @@ function App() {
                 activePanel={settingsPanel}
                 onModelStateChange={handleModelStateChange}
                 onPanelChange={setSettingsPanel}
-                onPersonalSystemPromptChange={setPersonalSystemPrompt}
-                personalSystemPrompt={personalSystemPrompt}
+                onPersonalCustomizationChange={setPersonalCustomization}
+                personalCustomization={personalCustomization}
               />
             )}
           </View>
@@ -1737,13 +2032,24 @@ function FullScreenMenu({
             <View style={styles.menuBackground} />
 
             <View style={styles.menuHeader}>
-              <Image
-                accessibilityLabel={branding.displayName}
-                accessibilityIgnoresInvertColors
-                resizeMode="contain"
-                source={brandAssets.logo}
-                style={styles.menuHeaderLogo}
-              />
+              <Pressable
+                accessibilityLabel="새 채팅 시작"
+                accessibilityRole="button"
+                hitSlop={8}
+                onPress={onNewChat}
+                style={({ pressed }) => [
+                  styles.menuHeaderLogoButton,
+                  pressed && styles.menuButtonPressed,
+                ]}
+              >
+                <Image
+                  accessible={false}
+                  accessibilityIgnoresInvertColors
+                  resizeMode="contain"
+                  source={brandAssets.logo}
+                  style={styles.menuHeaderLogo}
+                />
+              </Pressable>
               <View style={styles.menuHeaderActions}>
                 <Pressable
                   accessibilityLabel="검색"
@@ -2627,21 +2933,29 @@ const styles = StyleSheet.create({
   },
   modelSelector: {
     alignItems: 'center',
-    borderColor: colors.input,
-    borderRadius: 18,
-    borderWidth: StyleSheet.hairlineWidth,
+    backgroundColor: 'rgba(255,255,255,0.86)',
+    borderColor: '#D3D9E3',
+    borderRadius: 17,
+    borderWidth: 1,
     flexDirection: 'row',
-    gap: 5,
-    minHeight: 32,
-    maxWidth: 106,
-    paddingHorizontal: 11,
+    gap: 6,
+    justifyContent: 'space-between',
+    maxWidth: 104,
+    minHeight: 34,
+    paddingHorizontal: 9,
+  },
+  modelSelectorActive: {
+    backgroundColor: colors.card,
+    borderColor: 'rgba(0,122,255,0.34)',
   },
   modelSelectorText: {
     ...typography.caption,
     color: colors.foreground,
+    flex: 1,
     flexShrink: 1,
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '700',
+    marginRight: 4,
   },
   modelMenuBackdrop: {
     bottom: 0,
@@ -2652,9 +2966,112 @@ const styles = StyleSheet.create({
     top: 0,
     zIndex: 9000,
   },
-  modelMenu: {
+  modelMenuOverlay: {
+    backgroundColor: colors.card,
+    borderColor: 'rgba(21,25,34,0.08)',
+    borderRadius: 18,
+    borderWidth: 1,
+    elevation: 10002,
+    overflow: 'hidden',
+    position: 'absolute',
+    right: 12,
+    shadowColor: '#000000',
+    shadowOffset: { height: 16, width: 0 },
+    shadowOpacity: 0.14,
+    shadowRadius: 26,
     top: MODEL_MENU_TOP,
     width: MODEL_MENU_WIDTH,
+    zIndex: 10002,
+  },
+  modelMenuOption: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    minHeight: 56,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  modelMenuOptionDownloadable: {
+    backgroundColor: '#F8FBFF',
+  },
+  modelMenuOptionSelected: {
+    backgroundColor: 'rgba(0,122,255,0.06)',
+  },
+  modelMenuOptionDisabled: {
+    opacity: 0.54,
+  },
+  modelMenuOptionDivider: {
+    borderTopColor: colors.border,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    marginTop: 6,
+  },
+  modelMenuOptionValue: {
+    alignItems: 'center',
+    flex: 1,
+    flexDirection: 'row',
+    minWidth: 0,
+    paddingRight: 10,
+  },
+  modelMenuOptionCopy: {
+    flex: 1,
+    justifyContent: 'center',
+    minWidth: 0,
+  },
+  modelMenuOptionLabel: {
+    ...typography.label,
+    color: colors.foreground,
+    fontSize: 14,
+    fontWeight: '700',
+    lineHeight: 20,
+  },
+  modelMenuOptionLabelDownloadable: {
+    fontSize: 15,
+    fontWeight: '800',
+    lineHeight: 22,
+  },
+  modelMenuOptionDescription: {
+    ...typography.caption,
+    color: colors.mutedForeground,
+    fontSize: 12,
+    fontWeight: '500',
+    marginTop: 3,
+  },
+  modelMenuProgressTrack: {
+    backgroundColor: colors.border,
+    borderRadius: 999,
+    height: 4,
+    marginTop: 7,
+    overflow: 'hidden',
+  },
+  modelMenuProgressFill: {
+    backgroundColor: colors.primary,
+    borderRadius: 999,
+    height: '100%',
+  },
+  modelMenuTrailingCircle: {
+    alignItems: 'center',
+    backgroundColor: colors.accent,
+    borderRadius: 16,
+    height: 30,
+    justifyContent: 'center',
+    width: 30,
+  },
+  modelMenuDownloadPill: {
+    alignItems: 'center',
+    backgroundColor: colors.accent,
+    borderColor: 'rgba(0,122,255,0.14)',
+    borderRadius: 999,
+    borderWidth: StyleSheet.hairlineWidth,
+    flexDirection: 'row',
+    gap: 5,
+    minHeight: 30,
+    paddingHorizontal: 9,
+  },
+  modelMenuDownloadPillText: {
+    ...typography.caption,
+    color: colors.primary,
+    fontSize: 11,
+    fontWeight: '800',
   },
   content: {
     flex: 1,
@@ -2694,13 +3111,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: MENU_HORIZONTAL_PADDING,
     paddingTop: 8,
   },
-  menuHeaderLogo: {
+  menuHeaderLogoButton: {
+    alignItems: 'flex-start',
     flexShrink: 1,
-    height: 32,
+    height: 44,
+    justifyContent: 'center',
     marginLeft: MENU_HEADER_LOGO_LEFT_OFFSET,
     marginRight: 16,
     maxWidth: 152,
     width: 152,
+  },
+  menuHeaderLogo: {
+    height: 32,
+    width: '100%',
   },
   menuHeaderActions: {
     alignItems: 'center',
@@ -3181,5 +3604,13 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
 });
+
+function App() {
+  return (
+    <I18nProvider>
+      <AppContent />
+    </I18nProvider>
+  );
+}
 
 export default App;

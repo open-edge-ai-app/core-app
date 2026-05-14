@@ -1,8 +1,37 @@
-import React, { useCallback, useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { IconDefinition } from '@fortawesome/fontawesome-svg-core';
+import React, {
+  ReactNode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
+import {
+  Image,
+  Modal,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  useWindowDimensions,
+  View,
+} from 'react-native';
 
 import AppIcon from '../components/AppIcon';
 import { Badge, Button, Separator } from '../components/ui';
+import { brandAssets } from '../config/branding';
+import {
+  defaultPersonalityPresetId,
+  getPersonalityPreset,
+  personalityPresets,
+  type PersonalityPresetId,
+} from '../config/personalityPresets';
+import {
+  I18nKey,
+  LocaleCode,
+  SupportedLocale,
+  useI18n,
+} from '../i18n';
 import AIEngine, {
   IndexingStatus,
   ModelStatus,
@@ -28,6 +57,38 @@ const defaultStatus: IndexingStatus = {
   smsIndexedItems: 0,
 };
 
+const textSizeLabelKeys: Record<string, I18nKey> = {
+  compact: 'settings.textSize.compact.label',
+  default: 'settings.textSize.default.label',
+  large: 'settings.textSize.large.label',
+};
+
+const textSizeDescriptionKeys: Record<string, I18nKey> = {
+  compact: 'settings.textSize.compact.description',
+  default: 'settings.textSize.default.description',
+  large: 'settings.textSize.large.description',
+};
+
+const personalityLabelKeys: Record<PersonalityPresetId, I18nKey> = {
+  analytical: 'settings.personality.analytical.label',
+  balanced: 'settings.personality.balanced.label',
+  concise: 'settings.personality.concise.label',
+  friendly: 'settings.personality.friendly.label',
+};
+
+const personalityDescriptionKeys: Record<PersonalityPresetId, I18nKey> = {
+  analytical: 'settings.personality.analytical.description',
+  balanced: 'settings.personality.balanced.description',
+  concise: 'settings.personality.concise.description',
+  friendly: 'settings.personality.friendly.description',
+};
+const languageMenuGap = 8;
+const languageMenuMargin = 18;
+const languageMenuMaxHeight = 420;
+const languageMenuMinHeight = 220;
+const languageMenuBottomGap = 10;
+const languageSearchInputHeight = 47;
+
 const formatBytes = (bytes: number) => {
   if (bytes <= 0) {
     return '0 MB';
@@ -43,31 +104,79 @@ type SettingsProps = {
     runtimeStatus: RuntimeStatus | null;
   }) => void;
   onPanelChange: (panel: SettingsPanelId) => void;
-  onPersonalSystemPromptChange: (prompt: string) => void;
-  personalSystemPrompt: string;
+  onPersonalCustomizationChange: (
+    settings: PersonalCustomizationSettings,
+  ) => void;
+  personalCustomization: PersonalCustomizationSettings;
 };
 
 export type SettingsPanelId =
   | 'root'
-  | 'systemPrompt'
-  | 'personalization'
+  | 'personalCustomization'
+  | 'appearance'
   | 'model'
-  | 'indexing';
+  | 'embedding';
+
+export type PersonalCustomizationSettings = {
+  customInstructions: string;
+  memoryEnabled: boolean;
+  personality: string;
+  savedMemories: string[];
+  userName: string;
+};
 
 function Settings({
   activePanel,
   onModelStateChange,
   onPanelChange,
-  onPersonalSystemPromptChange,
-  personalSystemPrompt,
+  onPersonalCustomizationChange,
+  personalCustomization,
 }: SettingsProps) {
+  const {
+    locale,
+    selectedLocale,
+    setLocale,
+    supportedLocales,
+    t,
+  } = useI18n();
   const [status, setStatus] = useState<IndexingStatus>(defaultStatus);
   const [modelStatus, setModelStatus] = useState<ModelStatus | null>(null);
   const [runtimeStatus, setRuntimeStatus] = useState<RuntimeStatus | null>(
     null,
   );
+  const [isLanguageSelectOpen, setIsLanguageSelectOpen] = useState(false);
+  const [languageQuery, setLanguageQuery] = useState('');
   const { selectedTextSize, setTextSize, textSize, textSizes } =
     useDisplaySettings();
+
+  const selectedTextSizeLabel =
+    t(textSizeLabelKeys[selectedTextSize.id] ?? 'settings.textSize.default.label');
+  const selectedTextSizeDescription = t(
+    textSizeDescriptionKeys[selectedTextSize.id] ??
+      'settings.textSize.default.description',
+  );
+  const selectedPersonalityPreset = getPersonalityPreset(
+    personalCustomization.personality,
+  );
+  const visibleLocales = useMemo(() => {
+    const normalizedQuery = languageQuery.trim().toLowerCase();
+
+    if (!normalizedQuery) {
+      return supportedLocales;
+    }
+
+    return supportedLocales.filter(language =>
+      [
+        language.code,
+        language.englishName,
+        language.nativeName,
+        ...language.searchTags,
+      ]
+        .join(' ')
+        .toLowerCase()
+        .includes(normalizedQuery),
+    );
+  }, [languageQuery, supportedLocales]);
 
   const refreshStatus = useCallback(async () => {
     const [nextStatus, nextModelStatus, nextRuntimeStatus] = await Promise.all([
@@ -173,16 +282,46 @@ function Settings({
     setStatus(result.status);
   }, []);
 
+  const updatePersonalCustomization = useCallback(
+    (patch: Partial<PersonalCustomizationSettings>) => {
+      onPersonalCustomizationChange({
+        ...personalCustomization,
+        ...patch,
+      });
+    },
+    [onPersonalCustomizationChange, personalCustomization],
+  );
+
+  useEffect(() => {
+    if (personalCustomization.personality.trim()) {
+      return;
+    }
+
+    updatePersonalCustomization({ personality: defaultPersonalityPresetId });
+  }, [personalCustomization.personality, updatePersonalCustomization]);
+
+  const handleLanguageExpandedChange = useCallback((expanded: boolean) => {
+    setIsLanguageSelectOpen(expanded);
+
+    if (!expanded) {
+      setLanguageQuery('');
+    }
+  }, []);
+  const handleSelectLanguage = useCallback(
+    (nextLocale: LocaleCode) => {
+      setLocale(nextLocale);
+      handleLanguageExpandedChange(false);
+    },
+    [handleLanguageExpandedChange, setLocale],
+  );
+
   const modelSummary = modelStatus?.installed
     ? runtimeStatus?.loaded
-      ? '로드됨'
-      : '설치됨'
+      ? t('settings.loaded')
+      : t('settings.installed')
     : modelStatus?.isDownloading
-    ? '다운로드 중'
-    : '설치 필요';
-  const indexingSummary = status.isIndexing
-    ? '인덱싱 중'
-    : `${status.indexedItems.toLocaleString('ko-KR')}개`;
+    ? t('settings.downloading')
+    : t('settings.installNeeded');
   const renderDetailHeader = (title: string, description: string) => (
     <View style={styles.header}>
       <Text style={styles.title}>{title}</Text>
@@ -192,100 +331,233 @@ function Settings({
 
   const renderRoot = () => (
     <>
-      <View style={styles.header}>
-        <Text style={styles.title}>설정</Text>
-        <Text style={styles.description}>
-          필요한 항목을 선택해서 상세 설정으로 들어갑니다.
-        </Text>
+      <View style={styles.profileHeader}>
+        <Image
+          accessibilityLabel="Open Edge AI"
+          resizeMode="contain"
+          source={brandAssets.logo}
+          style={styles.profileLogo}
+        />
       </View>
 
-      <View style={styles.settingsList}>
+      <SettingsSection title={t('settings.customizationSection')}>
         <SettingsNavigationRow
-          caption="개인 기본 지침과 작업 폴더 메모리 적용 순서"
-          onPress={() => onPanelChange('systemPrompt')}
-          title="시스템 프롬프트"
-          value={personalSystemPrompt.trim() ? '적용 중' : '비어 있음'}
-          valueVariant={personalSystemPrompt.trim() ? 'success' : 'outline'}
+          icon={appIcons.personalSettings}
+          onPress={() => onPanelChange('appearance')}
+          title={t('settings.appearance')}
         />
         <SettingsNavigationRow
-          caption="앱 전체 텍스트 크기"
-          onPress={() => onPanelChange('personalization')}
-          title="개인화"
-          value={selectedTextSize.label}
-          valueVariant="outline"
+          icon={appIcons.memory}
+          onPress={() => onPanelChange('personalCustomization')}
+          title={t('settings.personalCustomization')}
         />
         <SettingsNavigationRow
-          caption="모델 다운로드, 런타임 로드, 엔진 연결 상태"
+          icon={appIcons.appsGrid}
+          isLast
+          onPress={() => onPanelChange('embedding')}
+          title={t('settings.embeddingSettings')}
+        />
+      </SettingsSection>
+
+      <SettingsSection title={t('settings.aiSection')}>
+        <SettingsNavigationRow
+          icon={appIcons.modelBalanced}
+          isLast
           onPress={() => onPanelChange('model')}
-          title="모델"
+          title={t('settings.model')}
           value={modelSummary}
-          valueVariant={runtimeStatus?.loaded ? 'success' : 'secondary'}
         />
-        <SettingsNavigationRow
-          caption="SMS/Gallery 임베딩 생성과 삭제"
-          onPress={() => onPanelChange('indexing')}
-          title="인덱싱"
-          value={indexingSummary}
-          valueVariant={status.isIndexing ? 'success' : 'outline'}
-        />
-      </View>
+      </SettingsSection>
     </>
   );
 
-  const renderSystemPrompt = () => (
+  const renderPersonalCustomization = () => (
     <>
       {renderDetailHeader(
-        '시스템 프롬프트',
-        '개인 기본 지침을 관리합니다. 작업 폴더의 시스템 프롬프트(메모리)는 이 지침 아래에 추가됩니다.',
+        t('settings.personalCustomization'),
+        t('settings.personalCustomizationDescription'),
       )}
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
           <View>
-            <Text style={styles.sectionTitle}>시스템 프롬프트</Text>
-            <Text style={styles.sectionCaption}>개인 기본 지침</Text>
+            <Text style={styles.sectionTitle}>
+              {t('settings.personalCustomization')}
+            </Text>
+            <Text style={styles.sectionCaption}>
+              {t('settings.personalCustomizationCaption')}
+            </Text>
           </View>
-          <Badge variant={personalSystemPrompt.trim() ? 'success' : 'outline'}>
-            {personalSystemPrompt.trim() ? '적용 중' : '비어 있음'}
+          <Badge
+            variant={personalCustomization.memoryEnabled ? 'success' : 'outline'}
+          >
+            {personalCustomization.memoryEnabled
+              ? t('settings.memoryOn')
+              : t('settings.memoryOff')}
           </Badge>
         </View>
 
-        <Text style={styles.personalizationDescription}>
-          모든 채팅에 먼저 적용됩니다. 작업 폴더의 시스템 프롬프트(메모리)는 이
-          지침 아래에 추가됩니다.
-        </Text>
+        <View style={styles.fieldGroup}>
+          <Text style={styles.fieldLabel}>{t('settings.name')}</Text>
+          <TextInput
+            accessibilityLabel={t('settings.name')}
+            onChangeText={userName => updatePersonalCustomization({ userName })}
+            placeholder={t('settings.namePlaceholder')}
+            placeholderTextColor={colors.mutedForeground}
+            style={styles.settingsTextInput}
+            value={personalCustomization.userName}
+          />
+        </View>
 
-        <TextInput
-          accessibilityLabel="개인 시스템 프롬프트"
-          multiline
-          onChangeText={onPersonalSystemPromptChange}
-          placeholder="예: 항상 한국어로 간결하게 답하고, 모호한 요청은 필요한 가정을 먼저 밝혀줘."
-          placeholderTextColor={colors.mutedForeground}
-          style={styles.systemPromptInput}
-          textAlignVertical="top"
-          value={personalSystemPrompt}
-        />
+        <View style={styles.fieldGroup}>
+          <Text style={styles.fieldLabel}>{t('settings.personality')}</Text>
+          <Text style={styles.fieldCaption}>
+            {t('settings.personalityCaption')}
+          </Text>
+          <View style={styles.personalityList}>
+            {personalityPresets.map((preset, index) => {
+              const isSelected = selectedPersonalityPreset?.id === preset.id;
+              const isLast = index === personalityPresets.length - 1;
+
+              return (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: isSelected }}
+                  key={preset.id}
+                  onPress={() =>
+                    updatePersonalCustomization({ personality: preset.id })
+                  }
+                  style={({ pressed }) => [
+                    styles.personalityRow,
+                    isSelected && styles.personalityRowSelected,
+                    isLast && styles.personalityRowLast,
+                    pressed && styles.rowPressed,
+                  ]}
+                >
+                  <View style={styles.personalityCopy}>
+                    <Text
+                      style={[
+                        styles.personalityLabel,
+                        isSelected && styles.personalityLabelSelected,
+                      ]}
+                    >
+                      {t(personalityLabelKeys[preset.id])}
+                    </Text>
+                    <Text style={styles.personalityDescription}>
+                      {t(personalityDescriptionKeys[preset.id])}
+                    </Text>
+                  </View>
+                  {isSelected ? (
+                    <AppIcon
+                      color={colors.primary}
+                      icon={appIcons.selected}
+                      size={16}
+                    />
+                  ) : null}
+                </Pressable>
+              );
+            })}
+          </View>
+        </View>
+
+        <View style={styles.fieldGroup}>
+          <Text style={styles.fieldLabel}>
+            {t('settings.customInstructions')}
+          </Text>
+          <TextInput
+            accessibilityLabel={t('settings.customInstructions')}
+            multiline
+            onChangeText={customInstructions =>
+              updatePersonalCustomization({ customInstructions })
+            }
+            placeholder={t('settings.customInstructionsPlaceholder')}
+            placeholderTextColor={colors.mutedForeground}
+            style={[styles.settingsTextInput, styles.longTextArea]}
+            textAlignVertical="top"
+            value={personalCustomization.customInstructions}
+          />
+        </View>
+
+        <Separator style={styles.separator} />
+
+        <View style={styles.toggleRow}>
+          <View style={styles.switchCopy}>
+            <Text style={styles.rowLabel}>{t('settings.memoryEnabled')}</Text>
+            <Text style={styles.sectionCaption}>
+              {t('settings.memoryEnabledDescription')}
+            </Text>
+          </View>
+          <SettingsToggle
+            onValueChange={memoryEnabled =>
+              updatePersonalCustomization({ memoryEnabled })
+            }
+            value={personalCustomization.memoryEnabled}
+          />
+        </View>
+
+        <View style={styles.fieldGroup}>
+          <Text style={styles.fieldLabel}>
+            {t('settings.savedMemoryList')}
+          </Text>
+          <View style={styles.memoryList}>
+            {personalCustomization.savedMemories.length > 0 ? (
+              personalCustomization.savedMemories.map((memory, index) => (
+                <View key={`${memory}-${index}`} style={styles.memoryListItem}>
+                  <Text style={styles.memoryListText}>{memory}</Text>
+                </View>
+              ))
+            ) : (
+              <Text style={styles.emptyMemoryText}>
+                {t('settings.savedMemoryEmpty')}
+              </Text>
+            )}
+          </View>
+        </View>
       </View>
     </>
   );
 
-  const renderPersonalization = () => (
+  const renderAppearance = () => (
     <>
       {renderDetailHeader(
-        '개인화',
-        '앱에서 반복적으로 보는 텍스트의 표시 크기를 설정합니다.',
+        t('settings.appearance'),
+        t('settings.appearanceDescription'),
       )}
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
           <View>
-            <Text style={styles.sectionTitle}>개인화</Text>
-            <Text style={styles.sectionCaption}>텍스트 크기</Text>
+            <Text style={styles.sectionTitle}>{t('settings.language')}</Text>
+            <Text style={styles.sectionCaption}>
+              {t('settings.languageCaption')}
+            </Text>
           </View>
-          <Badge variant="outline">{selectedTextSize.label}</Badge>
         </View>
 
-        <Text style={styles.personalizationDescription}>
-          {selectedTextSize.description}
-        </Text>
+        <View style={styles.sectionContent}>
+          <SearchableLanguageSelect
+            expanded={isLanguageSelectOpen}
+            locale={locale}
+            noResultsLabel={t('settings.languageNoResults')}
+            onExpandedChange={handleLanguageExpandedChange}
+            onQueryChange={setLanguageQuery}
+            onSelect={handleSelectLanguage}
+            options={visibleLocales}
+            query={languageQuery}
+            searchPlaceholder={t('settings.languageSearchPlaceholder')}
+            selectedLocale={selectedLocale}
+          />
+        </View>
+      </View>
+
+      <View style={styles.section}>
+        <View style={styles.sectionHeader}>
+          <View>
+            <Text style={styles.sectionTitle}>{t('settings.textSize')}</Text>
+            <Text style={styles.sectionCaption}>
+              {selectedTextSizeDescription}
+            </Text>
+          </View>
+          <Badge variant="outline">{selectedTextSizeLabel}</Badge>
+        </View>
 
         <View style={styles.textSizeList}>
           {textSizes.map(option => {
@@ -309,10 +581,16 @@ function Settings({
                       isSelected && styles.textSizeLabelSelected,
                     ]}
                   >
-                    {option.label}
+                    {t(
+                      textSizeLabelKeys[option.id] ??
+                        'settings.textSize.default.label',
+                    )}
                   </Text>
                   <Text style={styles.textSizeDescription}>
-                    {option.description}
+                    {t(
+                      textSizeDescriptionKeys[option.id] ??
+                        'settings.textSize.default.description',
+                    )}
                   </Text>
                 </View>
                 {isSelected ? (
@@ -333,42 +611,50 @@ function Settings({
   const renderModel = () => (
     <>
       {renderDetailHeader(
-        '모델',
-        '온디바이스 모델 파일과 런타임 연결 상태를 관리합니다.',
+        t('settings.model'),
+        t('settings.modelDescription'),
       )}
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
           <View>
-            <Text style={styles.sectionTitle}>모델</Text>
-            <Text style={styles.sectionCaption}>엔진 연결 상태</Text>
+            <Text style={styles.sectionTitle}>{t('settings.model')}</Text>
+            <Text style={styles.sectionCaption}>
+              {t('settings.engineStatus')}
+            </Text>
           </View>
           <Badge variant={status.isAvailable ? 'success' : 'secondary'}>
-            {status.isAvailable ? '연결됨' : '대기 중'}
+            {status.isAvailable
+              ? t('settings.connected')
+              : t('settings.waiting')}
           </Badge>
         </View>
 
         <Separator style={styles.separator} />
 
         <StatusRow
-          label="Native bridge"
-          value={status.isAvailable ? '연결됨' : '대기 중'}
-        />
-        <StatusRow
-          label="기본 모델"
-          value={modelStatus?.modelName ?? 'gemma-4-E2B-it'}
-        />
-        <StatusRow
-          label="모델 파일"
+          label={t('settings.nativeBridge')}
           value={
-            modelStatus?.installed
-              ? '설치됨'
-              : modelStatus?.isDownloading
-              ? '다운로드 중'
-              : '필요함'
+            status.isAvailable
+              ? t('settings.connected')
+              : t('settings.waiting')
           }
         />
         <StatusRow
-          label="다운로드"
+          label={t('settings.defaultModel')}
+          value={modelStatus?.modelName ?? 'gemma-4-E2B-it'}
+        />
+        <StatusRow
+          label={t('settings.modelFile')}
+          value={
+            modelStatus?.installed
+              ? t('settings.installed')
+              : modelStatus?.isDownloading
+              ? t('settings.downloading')
+              : t('settings.required')
+          }
+        />
+        <StatusRow
+          label={t('settings.download')}
           value={`${formatBytes(
             modelStatus?.bytesDownloaded ?? 0,
           )} / ${formatBytes(modelStatus?.totalBytes ?? 2588147712)}`}
@@ -387,40 +673,40 @@ function Settings({
         <View style={styles.actionRow}>
           <Button
             disabled={modelStatus?.installed || modelStatus?.isDownloading}
-            label="모델 다운로드"
+            label={t('settings.downloadModel')}
             onPress={handleDownloadModel}
             style={styles.modelButton}
             variant="ghost"
           />
           <Button
             disabled={!modelStatus?.isDownloading}
-            label="취소"
+            label={t('settings.cancel')}
             onPress={handleCancelModelDownload}
             style={styles.modelButton}
             variant="ghost"
           />
         </View>
         <StatusRow
-          label="런타임"
+          label={t('settings.runtime')}
           value={
             runtimeStatus?.loaded
-              ? '로드됨'
+              ? t('settings.loaded')
               : runtimeStatus?.loading
-              ? '로드 중'
-              : '꺼짐'
+              ? t('settings.loading')
+              : t('settings.off')
           }
         />
         <View style={styles.actionRow}>
           <Button
             disabled={!modelStatus?.installed || runtimeStatus?.loaded}
-            label="모델 켜기"
+            label={t('settings.loadModel')}
             onPress={handleLoadModel}
             style={styles.modelButton}
             variant="ghost"
           />
           <Button
             disabled={!runtimeStatus?.loaded}
-            label="모델 끄기"
+            label={t('settings.unloadModel')}
             onPress={handleUnloadModel}
             style={styles.modelButton}
             variant="ghost"
@@ -430,47 +716,61 @@ function Settings({
     </>
   );
 
-  const renderIndexing = () => (
+  const renderEmbedding = () => (
     <>
       {renderDetailHeader(
-        '인덱싱',
-        '검색과 개인 메모리에 사용할 소스별 임베딩을 관리합니다.',
+        t('settings.embeddingSettings'),
+        t('settings.embeddingDescription'),
       )}
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
           <View style={styles.switchCopy}>
-            <Text style={styles.sectionTitle}>인덱싱</Text>
-            <Text style={styles.sectionCaption}>소스별 임베딩 생성/삭제</Text>
+            <Text style={styles.sectionTitle}>
+              {t('settings.embeddingSettings')}
+            </Text>
+            <Text style={styles.sectionCaption}>
+              {t('settings.embeddingCaption')}
+            </Text>
           </View>
         </View>
 
         <Separator style={styles.separator} />
 
         <StatusRow
-          label="인덱싱 항목"
-          value={`${status.indexedItems.toLocaleString('ko-KR')}개`}
+          label={t('settings.embeddingItems')}
+          value={t('settings.itemCount', {
+            count: status.indexedItems.toLocaleString(locale),
+          })}
         />
         <StatusRow
-          label="SMS embeddings"
-          value={`${status.smsIndexedItems.toLocaleString('ko-KR')}개`}
+          label={t('settings.smsEmbedding')}
+          value={t('settings.itemCount', {
+            count: status.smsIndexedItems.toLocaleString(locale),
+          })}
         />
         <StatusRow
-          label="Gallery embeddings"
-          value={`${status.galleryIndexedItems.toLocaleString('ko-KR')}개`}
+          label={t('settings.galleryEmbedding')}
+          value={t('settings.itemCount', {
+            count: status.galleryIndexedItems.toLocaleString(locale),
+          })}
         />
         <StatusRow
-          label="Document embeddings"
-          value={`${status.documentIndexedItems.toLocaleString('ko-KR')}개`}
+          label={t('settings.documentEmbedding')}
+          value={t('settings.itemCount', {
+            count: status.documentIndexedItems.toLocaleString(locale),
+          })}
         />
         <StatusRow
-          label="마지막 인덱싱"
-          value={status.lastIndexedAt ?? '기록 없음'}
+          label={t('settings.lastEmbedding')}
+          value={status.lastIndexedAt ?? t('settings.noRecord')}
         />
 
         <View style={styles.toggleRow}>
           <View style={styles.switchCopy}>
-            <Text style={styles.rowLabel}>SMS</Text>
-            <Text style={styles.sectionCaption}>문자 임베딩</Text>
+            <Text style={styles.rowLabel}>{t('settings.sms')}</Text>
+            <Text style={styles.sectionCaption}>
+              {t('settings.smsEmbeddingCaption')}
+            </Text>
           </View>
           <SettingsToggle
             disabled={status.isIndexing}
@@ -481,8 +781,10 @@ function Settings({
 
         <View style={styles.toggleRow}>
           <View style={styles.switchCopy}>
-            <Text style={styles.rowLabel}>Gallery</Text>
-            <Text style={styles.sectionCaption}>사진 임베딩</Text>
+            <Text style={styles.rowLabel}>{t('settings.gallery')}</Text>
+            <Text style={styles.sectionCaption}>
+              {t('settings.galleryEmbeddingCaption')}
+            </Text>
           </View>
           <SettingsToggle
             disabled={status.isIndexing}
@@ -493,8 +795,10 @@ function Settings({
 
         <View style={styles.toggleRow}>
           <View style={styles.switchCopy}>
-            <Text style={styles.rowLabel}>Documents</Text>
-            <Text style={styles.sectionCaption}>다운로드/공유 문서 임베딩</Text>
+            <Text style={styles.rowLabel}>{t('settings.documents')}</Text>
+            <Text style={styles.sectionCaption}>
+              {t('settings.documentEmbeddingCaption')}
+            </Text>
           </View>
           <SettingsToggle
             disabled={status.isIndexing}
@@ -504,12 +808,12 @@ function Settings({
         </View>
 
         <Text style={styles.description}>
-          백그라운드 작업과 권한 상태는 네이티브 엔진 연결에 맞춰 갱신됩니다.
+          {t('settings.embeddingHelp')}
         </Text>
 
         <Button
           disabled={status.isIndexing}
-          label="SMS/Gallery/Document indexing"
+          label={t('settings.startEmbedding')}
           textStyle={styles.refreshButtonText}
           onPress={handleStartIndexing}
           style={styles.refreshButton}
@@ -518,21 +822,21 @@ function Settings({
 
         <View style={styles.actionRow}>
           <Button
-            label="Delete SMS embeddings"
+            label={t('settings.deleteSmsEmbedding')}
             textStyle={styles.refreshButtonText}
             onPress={handleDeleteSms}
             style={styles.modelButton}
             variant="ghost"
           />
           <Button
-            label="Delete gallery embeddings"
+            label={t('settings.deleteGalleryEmbedding')}
             textStyle={styles.refreshButtonText}
             onPress={handleDeleteGallery}
             style={styles.modelButton}
             variant="ghost"
           />
           <Button
-            label="Delete document embeddings"
+            label={t('settings.deleteDocumentEmbedding')}
             textStyle={styles.refreshButtonText}
             onPress={handleDeleteDocuments}
             style={styles.modelButton}
@@ -541,7 +845,7 @@ function Settings({
         </View>
 
         <Button
-          label="Refresh status"
+          label={t('settings.refreshStatus')}
           textStyle={styles.refreshButtonText}
           onPress={refreshStatus}
           style={styles.refreshButton}
@@ -553,14 +857,14 @@ function Settings({
 
   const renderActivePanel = () => {
     switch (activePanel) {
-      case 'systemPrompt':
-        return renderSystemPrompt();
-      case 'personalization':
-        return renderPersonalization();
+      case 'personalCustomization':
+        return renderPersonalCustomization();
+      case 'appearance':
+        return renderAppearance();
       case 'model':
         return renderModel();
-      case 'indexing':
-        return renderIndexing();
+      case 'embedding':
+        return renderEmbedding();
       case 'root':
       default:
         return renderRoot();
@@ -571,6 +875,7 @@ function Settings({
     <ScrollView
       key={activePanel}
       contentContainerStyle={styles.container}
+      style={styles.scroll}
       showsVerticalScrollIndicator={false}
     >
       {renderActivePanel()}
@@ -579,19 +884,23 @@ function Settings({
 }
 
 type SettingsNavigationRowProps = {
-  caption: string;
+  caption?: string;
+  icon: IconDefinition;
+  iconColor?: string;
+  isLast?: boolean;
   onPress: () => void;
   title: string;
-  value: string;
-  valueVariant?: 'default' | 'secondary' | 'outline' | 'success';
+  value?: string;
 };
 
 function SettingsNavigationRow({
   caption,
+  icon,
+  iconColor = colors.foreground,
+  isLast = false,
   onPress,
   title,
   value,
-  valueVariant = 'secondary',
 }: SettingsNavigationRowProps) {
   return (
     <Pressable
@@ -599,15 +908,25 @@ function SettingsNavigationRow({
       onPress={onPress}
       style={({ pressed }) => [
         styles.navigationRow,
+        !isLast && styles.navigationRowDivider,
         pressed && styles.rowPressed,
       ]}
     >
+      <View style={styles.navigationIconSlot}>
+        <AppIcon color={iconColor} icon={icon} size={18} />
+      </View>
       <View style={styles.navigationCopy}>
         <Text style={styles.navigationTitle}>{title}</Text>
-        <Text style={styles.navigationCaption}>{caption}</Text>
+        {caption ? (
+          <Text style={styles.navigationCaption}>{caption}</Text>
+        ) : null}
       </View>
       <View style={styles.navigationMeta}>
-        <Badge variant={valueVariant}>{value}</Badge>
+        {value ? (
+          <Text numberOfLines={1} style={styles.navigationValue}>
+            {value}
+          </Text>
+        ) : null}
         <AppIcon
           color={colors.mutedForeground}
           icon={appIcons.openPrompt}
@@ -615,6 +934,275 @@ function SettingsNavigationRow({
         />
       </View>
     </Pressable>
+  );
+}
+
+type SearchableLanguageSelectProps = {
+  expanded: boolean;
+  locale: LocaleCode;
+  noResultsLabel: string;
+  onExpandedChange: (expanded: boolean) => void;
+  onQueryChange: (query: string) => void;
+  onSelect: (locale: LocaleCode) => void;
+  options: readonly SupportedLocale[];
+  query: string;
+  searchPlaceholder: string;
+  selectedLocale: SupportedLocale;
+};
+
+function SearchableLanguageSelect({
+  expanded,
+  locale,
+  noResultsLabel,
+  onExpandedChange,
+  onQueryChange,
+  onSelect,
+  options,
+  query,
+  searchPlaceholder,
+  selectedLocale,
+}: SearchableLanguageSelectProps) {
+  const triggerRef = useRef<View>(null);
+  const overlayRef = useRef<View>(null);
+  const windowSize = useWindowDimensions();
+  const [overlayFrame, setOverlayFrame] = useState<{
+    height: number;
+    width: number;
+    x: number;
+    y: number;
+  } | null>(null);
+  const [triggerFrame, setTriggerFrame] = useState<{
+    height: number;
+    width: number;
+    x: number;
+    y: number;
+  } | null>(null);
+  const measureOverlay = useCallback(() => {
+    overlayRef.current?.measureInWindow((x, y, width, height) => {
+      setOverlayFrame({ height, width, x, y });
+    });
+  }, []);
+  const measureTrigger = useCallback(() => {
+    triggerRef.current?.measureInWindow((x, y, width, height) => {
+      setTriggerFrame({ height, width, x, y });
+    });
+  }, []);
+  const handleToggle = useCallback(() => {
+    if (expanded) {
+      onExpandedChange(false);
+      return;
+    }
+
+    measureTrigger();
+    onExpandedChange(true);
+  }, [expanded, measureTrigger, onExpandedChange]);
+
+  useEffect(() => {
+    if (!expanded) {
+      return;
+    }
+
+    const frame = requestAnimationFrame(() => {
+      measureOverlay();
+      measureTrigger();
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [
+    expanded,
+    measureOverlay,
+    measureTrigger,
+    windowSize.height,
+    windowSize.width,
+  ]);
+
+  const menuLayout = useMemo(() => {
+    if (!triggerFrame || !overlayFrame) {
+      return null;
+    }
+
+    const viewportTop = overlayFrame.y + languageMenuBottomGap;
+    const viewportBottom =
+      overlayFrame.y + overlayFrame.height - languageMenuBottomGap;
+    const viewportHeight = Math.max(viewportBottom - viewportTop, 0);
+    const menuWidth = Math.min(
+      triggerFrame.width,
+      overlayFrame.width - languageMenuMargin * 2,
+    );
+    const left = Math.min(
+      Math.max(triggerFrame.x - overlayFrame.x, languageMenuMargin),
+      overlayFrame.width - menuWidth - languageMenuMargin,
+    );
+    const spaceBelow = viewportBottom - triggerFrame.y - triggerFrame.height;
+    const spaceAbove = triggerFrame.y - viewportTop;
+    const openUp = spaceBelow < languageMenuMinHeight && spaceAbove > spaceBelow;
+    const availableSpace = Math.max(openUp ? spaceAbove : spaceBelow, 0);
+    const height = Math.min(
+      viewportHeight,
+      Math.max(
+        96,
+        Math.min(languageMenuMaxHeight, availableSpace - languageMenuGap),
+      ),
+    );
+    const topInWindow = Math.min(
+      Math.max(
+        openUp
+          ? triggerFrame.y - height - languageMenuGap
+          : triggerFrame.y + triggerFrame.height + languageMenuGap,
+        viewportTop,
+      ),
+      viewportBottom - height,
+    );
+    const top = Math.max(languageMenuBottomGap, topInWindow - overlayFrame.y);
+    const optionListHeight = Math.max(48, height - languageSearchInputHeight);
+
+    return {
+      height,
+      left,
+      optionListHeight,
+      top,
+      width: menuWidth,
+    };
+  }, [overlayFrame, triggerFrame]);
+
+  const handleOverlayLayout = useCallback(() => {
+    requestAnimationFrame(measureOverlay);
+  }, [measureOverlay]);
+
+  return (
+    <View style={styles.languageSelect}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityState={{ expanded }}
+        onPress={handleToggle}
+        ref={triggerRef}
+        style={({ pressed }) => [
+          styles.languageSelectTrigger,
+          expanded && styles.languageSelectTriggerActive,
+          pressed && styles.rowPressed,
+        ]}
+      >
+        <View style={styles.languageSelectValue}>
+          <Text numberOfLines={1} style={styles.languageSelectNative}>
+            {selectedLocale.nativeName}
+          </Text>
+          <Text numberOfLines={1} style={styles.languageSelectEnglish}>
+            {selectedLocale.englishName}
+          </Text>
+        </View>
+        <AppIcon
+          color={colors.mutedForeground}
+          icon={appIcons.chevronDown}
+          size={11}
+        />
+      </Pressable>
+
+      <Modal
+        animationType="none"
+        onRequestClose={() => onExpandedChange(false)}
+        transparent
+        visible={expanded}
+      >
+        <View
+          onLayout={handleOverlayLayout}
+          ref={overlayRef}
+          style={styles.languageOverlay}
+        >
+          <Pressable
+            accessibilityLabel="Close language menu"
+            accessibilityRole="button"
+            onPress={() => onExpandedChange(false)}
+            style={StyleSheet.absoluteFill}
+          />
+          {menuLayout ? (
+            <View
+              style={[
+                styles.languageSelectMenu,
+                {
+                  height: menuLayout.height,
+                  left: menuLayout.left,
+                  top: menuLayout.top,
+                  width: menuLayout.width,
+                },
+              ]}
+            >
+              <TextInput
+                accessibilityLabel={searchPlaceholder}
+                autoCapitalize="none"
+                onChangeText={onQueryChange}
+                placeholder={searchPlaceholder}
+                placeholderTextColor={colors.mutedForeground}
+                style={styles.languageSearchInput}
+                value={query}
+              />
+              <ScrollView
+                keyboardShouldPersistTaps="handled"
+                nestedScrollEnabled
+                style={{ height: menuLayout.optionListHeight }}
+              >
+                {options.length > 0 ? (
+                  options.map(option => {
+                    const isSelected = option.code === locale;
+
+                    return (
+                      <Pressable
+                        accessibilityLabel={`${option.nativeName} ${option.englishName}`}
+                        accessibilityRole="button"
+                        accessibilityState={{ selected: isSelected }}
+                        key={option.code}
+                        onPress={() => onSelect(option.code)}
+                        style={({ pressed }) => [
+                          styles.languageOption,
+                          isSelected && styles.languageOptionActive,
+                          pressed && styles.rowPressed,
+                        ]}
+                      >
+                        <View style={styles.languageOptionCopy}>
+                          <Text
+                            numberOfLines={1}
+                            style={styles.languageOptionNative}
+                          >
+                            {option.nativeName}
+                          </Text>
+                          <Text
+                            numberOfLines={1}
+                            style={styles.languageOptionEnglish}
+                          >
+                            {option.englishName}
+                          </Text>
+                        </View>
+                        {isSelected ? (
+                          <AppIcon
+                            color={colors.primary}
+                            icon={appIcons.selected}
+                            size={16}
+                          />
+                        ) : null}
+                      </Pressable>
+                    );
+                  })
+                ) : (
+                  <Text style={styles.languageEmptyText}>{noResultsLabel}</Text>
+                )}
+              </ScrollView>
+            </View>
+          ) : null}
+        </View>
+      </Modal>
+    </View>
+  );
+}
+
+type SettingsSectionProps = {
+  children: ReactNode;
+  title: string;
+};
+
+function SettingsSection({ children, title }: SettingsSectionProps) {
+  return (
+    <View style={styles.settingsSection}>
+      <Text style={styles.settingsSectionTitle}>{title}</Text>
+      <View style={styles.settingsCard}>{children}</View>
+    </View>
   );
 }
 
@@ -668,19 +1256,32 @@ function SettingsToggle({
 }
 
 const styles = StyleSheet.create({
+  scroll: {
+    backgroundColor: '#F4F5F8',
+  },
   container: {
-    paddingBottom: 42,
-    paddingHorizontal: 24,
-    paddingTop: 86,
+    paddingBottom: 38,
+    paddingHorizontal: 18,
+    paddingTop: 20,
+  },
+  profileHeader: {
+    alignItems: 'center',
+    marginBottom: 22,
+    paddingTop: 2,
+  },
+  profileLogo: {
+    height: 34,
+    opacity: 0.54,
+    width: 152,
   },
   header: {
-    marginBottom: 42,
+    marginBottom: 24,
   },
   title: {
     ...typography.title,
     color: colors.foreground,
-    fontSize: 34,
-    lineHeight: 40,
+    fontSize: 28,
+    lineHeight: 34,
   },
   description: {
     ...typography.body,
@@ -689,26 +1290,50 @@ const styles = StyleSheet.create({
     lineHeight: 22,
     marginTop: 10,
   },
-  settingsList: {
-    borderTopColor: colors.border,
-    borderTopWidth: StyleSheet.hairlineWidth,
+  settingsSection: {
+    marginBottom: 24,
+  },
+  settingsSectionTitle: {
+    ...typography.label,
+    color: '#93969D',
+    fontSize: 17,
+    fontWeight: '600',
+    marginBottom: 8,
+    paddingHorizontal: 16,
+  },
+  settingsCard: {
+    backgroundColor: colors.card,
+    borderColor: 'rgba(21,25,34,0.04)',
+    borderRadius: 18,
+    borderWidth: StyleSheet.hairlineWidth,
+    overflow: 'hidden',
   },
   navigationRow: {
     alignItems: 'center',
-    borderBottomColor: colors.border,
-    borderBottomWidth: StyleSheet.hairlineWidth,
     flexDirection: 'row',
-    minHeight: 78,
-    paddingVertical: 14,
+    minHeight: 54,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+  },
+  navigationRowDivider: {
+    borderBottomColor: '#E7E7EA',
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  navigationIconSlot: {
+    alignItems: 'center',
+    height: 28,
+    justifyContent: 'center',
+    marginRight: 10,
+    width: 28,
   },
   navigationCopy: {
     flex: 1,
-    paddingRight: 16,
+    paddingRight: 12,
   },
   navigationTitle: {
     ...typography.body,
     color: colors.foreground,
-    fontSize: 17,
+    fontSize: 16,
     fontWeight: '600',
   },
   navigationCaption: {
@@ -720,13 +1345,23 @@ const styles = StyleSheet.create({
   navigationMeta: {
     alignItems: 'center',
     flexDirection: 'row',
-    gap: 10,
+    gap: 9,
+    maxWidth: '52%',
+  },
+  navigationValue: {
+    ...typography.body,
+    color: '#8D9097',
+    flexShrink: 1,
+    fontSize: 15,
+    fontWeight: '500',
   },
   section: {
-    borderTopColor: colors.border,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    marginBottom: 34,
-    paddingTop: 18,
+    backgroundColor: colors.card,
+    borderColor: 'rgba(21,25,34,0.05)',
+    borderRadius: 20,
+    borderWidth: StyleSheet.hairlineWidth,
+    marginBottom: 28,
+    padding: 16,
   },
   sectionHeader: {
     alignItems: 'center',
@@ -736,7 +1371,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     ...typography.label,
     color: colors.foreground,
-    fontSize: 18,
+    fontSize: 17,
   },
   sectionCaption: {
     ...typography.caption,
@@ -749,6 +1384,9 @@ const styles = StyleSheet.create({
     fontWeight: '400',
     lineHeight: 21,
     marginTop: 12,
+  },
+  sectionContent: {
+    marginTop: 16,
   },
   textSizeList: {
     borderTopColor: colors.border,
@@ -785,7 +1423,22 @@ const styles = StyleSheet.create({
     lineHeight: 16,
     marginTop: 4,
   },
-  systemPromptInput: {
+  fieldGroup: {
+    marginTop: 16,
+  },
+  fieldLabel: {
+    ...typography.label,
+    color: colors.foreground,
+    fontSize: 15,
+    marginBottom: 8,
+  },
+  fieldCaption: {
+    ...typography.caption,
+    color: colors.mutedForeground,
+    lineHeight: 16,
+    marginBottom: 10,
+  },
+  settingsTextInput: {
     ...typography.body,
     backgroundColor: colors.muted,
     borderColor: colors.input,
@@ -794,10 +1447,184 @@ const styles = StyleSheet.create({
     color: colors.foreground,
     fontSize: 15,
     lineHeight: 21,
-    marginTop: 16,
-    minHeight: 132,
+    minHeight: 46,
     paddingHorizontal: 14,
+    paddingVertical: 11,
+  },
+  longTextArea: {
+    minHeight: 132,
     paddingTop: 12,
+  },
+  personalityList: {
+    borderColor: colors.border,
+    borderRadius: 14,
+    borderWidth: StyleSheet.hairlineWidth,
+    overflow: 'hidden',
+  },
+  personalityRow: {
+    alignItems: 'center',
+    backgroundColor: colors.card,
+    borderBottomColor: colors.border,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    flexDirection: 'row',
+    minHeight: 76,
+    paddingHorizontal: 12,
+    paddingVertical: 11,
+  },
+  personalityRowSelected: {
+    backgroundColor: 'rgba(0,122,255,0.08)',
+  },
+  personalityRowLast: {
+    borderBottomWidth: 0,
+  },
+  personalityCopy: {
+    flex: 1,
+    paddingRight: 12,
+  },
+  personalityLabel: {
+    ...typography.body,
+    color: colors.foreground,
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  personalityLabelSelected: {
+    color: colors.primary,
+    fontWeight: '800',
+  },
+  personalityDescription: {
+    ...typography.caption,
+    color: colors.mutedForeground,
+    lineHeight: 16,
+    marginTop: 4,
+  },
+  memoryList: {
+    backgroundColor: colors.muted,
+    borderColor: colors.input,
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+    overflow: 'hidden',
+  },
+  memoryListItem: {
+    borderBottomColor: colors.border,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  memoryListText: {
+    ...typography.body,
+    color: colors.foreground,
+    fontSize: 15,
+    fontWeight: '400',
+    lineHeight: 21,
+  },
+  emptyMemoryText: {
+    ...typography.body,
+    color: colors.mutedForeground,
+    fontSize: 15,
+    fontWeight: '400',
+    lineHeight: 21,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  languageSelect: {
+    alignSelf: 'stretch',
+  },
+  languageOverlay: {
+    flex: 1,
+  },
+  languageSelectTrigger: {
+    alignItems: 'center',
+    backgroundColor: colors.muted,
+    borderColor: colors.input,
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    minHeight: 52,
+    paddingHorizontal: 14,
+  },
+  languageSelectTriggerActive: {
+    backgroundColor: colors.card,
+    borderColor: colors.primary,
+  },
+  languageSelectValue: {
+    flex: 1,
+    minWidth: 0,
+    paddingRight: 12,
+  },
+  languageSelectNative: {
+    ...typography.label,
+    color: colors.foreground,
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  languageSelectEnglish: {
+    ...typography.caption,
+    color: colors.mutedForeground,
+    fontSize: 12,
+    fontWeight: '500',
+    marginTop: 3,
+  },
+  languageSelectMenu: {
+    backgroundColor: colors.card,
+    borderColor: colors.border,
+    borderRadius: 14,
+    borderWidth: StyleSheet.hairlineWidth,
+    elevation: 96,
+    overflow: 'hidden',
+    position: 'absolute',
+    shadowColor: '#000000',
+    shadowOffset: { height: 12, width: 0 },
+    shadowOpacity: 0.12,
+    shadowRadius: 22,
+    zIndex: 96,
+  },
+  languageSearchInput: {
+    ...typography.body,
+    borderBottomColor: colors.border,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    color: colors.foreground,
+    fontSize: 15,
+    minHeight: 46,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  languageOption: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    minHeight: 48,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+  },
+  languageOptionActive: {
+    backgroundColor: 'rgba(0,122,255,0.08)',
+  },
+  languageOptionCopy: {
+    flex: 1,
+    minWidth: 0,
+    paddingRight: 12,
+  },
+  languageOptionNative: {
+    ...typography.label,
+    color: colors.foreground,
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  languageOptionEnglish: {
+    ...typography.caption,
+    color: colors.mutedForeground,
+    fontSize: 12,
+    fontWeight: '500',
+    marginTop: 3,
+  },
+  languageEmptyText: {
+    ...typography.body,
+    color: colors.mutedForeground,
+    fontSize: 15,
+    lineHeight: 21,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
   },
   separator: {
     marginVertical: 14,

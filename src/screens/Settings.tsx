@@ -21,6 +21,12 @@ import AppIcon from '../components/AppIcon';
 import { Badge, Button, Separator } from '../components/ui';
 import { brandAssets } from '../config/branding';
 import {
+  defaultPersonalityPresetId,
+  getPersonalityPreset,
+  personalityPresets,
+  type PersonalityPresetId,
+} from '../config/personalityPresets';
+import {
   I18nKey,
   LocaleCode,
   SupportedLocale,
@@ -61,6 +67,20 @@ const textSizeDescriptionKeys: Record<string, I18nKey> = {
   compact: 'settings.textSize.compact.description',
   default: 'settings.textSize.default.description',
   large: 'settings.textSize.large.description',
+};
+
+const personalityLabelKeys: Record<PersonalityPresetId, I18nKey> = {
+  analytical: 'settings.personality.analytical.label',
+  balanced: 'settings.personality.balanced.label',
+  concise: 'settings.personality.concise.label',
+  friendly: 'settings.personality.friendly.label',
+};
+
+const personalityDescriptionKeys: Record<PersonalityPresetId, I18nKey> = {
+  analytical: 'settings.personality.analytical.description',
+  balanced: 'settings.personality.balanced.description',
+  concise: 'settings.personality.concise.description',
+  friendly: 'settings.personality.friendly.description',
 };
 const languageMenuGap = 8;
 const languageMenuMargin = 18;
@@ -134,6 +154,9 @@ function Settings({
   const selectedTextSizeDescription = t(
     textSizeDescriptionKeys[selectedTextSize.id] ??
       'settings.textSize.default.description',
+  );
+  const selectedPersonalityPreset = getPersonalityPreset(
+    personalCustomization.personality,
   );
   const visibleLocales = useMemo(() => {
     const normalizedQuery = languageQuery.trim().toLowerCase();
@@ -268,6 +291,15 @@ function Settings({
     },
     [onPersonalCustomizationChange, personalCustomization],
   );
+
+  useEffect(() => {
+    if (personalCustomization.personality.trim()) {
+      return;
+    }
+
+    updatePersonalCustomization({ personality: defaultPersonalityPresetId });
+  }, [personalCustomization.personality, updatePersonalCustomization]);
+
   const handleLanguageExpandedChange = useCallback((expanded: boolean) => {
     setIsLanguageSelectOpen(expanded);
 
@@ -378,18 +410,53 @@ function Settings({
 
         <View style={styles.fieldGroup}>
           <Text style={styles.fieldLabel}>{t('settings.personality')}</Text>
-          <TextInput
-            accessibilityLabel={t('settings.personality')}
-            multiline
-            onChangeText={personality =>
-              updatePersonalCustomization({ personality })
-            }
-            placeholder={t('settings.personalityPlaceholder')}
-            placeholderTextColor={colors.mutedForeground}
-            style={[styles.settingsTextInput, styles.shortTextArea]}
-            textAlignVertical="top"
-            value={personalCustomization.personality}
-          />
+          <Text style={styles.fieldCaption}>
+            {t('settings.personalityCaption')}
+          </Text>
+          <View style={styles.personalityList}>
+            {personalityPresets.map((preset, index) => {
+              const isSelected = selectedPersonalityPreset?.id === preset.id;
+              const isLast = index === personalityPresets.length - 1;
+
+              return (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: isSelected }}
+                  key={preset.id}
+                  onPress={() =>
+                    updatePersonalCustomization({ personality: preset.id })
+                  }
+                  style={({ pressed }) => [
+                    styles.personalityRow,
+                    isSelected && styles.personalityRowSelected,
+                    isLast && styles.personalityRowLast,
+                    pressed && styles.rowPressed,
+                  ]}
+                >
+                  <View style={styles.personalityCopy}>
+                    <Text
+                      style={[
+                        styles.personalityLabel,
+                        isSelected && styles.personalityLabelSelected,
+                      ]}
+                    >
+                      {t(personalityLabelKeys[preset.id])}
+                    </Text>
+                    <Text style={styles.personalityDescription}>
+                      {t(personalityDescriptionKeys[preset.id])}
+                    </Text>
+                  </View>
+                  {isSelected ? (
+                    <AppIcon
+                      color={colors.primary}
+                      icon={appIcons.selected}
+                      size={16}
+                    />
+                  ) : null}
+                </Pressable>
+              );
+            })}
+          </View>
         </View>
 
         <View style={styles.fieldGroup}>
@@ -1334,6 +1401,12 @@ const styles = StyleSheet.create({
     fontSize: 15,
     marginBottom: 8,
   },
+  fieldCaption: {
+    ...typography.caption,
+    color: colors.mutedForeground,
+    lineHeight: 16,
+    marginBottom: 10,
+  },
   settingsTextInput: {
     ...typography.body,
     backgroundColor: colors.muted,
@@ -1347,13 +1420,51 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 11,
   },
-  shortTextArea: {
-    minHeight: 82,
-    paddingTop: 12,
-  },
   longTextArea: {
     minHeight: 132,
     paddingTop: 12,
+  },
+  personalityList: {
+    borderColor: colors.border,
+    borderRadius: 14,
+    borderWidth: StyleSheet.hairlineWidth,
+    overflow: 'hidden',
+  },
+  personalityRow: {
+    alignItems: 'center',
+    backgroundColor: colors.card,
+    borderBottomColor: colors.border,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    flexDirection: 'row',
+    minHeight: 76,
+    paddingHorizontal: 12,
+    paddingVertical: 11,
+  },
+  personalityRowSelected: {
+    backgroundColor: 'rgba(0,122,255,0.08)',
+  },
+  personalityRowLast: {
+    borderBottomWidth: 0,
+  },
+  personalityCopy: {
+    flex: 1,
+    paddingRight: 12,
+  },
+  personalityLabel: {
+    ...typography.body,
+    color: colors.foreground,
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  personalityLabelSelected: {
+    color: colors.primary,
+    fontWeight: '800',
+  },
+  personalityDescription: {
+    ...typography.caption,
+    color: colors.mutedForeground,
+    lineHeight: 16,
+    marginTop: 4,
   },
   memoryList: {
     backgroundColor: colors.muted,

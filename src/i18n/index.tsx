@@ -174,10 +174,23 @@ const defaultMessages = {
   'settings.memoryOn': '메모리 켜짐',
   'settings.memoryOff': '메모리 꺼짐',
   'settings.name': '이름',
-  'settings.namePlaceholder': '예: Minjun',
+  'settings.namePlaceholder': '예: Alex',
   'settings.personality': '성격',
-  'settings.personalityPlaceholder':
-    '예: 차분하고 직접적이며, 필요한 경우 근거를 짧게 설명해줘.',
+  'settings.personalityCaption':
+    '선택한 성격이 AI 응답 스타일에 적용됩니다.',
+  'settings.personalityPlaceholder': '성격을 선택해 주세요.',
+  'settings.personality.balanced.label': '균형 잡힌',
+  'settings.personality.balanced.description':
+    '결론을 먼저 말하고 필요한 근거만 짧게 덧붙입니다.',
+  'settings.personality.friendly.label': '친절한',
+  'settings.personality.friendly.description':
+    '부드럽게 안내하되 과한 표현 없이 다음 행동을 정리합니다.',
+  'settings.personality.concise.label': '간결한',
+  'settings.personality.concise.description':
+    '핵심 답변과 바로 실행할 수 있는 내용만 우선합니다.',
+  'settings.personality.analytical.label': '분석적인',
+  'settings.personality.analytical.description':
+    '근거, 선택지, 불확실성, tradeoff를 구조적으로 표시합니다.',
   'settings.customInstructions': '맞춤형 지침',
   'settings.customInstructionsPlaceholder':
     '예: 항상 한국어로 간결하게 답하고, 모호한 요청은 필요한 가정을 먼저 밝혀줘.',
@@ -302,10 +315,23 @@ const en: Record<I18nKey, string> = {
   'settings.memoryOn': 'Memory on',
   'settings.memoryOff': 'Memory off',
   'settings.name': 'Name',
-  'settings.namePlaceholder': 'E.g. Minjun',
+  'settings.namePlaceholder': 'E.g. Alex',
   'settings.personality': 'Personality',
-  'settings.personalityPlaceholder':
-    'E.g. Calm and direct, with brief reasoning when needed.',
+  'settings.personalityCaption':
+    'The selected personality is applied to the AI response style.',
+  'settings.personalityPlaceholder': 'Choose a personality.',
+  'settings.personality.balanced.label': 'Balanced',
+  'settings.personality.balanced.description':
+    'Start with the answer, then add only the necessary reasoning.',
+  'settings.personality.friendly.label': 'Friendly',
+  'settings.personality.friendly.description':
+    'Guide softly and organize next actions without extra flourish.',
+  'settings.personality.concise.label': 'Concise',
+  'settings.personality.concise.description':
+    'Prioritize the core answer and immediately actionable details.',
+  'settings.personality.analytical.label': 'Analytical',
+  'settings.personality.analytical.description':
+    'Structure evidence, options, uncertainty, and tradeoffs clearly.',
   'settings.customInstructions': 'Custom instructions',
   'settings.customInstructionsPlaceholder':
     'E.g. Reply concisely in Korean and state assumptions when a request is unclear.',

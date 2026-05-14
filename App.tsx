@@ -51,6 +51,10 @@ import {
 import { appIcons } from './src/theme/icons';
 import { colors, typography } from './src/theme/tokens';
 import { brandAssets } from './src/config/branding';
+import {
+  defaultPersonalityPresetId,
+  resolvePersonalityPrompt,
+} from './src/config/personalityPresets';
 import { I18nProvider, useI18n } from './src/i18n';
 
 const textDefaults = RNText as unknown as {
@@ -191,7 +195,7 @@ const WORK_FOLDER_SESSION_ACTION_MENU_HEIGHT = 122;
 const defaultPersonalCustomizationSettings: PersonalCustomizationSettings = {
   customInstructions: '',
   memoryEnabled: true,
-  personality: '',
+  personality: defaultPersonalityPresetId,
   savedMemories: [],
   userName: '',
 };
@@ -412,7 +416,8 @@ const hydratePersonalCustomization = (
         ? parsedSettings.memoryEnabled
         : defaultPersonalCustomizationSettings.memoryEnabled,
     personality:
-      typeof parsedSettings.personality === 'string'
+      typeof parsedSettings.personality === 'string' &&
+      parsedSettings.personality.trim()
         ? parsedSettings.personality
         : defaultPersonalCustomizationSettings.personality,
     savedMemories: Array.isArray(parsedSettings.savedMemories)
@@ -494,12 +499,15 @@ const createCommonSystemPrompt = (
   personalCustomization: PersonalCustomizationSettings,
   workFolderMemory: string,
 ) => {
+  const personalityPrompt = resolvePersonalityPrompt(
+    personalCustomization.personality,
+  );
   const personalPromptSections = [
     personalCustomization.userName.trim()
       ? `사용자 이름: ${personalCustomization.userName.trim()}`
       : '',
-    personalCustomization.personality.trim()
-      ? `AI 응답 성격:\n${personalCustomization.personality.trim()}`
+    personalityPrompt.trim()
+      ? `AI 응답 성격:\n${personalityPrompt.trim()}`
       : '',
     personalCustomization.customInstructions.trim()
       ? `맞춤형 지침:\n${personalCustomization.customInstructions.trim()}`

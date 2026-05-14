@@ -963,13 +963,25 @@ function SearchableLanguageSelect({
   selectedLocale,
 }: SearchableLanguageSelectProps) {
   const triggerRef = useRef<View>(null);
+  const overlayRef = useRef<View>(null);
   const windowSize = useWindowDimensions();
+  const [overlayFrame, setOverlayFrame] = useState<{
+    height: number;
+    width: number;
+    x: number;
+    y: number;
+  } | null>(null);
   const [triggerFrame, setTriggerFrame] = useState<{
     height: number;
     width: number;
     x: number;
     y: number;
   } | null>(null);
+  const measureOverlay = useCallback(() => {
+    overlayRef.current?.measureInWindow((x, y, width, height) => {
+      setOverlayFrame({ height, width, x, y });
+    });
+  }, []);
   const measureTrigger = useCallback(() => {
     triggerRef.current?.measureInWindow((x, y, width, height) => {
       setTriggerFrame({ height, width, x, y });
@@ -990,53 +1002,71 @@ function SearchableLanguageSelect({
       return;
     }
 
-    const frame = requestAnimationFrame(measureTrigger);
+    const frame = requestAnimationFrame(() => {
+      measureOverlay();
+      measureTrigger();
+    });
     return () => cancelAnimationFrame(frame);
-  }, [expanded, measureTrigger, windowSize.height, windowSize.width]);
+  }, [
+    expanded,
+    measureOverlay,
+    measureTrigger,
+    windowSize.height,
+    windowSize.width,
+  ]);
 
   const menuLayout = useMemo(() => {
-    if (!triggerFrame) {
+    if (!triggerFrame || !overlayFrame) {
       return null;
     }
 
+    const viewportTop = overlayFrame.y + languageMenuBottomGap;
+    const viewportBottom =
+      overlayFrame.y + overlayFrame.height - languageMenuBottomGap;
+    const viewportHeight = Math.max(viewportBottom - viewportTop, 0);
     const menuWidth = Math.min(
       triggerFrame.width,
-      windowSize.width - languageMenuMargin * 2,
+      overlayFrame.width - languageMenuMargin * 2,
     );
     const left = Math.min(
-      Math.max(triggerFrame.x, languageMenuMargin),
-      windowSize.width - menuWidth - languageMenuMargin,
+      Math.max(triggerFrame.x - overlayFrame.x, languageMenuMargin),
+      overlayFrame.width - menuWidth - languageMenuMargin,
     );
-    const spaceBelow =
-      windowSize.height -
-      triggerFrame.y -
-      triggerFrame.height -
-      languageMenuBottomGap;
-    const spaceAbove = triggerFrame.y - languageMenuMargin;
+    const spaceBelow = viewportBottom - triggerFrame.y - triggerFrame.height;
+    const spaceAbove = triggerFrame.y - viewportTop;
     const openUp = spaceBelow < languageMenuMinHeight && spaceAbove > spaceBelow;
     const availableSpace = Math.max(openUp ? spaceAbove : spaceBelow, 0);
-    const height = Math.max(
-      160,
-      Math.min(languageMenuMaxHeight, availableSpace - languageMenuGap),
+    const height = Math.min(
+      viewportHeight,
+      Math.max(
+        96,
+        Math.min(languageMenuMaxHeight, availableSpace - languageMenuGap),
+      ),
     );
-    const top = openUp
-      ? Math.max(
-          languageMenuMargin,
-          triggerFrame.y - height - languageMenuGap,
-        )
-      : Math.min(
-          triggerFrame.y + triggerFrame.height + languageMenuGap,
-          windowSize.height - height - languageMenuBottomGap,
-        );
+    const topInWindow = Math.min(
+      Math.max(
+        openUp
+          ? triggerFrame.y - height - languageMenuGap
+          : triggerFrame.y + triggerFrame.height + languageMenuGap,
+        viewportTop,
+      ),
+      viewportBottom - height,
+    );
+    const top = Math.max(languageMenuBottomGap, topInWindow - overlayFrame.y);
+    const optionListHeight = Math.max(48, height - languageSearchInputHeight);
 
     return {
       height,
       left,
-      optionListHeight: Math.max(110, height - languageSearchInputHeight),
+      optionListHeight,
       top,
       width: menuWidth,
     };
-  }, [triggerFrame, windowSize.height, windowSize.width]);
+  }, [overlayFrame, triggerFrame]);
+
+  const handleOverlayLayout = useCallback(() => {
+    requestAnimationFrame(measureOverlay);
+  }, [measureOverlay]);
 
   return (
     <View style={styles.languageSelect}>
@@ -1072,7 +1102,11 @@ function SearchableLanguageSelect({
         transparent
         visible={expanded}
       >
-        <View style={styles.languageOverlay}>
+        <View
+          onLayout={handleOverlayLayout}
+          ref={overlayRef}
+          style={styles.languageOverlay}
+        >
           <Pressable
             accessibilityLabel="Close language menu"
             accessibilityRole="button"
@@ -1103,10 +1137,7 @@ function SearchableLanguageSelect({
               <ScrollView
                 keyboardShouldPersistTaps="handled"
                 nestedScrollEnabled
-                style={[
-                  styles.languageOptionList,
-                  { height: menuLayout.optionListHeight },
-                ]}
+                style={{ height: menuLayout.optionListHeight }}
               >
                 {options.length > 0 ? (
                   options.map(option => {
@@ -1557,9 +1588,6 @@ const styles = StyleSheet.create({
     minHeight: 46,
     paddingHorizontal: 14,
     paddingVertical: 10,
-  },
-  languageOptionList: {
-    maxHeight: 280,
   },
   languageOption: {
     alignItems: 'center',

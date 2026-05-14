@@ -1220,7 +1220,7 @@ function ChatScreen({
                             <AppIcon
                               color={colors.mutedForeground}
                               icon={appIcons.rename}
-                              size={13}
+                              size={12}
                             />
                           </Pressable>
                           <Pressable
@@ -1235,7 +1235,7 @@ function ChatScreen({
                             <AppIcon
                               color={colors.destructive}
                               icon={appIcons.delete}
-                              size={13}
+                              size={12}
                             />
                           </Pressable>
                         </View>
@@ -1523,66 +1523,66 @@ const styles = StyleSheet.create({
     paddingBottom: 10,
   },
   queuePanel: {
-    backgroundColor: colors.card,
+    backgroundColor: colors.muted,
     borderColor: 'rgba(21,25,34,0.08)',
-    borderRadius: 16,
-    borderWidth: 1,
+    borderRadius: 14,
+    borderWidth: StyleSheet.hairlineWidth,
     bottom: '100%',
-    left: 0,
-    marginBottom: 22,
-    paddingHorizontal: 10,
-    paddingTop: 10,
+    left: 16,
+    marginBottom: -8,
+    paddingHorizontal: 8,
+    paddingTop: 8,
     position: 'absolute',
-    right: 0,
-    zIndex: 2,
+    right: 16,
+    zIndex: 1,
   },
   queueHeader: {
     alignItems: 'center',
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 8,
+    marginBottom: 6,
   },
   queueTitle: {
     ...typography.label,
     color: colors.foreground,
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '800',
   },
   queueCount: {
     ...typography.caption,
     color: colors.mutedForeground,
-    fontSize: 11,
+    fontSize: 10,
   },
   queueList: {
-    maxHeight: 136,
+    maxHeight: 104,
   },
   queueItem: {
-    alignItems: 'center',
-    backgroundColor: colors.muted,
-    borderColor: colors.border,
-    borderRadius: 12,
-    borderWidth: StyleSheet.hairlineWidth,
-    flexDirection: 'row',
-    gap: 8,
-    marginBottom: 7,
-    minHeight: 48,
-    paddingHorizontal: 9,
-    paddingVertical: 8,
-  },
-  queueIndexBadge: {
     alignItems: 'center',
     backgroundColor: colors.card,
     borderColor: colors.border,
     borderRadius: 10,
     borderWidth: StyleSheet.hairlineWidth,
-    height: 20,
+    flexDirection: 'row',
+    gap: 7,
+    marginBottom: 6,
+    minHeight: 42,
+    paddingHorizontal: 8,
+    paddingVertical: 7,
+  },
+  queueIndexBadge: {
+    alignItems: 'center',
+    backgroundColor: colors.muted,
+    borderColor: colors.border,
+    borderRadius: 8,
+    borderWidth: StyleSheet.hairlineWidth,
+    height: 17,
     justifyContent: 'center',
-    width: 20,
+    width: 17,
   },
   queueIndexText: {
     ...typography.caption,
     color: colors.mutedForeground,
-    fontSize: 10,
+    fontSize: 9,
     fontWeight: '800',
   },
   queueItemBody: {
@@ -1592,13 +1592,13 @@ const styles = StyleSheet.create({
   queueText: {
     ...typography.body,
     color: colors.foreground,
-    fontSize: 13,
-    lineHeight: 18,
+    fontSize: 12,
+    lineHeight: 16,
   },
   queueMeta: {
     ...typography.caption,
     color: colors.mutedForeground,
-    fontSize: 11,
+    fontSize: 10,
     marginTop: 2,
   },
   queueEditInput: {
@@ -1608,12 +1608,12 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     borderWidth: StyleSheet.hairlineWidth,
     color: colors.foreground,
-    fontSize: 13,
-    lineHeight: 18,
-    maxHeight: 74,
-    minHeight: 40,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
+    fontSize: 12,
+    lineHeight: 16,
+    maxHeight: 62,
+    minHeight: 36,
+    paddingHorizontal: 9,
+    paddingVertical: 7,
     textAlignVertical: 'top',
   },
   queueIconActions: {
@@ -1623,9 +1623,9 @@ const styles = StyleSheet.create({
   },
   queueIconButton: {
     alignItems: 'center',
-    height: 32,
+    height: 28,
     justifyContent: 'center',
-    width: 30,
+    width: 26,
   },
   queueTextActions: {
     alignItems: 'flex-end',
@@ -1633,20 +1633,20 @@ const styles = StyleSheet.create({
   },
   queueTextActionButton: {
     alignItems: 'center',
-    minHeight: 24,
     justifyContent: 'center',
+    minHeight: 22,
     paddingHorizontal: 4,
   },
   queueTextActionLabel: {
     ...typography.label,
     color: colors.primary,
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '800',
   },
   queueTextActionLabelMuted: {
     ...typography.label,
     color: colors.mutedForeground,
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '700',
   },
   inputFooter: {

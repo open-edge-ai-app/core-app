@@ -1,10 +1,22 @@
 import { IconDefinition } from '@fortawesome/fontawesome-svg-core';
-import React, { ReactNode, useCallback, useEffect, useState } from 'react';
+import React, {
+  ReactNode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from 'react';
 import { Image, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import AppIcon from '../components/AppIcon';
 import { Badge, Button, Separator } from '../components/ui';
 import { brandAssets } from '../config/branding';
+import {
+  I18nKey,
+  LocaleCode,
+  SupportedLocale,
+  useI18n,
+} from '../i18n';
 import AIEngine, {
   IndexingStatus,
   ModelStatus,
@@ -28,6 +40,18 @@ const defaultStatus: IndexingStatus = {
   documentIndexedItems: 0,
   smsEnabled: false,
   smsIndexedItems: 0,
+};
+
+const textSizeLabelKeys: Record<string, I18nKey> = {
+  compact: 'settings.textSize.compact.label',
+  default: 'settings.textSize.default.label',
+  large: 'settings.textSize.large.label',
+};
+
+const textSizeDescriptionKeys: Record<string, I18nKey> = {
+  compact: 'settings.textSize.compact.description',
+  default: 'settings.textSize.default.description',
+  large: 'settings.textSize.large.description',
 };
 
 const formatBytes = (bytes: number) => {
@@ -73,13 +97,48 @@ function Settings({
   onPersonalCustomizationChange,
   personalCustomization,
 }: SettingsProps) {
+  const {
+    locale,
+    selectedLocale,
+    setLocale,
+    supportedLocales,
+    t,
+  } = useI18n();
   const [status, setStatus] = useState<IndexingStatus>(defaultStatus);
   const [modelStatus, setModelStatus] = useState<ModelStatus | null>(null);
   const [runtimeStatus, setRuntimeStatus] = useState<RuntimeStatus | null>(
     null,
   );
+  const [isLanguageSelectOpen, setIsLanguageSelectOpen] = useState(false);
+  const [languageQuery, setLanguageQuery] = useState('');
   const { selectedTextSize, setTextSize, textSize, textSizes } =
     useDisplaySettings();
+
+  const selectedTextSizeLabel =
+    t(textSizeLabelKeys[selectedTextSize.id] ?? 'settings.textSize.default.label');
+  const selectedTextSizeDescription = t(
+    textSizeDescriptionKeys[selectedTextSize.id] ??
+      'settings.textSize.default.description',
+  );
+  const visibleLocales = useMemo(() => {
+    const normalizedQuery = languageQuery.trim().toLowerCase();
+
+    if (!normalizedQuery) {
+      return supportedLocales;
+    }
+
+    return supportedLocales.filter(language =>
+      [
+        language.code,
+        language.englishName,
+        language.nativeName,
+        ...language.searchTags,
+      ]
+        .join(' ')
+        .toLowerCase()
+        .includes(normalizedQuery),
+    );
+  }, [languageQuery, supportedLocales]);
 
   const refreshStatus = useCallback(async () => {
     const [nextStatus, nextModelStatus, nextRuntimeStatus] = await Promise.all([
@@ -194,14 +253,28 @@ function Settings({
     },
     [onPersonalCustomizationChange, personalCustomization],
   );
+  const handleLanguageExpandedChange = useCallback((expanded: boolean) => {
+    setIsLanguageSelectOpen(expanded);
+
+    if (!expanded) {
+      setLanguageQuery('');
+    }
+  }, []);
+  const handleSelectLanguage = useCallback(
+    (nextLocale: LocaleCode) => {
+      setLocale(nextLocale);
+      handleLanguageExpandedChange(false);
+    },
+    [handleLanguageExpandedChange, setLocale],
+  );
 
   const modelSummary = modelStatus?.installed
     ? runtimeStatus?.loaded
-      ? '로드됨'
-      : '설치됨'
+      ? t('settings.loaded')
+      : t('settings.installed')
     : modelStatus?.isDownloading
-    ? '다운로드 중'
-    : '설치 필요';
+    ? t('settings.downloading')
+    : t('settings.installNeeded');
   const renderDetailHeader = (title: string, description: string) => (
     <View style={styles.header}>
       <Text style={styles.title}>{title}</Text>
@@ -220,31 +293,31 @@ function Settings({
         />
       </View>
 
-      <SettingsSection title="맞춤 설정">
+      <SettingsSection title={t('settings.customizationSection')}>
         <SettingsNavigationRow
           icon={appIcons.personalSettings}
           onPress={() => onPanelChange('appearance')}
-          title="모양"
+          title={t('settings.appearance')}
         />
         <SettingsNavigationRow
           icon={appIcons.memory}
           onPress={() => onPanelChange('personalCustomization')}
-          title="개인 맞춤 설정"
+          title={t('settings.personalCustomization')}
         />
         <SettingsNavigationRow
           icon={appIcons.appsGrid}
           isLast
           onPress={() => onPanelChange('embedding')}
-          title="임베딩 설정"
+          title={t('settings.embeddingSettings')}
         />
       </SettingsSection>
 
-      <SettingsSection title="AI">
+      <SettingsSection title={t('settings.aiSection')}>
         <SettingsNavigationRow
           icon={appIcons.modelBalanced}
           isLast
           onPress={() => onPanelChange('model')}
-          title="모델"
+          title={t('settings.model')}
           value={modelSummary}
         />
       </SettingsSection>
@@ -254,28 +327,34 @@ function Settings({
   const renderPersonalCustomization = () => (
     <>
       {renderDetailHeader(
-        '개인 맞춤 설정',
-        'AI가 사용자를 이해하고 응답 방식을 맞출 수 있도록 기본 정보를 관리합니다.',
+        t('settings.personalCustomization'),
+        t('settings.personalCustomizationDescription'),
       )}
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
           <View>
-            <Text style={styles.sectionTitle}>개인 맞춤 설정</Text>
-            <Text style={styles.sectionCaption}>이름, 성격, 지침, 메모리</Text>
+            <Text style={styles.sectionTitle}>
+              {t('settings.personalCustomization')}
+            </Text>
+            <Text style={styles.sectionCaption}>
+              {t('settings.personalCustomizationCaption')}
+            </Text>
           </View>
           <Badge
             variant={personalCustomization.memoryEnabled ? 'success' : 'outline'}
           >
-            {personalCustomization.memoryEnabled ? '메모리 켜짐' : '메모리 꺼짐'}
+            {personalCustomization.memoryEnabled
+              ? t('settings.memoryOn')
+              : t('settings.memoryOff')}
           </Badge>
         </View>
 
         <View style={styles.fieldGroup}>
-          <Text style={styles.fieldLabel}>이름</Text>
+          <Text style={styles.fieldLabel}>{t('settings.name')}</Text>
           <TextInput
-            accessibilityLabel="이름"
+            accessibilityLabel={t('settings.name')}
             onChangeText={userName => updatePersonalCustomization({ userName })}
-            placeholder="예: Minjun"
+            placeholder={t('settings.namePlaceholder')}
             placeholderTextColor={colors.mutedForeground}
             style={styles.settingsTextInput}
             value={personalCustomization.userName}
@@ -283,14 +362,14 @@ function Settings({
         </View>
 
         <View style={styles.fieldGroup}>
-          <Text style={styles.fieldLabel}>성격</Text>
+          <Text style={styles.fieldLabel}>{t('settings.personality')}</Text>
           <TextInput
-            accessibilityLabel="성격"
+            accessibilityLabel={t('settings.personality')}
             multiline
             onChangeText={personality =>
               updatePersonalCustomization({ personality })
             }
-            placeholder="예: 차분하고 직접적이며, 필요한 경우 근거를 짧게 설명해줘."
+            placeholder={t('settings.personalityPlaceholder')}
             placeholderTextColor={colors.mutedForeground}
             style={[styles.settingsTextInput, styles.shortTextArea]}
             textAlignVertical="top"
@@ -299,14 +378,16 @@ function Settings({
         </View>
 
         <View style={styles.fieldGroup}>
-          <Text style={styles.fieldLabel}>맞춤형 지침</Text>
+          <Text style={styles.fieldLabel}>
+            {t('settings.customInstructions')}
+          </Text>
           <TextInput
-            accessibilityLabel="맞춤형 지침"
+            accessibilityLabel={t('settings.customInstructions')}
             multiline
             onChangeText={customInstructions =>
               updatePersonalCustomization({ customInstructions })
             }
-            placeholder="예: 항상 한국어로 간결하게 답하고, 모호한 요청은 필요한 가정을 먼저 밝혀줘."
+            placeholder={t('settings.customInstructionsPlaceholder')}
             placeholderTextColor={colors.mutedForeground}
             style={[styles.settingsTextInput, styles.longTextArea]}
             textAlignVertical="top"
@@ -318,9 +399,9 @@ function Settings({
 
         <View style={styles.toggleRow}>
           <View style={styles.switchCopy}>
-            <Text style={styles.rowLabel}>메모리 활성</Text>
+            <Text style={styles.rowLabel}>{t('settings.memoryEnabled')}</Text>
             <Text style={styles.sectionCaption}>
-              채팅 기록에서 기억을 생성하고 이후 응답에 반영합니다.
+              {t('settings.memoryEnabledDescription')}
             </Text>
           </View>
           <SettingsToggle
@@ -332,7 +413,9 @@ function Settings({
         </View>
 
         <View style={styles.fieldGroup}>
-          <Text style={styles.fieldLabel}>저장된 메모리 리스트</Text>
+          <Text style={styles.fieldLabel}>
+            {t('settings.savedMemoryList')}
+          </Text>
           <View style={styles.memoryList}>
             {personalCustomization.savedMemories.length > 0 ? (
               personalCustomization.savedMemories.map((memory, index) => (
@@ -342,7 +425,7 @@ function Settings({
               ))
             ) : (
               <Text style={styles.emptyMemoryText}>
-                채팅 기록에서 생성된 메모리가 여기에 표시됩니다.
+                {t('settings.savedMemoryEmpty')}
               </Text>
             )}
           </View>
@@ -354,20 +437,22 @@ function Settings({
   const renderAppearance = () => (
     <>
       {renderDetailHeader(
-        '모양',
-        '앱에서 반복적으로 보는 텍스트의 표시 크기를 설정합니다.',
+        t('settings.appearance'),
+        t('settings.appearanceDescription'),
       )}
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
           <View>
-            <Text style={styles.sectionTitle}>모양</Text>
-            <Text style={styles.sectionCaption}>텍스트 크기</Text>
+            <Text style={styles.sectionTitle}>{t('settings.appearance')}</Text>
+            <Text style={styles.sectionCaption}>
+              {t('settings.textSize')}
+            </Text>
           </View>
-          <Badge variant="outline">{selectedTextSize.label}</Badge>
+          <Badge variant="outline">{selectedTextSizeLabel}</Badge>
         </View>
 
         <Text style={styles.personalizationDescription}>
-          {selectedTextSize.description}
+          {selectedTextSizeDescription}
         </Text>
 
         <View style={styles.textSizeList}>
@@ -392,10 +477,16 @@ function Settings({
                       isSelected && styles.textSizeLabelSelected,
                     ]}
                   >
-                    {option.label}
+                    {t(
+                      textSizeLabelKeys[option.id] ??
+                        'settings.textSize.default.label',
+                    )}
                   </Text>
                   <Text style={styles.textSizeDescription}>
-                    {option.description}
+                    {t(
+                      textSizeDescriptionKeys[option.id] ??
+                        'settings.textSize.default.description',
+                    )}
                   </Text>
                 </View>
                 {isSelected ? (
@@ -409,6 +500,24 @@ function Settings({
             );
           })}
         </View>
+
+        <Separator style={styles.separator} />
+
+        <View style={styles.fieldGroup}>
+          <Text style={styles.fieldLabel}>{t('settings.language')}</Text>
+          <SearchableLanguageSelect
+            expanded={isLanguageSelectOpen}
+            locale={locale}
+            noResultsLabel={t('settings.languageNoResults')}
+            onExpandedChange={handleLanguageExpandedChange}
+            onQueryChange={setLanguageQuery}
+            onSelect={handleSelectLanguage}
+            options={visibleLocales}
+            query={languageQuery}
+            searchPlaceholder={t('settings.languageSearchPlaceholder')}
+            selectedLocale={selectedLocale}
+          />
+        </View>
       </View>
     </>
   );
@@ -416,42 +525,50 @@ function Settings({
   const renderModel = () => (
     <>
       {renderDetailHeader(
-        '모델',
-        '온디바이스 모델 파일과 런타임 연결 상태를 관리합니다.',
+        t('settings.model'),
+        t('settings.modelDescription'),
       )}
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
           <View>
-            <Text style={styles.sectionTitle}>모델</Text>
-            <Text style={styles.sectionCaption}>엔진 연결 상태</Text>
+            <Text style={styles.sectionTitle}>{t('settings.model')}</Text>
+            <Text style={styles.sectionCaption}>
+              {t('settings.engineStatus')}
+            </Text>
           </View>
           <Badge variant={status.isAvailable ? 'success' : 'secondary'}>
-            {status.isAvailable ? '연결됨' : '대기 중'}
+            {status.isAvailable
+              ? t('settings.connected')
+              : t('settings.waiting')}
           </Badge>
         </View>
 
         <Separator style={styles.separator} />
 
         <StatusRow
-          label="Native bridge"
-          value={status.isAvailable ? '연결됨' : '대기 중'}
-        />
-        <StatusRow
-          label="기본 모델"
-          value={modelStatus?.modelName ?? 'gemma-4-E2B-it'}
-        />
-        <StatusRow
-          label="모델 파일"
+          label={t('settings.nativeBridge')}
           value={
-            modelStatus?.installed
-              ? '설치됨'
-              : modelStatus?.isDownloading
-              ? '다운로드 중'
-              : '필요함'
+            status.isAvailable
+              ? t('settings.connected')
+              : t('settings.waiting')
           }
         />
         <StatusRow
-          label="다운로드"
+          label={t('settings.defaultModel')}
+          value={modelStatus?.modelName ?? 'gemma-4-E2B-it'}
+        />
+        <StatusRow
+          label={t('settings.modelFile')}
+          value={
+            modelStatus?.installed
+              ? t('settings.installed')
+              : modelStatus?.isDownloading
+              ? t('settings.downloading')
+              : t('settings.required')
+          }
+        />
+        <StatusRow
+          label={t('settings.download')}
           value={`${formatBytes(
             modelStatus?.bytesDownloaded ?? 0,
           )} / ${formatBytes(modelStatus?.totalBytes ?? 2588147712)}`}
@@ -470,40 +587,40 @@ function Settings({
         <View style={styles.actionRow}>
           <Button
             disabled={modelStatus?.installed || modelStatus?.isDownloading}
-            label="모델 다운로드"
+            label={t('settings.downloadModel')}
             onPress={handleDownloadModel}
             style={styles.modelButton}
             variant="ghost"
           />
           <Button
             disabled={!modelStatus?.isDownloading}
-            label="취소"
+            label={t('settings.cancel')}
             onPress={handleCancelModelDownload}
             style={styles.modelButton}
             variant="ghost"
           />
         </View>
         <StatusRow
-          label="런타임"
+          label={t('settings.runtime')}
           value={
             runtimeStatus?.loaded
-              ? '로드됨'
+              ? t('settings.loaded')
               : runtimeStatus?.loading
-              ? '로드 중'
-              : '꺼짐'
+              ? t('settings.loading')
+              : t('settings.off')
           }
         />
         <View style={styles.actionRow}>
           <Button
             disabled={!modelStatus?.installed || runtimeStatus?.loaded}
-            label="모델 켜기"
+            label={t('settings.loadModel')}
             onPress={handleLoadModel}
             style={styles.modelButton}
             variant="ghost"
           />
           <Button
             disabled={!runtimeStatus?.loaded}
-            label="모델 끄기"
+            label={t('settings.unloadModel')}
             onPress={handleUnloadModel}
             style={styles.modelButton}
             variant="ghost"
@@ -516,44 +633,58 @@ function Settings({
   const renderEmbedding = () => (
     <>
       {renderDetailHeader(
-        '임베딩 설정',
-        '검색과 개인 메모리에 사용할 소스별 임베딩을 관리합니다.',
+        t('settings.embeddingSettings'),
+        t('settings.embeddingDescription'),
       )}
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
           <View style={styles.switchCopy}>
-            <Text style={styles.sectionTitle}>임베딩 설정</Text>
-            <Text style={styles.sectionCaption}>소스별 임베딩 생성/삭제</Text>
+            <Text style={styles.sectionTitle}>
+              {t('settings.embeddingSettings')}
+            </Text>
+            <Text style={styles.sectionCaption}>
+              {t('settings.embeddingCaption')}
+            </Text>
           </View>
         </View>
 
         <Separator style={styles.separator} />
 
         <StatusRow
-          label="임베딩 항목"
-          value={`${status.indexedItems.toLocaleString('ko-KR')}개`}
+          label={t('settings.embeddingItems')}
+          value={t('settings.itemCount', {
+            count: status.indexedItems.toLocaleString(locale),
+          })}
         />
         <StatusRow
-          label="SMS 임베딩"
-          value={`${status.smsIndexedItems.toLocaleString('ko-KR')}개`}
+          label={t('settings.smsEmbedding')}
+          value={t('settings.itemCount', {
+            count: status.smsIndexedItems.toLocaleString(locale),
+          })}
         />
         <StatusRow
-          label="갤러리 임베딩"
-          value={`${status.galleryIndexedItems.toLocaleString('ko-KR')}개`}
+          label={t('settings.galleryEmbedding')}
+          value={t('settings.itemCount', {
+            count: status.galleryIndexedItems.toLocaleString(locale),
+          })}
         />
         <StatusRow
-          label="문서 임베딩"
-          value={`${status.documentIndexedItems.toLocaleString('ko-KR')}개`}
+          label={t('settings.documentEmbedding')}
+          value={t('settings.itemCount', {
+            count: status.documentIndexedItems.toLocaleString(locale),
+          })}
         />
         <StatusRow
-          label="마지막 임베딩 생성"
-          value={status.lastIndexedAt ?? '기록 없음'}
+          label={t('settings.lastEmbedding')}
+          value={status.lastIndexedAt ?? t('settings.noRecord')}
         />
 
         <View style={styles.toggleRow}>
           <View style={styles.switchCopy}>
-            <Text style={styles.rowLabel}>SMS</Text>
-            <Text style={styles.sectionCaption}>문자 임베딩</Text>
+            <Text style={styles.rowLabel}>{t('settings.sms')}</Text>
+            <Text style={styles.sectionCaption}>
+              {t('settings.smsEmbeddingCaption')}
+            </Text>
           </View>
           <SettingsToggle
             disabled={status.isIndexing}
@@ -564,8 +695,10 @@ function Settings({
 
         <View style={styles.toggleRow}>
           <View style={styles.switchCopy}>
-            <Text style={styles.rowLabel}>갤러리</Text>
-            <Text style={styles.sectionCaption}>사진 임베딩</Text>
+            <Text style={styles.rowLabel}>{t('settings.gallery')}</Text>
+            <Text style={styles.sectionCaption}>
+              {t('settings.galleryEmbeddingCaption')}
+            </Text>
           </View>
           <SettingsToggle
             disabled={status.isIndexing}
@@ -576,8 +709,10 @@ function Settings({
 
         <View style={styles.toggleRow}>
           <View style={styles.switchCopy}>
-            <Text style={styles.rowLabel}>문서</Text>
-            <Text style={styles.sectionCaption}>다운로드/공유 문서 임베딩</Text>
+            <Text style={styles.rowLabel}>{t('settings.documents')}</Text>
+            <Text style={styles.sectionCaption}>
+              {t('settings.documentEmbeddingCaption')}
+            </Text>
           </View>
           <SettingsToggle
             disabled={status.isIndexing}
@@ -587,12 +722,12 @@ function Settings({
         </View>
 
         <Text style={styles.description}>
-          백그라운드 작업과 권한 상태는 네이티브 엔진 연결에 맞춰 갱신됩니다.
+          {t('settings.embeddingHelp')}
         </Text>
 
         <Button
           disabled={status.isIndexing}
-          label="SMS/갤러리/문서 임베딩 생성"
+          label={t('settings.startEmbedding')}
           textStyle={styles.refreshButtonText}
           onPress={handleStartIndexing}
           style={styles.refreshButton}
@@ -601,21 +736,21 @@ function Settings({
 
         <View style={styles.actionRow}>
           <Button
-            label="SMS 임베딩 삭제"
+            label={t('settings.deleteSmsEmbedding')}
             textStyle={styles.refreshButtonText}
             onPress={handleDeleteSms}
             style={styles.modelButton}
             variant="ghost"
           />
           <Button
-            label="갤러리 임베딩 삭제"
+            label={t('settings.deleteGalleryEmbedding')}
             textStyle={styles.refreshButtonText}
             onPress={handleDeleteGallery}
             style={styles.modelButton}
             variant="ghost"
           />
           <Button
-            label="문서 임베딩 삭제"
+            label={t('settings.deleteDocumentEmbedding')}
             textStyle={styles.refreshButtonText}
             onPress={handleDeleteDocuments}
             style={styles.modelButton}
@@ -624,7 +759,7 @@ function Settings({
         </View>
 
         <Button
-          label="상태 새로고침"
+          label={t('settings.refreshStatus')}
           textStyle={styles.refreshButtonText}
           onPress={refreshStatus}
           style={styles.refreshButton}
@@ -713,6 +848,125 @@ function SettingsNavigationRow({
         />
       </View>
     </Pressable>
+  );
+}
+
+type SearchableLanguageSelectProps = {
+  expanded: boolean;
+  locale: LocaleCode;
+  noResultsLabel: string;
+  onExpandedChange: (expanded: boolean) => void;
+  onQueryChange: (query: string) => void;
+  onSelect: (locale: LocaleCode) => void;
+  options: readonly SupportedLocale[];
+  query: string;
+  searchPlaceholder: string;
+  selectedLocale: SupportedLocale;
+};
+
+function SearchableLanguageSelect({
+  expanded,
+  locale,
+  noResultsLabel,
+  onExpandedChange,
+  onQueryChange,
+  onSelect,
+  options,
+  query,
+  searchPlaceholder,
+  selectedLocale,
+}: SearchableLanguageSelectProps) {
+  return (
+    <View style={styles.languageSelect}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityState={{ expanded }}
+        onPress={() => onExpandedChange(!expanded)}
+        style={({ pressed }) => [
+          styles.languageSelectTrigger,
+          expanded && styles.languageSelectTriggerActive,
+          pressed && styles.rowPressed,
+        ]}
+      >
+        <View style={styles.languageSelectValue}>
+          <Text numberOfLines={1} style={styles.languageSelectNative}>
+            {selectedLocale.nativeName}
+          </Text>
+          <Text numberOfLines={1} style={styles.languageSelectEnglish}>
+            {selectedLocale.englishName}
+          </Text>
+        </View>
+        <AppIcon
+          color={colors.mutedForeground}
+          icon={appIcons.chevronDown}
+          size={11}
+        />
+      </Pressable>
+
+      {expanded ? (
+        <View style={styles.languageSelectMenu}>
+          <TextInput
+            accessibilityLabel={searchPlaceholder}
+            autoCapitalize="none"
+            onChangeText={onQueryChange}
+            placeholder={searchPlaceholder}
+            placeholderTextColor={colors.mutedForeground}
+            style={styles.languageSearchInput}
+            value={query}
+          />
+          <ScrollView
+            keyboardShouldPersistTaps="handled"
+            nestedScrollEnabled
+            style={styles.languageOptionList}
+          >
+            {options.length > 0 ? (
+              options.map(option => {
+                const isSelected = option.code === locale;
+
+                return (
+                  <Pressable
+                    accessibilityLabel={`${option.nativeName} ${option.englishName}`}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: isSelected }}
+                    key={option.code}
+                    onPress={() => onSelect(option.code)}
+                    style={({ pressed }) => [
+                      styles.languageOption,
+                      isSelected && styles.languageOptionActive,
+                      pressed && styles.rowPressed,
+                    ]}
+                  >
+                    <View style={styles.languageOptionCopy}>
+                      <Text
+                        numberOfLines={1}
+                        style={styles.languageOptionNative}
+                      >
+                        {option.nativeName}
+                      </Text>
+                      <Text
+                        numberOfLines={1}
+                        style={styles.languageOptionEnglish}
+                      >
+                        {option.englishName}
+                      </Text>
+                    </View>
+                    {isSelected ? (
+                      <AppIcon
+                        color={colors.primary}
+                        icon={appIcons.selected}
+                        size={16}
+                      />
+                    ) : null}
+                  </Pressable>
+                );
+              })
+            ) : (
+              <Text style={styles.languageEmptyText}>{noResultsLabel}</Text>
+            )}
+          </ScrollView>
+        </View>
+      ) : null}
+    </View>
   );
 }
 
@@ -1002,6 +1256,111 @@ const styles = StyleSheet.create({
     lineHeight: 21,
     paddingHorizontal: 14,
     paddingVertical: 12,
+  },
+  languageSelect: {
+    position: 'relative',
+    zIndex: 20,
+  },
+  languageSelectTrigger: {
+    alignItems: 'center',
+    backgroundColor: colors.muted,
+    borderColor: colors.input,
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    minHeight: 52,
+    paddingHorizontal: 14,
+  },
+  languageSelectTriggerActive: {
+    backgroundColor: colors.card,
+    borderColor: colors.primary,
+  },
+  languageSelectValue: {
+    flex: 1,
+    minWidth: 0,
+    paddingRight: 12,
+  },
+  languageSelectNative: {
+    ...typography.label,
+    color: colors.foreground,
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  languageSelectEnglish: {
+    ...typography.caption,
+    color: colors.mutedForeground,
+    fontSize: 12,
+    fontWeight: '500',
+    marginTop: 3,
+  },
+  languageSelectMenu: {
+    backgroundColor: colors.card,
+    borderColor: colors.border,
+    borderRadius: 14,
+    borderWidth: StyleSheet.hairlineWidth,
+    elevation: 24,
+    left: 0,
+    marginTop: 8,
+    overflow: 'hidden',
+    position: 'absolute',
+    right: 0,
+    shadowColor: '#000000',
+    shadowOffset: { height: 12, width: 0 },
+    shadowOpacity: 0.12,
+    shadowRadius: 22,
+    top: 52,
+    zIndex: 24,
+  },
+  languageSearchInput: {
+    ...typography.body,
+    borderBottomColor: colors.border,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    color: colors.foreground,
+    fontSize: 15,
+    minHeight: 46,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  languageOptionList: {
+    maxHeight: 280,
+  },
+  languageOption: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    minHeight: 48,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+  },
+  languageOptionActive: {
+    backgroundColor: 'rgba(0,122,255,0.08)',
+  },
+  languageOptionCopy: {
+    flex: 1,
+    minWidth: 0,
+    paddingRight: 12,
+  },
+  languageOptionNative: {
+    ...typography.label,
+    color: colors.foreground,
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  languageOptionEnglish: {
+    ...typography.caption,
+    color: colors.mutedForeground,
+    fontSize: 12,
+    fontWeight: '500',
+    marginTop: 3,
+  },
+  languageEmptyText: {
+    ...typography.body,
+    color: colors.mutedForeground,
+    fontSize: 15,
+    lineHeight: 21,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
   },
   separator: {
     marginVertical: 14,

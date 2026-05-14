@@ -21,6 +21,7 @@ import {
 import AppIcon from '../components/AppIcon';
 import ChatBubble, { ChatRole } from '../components/ChatBubble';
 import LoadingDots from '../components/LoadingDots';
+import { I18nKey, useI18n } from '../i18n';
 import AIEngine, {
   AIChatMessage,
   MultimodalAttachment,
@@ -111,13 +112,20 @@ const chatModes: ChatMode[] = [
   { id: 'files', label: '파일' },
 ];
 
+const chatModeLabelKeys: Record<ChatMode['id'], I18nKey> = {
+  chat: 'chat.modeChat',
+  files: 'chat.modeFiles',
+  reason: 'chat.modeReason',
+  search: 'chat.modeSearch',
+};
+
 const INITIAL_SCROLL_BOTTOM_INSET = 170;
 const THREAD_SCROLL_BOTTOM_INSET = 210;
 const SCROLL_TO_BOTTOM_THRESHOLD = 140;
 const SCROLL_TO_BOTTOM_BUTTON_OFFSET = 198;
 
-const formatTime = (date: Date) =>
-  new Intl.DateTimeFormat('ko-KR', {
+const formatTime = (date: Date, locale: string) =>
+  new Intl.DateTimeFormat(locale, {
     hour: '2-digit',
     minute: '2-digit',
   }).format(date);
@@ -157,8 +165,10 @@ const createSessionTitle = (prompt: string) => {
 const getAttachmentKey = (attachment: MultimodalAttachment) =>
   attachment.id ?? attachment.uri;
 
-const getAttachmentName = (attachment: MultimodalAttachment) =>
-  attachment.name?.trim() || '첨부 파일';
+const getAttachmentName = (
+  attachment: MultimodalAttachment,
+  fallbackName: string,
+) => attachment.name?.trim() || fallbackName;
 
 const formatAttachmentSize = (sizeBytes?: number) => {
   if (
@@ -180,20 +190,30 @@ const formatAttachmentSize = (sizeBytes?: number) => {
   return `${(sizeBytes / (1024 * 1024)).toFixed(1)} MB`;
 };
 
-const createAttachmentSummary = (attachments: MultimodalAttachment[]) =>
-  attachments.map(getAttachmentName).join(', ');
+const createAttachmentSummary = (
+  attachments: MultimodalAttachment[],
+  fallbackName: string,
+) =>
+  attachments
+    .map(attachment => getAttachmentName(attachment, fallbackName))
+    .join(', ');
 
 const createUserMessageText = (
   prompt: string,
   attachments: MultimodalAttachment[],
+  fallbackAttachmentName: string,
+  attachmentPrefix: (summary: string) => string,
 ) => {
-  const attachmentSummary = createAttachmentSummary(attachments);
+  const attachmentSummary = createAttachmentSummary(
+    attachments,
+    fallbackAttachmentName,
+  );
 
   if (!attachmentSummary) {
     return prompt;
   }
 
-  return [prompt, `첨부 파일: ${attachmentSummary}`]
+  return [prompt, attachmentPrefix(attachmentSummary)]
     .filter(Boolean)
     .join('\n\n');
 };
@@ -205,6 +225,7 @@ function ChatScreen({
   selectedModelLabel = 'Gemma 4',
   sessionId = null,
 }: ChatScreenProps) {
+  const { locale, t } = useI18n();
   const scrollViewRef = useRef<ScrollView>(null);
   const inputRef = useRef<React.ElementRef<typeof TextInput>>(null);
   const isNearThreadEndRef = useRef(true);
@@ -228,6 +249,11 @@ function ChatScreen({
     string | null
   >(null);
   const [editingQueuedDraft, setEditingQueuedDraft] = useState('');
+  const defaultAttachmentName = t('chat.defaultAttachment');
+  const createLocalizedAttachmentPrefix = useCallback(
+    (summary: string) => t('chat.attachmentPrefix', { summary }),
+    [t],
+  );
 
   const hasUserMessages = useMemo(
     () => messages.some(message => message.role === 'user'),
@@ -356,15 +382,21 @@ function ChatScreen({
     const prompt = request.prompt.trim();
     const attachmentsForPrompt = request.attachments;
 
-    const promptForModel = prompt || '첨부한 파일을 분석해줘';
-    const userMessageText = createUserMessageText(prompt, attachmentsForPrompt);
+    const promptForModel = prompt || t('chat.analyzeAttachedFile');
+    const userMessageText = createUserMessageText(
+      prompt,
+      attachmentsForPrompt,
+      defaultAttachmentName,
+      createLocalizedAttachmentPrefix,
+    );
     const responseModelName = selectedModelLabel;
     const userMessage = createMessage('user', userMessageText);
     const assistantMessage = createMessage('assistant', '', responseModelName);
     const messagesWithUserPrompt = [...messages, userMessage];
     const nextSessionTitle = !hasUserMessages
       ? createSessionTitle(
-          prompt || createAttachmentSummary(attachmentsForPrompt),
+          prompt ||
+            createAttachmentSummary(attachmentsForPrompt, defaultAttachmentName),
         )
       : undefined;
     const shouldGenerateSessionTitle = !hasUserMessages;
@@ -419,7 +451,7 @@ function ChatScreen({
     );
     const resolvedSessionId = messagesChange.sessionId ?? sessionId;
     if (!hasUserMessages) {
-      onSessionTitleChange?.(nextSessionTitle ?? '새 채팅');
+      onSessionTitleChange?.(nextSessionTitle ?? t('chat.newChat'));
     }
     const generationToken = generationTokenRef.current + 1;
     generationTokenRef.current = generationToken;
@@ -554,7 +586,7 @@ function ChatScreen({
       const message =
         error instanceof Error
           ? error.message
-          : 'AI 응답 처리 중 알 수 없는 문제가 발생했습니다.';
+          : t('chat.unknownResponseError');
 
       onMessagesChange(
         [
@@ -562,7 +594,7 @@ function ChatScreen({
           ...(streamedResponse
             ? [{ ...assistantMessage, text: streamedResponse }]
             : []),
-          createMessage('system', `응답 실패: ${message}`),
+          createMessage('system', t('chat.responseFailed', { message })),
         ],
         nextSessionTitle,
       );
@@ -575,11 +607,14 @@ function ChatScreen({
     }
   }, [
     hasUserMessages,
+    createLocalizedAttachmentPrefix,
+    defaultAttachmentName,
     messages,
     onMessagesChange,
     onSessionTitleChange,
     selectedModelLabel,
     sessionId,
+    t,
   ]);
 
   const handleSend = useCallback(() => {
@@ -706,7 +741,7 @@ function ChatScreen({
         ...messages[assistantIndex],
         createdAt: new Date(),
         modelName: selectedModelLabel,
-        text: '다시 생성 중...',
+        text: t('chat.retrying'),
       };
       const messagesWithPendingRetry = messages.map((message, index) =>
         index === assistantIndex ? retriedAssistantMessage : message,
@@ -793,10 +828,10 @@ function ChatScreen({
         const message =
           error instanceof Error
             ? error.message
-            : 'AI 응답 처리 중 알 수 없는 문제가 발생했습니다.';
+            : t('chat.unknownResponseError');
 
         updateRetriedAssistantMessage(
-          streamedResponse || `응답 실패: ${message}`,
+          streamedResponse || t('chat.responseFailed', { message }),
         );
       } finally {
         if (generationTokenRef.current === generationToken) {
@@ -812,6 +847,7 @@ function ChatScreen({
       onMessagesChange,
       selectedModelLabel,
       sessionId,
+      t,
     ],
   );
 
@@ -831,15 +867,15 @@ function ChatScreen({
           id:
             attachment.id ??
             `${Date.now()}-${Math.random().toString(36).slice(2)}`,
-          name: getAttachmentName(attachment),
+          name: getAttachmentName(attachment, defaultAttachmentName),
         },
       ]);
     } catch (error) {
       const message =
-        error instanceof Error ? error.message : '파일을 선택하지 못했습니다.';
-      setAttachmentError(`파일 첨부 실패: ${message}`);
+        error instanceof Error ? error.message : t('chat.filePickFailed');
+      setAttachmentError(t('chat.attachmentFailed', { message }));
     }
-  }, []);
+  }, [defaultAttachmentName, t]);
 
   const handleRemoveAttachment = useCallback(
     (attachment: MultimodalAttachment) => {
@@ -901,11 +937,11 @@ function ChatScreen({
       >
         <View style={[styles.hero, hasUserMessages && styles.heroCompact]}>
           <Text style={styles.heroTitle}>
-            {hasUserMessages ? '대화' : '무엇이든 물어보세요'}
+            {hasUserMessages ? t('chat.threadTitle') : t('chat.heroTitle')}
           </Text>
           {!hasUserMessages ? (
             <Text style={styles.heroBody}>
-              로컬 AI가 빠르고 안전하게 답변해드려요.
+              {t('chat.heroBody')}
             </Text>
           ) : null}
         </View>
@@ -934,7 +970,7 @@ function ChatScreen({
                         isSelected && styles.modeTextSelected,
                       ]}
                     >
-                      {mode.label}
+                      {t(chatModeLabelKeys[mode.id])}
                     </Text>
                     {isSelected ? <View style={styles.modeIndicator} /> : null}
                   </Pressable>
@@ -970,8 +1006,12 @@ function ChatScreen({
         {hasUserMessages ? (
           <View style={styles.threadSection}>
             <View style={styles.cardHeader}>
-              <Text style={styles.cardTitle}>대화</Text>
-              <Text style={styles.sectionMeta}>{messages.length}개 메시지</Text>
+              <Text style={styles.cardTitle}>{t('chat.threadTitle')}</Text>
+              <Text style={styles.sectionMeta}>
+                {t('chat.messageCount', {
+                  count: messages.length.toLocaleString(locale),
+                })}
+              </Text>
             </View>
             <View style={styles.cardSeparator} />
 
@@ -1011,14 +1051,18 @@ function ChatScreen({
                     reasoning={message.reasoning}
                     role={message.role}
                     text={message.text}
-                    timestamp={formatTime(message.createdAt)}
+                    timestamp={formatTime(message.createdAt, locale)}
                   />
                 );
               })}
 
               {isGenerating && isAwaitingFirstChunk ? (
                 <View style={styles.loadingRow}>
-                  <LoadingDots label={`${selectedModelLabel} 응답 준비 중`} />
+                  <LoadingDots
+                    label={t('chat.loadingResponse', {
+                      model: selectedModelLabel,
+                    })}
+                  />
                 </View>
               ) : null}
             </View>
@@ -1028,7 +1072,7 @@ function ChatScreen({
 
       {showScrollToBottom ? (
         <Pressable
-          accessibilityLabel="최신 메시지로 이동"
+          accessibilityLabel={t('chat.scrollToBottom')}
           accessibilityRole="button"
           onPress={() => scrollToThreadEnd(true)}
           style={({ pressed }) => [
@@ -1050,7 +1094,10 @@ function ChatScreen({
           {selectedAttachments.length > 0 ? (
             <View style={styles.attachmentList}>
               {selectedAttachments.map(attachment => {
-                const attachmentName = getAttachmentName(attachment);
+                const attachmentName = getAttachmentName(
+                  attachment,
+                  defaultAttachmentName,
+                );
                 const attachmentSize = formatAttachmentSize(
                   attachment.sizeBytes,
                 );
@@ -1076,7 +1123,9 @@ function ChatScreen({
                       ) : null}
                     </View>
                     <Pressable
-                      accessibilityLabel={`${attachmentName} 제거`}
+                      accessibilityLabel={t('chat.removeAttachment', {
+                        name: attachmentName,
+                      })}
                       accessibilityRole="button"
                       onPress={() => handleRemoveAttachment(attachment)}
                       style={({ pressed }) => [
@@ -1095,7 +1144,7 @@ function ChatScreen({
           <TextInput
             multiline
             onChangeText={setDraft}
-            placeholder="Ask, search, or make anything..."
+            placeholder={t('chat.inputPlaceholder')}
             placeholderTextColor={colors.mutedForeground}
             ref={inputRef}
             style={styles.input}
@@ -1109,9 +1158,11 @@ function ChatScreen({
           {queuedRequests.length > 0 ? (
             <View style={styles.queuePanel}>
               <View style={styles.queueHeader}>
-                <Text style={styles.queueTitle}>대기열</Text>
+                <Text style={styles.queueTitle}>{t('chat.queueTitle')}</Text>
                 <Text style={styles.queueCount}>
-                  {queuedRequests.length}개 대기 중
+                  {t('chat.queueCount', {
+                    count: queuedRequests.length.toLocaleString(locale),
+                  })}
                 </Text>
               </View>
 
@@ -1124,9 +1175,10 @@ function ChatScreen({
                 {queuedRequests.map((request, index) => {
                   const isEditing = editingQueuedRequestId === request.id;
                   const queuedPrompt =
-                    request.prompt || '첨부한 파일을 분석해줘';
+                    request.prompt || t('chat.analyzeAttachedFile');
                   const attachmentSummary = createAttachmentSummary(
                     request.attachments,
+                    defaultAttachmentName,
                   );
 
                   return (
@@ -1140,7 +1192,7 @@ function ChatScreen({
                           <TextInput
                             multiline
                             onChangeText={setEditingQueuedDraft}
-                            placeholder="대기 중인 메시지 수정"
+                            placeholder={t('chat.queueEditPlaceholder')}
                             placeholderTextColor={colors.mutedForeground}
                             style={styles.queueEditInput}
                             value={editingQueuedDraft}
@@ -1152,7 +1204,9 @@ function ChatScreen({
                             </Text>
                             {attachmentSummary ? (
                               <Text numberOfLines={1} style={styles.queueMeta}>
-                                첨부: {attachmentSummary}
+                                {t('chat.attachmentPrefix', {
+                                  summary: attachmentSummary,
+                                })}
                               </Text>
                             ) : null}
                           </>
@@ -1162,7 +1216,7 @@ function ChatScreen({
                       {isEditing ? (
                         <View style={styles.queueTextActions}>
                           <Pressable
-                            accessibilityLabel="대기 메시지 저장"
+                            accessibilityLabel={t('chat.queueSaveAction')}
                             accessibilityRole="button"
                             onPress={() =>
                               handleSaveQueuedRequestEdit(request.id)
@@ -1173,11 +1227,11 @@ function ChatScreen({
                             ]}
                           >
                             <Text style={styles.queueTextActionLabel}>
-                              저장
+                              {t('chat.queueSave')}
                             </Text>
                           </Pressable>
                           <Pressable
-                            accessibilityLabel="대기 메시지 수정 취소"
+                            accessibilityLabel={t('chat.queueEditCancel')}
                             accessibilityRole="button"
                             onPress={handleCancelQueuedRequestEdit}
                             style={({ pressed }) => [
@@ -1186,14 +1240,14 @@ function ChatScreen({
                             ]}
                           >
                             <Text style={styles.queueTextActionLabelMuted}>
-                              취소
+                              {t('chat.queueCancel')}
                             </Text>
                           </Pressable>
                         </View>
                       ) : (
                         <View style={styles.queueIconActions}>
                           <Pressable
-                            accessibilityLabel="대기 메시지 수정"
+                            accessibilityLabel={t('chat.queueEdit')}
                             accessibilityRole="button"
                             onPress={() => handleEditQueuedRequest(request)}
                             style={({ pressed }) => [
@@ -1208,7 +1262,7 @@ function ChatScreen({
                             />
                           </Pressable>
                           <Pressable
-                            accessibilityLabel="대기 메시지 삭제"
+                            accessibilityLabel={t('chat.queueDelete')}
                             accessibilityRole="button"
                             onPress={() => handleDeleteQueuedRequest(request.id)}
                             style={({ pressed }) => [
@@ -1234,7 +1288,7 @@ function ChatScreen({
           <View style={styles.inputFooter}>
             <View style={styles.inputTools}>
               <Pressable
-                accessibilityLabel="파일 첨부"
+                accessibilityLabel={t('chat.attachFile')}
                 accessibilityRole="button"
                 onPress={handleAttachFile}
                 style={({ pressed }) => [
@@ -1253,10 +1307,10 @@ function ChatScreen({
             <Pressable
               accessibilityLabel={
                 shouldShowStopButton
-                  ? 'AI 응답 중단'
+                  ? t('chat.stopResponse')
                   : isGenerationBusy
-                  ? '대기열에 메시지 추가'
-                  : '메시지 보내기'
+                  ? t('chat.addToQueue')
+                  : t('chat.sendMessage')
               }
               accessibilityRole="button"
               disabled={shouldShowStopButton ? isStoppingGeneration : !canSubmit}

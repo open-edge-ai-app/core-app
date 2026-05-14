@@ -51,6 +51,7 @@ import {
 import { appIcons } from './src/theme/icons';
 import { colors, typography } from './src/theme/tokens';
 import { brandAssets } from './src/config/branding';
+import { I18nProvider, useI18n } from './src/i18n';
 
 const textDefaults = RNText as unknown as {
   defaultProps?: { allowFontScaling?: boolean; maxFontSizeMultiplier?: number };
@@ -523,7 +524,8 @@ const createCommonSystemPrompt = (
     .join('\n\n');
 };
 
-function App() {
+function AppContent() {
+  const { t } = useI18n();
   const activeSessionIdRef = useRef<string | null>(null);
   const [isAppStateHydrated, setIsAppStateHydrated] = useState(false);
   const [sessionTitle, setSessionTitle] = useState('새 채팅');
@@ -1220,7 +1222,7 @@ function App() {
             </View>
 
             <Text numberOfLines={1} style={styles.sessionTitle}>
-              {activeScreen === 'settings' ? '설정' : sessionTitle}
+              {activeScreen === 'settings' ? t('settings.title') : sessionTitle}
             </Text>
 
             <View style={[styles.headerSide, styles.headerSideRight]}>
@@ -3594,5 +3596,13 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
 });
+
+function App() {
+  return (
+    <I18nProvider>
+      <AppContent />
+    </I18nProvider>
+  );
+}
 
 export default App;

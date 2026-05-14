@@ -388,6 +388,232 @@ const en: Record<I18nKey, string> = {
   'settings.refreshStatus': 'Refresh status',
 };
 
+const localizedPersonalityTranslations: Record<
+  Exclude<LocaleCode, 'ko' | 'en'>,
+  Partial<Record<I18nKey, string>>
+> = {
+  'zh-Hans': {
+    'settings.personalityCaption': '已选择的性格会应用到 AI 回复风格。',
+    'settings.personalityPlaceholder': '选择性格。',
+    'settings.personality.balanced.label': '平衡',
+    'settings.personality.balanced.description':
+      '先给结论，再补充必要理由。',
+    'settings.personality.friendly.label': '友好',
+    'settings.personality.friendly.description':
+      '温和引导，避免多余修饰，并整理下一步。',
+    'settings.personality.concise.label': '简洁',
+    'settings.personality.concise.description':
+      '优先给核心答案和可立即执行的内容。',
+    'settings.personality.analytical.label': '分析型',
+    'settings.personality.analytical.description':
+      '清晰呈现依据、选项、不确定性和权衡。',
+  },
+  hi: {
+    'settings.personalityCaption':
+      'चयनित व्यक्तित्व AI उत्तर शैली पर लागू होगा।',
+    'settings.personalityPlaceholder': 'व्यक्तित्व चुनें।',
+    'settings.personality.balanced.label': 'संतुलित',
+    'settings.personality.balanced.description':
+      'पहले उत्तर दें, फिर केवल ज़रूरी कारण जोड़ें।',
+    'settings.personality.friendly.label': 'मित्रवत',
+    'settings.personality.friendly.description':
+      'नरम ढंग से मार्गदर्शन करें और अगले कदम साफ करें।',
+    'settings.personality.concise.label': 'संक्षिप्त',
+    'settings.personality.concise.description':
+      'मुख्य उत्तर और तुरंत करने योग्य बातें प्राथमिकता दें।',
+    'settings.personality.analytical.label': 'विश्लेषणात्मक',
+    'settings.personality.analytical.description':
+      'प्रमाण, विकल्प, अनिश्चितता और tradeoff स्पष्ट करें।',
+  },
+  es: {
+    'settings.personalityCaption':
+      'La personalidad seleccionada se aplica al estilo de respuesta de la IA.',
+    'settings.personalityPlaceholder': 'Elige una personalidad.',
+    'settings.personality.balanced.label': 'Equilibrada',
+    'settings.personality.balanced.description':
+      'Empieza con la respuesta y añade solo la razón necesaria.',
+    'settings.personality.friendly.label': 'Amable',
+    'settings.personality.friendly.description':
+      'Guía con suavidad y organiza los próximos pasos sin exceso.',
+    'settings.personality.concise.label': 'Concisa',
+    'settings.personality.concise.description':
+      'Prioriza la respuesta clave y los detalles accionables.',
+    'settings.personality.analytical.label': 'Analítica',
+    'settings.personality.analytical.description':
+      'Estructura evidencia, opciones, incertidumbre y tradeoffs.',
+  },
+  fr: {
+    'settings.personalityCaption':
+      "La personnalité choisie s'applique au style de réponse de l'IA.",
+    'settings.personalityPlaceholder': 'Choisissez une personnalité.',
+    'settings.personality.balanced.label': 'Équilibrée',
+    'settings.personality.balanced.description':
+      'Commence par la réponse, puis ajoute seulement le raisonnement utile.',
+    'settings.personality.friendly.label': 'Amicale',
+    'settings.personality.friendly.description':
+      'Guide avec douceur et organise les prochaines étapes sans excès.',
+    'settings.personality.concise.label': 'Concise',
+    'settings.personality.concise.description':
+      'Priorise la réponse clé et les détails directement exploitables.',
+    'settings.personality.analytical.label': 'Analytique',
+    'settings.personality.analytical.description':
+      'Structure les preuves, options, incertitudes et tradeoffs.',
+  },
+  ar: {
+    'settings.personalityCaption':
+      'يتم تطبيق الشخصية المختارة على أسلوب رد الذكاء الاصطناعي.',
+    'settings.personalityPlaceholder': 'اختر شخصية.',
+    'settings.personality.balanced.label': 'متوازن',
+    'settings.personality.balanced.description':
+      'ابدأ بالإجابة ثم أضف الأسباب الضرورية فقط.',
+    'settings.personality.friendly.label': 'ودود',
+    'settings.personality.friendly.description':
+      'يرشد بلطف وينظم الخطوات التالية دون إسهاب.',
+    'settings.personality.concise.label': 'موجز',
+    'settings.personality.concise.description':
+      'يركز على الإجابة الأساسية وما يمكن تنفيذه فورًا.',
+    'settings.personality.analytical.label': 'تحليلي',
+    'settings.personality.analytical.description':
+      'يعرض الأدلة والخيارات وعدم اليقين والمفاضلات بوضوح.',
+  },
+  bn: {
+    'settings.personalityCaption':
+      'নির্বাচিত ব্যক্তিত্ব AI উত্তরের ধরনে প্রয়োগ হবে।',
+    'settings.personalityPlaceholder': 'ব্যক্তিত্ব বেছে নিন।',
+    'settings.personality.balanced.label': 'ভারসাম্যপূর্ণ',
+    'settings.personality.balanced.description':
+      'আগে উত্তর দিন, তারপর শুধু দরকারি কারণ যোগ করুন।',
+    'settings.personality.friendly.label': 'বন্ধুত্বপূর্ণ',
+    'settings.personality.friendly.description':
+      'কোমলভাবে পথ দেখায় এবং পরের কাজ সাজায়।',
+    'settings.personality.concise.label': 'সংক্ষিপ্ত',
+    'settings.personality.concise.description':
+      'মূল উত্তর ও এখনই করণীয় বিষয়কে অগ্রাধিকার দেয়।',
+    'settings.personality.analytical.label': 'বিশ্লেষণধর্মী',
+    'settings.personality.analytical.description':
+      'প্রমাণ, বিকল্প, অনিশ্চয়তা ও tradeoff পরিষ্কার করে।',
+  },
+  ru: {
+    'settings.personalityCaption':
+      'Выбранный характер применяется к стилю ответов AI.',
+    'settings.personalityPlaceholder': 'Выберите характер.',
+    'settings.personality.balanced.label': 'Сбалансированный',
+    'settings.personality.balanced.description':
+      'Сначала ответ, затем только нужные обоснования.',
+    'settings.personality.friendly.label': 'Дружелюбный',
+    'settings.personality.friendly.description':
+      'Мягко направляет и упорядочивает следующие шаги без лишнего.',
+    'settings.personality.concise.label': 'Краткий',
+    'settings.personality.concise.description':
+      'Ставит в приоритет главный ответ и практические детали.',
+    'settings.personality.analytical.label': 'Аналитический',
+    'settings.personality.analytical.description':
+      'Четко структурирует факты, варианты, неопределенность и tradeoff.',
+  },
+  pt: {
+    'settings.personalityCaption':
+      'A personalidade selecionada é aplicada ao estilo de resposta da IA.',
+    'settings.personalityPlaceholder': 'Escolha uma personalidade.',
+    'settings.personality.balanced.label': 'Equilibrada',
+    'settings.personality.balanced.description':
+      'Começa pela resposta e adiciona só o raciocínio necessário.',
+    'settings.personality.friendly.label': 'Amigável',
+    'settings.personality.friendly.description':
+      'Orienta com suavidade e organiza próximos passos sem excesso.',
+    'settings.personality.concise.label': 'Concisa',
+    'settings.personality.concise.description':
+      'Prioriza a resposta principal e detalhes acionáveis.',
+    'settings.personality.analytical.label': 'Analítica',
+    'settings.personality.analytical.description':
+      'Estrutura evidências, opções, incertezas e tradeoffs.',
+  },
+  ur: {
+    'settings.personalityCaption':
+      'منتخب شخصیت AI کے جواب کے انداز پر لاگو ہوگی۔',
+    'settings.personalityPlaceholder': 'شخصیت منتخب کریں۔',
+    'settings.personality.balanced.label': 'متوازن',
+    'settings.personality.balanced.description':
+      'پہلے جواب دیں، پھر صرف ضروری وجہ شامل کریں۔',
+    'settings.personality.friendly.label': 'دوستانہ',
+    'settings.personality.friendly.description':
+      'نرمی سے رہنمائی کرے اور اگلے اقدامات واضح کرے۔',
+    'settings.personality.concise.label': 'مختصر',
+    'settings.personality.concise.description':
+      'اصل جواب اور فوری قابل عمل نکات کو ترجیح دے۔',
+    'settings.personality.analytical.label': 'تجزیاتی',
+    'settings.personality.analytical.description':
+      'ثبوت، اختیارات، غیر یقینی صورتحال اور tradeoff واضح کرے۔',
+  },
+  id: {
+    'settings.personalityCaption':
+      'Kepribadian yang dipilih diterapkan pada gaya respons AI.',
+    'settings.personalityPlaceholder': 'Pilih kepribadian.',
+    'settings.personality.balanced.label': 'Seimbang',
+    'settings.personality.balanced.description':
+      'Mulai dengan jawaban, lalu tambahkan alasan yang diperlukan saja.',
+    'settings.personality.friendly.label': 'Ramah',
+    'settings.personality.friendly.description':
+      'Memandu dengan lembut dan merapikan langkah berikutnya.',
+    'settings.personality.concise.label': 'Ringkas',
+    'settings.personality.concise.description':
+      'Utamakan jawaban inti dan detail yang langsung bisa dilakukan.',
+    'settings.personality.analytical.label': 'Analitis',
+    'settings.personality.analytical.description':
+      'Menyusun bukti, opsi, ketidakpastian, dan tradeoff dengan jelas.',
+  },
+  de: {
+    'settings.personalityCaption':
+      'Die ausgewählte Persönlichkeit wird auf den Antwortstil der KI angewendet.',
+    'settings.personalityPlaceholder': 'Persönlichkeit auswählen.',
+    'settings.personality.balanced.label': 'Ausgewogen',
+    'settings.personality.balanced.description':
+      'Beginnt mit der Antwort und ergänzt nur nötige Begründungen.',
+    'settings.personality.friendly.label': 'Freundlich',
+    'settings.personality.friendly.description':
+      'Führt sanft und ordnet nächste Schritte ohne Ausschweifen.',
+    'settings.personality.concise.label': 'Knapp',
+    'settings.personality.concise.description':
+      'Priorisiert die Kernaussage und direkt umsetzbare Details.',
+    'settings.personality.analytical.label': 'Analytisch',
+    'settings.personality.analytical.description':
+      'Strukturiert Belege, Optionen, Unsicherheit und tradeoffs klar.',
+  },
+  ja: {
+    'settings.personalityCaption':
+      '選択した性格がAIの回答スタイルに適用されます。',
+    'settings.personalityPlaceholder': '性格を選択してください。',
+    'settings.personality.balanced.label': 'バランス型',
+    'settings.personality.balanced.description':
+      '先に答えを示し、必要な理由だけを短く添えます。',
+    'settings.personality.friendly.label': '親切',
+    'settings.personality.friendly.description':
+      'やわらかく案内し、次の行動を整理します。',
+    'settings.personality.concise.label': '簡潔',
+    'settings.personality.concise.description':
+      '核心の答えとすぐ実行できる内容を優先します。',
+    'settings.personality.analytical.label': '分析的',
+    'settings.personality.analytical.description':
+      '根拠、選択肢、不確実性、tradeoffを明確に整理します。',
+  },
+  tr: {
+    'settings.personalityCaption':
+      'Seçilen kişilik AI yanıt stiline uygulanır.',
+    'settings.personalityPlaceholder': 'Bir kişilik seçin.',
+    'settings.personality.balanced.label': 'Dengeli',
+    'settings.personality.balanced.description':
+      'Önce yanıtı verir, sonra yalnızca gerekli gerekçeyi ekler.',
+    'settings.personality.friendly.label': 'Sıcak',
+    'settings.personality.friendly.description':
+      'Nazikçe yönlendirir ve sonraki adımları sade biçimde düzenler.',
+    'settings.personality.concise.label': 'Kısa',
+    'settings.personality.concise.description':
+      'Temel yanıtı ve hemen uygulanabilir ayrıntıları öne çıkarır.',
+    'settings.personality.analytical.label': 'Analitik',
+    'settings.personality.analytical.description':
+      'Kanıtları, seçenekleri, belirsizliği ve tradeoffları net düzenler.',
+  },
+};
+
 const compactTranslations: Record<
   Exclude<LocaleCode, 'ko' | 'en'>,
   Partial<Record<I18nKey, string>>
@@ -683,7 +909,20 @@ const compactTranslations: Record<
 const dictionaries: Record<LocaleCode, Partial<Record<I18nKey, string>>> = {
   ko: defaultMessages,
   en,
-  ...compactTranslations,
+  ...(Object.fromEntries(
+    Object.entries(compactTranslations).map(([locale, messages]) => [
+      locale,
+      {
+        ...messages,
+        ...localizedPersonalityTranslations[
+          locale as Exclude<LocaleCode, 'ko' | 'en'>
+        ],
+      },
+    ]),
+  ) as Record<
+    Exclude<LocaleCode, 'ko' | 'en'>,
+    Partial<Record<I18nKey, string>>
+  >),
 };
 
 type I18nContextValue = {

@@ -189,6 +189,7 @@ const defaultMessages = {
     '채팅 기록에서 생성된 메모리가 여기에 표시됩니다.',
   'settings.appearanceDescription':
     '앱에서 반복적으로 보는 텍스트의 표시 크기를 설정합니다.',
+  'settings.appearanceCaption': '언어 및 텍스트 크기',
   'settings.textSize': '텍스트 크기',
   'settings.textSize.compact.label': '작게',
   'settings.textSize.compact.description': '한 화면에 더 많은 내용을 보여줘요.',
@@ -316,6 +317,7 @@ const en: Record<I18nKey, string> = {
     'Memories created from chat history will appear here.',
   'settings.appearanceDescription':
     'Set the display size for text you see repeatedly in the app.',
+  'settings.appearanceCaption': 'Language and text size',
   'settings.textSize': 'Text size',
   'settings.textSize.compact.label': 'Compact',
   'settings.textSize.compact.description': 'Show more content on one screen.',

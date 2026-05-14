@@ -445,11 +445,29 @@ function Settings({
           <View>
             <Text style={styles.sectionTitle}>{t('settings.appearance')}</Text>
             <Text style={styles.sectionCaption}>
-              {t('settings.textSize')}
+              {t('settings.appearanceCaption')}
             </Text>
           </View>
           <Badge variant="outline">{selectedTextSizeLabel}</Badge>
         </View>
+
+        <View style={styles.fieldGroup}>
+          <Text style={styles.fieldLabel}>{t('settings.language')}</Text>
+          <SearchableLanguageSelect
+            expanded={isLanguageSelectOpen}
+            locale={locale}
+            noResultsLabel={t('settings.languageNoResults')}
+            onExpandedChange={handleLanguageExpandedChange}
+            onQueryChange={setLanguageQuery}
+            onSelect={handleSelectLanguage}
+            options={visibleLocales}
+            query={languageQuery}
+            searchPlaceholder={t('settings.languageSearchPlaceholder')}
+            selectedLocale={selectedLocale}
+          />
+        </View>
+
+        <Separator style={styles.separator} />
 
         <Text style={styles.personalizationDescription}>
           {selectedTextSizeDescription}
@@ -499,24 +517,6 @@ function Settings({
               </Pressable>
             );
           })}
-        </View>
-
-        <Separator style={styles.separator} />
-
-        <View style={styles.fieldGroup}>
-          <Text style={styles.fieldLabel}>{t('settings.language')}</Text>
-          <SearchableLanguageSelect
-            expanded={isLanguageSelectOpen}
-            locale={locale}
-            noResultsLabel={t('settings.languageNoResults')}
-            onExpandedChange={handleLanguageExpandedChange}
-            onQueryChange={setLanguageQuery}
-            onSelect={handleSelectLanguage}
-            options={visibleLocales}
-            query={languageQuery}
-            searchPlaceholder={t('settings.languageSearchPlaceholder')}
-            selectedLocale={selectedLocale}
-          />
         </View>
       </View>
     </>
@@ -1258,8 +1258,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
   },
   languageSelect: {
-    position: 'relative',
-    zIndex: 20,
+    alignSelf: 'stretch',
   },
   languageSelectTrigger: {
     alignItems: 'center',
@@ -1300,17 +1299,12 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     borderWidth: StyleSheet.hairlineWidth,
     elevation: 24,
-    left: 0,
     marginTop: 8,
     overflow: 'hidden',
-    position: 'absolute',
-    right: 0,
     shadowColor: '#000000',
     shadowOffset: { height: 12, width: 0 },
     shadowOpacity: 0.12,
     shadowRadius: 22,
-    top: 52,
-    zIndex: 24,
   },
   languageSearchInput: {
     ...typography.body,

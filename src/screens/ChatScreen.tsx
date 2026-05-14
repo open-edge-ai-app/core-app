@@ -416,6 +416,7 @@ function ChatScreen({
     }
 
     stopRequestedRef.current = true;
+    generationTokenRef.current += 1;
     setIsStoppingGeneration(true);
     setIsAwaitingFirstChunk(false);
     AIEngine.cancelActiveGeneration()

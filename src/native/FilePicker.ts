@@ -136,5 +136,5 @@ export async function pickAttachment(): Promise<MultimodalAttachment | null> {
     return nativeModule.pickAttachment();
   }
 
-  return null;
+  throw new Error('파일 선택 기능이 현재 플랫폼에 연결되어 있지 않습니다.');
 }

@@ -214,6 +214,7 @@ const nativePermissionsAndroid = NativeModules.PermissionsAndroid as
 const AI_ENGINE_STREAM_EVENT = 'AIEngineStreamChunk';
 const STREAM_IDLE_COMPLETION_MS = 45_000;
 const STREAM_HARD_TIMEOUT_MS = 120_000;
+const DEFAULT_CHAT_TITLE = '새 채팅';
 
 const androidPermissions = {
   READ_EXTERNAL_STORAGE: 'android.permission.READ_EXTERNAL_STORAGE',
@@ -319,7 +320,7 @@ const createFallbackChatTitle = (text: string) => {
   const normalized = text.replace(/\s+/g, ' ').trim();
 
   if (!normalized) {
-    return 'New chat';
+    return DEFAULT_CHAT_TITLE;
   }
 
   return normalized.length <= 40 ? normalized : `${normalized.slice(0, 40)}...`;
@@ -901,22 +902,24 @@ export const AIEngine = {
     userMessage: string,
     assistantMessage: string,
   ): Promise<string> {
-    const fallbackTitle = createFallbackChatTitle(userMessage);
-
     if (!nativeModule?.generateChatTitle) {
-      return fallbackTitle;
+      return DEFAULT_CHAT_TITLE;
     }
 
     const blockedReason = await ensureRuntimeReadyForGeneration();
     if (blockedReason) {
-      return fallbackTitle;
+      return DEFAULT_CHAT_TITLE;
     }
 
-    const title = await nativeModule.generateChatTitle(
-      userMessage,
-      assistantMessage,
-    );
-    return createFallbackChatTitle(title || fallbackTitle);
+    try {
+      const title = await nativeModule.generateChatTitle(
+        userMessage,
+        assistantMessage,
+      );
+      return createFallbackChatTitle(title || DEFAULT_CHAT_TITLE);
+    } catch {
+      return DEFAULT_CHAT_TITLE;
+    }
   },
 };
 

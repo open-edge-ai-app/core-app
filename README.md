@@ -105,7 +105,8 @@ npm start
 # Metro on port 8082, useful when 8081 is occupied
 npm run start:android
 
-# Android app
+# Android app. This installs debug, maps device 8081 to Metro 8082,
+# and starts com.onda/.MainActivity.
 npm run android
 npm run android:8082
 

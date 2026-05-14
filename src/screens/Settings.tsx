@@ -4,9 +4,18 @@ import React, {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react';
-import { Image, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import {
+  Image,
+  Modal,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  useWindowDimensions,
+  View,
+} from 'react-native';
 
 import AppIcon from '../components/AppIcon';
 import { Badge, Button, Separator } from '../components/ui';
@@ -53,6 +62,10 @@ const textSizeDescriptionKeys: Record<string, I18nKey> = {
   default: 'settings.textSize.default.description',
   large: 'settings.textSize.large.description',
 };
+const languageMenuGap = 8;
+const languageMenuMargin = 18;
+const languageMenuMaxHeight = 420;
+const languageMenuMinHeight = 220;
 
 const formatBytes = (bytes: number) => {
   if (bytes <= 0) {
@@ -876,12 +889,89 @@ function SearchableLanguageSelect({
   searchPlaceholder,
   selectedLocale,
 }: SearchableLanguageSelectProps) {
+  const triggerRef = useRef<View>(null);
+  const windowSize = useWindowDimensions();
+  const [triggerFrame, setTriggerFrame] = useState<{
+    height: number;
+    width: number;
+    x: number;
+    y: number;
+  } | null>(null);
+  const measureTrigger = useCallback(() => {
+    triggerRef.current?.measureInWindow((x, y, width, height) => {
+      setTriggerFrame({ height, width, x, y });
+    });
+  }, []);
+  const handleToggle = useCallback(() => {
+    if (expanded) {
+      onExpandedChange(false);
+      return;
+    }
+
+    measureTrigger();
+    onExpandedChange(true);
+  }, [expanded, measureTrigger, onExpandedChange]);
+
+  useEffect(() => {
+    if (!expanded) {
+      return;
+    }
+
+    const frame = requestAnimationFrame(measureTrigger);
+    return () => cancelAnimationFrame(frame);
+  }, [expanded, measureTrigger, windowSize.height, windowSize.width]);
+
+  const menuLayout = useMemo(() => {
+    if (!triggerFrame) {
+      return null;
+    }
+
+    const menuWidth = Math.min(
+      triggerFrame.width,
+      windowSize.width - languageMenuMargin * 2,
+    );
+    const left = Math.min(
+      Math.max(triggerFrame.x, languageMenuMargin),
+      windowSize.width - menuWidth - languageMenuMargin,
+    );
+    const spaceBelow =
+      windowSize.height -
+      triggerFrame.y -
+      triggerFrame.height -
+      languageMenuMargin;
+    const spaceAbove = triggerFrame.y - languageMenuMargin;
+    const openUp = spaceBelow < languageMenuMinHeight && spaceAbove > spaceBelow;
+    const availableSpace = Math.max(openUp ? spaceAbove : spaceBelow, 0);
+    const maxHeight = Math.max(
+      160,
+      Math.min(languageMenuMaxHeight, availableSpace - languageMenuGap),
+    );
+    const top = openUp
+      ? Math.max(
+          languageMenuMargin,
+          triggerFrame.y - maxHeight - languageMenuGap,
+        )
+      : Math.min(
+          triggerFrame.y + triggerFrame.height + languageMenuGap,
+          windowSize.height - maxHeight - languageMenuMargin,
+        );
+
+    return {
+      left,
+      maxHeight,
+      optionListMaxHeight: Math.max(110, maxHeight - 47),
+      top,
+      width: menuWidth,
+    };
+  }, [triggerFrame, windowSize.height, windowSize.width]);
+
   return (
     <View style={styles.languageSelect}>
       <Pressable
         accessibilityRole="button"
         accessibilityState={{ expanded }}
-        onPress={() => onExpandedChange(!expanded)}
+        onPress={handleToggle}
+        ref={triggerRef}
         style={({ pressed }) => [
           styles.languageSelectTrigger,
           expanded && styles.languageSelectTriggerActive,
@@ -903,69 +993,97 @@ function SearchableLanguageSelect({
         />
       </Pressable>
 
-      {expanded ? (
-        <View style={styles.languageSelectMenu}>
-          <TextInput
-            accessibilityLabel={searchPlaceholder}
-            autoCapitalize="none"
-            onChangeText={onQueryChange}
-            placeholder={searchPlaceholder}
-            placeholderTextColor={colors.mutedForeground}
-            style={styles.languageSearchInput}
-            value={query}
+      <Modal
+        animationType="none"
+        onRequestClose={() => onExpandedChange(false)}
+        transparent
+        visible={expanded}
+      >
+        <View style={styles.languageOverlay}>
+          <Pressable
+            accessibilityLabel="Close language menu"
+            accessibilityRole="button"
+            onPress={() => onExpandedChange(false)}
+            style={StyleSheet.absoluteFill}
           />
-          <ScrollView
-            keyboardShouldPersistTaps="handled"
-            nestedScrollEnabled
-            style={styles.languageOptionList}
-          >
-            {options.length > 0 ? (
-              options.map(option => {
-                const isSelected = option.code === locale;
+          {menuLayout ? (
+            <View
+              style={[
+                styles.languageSelectMenu,
+                {
+                  left: menuLayout.left,
+                  maxHeight: menuLayout.maxHeight,
+                  top: menuLayout.top,
+                  width: menuLayout.width,
+                },
+              ]}
+            >
+              <TextInput
+                accessibilityLabel={searchPlaceholder}
+                autoCapitalize="none"
+                onChangeText={onQueryChange}
+                placeholder={searchPlaceholder}
+                placeholderTextColor={colors.mutedForeground}
+                style={styles.languageSearchInput}
+                value={query}
+              />
+              <ScrollView
+                keyboardShouldPersistTaps="handled"
+                nestedScrollEnabled
+                style={[
+                  styles.languageOptionList,
+                  { maxHeight: menuLayout.optionListMaxHeight },
+                ]}
+              >
+                {options.length > 0 ? (
+                  options.map(option => {
+                    const isSelected = option.code === locale;
 
-                return (
-                  <Pressable
-                    accessibilityLabel={`${option.nativeName} ${option.englishName}`}
-                    accessibilityRole="button"
-                    accessibilityState={{ selected: isSelected }}
-                    key={option.code}
-                    onPress={() => onSelect(option.code)}
-                    style={({ pressed }) => [
-                      styles.languageOption,
-                      isSelected && styles.languageOptionActive,
-                      pressed && styles.rowPressed,
-                    ]}
-                  >
-                    <View style={styles.languageOptionCopy}>
-                      <Text
-                        numberOfLines={1}
-                        style={styles.languageOptionNative}
+                    return (
+                      <Pressable
+                        accessibilityLabel={`${option.nativeName} ${option.englishName}`}
+                        accessibilityRole="button"
+                        accessibilityState={{ selected: isSelected }}
+                        key={option.code}
+                        onPress={() => onSelect(option.code)}
+                        style={({ pressed }) => [
+                          styles.languageOption,
+                          isSelected && styles.languageOptionActive,
+                          pressed && styles.rowPressed,
+                        ]}
                       >
-                        {option.nativeName}
-                      </Text>
-                      <Text
-                        numberOfLines={1}
-                        style={styles.languageOptionEnglish}
-                      >
-                        {option.englishName}
-                      </Text>
-                    </View>
-                    {isSelected ? (
-                      <AppIcon
-                        color={colors.primary}
-                        icon={appIcons.selected}
-                        size={16}
-                      />
-                    ) : null}
-                  </Pressable>
-                );
-              })
-            ) : (
-              <Text style={styles.languageEmptyText}>{noResultsLabel}</Text>
-            )}
-          </ScrollView>
+                        <View style={styles.languageOptionCopy}>
+                          <Text
+                            numberOfLines={1}
+                            style={styles.languageOptionNative}
+                          >
+                            {option.nativeName}
+                          </Text>
+                          <Text
+                            numberOfLines={1}
+                            style={styles.languageOptionEnglish}
+                          >
+                            {option.englishName}
+                          </Text>
+                        </View>
+                        {isSelected ? (
+                          <AppIcon
+                            color={colors.primary}
+                            icon={appIcons.selected}
+                            size={16}
+                          />
+                        ) : null}
+                      </Pressable>
+                    );
+                  })
+                ) : (
+                  <Text style={styles.languageEmptyText}>{noResultsLabel}</Text>
+                )}
+              </ScrollView>
+            </View>
+          ) : null}
         </View>
-      ) : null}
+      </Modal>
     </View>
   );
 }
@@ -1260,6 +1378,9 @@ const styles = StyleSheet.create({
   languageSelect: {
     alignSelf: 'stretch',
   },
+  languageOverlay: {
+    flex: 1,
+  },
   languageSelectTrigger: {
     alignItems: 'center',
     backgroundColor: colors.muted,
@@ -1298,13 +1419,14 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     borderRadius: 14,
     borderWidth: StyleSheet.hairlineWidth,
-    elevation: 24,
-    marginTop: 8,
+    elevation: 96,
     overflow: 'hidden',
+    position: 'absolute',
     shadowColor: '#000000',
     shadowOffset: { height: 12, width: 0 },
     shadowOpacity: 0.12,
     shadowRadius: 22,
+    zIndex: 96,
   },
   languageSearchInput: {
     ...typography.body,

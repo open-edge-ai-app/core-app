@@ -20,8 +20,10 @@ npm install
 | ------------------------- | --------------------------------------------------- |
 | `npm start`               | Start Metro on the default port.                    |
 | `npm run start:android`   | Start Metro on port `8082`.                         |
-| `npm run android`         | Build and run Android using the default Metro port. |
-| `npm run android:8082`    | Build and run Android using port `8082`.            |
+| `npm run android`         | Install debug, map device `8081` to Metro `8082`, and launch Android. |
+| `npm run android:8082`    | Same as `npm run android`; kept for explicit Android 8082 workflows. |
+| `npm run android:activate`| Re-apply the Android port reverse and foreground the app.             |
+| `npm run android:reverse` | Re-apply only `adb reverse tcp:8081 tcp:8082`.                         |
 | `npm run ios`             | Build and run the iOS app.                          |
 | `npm run web`             | Start the Vite web preview.                         |
 | `npm run lint`            | Run ESLint.                                         |
@@ -34,18 +36,18 @@ For local Android testing when port `8081` is occupied:
 
 ```sh
 npm run start:android
-npm run android:8082
+npm run android
 ```
 
-For a physical Android device, make sure USB debugging is enabled and the device
-is visible:
+The Android script maps the device's React Native default port to Metro `8082`:
 
 ```sh
 adb devices
-adb reverse tcp:8081 tcp:8082
+npm run android:reverse
 ```
 
-Then run the Android target with the `8082` script.
+This avoids failures where another local process owns host `127.0.0.1:8081`
+and returns HTML instead of the React Native bundle.
 
 ## iOS Development
 

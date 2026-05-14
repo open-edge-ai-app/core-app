@@ -1,11 +1,13 @@
 package com.openedgeai.core
 
+import android.app.ActivityManager
 import android.content.Context
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
 
 object ModelRuntimeManager {
     private val lock = ReentrantLock()
+    private const val MIN_GENERATION_AVAILABLE_MEMORY_BYTES = 1_500_000_000L
 
     @Volatile
     private var engine: Any? = null
@@ -15,6 +17,9 @@ object ModelRuntimeManager {
 
     @Volatile
     private var lastError: String? = null
+
+    @Volatile
+    private var appContext: Context? = null
 
     fun getStatus(modelFileManager: ModelFileManager): RuntimeStatus {
         val modelStatus = modelFileManager.getStatus()
@@ -32,6 +37,7 @@ object ModelRuntimeManager {
         context: Context,
         modelFileManager: ModelFileManager,
     ): RuntimeStatus = lock.withLock {
+        appContext = context.applicationContext
         val modelStatus = modelFileManager.getStatus()
         if (!modelStatus.installed) {
             lastError = "Model is not installed."
@@ -73,6 +79,16 @@ object ModelRuntimeManager {
                 route = "invalid",
                 modalities = emptyList(),
             )
+        memoryPressureMessage()?.let { message ->
+            closeEngineLocked()
+            lastError = message
+            return AIResponse(
+                type = "error",
+                message = message,
+                route = "invalid",
+                modalities = emptyList(),
+            )
+        }
 
         val response = LiteRtLmReflector.sendText(
             handle = currentEngine as LiteRtLmReflector.EngineHandle,
@@ -100,6 +116,16 @@ object ModelRuntimeManager {
                 route = "invalid",
                 modalities = modalities,
             )
+        memoryPressureMessage()?.let { message ->
+            closeEngineLocked()
+            lastError = message
+            return AIResponse(
+                type = "error",
+                message = message,
+                route = "invalid",
+                modalities = modalities,
+            )
+        }
 
         val response = LiteRtLmReflector.sendMultimodal(
             currentEngine as LiteRtLmReflector.EngineHandle,
@@ -122,6 +148,24 @@ object ModelRuntimeManager {
         onComplete: (AIResponse) -> Unit,
         onError: (Throwable) -> Unit,
     ): Boolean {
+        val blockedReason = lock.withLock {
+            memoryPressureMessage()?.also { message ->
+                closeEngineLocked()
+                lastError = message
+            }
+        }
+        if (blockedReason != null) {
+            onComplete(
+                AIResponse(
+                    type = "error",
+                    message = blockedReason,
+                    route = "invalid",
+                    modalities = modalities,
+                ),
+            )
+            return false
+        }
+
         val currentEngine = lock.withLock { engine }
             ?: run {
                 onComplete(
@@ -181,5 +225,24 @@ object ModelRuntimeManager {
         } finally {
             engine = null
         }
+    }
+
+    private fun memoryPressureMessage(): String? {
+        val context = appContext ?: return null
+        val activityManager =
+            context.getSystemService(Context.ACTIVITY_SERVICE) as? ActivityManager ?: return null
+        val memoryInfo = ActivityManager.MemoryInfo()
+        activityManager.getMemoryInfo(memoryInfo)
+
+        if (
+            !memoryInfo.lowMemory &&
+            memoryInfo.availMem >= MIN_GENERATION_AVAILABLE_MEMORY_BYTES
+        ) {
+            return null
+        }
+
+        val availableMb = memoryInfo.availMem / (1024 * 1024)
+        val requiredMb = MIN_GENERATION_AVAILABLE_MEMORY_BYTES / (1024 * 1024)
+        return "현재 기기 메모리가 부족해서 온디바이스 모델 응답을 시작하지 않았습니다. 사용 가능 메모리 ${availableMb}MB, 권장 최소 ${requiredMb}MB입니다. 다른 앱을 종료하거나 더 가벼운 모델을 사용해주세요."
     }
 }

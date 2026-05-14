@@ -67,14 +67,27 @@ type MessagesChangeResult = {
   sessionId: string | null;
 };
 
+type MessagesChangeOptions = {
+  persist?: boolean;
+};
+
+type SessionTitleChangeOptions = {
+  animated?: boolean;
+  sessionId?: string | null;
+};
+
 type ChatScreenProps = {
   commonSystemPrompt?: string;
   messages: ChatMessage[];
   onMessagesChange: (
     nextMessages: ChatMessage[],
     sessionTitleCandidate?: string,
+    options?: MessagesChangeOptions,
   ) => MessagesChangeResult;
-  onSessionTitleChange?: (title: string) => void;
+  onSessionTitleChange?: (
+    title: string,
+    options?: SessionTitleChangeOptions,
+  ) => void;
   selectedModelLabel?: string;
   sessionId?: string | null;
 };
@@ -120,12 +133,60 @@ const INITIAL_SCROLL_BOTTOM_INSET = 170;
 const THREAD_SCROLL_BOTTOM_INSET = 210;
 const SCROLL_TO_BOTTOM_THRESHOLD = 140;
 const SCROLL_TO_BOTTOM_BUTTON_OFFSET = 198;
+const PENDING_CHAT_TITLE = '제목 생성 중';
 
 const formatTime = (date: Date, locale: string) =>
   new Intl.DateTimeFormat(locale, {
     hour: '2-digit',
     minute: '2-digit',
   }).format(date);
+
+const formatLocalDate = (date: Date) => {
+  const year = date.getFullYear();
+  const month = `${date.getMonth() + 1}`.padStart(2, '0');
+  const day = `${date.getDate()}`.padStart(2, '0');
+
+  return `${year}-${month}-${day}`;
+};
+
+const createRuntimeContextMessage = (date = new Date()): AIChatMessage => {
+  const localDate = formatLocalDate(date);
+  const readableDate = new Intl.DateTimeFormat('ko-KR', {
+    day: 'numeric',
+    month: 'long',
+    weekday: 'long',
+    year: 'numeric',
+  }).format(date);
+  const readableTime = new Intl.DateTimeFormat('ko-KR', {
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(date);
+  const timeZone =
+    Intl.DateTimeFormat().resolvedOptions().timeZone || 'local time';
+
+  return {
+    content: [
+      '현재 날짜/시간 컨텍스트입니다.',
+      `오늘은 ${readableDate}입니다.`,
+      `로컬 날짜: ${localDate}`,
+      `현재 로컬 시각: ${readableTime}`,
+      `시간대: ${timeZone}`,
+      '사용자가 "오늘", "내일", "어제", "이번 주"처럼 상대 날짜를 말하면 이 값을 기준으로 해석하세요.',
+    ].join('\n'),
+    role: 'system',
+  };
+};
+
+const createSystemHistory = (commonSystemPrompt: string): AIChatMessage[] => [
+  ...(commonSystemPrompt.trim()
+    ? [
+        {
+          content: commonSystemPrompt.trim(),
+          role: 'system' as const,
+        },
+      ]
+    : []),
+];
 
 const createMessage = (
   role: ChatRole,
@@ -151,15 +212,6 @@ const createQueuedChatRequest = (
   prompt,
 });
 
-const createSessionTitle = (prompt: string) => {
-  const normalizedPrompt = prompt.replace(/\s+/g, ' ').trim();
-
-  if (normalizedPrompt.length <= 18) {
-    return normalizedPrompt;
-  }
-
-  return `${normalizedPrompt.slice(0, 18)}...`;
-};
 
 const getAttachmentKey = (attachment: MultimodalAttachment) =>
   attachment.id ?? attachment.uri;
@@ -197,7 +249,19 @@ const createAttachmentSummary = (
     .map(attachment => getAttachmentName(attachment, fallbackName))
     .join(', ');
 
+export const createConversationHistory = (
+  messages: ChatMessage[],
+): AIChatMessage[] =>
+  messages
+    .filter(message => message.id !== 'welcome' && message.role !== 'system')
+    .map(message => ({
+      content: message.text.trim(),
+      role: message.role,
+    }))
+    .filter(message => message.content.length > 0);
+
 function ChatScreen({
+  commonSystemPrompt = '',
   messages,
   onMessagesChange,
   onSessionTitleChange,
@@ -233,6 +297,10 @@ function ChatScreen({
   const conversationMessages = useMemo(
     () => messages.filter(message => !isInitialWelcomeMessage(message)),
     [messages],
+  );
+  const systemHistory = useMemo<AIChatMessage[]>(
+    () => createSystemHistory(commonSystemPrompt),
+    [commonSystemPrompt],
   );
   const hasUserMessages = useMemo(
     () => conversationMessages.some(message => message.role === 'user'),
@@ -373,12 +441,7 @@ function ChatScreen({
     );
     const assistantMessage = createMessage('assistant', '', responseModelName);
     const messagesWithUserPrompt = [...conversationMessages, userMessage];
-    const nextSessionTitle = !hasUserMessages
-      ? createSessionTitle(
-          prompt ||
-            createAttachmentSummary(attachmentsForPrompt, defaultAttachmentName),
-        )
-      : undefined;
+    const nextSessionTitle = !hasUserMessages ? PENDING_CHAT_TITLE : undefined;
     const shouldGenerateSessionTitle = !hasUserMessages;
 
     if (prompt === '/compact') {
@@ -431,7 +494,9 @@ function ChatScreen({
     );
     const resolvedSessionId = messagesChange.sessionId ?? sessionId;
     if (!hasUserMessages) {
-      onSessionTitleChange?.(nextSessionTitle ?? t('chat.newChat'));
+      onSessionTitleChange?.(PENDING_CHAT_TITLE, {
+        sessionId: resolvedSessionId,
+      });
     }
     const generationToken = generationTokenRef.current + 1;
     generationTokenRef.current = generationToken;
@@ -450,7 +515,11 @@ function ChatScreen({
         );
       }
 
-      const requestHistory: AIChatMessage[] = [];
+      const requestHistory = [
+        ...systemHistory,
+        createRuntimeContextMessage(),
+        ...createConversationHistory(messages),
+      ];
 
       const updateAssistantMessage = (text: string) => {
         if (
@@ -470,6 +539,7 @@ function ChatScreen({
             },
           ],
           nextSessionTitle,
+          { persist: false },
         );
       };
 
@@ -550,7 +620,10 @@ function ChatScreen({
           .then(title => {
             const normalizedTitle = title.trim();
             if (normalizedTitle) {
-              onSessionTitleChange?.(normalizedTitle);
+              onSessionTitleChange?.(normalizedTitle, {
+                animated: true,
+                sessionId: resolvedSessionId,
+              });
             }
           })
           .catch(() => undefined);
@@ -736,6 +809,8 @@ function ChatScreen({
               ? { ...retriedAssistantMessage, text }
               : message,
           ),
+          undefined,
+          { persist: false },
         );
       };
 
@@ -758,7 +833,11 @@ function ChatScreen({
           );
         }
 
-        const requestHistory: AIChatMessage[] = [];
+        const requestHistory = [
+          ...createSystemHistory(commonSystemPrompt),
+          createRuntimeContextMessage(),
+          ...createConversationHistory(messages.slice(0, userIndex + 1)),
+        ];
 
         const response = await AIEngine.generateResponseStream(
           promptForModel,
@@ -1649,6 +1728,9 @@ const styles = StyleSheet.create({
     height: 36,
     justifyContent: 'center',
     width: 34,
+  },
+  disabledTool: {
+    opacity: 0.38,
   },
   sendButton: {
     alignItems: 'center',

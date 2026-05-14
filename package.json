@@ -23,8 +23,10 @@
     "react-native"
   ],
   "scripts": {
-    "android": "react-native run-android",
-    "android:8082": "react-native run-android --port 8082",
+    "android": "node scripts/android-dev.mjs install",
+    "android:8082": "node scripts/android-dev.mjs install",
+    "android:activate": "node scripts/android-dev.mjs activate",
+    "android:reverse": "node scripts/android-dev.mjs reverse",
     "branding:apply": "node scripts/apply-branding.mjs",
     "ios": "react-native run-ios",
     "lint": "eslint .",

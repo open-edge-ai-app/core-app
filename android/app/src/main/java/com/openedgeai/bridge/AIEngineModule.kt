@@ -203,7 +203,7 @@ class AIEngineModule(
             vectorDBHelper.upsertChatSession(
                 chat = ChatRecord(
                     id = sessionId,
-                    title = title.ifBlank { "New chat" },
+                    title = title.ifBlank { DEFAULT_CHAT_TITLE },
                     createdAt = existing?.chat?.createdAt ?: now,
                     updatedAt = now,
                 ),
@@ -251,6 +251,8 @@ class AIEngineModule(
             Rules:
             - Match the user's language.
             - Use 3 to 8 words when possible.
+            - Prefer the main topic or outcome over copying the user's first request.
+            - Do not return the full user message.
             - Do not use quotes.
             - Do not add trailing punctuation.
             - Return only the title.
@@ -264,7 +266,7 @@ class AIEngineModule(
             val title = GemmaManager()
                 .generate(prompt, useRag = false)
                 .toChatTitle()
-                .ifBlank { userMessage.toChatTitle() }
+                .ifBlank { DEFAULT_CHAT_TITLE }
             promise.resolve(title)
         } catch (error: Exception) {
             promise.reject("CHAT_TITLE_ERROR", error)
@@ -1177,6 +1179,7 @@ class AIEngineModule(
         private const val FILE_PICKER_REQUEST_CODE = 41042
         private const val STREAM_EVENT_NAME = "AIEngineStreamChunk"
         private const val MAX_CHAT_TITLE_LENGTH = 40
+        private const val DEFAULT_CHAT_TITLE = "새 채팅"
         private val ISO_FORMAT = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.US).apply {
             timeZone = TimeZone.getTimeZone("UTC")
         }

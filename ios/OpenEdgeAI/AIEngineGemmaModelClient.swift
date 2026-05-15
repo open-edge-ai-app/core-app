@@ -7,6 +7,7 @@ final class AIEngineGemmaModelClient: NSObject, URLSessionDownloadDelegate {
   private let lock = NSLock()
   private var downloadTask: URLSessionDownloadTask?
   private var activeTask: Task<Void, Never>?
+  private let runtime = AIEngineLiteRtLmRuntime.shared()
 
   private lazy var session: URLSession = {
     let configuration = URLSessionConfiguration.default
@@ -31,6 +32,17 @@ final class AIEngineGemmaModelClient: NSObject, URLSessionDownloadDelegate {
     let fileBytes = fileSize(at: file)
     let installed = fileBytes == modelSizeBytes
     let currentBytes = isDownloading ? bytesDownloaded : fileBytes
+    let runtimeStatus = runtime.status(withModelInstalled: installed, localPath: file.path)
+    let runtimeAvailable = boolValue(runtimeStatus["runtimeAvailable"])
+    let runtimeError = installed ? stringValue(runtimeStatus["error"]) : nil
+    let errorValue: Any
+    if let lastError {
+      errorValue = lastError
+    } else if let runtimeError {
+      errorValue = runtimeError
+    } else {
+      errorValue = NSNull()
+    }
 
     return [
       "modelId": modelId,
@@ -41,34 +53,44 @@ final class AIEngineGemmaModelClient: NSObject, URLSessionDownloadDelegate {
       "totalBytes": modelSizeBytes,
       "localPath": file.path,
       "downloadUrl": downloadUrl,
-      "error": lastError ?? NSNull(),
+      "error": errorValue,
       "provider": "google",
-      "runnable": false,
+      "runnable": runtimeAvailable,
       "started": started,
       "systemManaged": false
     ] as NSDictionary
   }
 
   func runtimeStatus() -> NSDictionary {
-    let installed = fileSize(at: modelFileURL()) == modelSizeBytes
-    return [
-      "modelInstalled": installed,
-      "loaded": false,
-      "loading": false,
-      "canGenerate": false,
-      "localPath": modelFileURL().path,
-      "error": installed
-        ? "Gemma 4 iOS 추론 런타임이 아직 앱에 연결되지 않았습니다."
-        : "Gemma 4 모델 파일이 아직 설치되지 않았습니다."
-    ] as NSDictionary
+    let file = modelFileURL()
+    let installed = fileSize(at: file) == modelSizeBytes
+    let status = NSMutableDictionary(dictionary: runtime.status(withModelInstalled: installed, localPath: file.path))
+
+    if !installed {
+      status["modelInstalled"] = false
+      status["loaded"] = false
+      status["loading"] = false
+      status["canGenerate"] = false
+      status["localPath"] = file.path
+      status["error"] = "Gemma 4 모델 파일이 아직 설치되지 않았습니다."
+    }
+
+    return status
   }
 
   func loadModel() -> NSDictionary {
-    return runtimeStatus()
+    let file = modelFileURL()
+    guard fileSize(at: file) == modelSizeBytes else {
+      runtime.unload()
+      return runtimeStatus()
+    }
+
+    return NSDictionary(dictionary: runtime.loadModel(atPath: file.path, cacheDirectory: runtimeCacheDirectoryURL().path))
   }
 
   func unloadModel() -> NSDictionary {
     cancelActiveGeneration()
+    runtime.unload()
     return runtimeStatus()
   }
 
@@ -80,7 +102,8 @@ final class AIEngineGemmaModelClient: NSObject, URLSessionDownloadDelegate {
     lock.unlock()
 
     task?.cancel()
-    return task != nil
+    let runtimeCancelled = runtime.cancelActiveGeneration()
+    return task != nil || runtimeCancelled
   }
 
   func downloadModel() -> NSDictionary {
@@ -134,7 +157,29 @@ final class AIEngineGemmaModelClient: NSObject, URLSessionDownloadDelegate {
   }
 
   func generateResponse(prompt: String, completion: @escaping (NSString?, NSString?) -> Void) {
-    completion(nil, runtimeUnavailableMessage() as NSString)
+    if let errorMessage = prepareRuntimeForGeneration() {
+      completion(nil, errorMessage as NSString)
+      return
+    }
+
+    let task = Task.detached(priority: .userInitiated) { [weak self] in
+      guard let self else {
+        completion(nil, "Gemma 4 런타임이 해제되었습니다." as NSString)
+        return
+      }
+
+      let result = self.runtime.generatePrompt(prompt)
+      self.clearActiveTask()
+
+      if let error = self.stringValue(result["error"]) {
+        completion(nil, error as NSString)
+        return
+      }
+
+      completion((self.stringValue(result["message"]) ?? "") as NSString, nil)
+    }
+
+    setActiveTask(task)
   }
 
   func streamResponse(
@@ -142,7 +187,31 @@ final class AIEngineGemmaModelClient: NSObject, URLSessionDownloadDelegate {
     onChunk: @escaping (NSString) -> Void,
     completion: @escaping (NSString?, NSString?) -> Void
   ) {
-    completion(nil, runtimeUnavailableMessage() as NSString)
+    if let errorMessage = prepareRuntimeForGeneration() {
+      completion(nil, errorMessage as NSString)
+      return
+    }
+
+    let task = Task.detached(priority: .userInitiated) { [weak self] in
+      guard let self else {
+        completion(nil, "Gemma 4 런타임이 해제되었습니다." as NSString)
+        return
+      }
+
+      let result = self.runtime.streamPrompt(prompt) { chunk in
+        onChunk(chunk as NSString)
+      }
+      self.clearActiveTask()
+
+      if let error = self.stringValue(result["error"]) {
+        completion(nil, error as NSString)
+        return
+      }
+
+      completion((self.stringValue(result["message"]) ?? "") as NSString, nil)
+    }
+
+    setActiveTask(task)
   }
 
   func generateTitle(
@@ -150,7 +219,22 @@ final class AIEngineGemmaModelClient: NSObject, URLSessionDownloadDelegate {
     assistantMessage: String,
     completion: @escaping (NSString?, NSString?) -> Void
   ) {
-    completion(nil, runtimeUnavailableMessage() as NSString)
+    let titlePrompt = [
+      "Create a short chat title from this first exchange.",
+      "Rules:",
+      "- Match the user's language.",
+      "- Use 3 to 8 words when possible.",
+      "- Do not return the full user message.",
+      "- Return only the title.",
+      "",
+      "User:",
+      userMessage,
+      "",
+      "Assistant:",
+      assistantMessage
+    ].joined(separator: "\n")
+
+    generateResponse(prompt: titlePrompt, completion: completion)
   }
 
   func urlSession(
@@ -225,12 +309,46 @@ final class AIEngineGemmaModelClient: NSObject, URLSessionDownloadDelegate {
       return "Gemma 4 모델을 먼저 다운로드해주세요."
     }
 
-    return "Gemma 4 모델 파일은 설치되어 있지만, iOS Gemma 4 추론 런타임이 아직 앱에 연결되지 않았습니다. 현재 iOS에서는 Apple Intelligence 모델을 사용해주세요."
+    let status = runtime.status(withModelInstalled: installed, localPath: modelFileURL().path)
+    return stringValue(status["error"])
+      ?? "Gemma 4 모델 파일은 설치되어 있지만, iOS Gemma 4 추론 런타임이 아직 앱에 연결되지 않았습니다."
+  }
+
+  private func prepareRuntimeForGeneration() -> String? {
+    let file = modelFileURL()
+    guard fileSize(at: file) == modelSizeBytes else {
+      return "Gemma 4 모델을 먼저 다운로드해주세요."
+    }
+
+    let status = runtime.loadModel(atPath: file.path, cacheDirectory: runtimeCacheDirectoryURL().path)
+    if boolValue(status["canGenerate"]) {
+      return nil
+    }
+
+    return stringValue(status["error"])
+      ?? "Gemma 4 iOS 런타임을 켜지 못했습니다."
+  }
+
+  private func setActiveTask(_ task: Task<Void, Never>) {
+    lock.lock()
+    activeTask = task
+    lock.unlock()
+  }
+
+  private func clearActiveTask() {
+    lock.lock()
+    activeTask = nil
+    lock.unlock()
   }
 
   private func modelsDirectoryURL() -> URL {
     let documents = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
     return documents.appendingPathComponent("models", isDirectory: true)
+  }
+
+  private func runtimeCacheDirectoryURL() -> URL {
+    let caches = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
+    return caches.appendingPathComponent("litert-lm", isDirectory: true)
   }
 
   private func modelFileURL() -> URL {
@@ -246,5 +364,22 @@ final class AIEngineGemmaModelClient: NSObject, URLSessionDownloadDelegate {
     }
 
     return size.int64Value
+  }
+
+  private func boolValue(_ value: Any?) -> Bool {
+    if let value = value as? Bool {
+      return value
+    }
+    if let value = value as? NSNumber {
+      return value.boolValue
+    }
+    return false
+  }
+
+  private func stringValue(_ value: Any?) -> String? {
+    if value is NSNull {
+      return nil
+    }
+    return value as? String
   }
 }

@@ -163,7 +163,9 @@ final class AIEngine: RCTEventEmitter, UIDocumentPickerDelegate {
     _ resolve: @escaping RCTPromiseResolveBlock,
     rejecter reject: @escaping RCTPromiseRejectBlock
   ) {
-    resolve(AIEngineFoundationModelClient.shared.cancelActiveGeneration())
+    let appleCancelled = AIEngineFoundationModelClient.shared.cancelActiveGeneration()
+    let gemmaCancelled = AIEngineGemmaModelClient.shared.cancelActiveGeneration()
+    resolve(appleCancelled || gemmaCancelled)
   }
 
   @objc(getModelStatus:rejecter:)

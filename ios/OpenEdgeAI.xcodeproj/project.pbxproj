@@ -16,6 +16,7 @@
 		A1F4C9A12D0B4E8591F00001 /* AIEngineFoundationModelClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1F4C9A12D0B4E8591F00000 /* AIEngineFoundationModelClient.swift */; };
 		A1F4C9A12D0B4E8591F00003 /* AIEngineModule.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1F4C9A12D0B4E8591F00002 /* AIEngineModule.swift */; };
 		A1F4C9A12D0B4E8591F00005 /* AIEngineGemmaModelClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1F4C9A12D0B4E8591F00004 /* AIEngineGemmaModelClient.swift */; };
+		A1F4C9A12D0B4E8591F00007 /* AIEngineLiteRtLmRuntime.mm in Sources */ = {isa = PBXBuildFile; fileRef = A1F4C9A12D0B4E8591F00006 /* AIEngineLiteRtLmRuntime.mm */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -32,6 +33,9 @@
 		A1F4C9A12D0B4E8591F00000 /* AIEngineFoundationModelClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AIEngineFoundationModelClient.swift; path = OpenEdgeAI/AIEngineFoundationModelClient.swift; sourceTree = "<group>"; };
 		A1F4C9A12D0B4E8591F00002 /* AIEngineModule.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AIEngineModule.swift; path = OpenEdgeAI/AIEngineModule.swift; sourceTree = "<group>"; };
 		A1F4C9A12D0B4E8591F00004 /* AIEngineGemmaModelClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AIEngineGemmaModelClient.swift; path = OpenEdgeAI/AIEngineGemmaModelClient.swift; sourceTree = "<group>"; };
+		A1F4C9A12D0B4E8591F00006 /* AIEngineLiteRtLmRuntime.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; name = AIEngineLiteRtLmRuntime.mm; path = OpenEdgeAI/AIEngineLiteRtLmRuntime.mm; sourceTree = "<group>"; };
+		A1F4C9A12D0B4E8591F00008 /* AIEngineLiteRtLmRuntime.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = AIEngineLiteRtLmRuntime.h; path = OpenEdgeAI/AIEngineLiteRtLmRuntime.h; sourceTree = "<group>"; };
+		A1F4C9A12D0B4E8591F00009 /* OpenEdgeAI-Bridging-Header.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = "OpenEdgeAI-Bridging-Header.h"; path = "OpenEdgeAI/OpenEdgeAI-Bridging-Header.h"; sourceTree = "<group>"; };
 		ED297162215061F000B7C4FE /* JavaScriptCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = JavaScriptCore.framework; path = System/Library/Frameworks/JavaScriptCore.framework; sourceTree = SDKROOT; };
 /* End PBXFileReference section */
 
@@ -54,8 +58,11 @@
 				761780EC2CA45674006654EE /* AppDelegate.swift */,
 				A1F4C9A12D0B4E8591F00000 /* AIEngineFoundationModelClient.swift */,
 				A1F4C9A12D0B4E8591F00004 /* AIEngineGemmaModelClient.swift */,
+				A1F4C9A12D0B4E8591F00008 /* AIEngineLiteRtLmRuntime.h */,
+				A1F4C9A12D0B4E8591F00006 /* AIEngineLiteRtLmRuntime.mm */,
 				A1F4C9A12D0B4E8591F00002 /* AIEngineModule.swift */,
 				9F3A48A32DCD4B7A9B8C1201 /* AIEngineClipboardModule.m */,
+				A1F4C9A12D0B4E8591F00009 /* OpenEdgeAI-Bridging-Header.h */,
 				13B07FB61A68108700A75B9A /* Info.plist */,
 				81AB9BB72411601600AC10FF /* LaunchScreen.storyboard */,
 				13B07FB81A68108700A75B9A /* PrivacyInfo.xcprivacy */,
@@ -261,6 +268,7 @@
 				761780ED2CA45674006654EE /* AppDelegate.swift in Sources */,
 				A1F4C9A12D0B4E8591F00001 /* AIEngineFoundationModelClient.swift in Sources */,
 				A1F4C9A12D0B4E8591F00005 /* AIEngineGemmaModelClient.swift in Sources */,
+				A1F4C9A12D0B4E8591F00007 /* AIEngineLiteRtLmRuntime.mm in Sources */,
 				A1F4C9A12D0B4E8591F00003 /* AIEngineModule.swift in Sources */,
 				9F3A48A42DCD4B7A9B8C1201 /* AIEngineClipboardModule.m in Sources */,
 			);
@@ -292,6 +300,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = com.openedgeai;
 				PRODUCT_NAME = OpenEdgeAI;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_OBJC_BRIDGING_HEADER = "OpenEdgeAI/OpenEdgeAI-Bridging-Header.h";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
@@ -321,6 +330,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = com.openedgeai;
 				PRODUCT_NAME = OpenEdgeAI;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_OBJC_BRIDGING_HEADER = "OpenEdgeAI/OpenEdgeAI-Bridging-Header.h";
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 				VERSIONING_SYSTEM = "apple-generic";

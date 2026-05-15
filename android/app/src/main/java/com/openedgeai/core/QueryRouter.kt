@@ -51,7 +51,7 @@ class QueryRouter(
         if (request.useRag != true && shouldUseWebSearch(normalized)) {
             val webContext = webSearchManager.search(
                 query = normalized,
-                useLocalLlmSanitizer = false,
+                useLocalLlmSanitizer = true,
             )
             val webRequest = requestWithHistory.copy(
                 text = buildWebSearchPrompt(normalized, webContext),
@@ -131,7 +131,7 @@ class QueryRouter(
             if (shouldUseWebSearch(normalized)) {
                 val webContext = webSearchManager.search(
                     query = normalized,
-                    useLocalLlmSanitizer = false,
+                    useLocalLlmSanitizer = true,
                 )
                 val webRequest = requestWithHistory.copy(
                     text = buildWebSearchPrompt(normalized, webContext),
@@ -225,7 +225,7 @@ class QueryRouter(
         Cite the source title or URL when useful.
         Do not say that you cannot browse the web; the web search has already been performed.
 
-        Sanitized web query:
+        Sanitized web queries:
         ${webContext.sanitizedQuery}
 
         Privacy:

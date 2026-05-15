@@ -793,7 +793,9 @@ function AppContent() {
         setWorkFolderSessions(storedWorkFolderSessions);
         setWorkFolders(storedState?.workFolders ?? []);
         setSelectedModelId(storedState?.selectedModelId ?? 'gemma-4');
-        setPersonalCustomization(storedState.personalCustomization);
+        setPersonalCustomization(
+          storedState?.personalCustomization ?? defaultPersonalCustomizationSettings,
+        );
         setChatMessagesBySessionId(hydratedMessagesBySessionId);
         setDraftChatMessages(
           hydrateMessages(storedState?.draftChatMessages),

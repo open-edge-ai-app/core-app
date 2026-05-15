@@ -1,5 +1,6 @@
 package com.openedgeai.core
 
+import android.content.Context
 import java.io.StringReader
 import java.io.ByteArrayOutputStream
 import java.io.InputStream
@@ -38,8 +39,11 @@ private data class WebPageDetail(
 )
 
 class WebSearchManager(
+    context: Context,
     private val gemmaManager: GemmaManager,
 ) {
+    private val webViewPageLoader = WebViewPageLoader(context.applicationContext)
+
     fun search(
         query: String,
         useLocalLlmSanitizer: Boolean = true,
@@ -284,6 +288,27 @@ class WebSearchManager(
         sourceIndex: Int,
         question: String,
     ): WebPageDetail? {
+        val safeDetail = fetchSafePageDetail(
+            result = result,
+            sourceIndex = sourceIndex,
+            question = question,
+        )
+        if (safeDetail != null && safeDetail.excerpt.length >= WEB_PAGE_MIN_SAFE_EXCERPT_CHARS) {
+            return safeDetail
+        }
+
+        return fetchRenderedPageDetail(
+            result = result,
+            sourceIndex = sourceIndex,
+            question = question,
+        ) ?: safeDetail
+    }
+
+    private fun fetchSafePageDetail(
+        result: WebSearchResult,
+        sourceIndex: Int,
+        question: String,
+    ): WebPageDetail? {
         val url = result.url.trim()
         if (!url.startsWith("http://") && !url.startsWith("https://")) {
             return null
@@ -336,6 +361,33 @@ class WebSearchManager(
                 }
             }
         }.getOrNull()
+    }
+
+    private fun fetchRenderedPageDetail(
+        result: WebSearchResult,
+        sourceIndex: Int,
+        question: String,
+    ): WebPageDetail? {
+        val url = result.url.trim()
+        if (!url.startsWith("http://") && !url.startsWith("https://")) {
+            return null
+        }
+
+        val rendered = webViewPageLoader.load(url) ?: return null
+        val excerpt = extractRelevantPageExcerpt(
+            text = rendered.text,
+            question = question,
+        )
+        if (excerpt.isBlank()) {
+            return null
+        }
+
+        return WebPageDetail(
+            sourceIndex = sourceIndex,
+            title = rendered.title.ifBlank { result.title },
+            url = rendered.url.ifBlank { url },
+            excerpt = excerpt,
+        )
     }
 
     private fun searchQueriesInParallel(queries: List<String>): List<WebSearchResult> {
@@ -710,9 +762,10 @@ class WebSearchManager(
         private const val WEB_PAGE_DETAIL_LIMIT = 3
         private const val WEB_PAGE_CONNECT_TIMEOUT_MS = 6_000
         private const val WEB_PAGE_READ_TIMEOUT_MS = 8_000
-        private const val WEB_PAGE_TOTAL_TIMEOUT_MS = 12_000L
+        private const val WEB_PAGE_TOTAL_TIMEOUT_MS = 28_000L
         private const val WEB_PAGE_MAX_BYTES = 350_000
         private const val WEB_PAGE_EXCERPT_CHARS = 3_500
+        private const val WEB_PAGE_MIN_SAFE_EXCERPT_CHARS = 700
         private const val WEB_SEARCH_QUERY_REDACTED_MESSAGE =
             "Web search query was removed because it contained only private or local data. No external request was sent."
     }

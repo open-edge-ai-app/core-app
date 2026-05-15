@@ -14,7 +14,7 @@ class QueryRouter(
     private val embedManager = EmbedManager(context)
     private val vectorDao = VectorDao(vectorDBHelper)
     private val chatContextManager = ChatContextManager(vectorDBHelper, gemmaManager)
-    private val webSearchManager = WebSearchManager(gemmaManager)
+    private val webSearchManager = WebSearchManager(context.applicationContext, gemmaManager)
     private val nativeTools = OpenEdgeAiToolSet(
         embedManager = embedManager,
         vectorDao = vectorDao,

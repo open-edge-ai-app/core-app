@@ -1,10 +1,13 @@
 package com.openedgeai.core
 
 import java.io.StringReader
+import java.io.ByteArrayOutputStream
+import java.io.InputStream
 import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLDecoder
 import java.net.URLEncoder
+import java.nio.charset.Charset
 import java.util.concurrent.Callable
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
@@ -25,6 +28,13 @@ private data class WebSearchResult(
     val url: String,
     val description: String,
     val date: String? = null,
+)
+
+private data class WebPageDetail(
+    val sourceIndex: Int,
+    val title: String,
+    val url: String,
+    val excerpt: String,
 )
 
 class WebSearchManager(
@@ -60,7 +70,12 @@ class WebSearchManager(
         val results = if (queryRemoved) {
             WEB_SEARCH_QUERY_REDACTED_MESSAGE
         } else {
-            runCatching { searchAllQueries(sanitizedQueries) }
+            runCatching {
+                searchAllQueries(
+                    originalQuestion = query,
+                    queries = sanitizedQueries,
+                )
+            }
                 .getOrElse { error ->
                     "Web search request failed: ${error.message ?: error.javaClass.simpleName}"
                 }
@@ -135,11 +150,192 @@ class WebSearchManager(
         }
     }
 
-    private fun searchAllQueries(queries: List<String>): String {
+    fun readUrl(
+        url: String,
+        query: String,
+    ): String {
+        val normalizedUrl = url.trim()
+        if (!normalizedUrl.startsWith("http://") && !normalizedUrl.startsWith("https://")) {
+            return "Only http and https URLs can be read."
+        }
+
+        val result = WebSearchResult(
+            title = normalizedUrl,
+            url = normalizedUrl,
+            description = "",
+        )
+        val detail = fetchPageDetail(
+            result = result,
+            sourceIndex = 1,
+            question = query,
+        ) ?: return "No readable page text was found for URL: $normalizedUrl"
+        return formatPageDetails(listOf(detail))
+    }
+
+    private fun searchAllQueries(
+        originalQuestion: String,
+        queries: List<String>,
+    ): String {
         val results = searchQueriesInParallel(queries)
             .distinctBy { result -> result.url.normalizeUrlForDedupe() }
-            .take(WEB_SEARCH_RESULT_LIMIT)
-        return formatSearchResults(results, fallbackDate = null)
+            .take(WEB_SEARCH_CANDIDATE_LIMIT)
+        val pageDetails = fetchSelectedPageDetails(
+            question = originalQuestion,
+            results = results,
+        )
+        return listOf(
+            formatSearchResults(results, fallbackDate = null),
+            formatPageDetails(pageDetails),
+        )
+            .filter { section -> section.isNotBlank() }
+            .joinToString(separator = "\n\n")
+    }
+
+    private fun fetchSelectedPageDetails(
+        question: String,
+        results: List<WebSearchResult>,
+    ): List<WebPageDetail> {
+        if (results.isEmpty()) {
+            return emptyList()
+        }
+
+        val selectedUrls = selectDetailUrlsWithLocalModel(
+            question = question,
+            results = results,
+        ).ifEmpty {
+            results.take(WEB_PAGE_DETAIL_LIMIT).map { result -> result.url }
+        }
+        val selectedResults = selectedUrls
+            .mapNotNull { selectedUrl ->
+                results.firstOrNull { result ->
+                    result.url.normalizeUrlForDedupe() == selectedUrl.normalizeUrlForDedupe()
+                }
+            }
+            .ifEmpty { results.take(WEB_PAGE_DETAIL_LIMIT) }
+            .take(WEB_PAGE_DETAIL_LIMIT)
+
+        val executor = Executors.newFixedThreadPool(minOf(selectedResults.size, WEB_PAGE_DETAIL_LIMIT))
+        return try {
+            val tasks = selectedResults.mapIndexed { index, result ->
+                Callable {
+                    fetchPageDetail(
+                        result = result,
+                        sourceIndex = index + 1,
+                        question = question,
+                    )
+                }
+            }
+            executor
+                .invokeAll(tasks, WEB_PAGE_TOTAL_TIMEOUT_MS, TimeUnit.MILLISECONDS)
+                .mapNotNull { future ->
+                    runCatching {
+                        if (future.isCancelled) null else future.get()
+                    }.getOrNull()
+                }
+        } finally {
+            executor.shutdownNow()
+        }
+    }
+
+    private fun selectDetailUrlsWithLocalModel(
+        question: String,
+        results: List<WebSearchResult>,
+    ): List<String> {
+        val candidates = results
+            .take(WEB_SEARCH_CANDIDATE_LIMIT)
+            .mapIndexed { index, result ->
+                """
+                [${index + 1}] ${result.title}
+                URL: ${result.url}
+                Snippet: ${result.description}
+                """.trimIndent()
+            }
+            .joinToString(separator = "\n\n")
+        val prompt = """
+        Select up to 3 URLs that should be opened for detailed reading before answering the user.
+
+        Rules:
+        - Prefer authoritative, specific, recent, primary, or technically detailed sources.
+        - Avoid duplicate, shallow, generic dictionary, homepage, or low-relevance URLs.
+        - Return only URLs, one per line.
+        - Do not explain.
+
+        User question:
+        $question
+
+        Search results:
+        $candidates
+        """.trimIndent()
+
+        return runCatching {
+            gemmaManager.generate(prompt, useRag = false)
+                .lineSequence()
+                .map { line -> line.trim().trim('-', '*', ' ', '"', '\'') }
+                .mapNotNull { line -> Regex("""https?://\S+""").find(line)?.value }
+                .map { url -> url.trimEnd('.', ',', ')', ']', '"', '\'') }
+                .distinctBy { url -> url.normalizeUrlForDedupe() }
+                .take(WEB_PAGE_DETAIL_LIMIT)
+                .toList()
+        }.getOrDefault(emptyList())
+    }
+
+    private fun fetchPageDetail(
+        result: WebSearchResult,
+        sourceIndex: Int,
+        question: String,
+    ): WebPageDetail? {
+        val url = result.url.trim()
+        if (!url.startsWith("http://") && !url.startsWith("https://")) {
+            return null
+        }
+
+        val connection = (URL(url).openConnection() as HttpURLConnection).apply {
+            requestMethod = "GET"
+            connectTimeout = WEB_PAGE_CONNECT_TIMEOUT_MS
+            readTimeout = WEB_PAGE_READ_TIMEOUT_MS
+            instanceFollowRedirects = true
+            setRequestProperty(
+                "User-Agent",
+                "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 " +
+                    "(KHTML, like Gecko) Chrome/120.0 Mobile Safari/537.36 OpenEdgeAI/1.0",
+            )
+            setRequestProperty("Accept", "text/html,application/xhtml+xml,text/plain;q=0.9,*/*;q=0.5")
+            setRequestProperty("Accept-Language", "ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7")
+        }
+
+        return runCatching {
+            connection.use { http ->
+                if (http.responseCode !in 200..299) {
+                    return@use null
+                }
+                val contentType = http.contentType.orEmpty()
+                if (!contentType.isLikelyReadableText()) {
+                    return@use null
+                }
+
+                val charset = contentType.extractCharset() ?: Charsets.UTF_8
+                val raw = http.inputStream.readTextLimited(charset, WEB_PAGE_MAX_BYTES)
+                val text = if (contentType.contains("html", ignoreCase = true)) {
+                    raw.cleanPageText()
+                } else {
+                    raw.replace(Regex("\\s+"), " ").trim()
+                }
+                val excerpt = extractRelevantPageExcerpt(
+                    text = text,
+                    question = question,
+                )
+                if (excerpt.isBlank()) {
+                    null
+                } else {
+                    WebPageDetail(
+                        sourceIndex = sourceIndex,
+                        title = result.title,
+                        url = http.url.toString(),
+                        excerpt = excerpt,
+                    )
+                }
+            }
+        }.getOrNull()
     }
 
     private fun searchQueriesInParallel(queries: List<String>): List<WebSearchResult> {
@@ -356,6 +552,28 @@ class WebSearchManager(
             .joinToString(separator = "\n---\n")
     }
 
+    private fun formatPageDetails(details: List<WebPageDetail>): String {
+        if (details.isEmpty()) {
+            return ""
+        }
+
+        return details
+            .joinToString(separator = "\n---\n") { detail ->
+                """
+                Detailed page [${detail.sourceIndex}]: ${detail.title}
+                URL: ${detail.url}
+                Page text excerpt:
+                ${detail.excerpt}
+                """.trimIndent()
+            }
+            .let { detailsText ->
+                """
+                Opened URL details:
+                $detailsText
+                """.trimIndent()
+            }
+    }
+
     private fun generateSearchQueriesWithLocalModel(
         originalQuery: String,
         regexMaskedQuery: String,
@@ -429,6 +647,49 @@ class WebSearchManager(
             .trim()
     }
 
+    private fun extractRelevantPageExcerpt(
+        text: String,
+        question: String,
+    ): String {
+        val normalizedText = text.replace(Regex("\\s+"), " ").trim()
+        if (normalizedText.isBlank()) {
+            return ""
+        }
+
+        val terms = question
+            .lowercase()
+            .split(Regex("""[^0-9A-Za-z\uAC00-\uD7A3]+"""))
+            .map { term -> term.trim() }
+            .filter { term -> term.length >= 3 }
+            .filterNot { term -> term in pageSearchStopWords }
+            .distinct()
+            .take(12)
+        if (terms.isEmpty()) {
+            return normalizedText.take(WEB_PAGE_EXCERPT_CHARS)
+        }
+
+        val paragraphs = text
+            .split(Regex("""\n{2,}|(?<=[.!?。])\s+"""))
+            .map { paragraph -> paragraph.replace(Regex("\\s+"), " ").trim() }
+            .filter { paragraph -> paragraph.length >= 80 }
+        val ranked = paragraphs
+            .map { paragraph ->
+                val lower = paragraph.lowercase()
+                val score = terms.count { term -> lower.contains(term) }
+                score to paragraph
+            }
+            .filter { (score, _) -> score > 0 }
+            .sortedByDescending { (score, paragraph) -> score * 1000 + paragraph.length.coerceAtMost(500) }
+            .map { (_, paragraph) -> paragraph }
+
+        val selected = ranked.ifEmpty { paragraphs.take(3) }
+        return selected
+            .joinToString(separator = "\n\n")
+            .take(WEB_PAGE_EXCERPT_CHARS)
+            .trim()
+            .ifBlank { normalizedText.take(WEB_PAGE_EXCERPT_CHARS) }
+    }
+
     private fun isInvalidSanitizedQuery(query: String): Boolean {
         val normalized = query.trim()
         return normalized.isBlank() ||
@@ -444,7 +705,14 @@ class WebSearchManager(
         private const val WEB_SEARCH_TOTAL_TIMEOUT_MS = 15_000L
         private const val WEB_SEARCH_PARALLELISM = 3
         private const val WEB_SEARCH_RESULT_LIMIT = 5
+        private const val WEB_SEARCH_CANDIDATE_LIMIT = 8
         private const val MAX_WEB_SEARCH_QUERIES = 3
+        private const val WEB_PAGE_DETAIL_LIMIT = 3
+        private const val WEB_PAGE_CONNECT_TIMEOUT_MS = 6_000
+        private const val WEB_PAGE_READ_TIMEOUT_MS = 8_000
+        private const val WEB_PAGE_TOTAL_TIMEOUT_MS = 12_000L
+        private const val WEB_PAGE_MAX_BYTES = 350_000
+        private const val WEB_PAGE_EXCERPT_CHARS = 3_500
         private const val WEB_SEARCH_QUERY_REDACTED_MESSAGE =
             "Web search query was removed because it contained only private or local data. No external request was sent."
     }
@@ -457,6 +725,56 @@ private fun String.cleanHtmlText(): String =
         .decodeHtmlEntities()
         .replace(Regex("\\s+"), " ")
         .trim()
+
+private fun String.cleanPageText(): String =
+    replace(Regex("""(?is)<script\b.*?</script>"""), " ")
+        .replace(Regex("""(?is)<style\b.*?</style>"""), " ")
+        .replace(Regex("""(?is)<noscript\b.*?</noscript>"""), " ")
+        .replace(Regex("""(?is)<(br|p|div|section|article|li|tr|h[1-6])\b[^>]*>"""), "\n")
+        .replace(Regex("""(?is)</(p|div|section|article|li|tr|h[1-6])>"""), "\n")
+        .replace(Regex("""(?is)<[^>]+>"""), " ")
+        .decodeHtmlEntities()
+        .replace(Regex("""[ \t\x0B\f\r]+"""), " ")
+        .replace(Regex("""\n\s+"""), "\n")
+        .replace(Regex("""\n{3,}"""), "\n\n")
+        .trim()
+
+private fun String.isLikelyReadableText(): Boolean {
+    val normalized = lowercase()
+    if (normalized.isBlank()) {
+        return true
+    }
+    return normalized.startsWith("text/") ||
+        normalized.contains("html") ||
+        normalized.contains("xhtml") ||
+        normalized.contains("xml") ||
+        normalized.contains("json")
+}
+
+private fun String.extractCharset(): Charset? =
+    Regex("""(?i)charset=([^;\s]+)""").find(this)
+        ?.groupValues
+        ?.getOrNull(1)
+        ?.trim('"', '\'')
+        ?.let { charsetName -> runCatching { Charset.forName(charsetName) }.getOrNull() }
+
+private fun InputStream.readTextLimited(
+    charset: Charset,
+    maxBytes: Int,
+): String {
+    val output = ByteArrayOutputStream()
+    val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+    var remaining = maxBytes
+    while (remaining > 0) {
+        val read = read(buffer, 0, minOf(buffer.size, remaining))
+        if (read <= 0) {
+            break
+        }
+        output.write(buffer, 0, read)
+        remaining -= read
+    }
+    return output.toString(charset.name())
+}
 
 private fun String.decodeHtmlEntities(): String {
     val numericDecoded = Regex("""&#(\d+);""").replace(this) { match ->
@@ -482,6 +800,27 @@ private val htmlEntities = listOf(
     "&#39;" to "'",
     "&apos;" to "'",
     "&nbsp;" to " ",
+)
+
+private val pageSearchStopWords = setOf(
+    "the",
+    "and",
+    "for",
+    "with",
+    "from",
+    "this",
+    "that",
+    "what",
+    "when",
+    "where",
+    "how",
+    "latest",
+    "recent",
+    "search",
+    "find",
+    "about",
+    "2025",
+    "2026",
 )
 
 private fun String.normalizeUrlForDedupe(): String =

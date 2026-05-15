@@ -65,6 +65,26 @@ class OpenEdgeAiToolSet(
         """.trimIndent()
     }
 
+    @Tool(
+        description = "Open a public web URL returned by webSearch and read its page text for detailed evidence.",
+    )
+    fun readWebPage(
+        @ToolParam(description = "Public http or https URL to open.")
+        url: String,
+        @ToolParam(description = "User question or focused topic for extracting relevant page text.")
+        query: String,
+    ): String {
+        val normalizedUrl = url.trim()
+        if (normalizedUrl.isBlank()) {
+            return "No URL was provided."
+        }
+
+        return webSearchManager.readUrl(
+            url = normalizedUrl,
+            query = query.trim(),
+        )
+    }
+
     private fun VectorRecord.toToolLine(): String {
         val parts = mutableListOf(
             "type=$source",

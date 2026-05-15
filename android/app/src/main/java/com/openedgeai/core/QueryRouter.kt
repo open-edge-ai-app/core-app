@@ -211,7 +211,45 @@ class QueryRouter(
 
     private fun shouldUseWebSearch(query: String): Boolean {
         val normalized = query.lowercase()
-        return WEB_SEARCH_TRIGGERS.any { trigger -> normalized.contains(trigger) }
+        if (WEB_SEARCH_TRIGGERS.any { trigger -> normalized.contains(trigger) }) {
+            return true
+        }
+
+        return shouldUseWebSearchWithLocalModel(query)
+    }
+
+    private fun shouldUseWebSearchWithLocalModel(query: String): Boolean {
+        val prompt = """
+        Decide whether this user request should use public web search before answering.
+
+        Return exactly one token:
+        - WEB
+        - NO_WEB
+
+        Use WEB when:
+        - The user asks for latest, recent, current, live, news, prices, schedules, versions, laws, public people, companies, products, research trends, or facts that may have changed.
+        - The answer likely requires public external details not available from local/private memory or stable model knowledge.
+        - The user explicitly asks to search, look up, verify, compare current options, or cite external sources.
+
+        Use NO_WEB when:
+        - The request is about private/local files, SMS, photos, saved chats, or device memory.
+        - The request is a stable general explanation, writing task, calculation, translation, or ordinary conversation.
+        - The request can be answered from the provided conversation context without public external facts.
+
+        User request:
+        $query
+        """.trimIndent()
+
+        return runCatching {
+            gemmaManager.generate(prompt, useRag = false)
+                .trim()
+                .lineSequence()
+                .firstOrNull { line -> line.isNotBlank() }
+                .orEmpty()
+                .trim()
+                .uppercase()
+                .startsWith("WEB")
+        }.getOrDefault(false)
     }
 
     private fun buildWebSearchPrompt(
@@ -219,10 +257,11 @@ class QueryRouter(
         webContext: WebSearchContext,
     ): String =
         """
-        Answer the user's question using the web search tool results below.
+        Answer the user's question using the web search and opened URL results below.
         Treat these results as fetched live from the public web.
         If the results are empty or failed, say that web search did not return enough information.
-        Cite the source title or URL when useful.
+        Cite source URLs for factual claims based on web results.
+        Prefer the opened URL details over search result snippets.
         Do not say that you cannot browse the web; the web search has already been performed.
 
         Sanitized web queries:

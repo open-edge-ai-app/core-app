@@ -18,6 +18,7 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import AppIcon from '../components/AppIcon';
 import { Badge, Button, Separator } from '../components/ui';
@@ -42,6 +43,7 @@ import {
 } from '../i18n';
 import AIEngine, {
   IndexingStatus,
+  ModelId,
   ModelStatus,
   RuntimeStatus,
 } from '../native/AIEngine';
@@ -64,6 +66,8 @@ const defaultStatus: IndexingStatus = {
   smsEnabled: false,
   smsIndexedItems: 0,
 };
+
+const SETTINGS_CONTENT_BOTTOM_PADDING = 42;
 
 const textSizeLabelKeys: Record<string, I18nKey> = {
   compact: 'settings.textSize.compact.label',
@@ -109,6 +113,7 @@ type SettingsProps = {
   activePanel: SettingsPanelId;
   onModelStateChange?: (state: {
     modelStatus: ModelStatus | null;
+    modelStatuses?: ModelStatus[];
     runtimeStatus: RuntimeStatus | null;
   }) => void;
   onPanelChange: (panel: SettingsPanelId) => void;
@@ -116,6 +121,7 @@ type SettingsProps = {
     settings: PersonalCustomizationSettings,
   ) => void;
   personalCustomization: PersonalCustomizationSettings;
+  selectedModelId?: ModelId | string;
 };
 
 export type SettingsPanelId =
@@ -140,6 +146,7 @@ function Settings({
   onPanelChange,
   onPersonalCustomizationChange,
   personalCustomization,
+  selectedModelId = 'gemma-4',
 }: SettingsProps) {
   const {
     locale,
@@ -148,6 +155,7 @@ function Settings({
     supportedLocales,
     t,
   } = useI18n();
+  const insets = useSafeAreaInsets();
   const [status, setStatus] = useState<IndexingStatus>(defaultStatus);
   const [modelStatus, setModelStatus] = useState<ModelStatus | null>(null);
   const [runtimeStatus, setRuntimeStatus] = useState<RuntimeStatus | null>(
@@ -188,19 +196,26 @@ function Settings({
   }, [languageQuery, supportedLocales]);
 
   const refreshStatus = useCallback(async () => {
-    const [nextStatus, nextModelStatus, nextRuntimeStatus] = await Promise.all([
+    const [
+      nextStatus,
+      nextModelStatuses,
+      nextModelStatus,
+      nextRuntimeStatus,
+    ] = await Promise.all([
       AIEngine.getIndexingStatus(),
-      AIEngine.getModelStatus(),
-      AIEngine.getRuntimeStatus(),
+      AIEngine.getModelStatuses(),
+      AIEngine.getModelStatusForModel(selectedModelId),
+      AIEngine.getRuntimeStatus(selectedModelId),
     ]);
     setStatus(nextStatus);
     setModelStatus(nextModelStatus);
     setRuntimeStatus(nextRuntimeStatus);
     onModelStateChange?.({
       modelStatus: nextModelStatus,
+      modelStatuses: nextModelStatuses,
       runtimeStatus: nextRuntimeStatus,
     });
-  }, [onModelStateChange]);
+  }, [onModelStateChange, selectedModelId]);
 
   useEffect(() => {
     refreshStatus();
@@ -221,22 +236,22 @@ function Settings({
       : Math.min(1, modelStatus.bytesDownloaded / modelStatus.totalBytes);
 
   const handleDownloadModel = useCallback(async () => {
-    const nextStatus = await AIEngine.ensureModelDownloaded();
+    const nextStatus = await AIEngine.ensureModelDownloaded(selectedModelId);
     setModelStatus(nextStatus);
     onModelStateChange?.({
       modelStatus: nextStatus,
       runtimeStatus,
     });
-  }, [onModelStateChange, runtimeStatus]);
+  }, [onModelStateChange, runtimeStatus, selectedModelId]);
 
   const handleCancelModelDownload = useCallback(async () => {
-    const nextStatus = await AIEngine.cancelModelDownload();
+    const nextStatus = await AIEngine.cancelModelDownload(selectedModelId);
     setModelStatus(nextStatus);
     onModelStateChange?.({
       modelStatus: nextStatus,
       runtimeStatus,
     });
-  }, [onModelStateChange, runtimeStatus]);
+  }, [onModelStateChange, runtimeStatus, selectedModelId]);
 
   const handleLoadModel = useCallback(async () => {
     const loadingStatus: RuntimeStatus = {
@@ -254,7 +269,7 @@ function Settings({
     });
 
     try {
-      const nextStatus = await AIEngine.loadModel();
+      const nextStatus = await AIEngine.loadModel(selectedModelId);
       setRuntimeStatus(nextStatus);
       onModelStateChange?.({
         modelStatus,
@@ -275,7 +290,12 @@ function Settings({
         runtimeStatus: errorStatus,
       });
     }
-  }, [modelStatus, onModelStateChange, runtimeStatus?.localPath]);
+  }, [
+    modelStatus,
+    onModelStateChange,
+    runtimeStatus?.localPath,
+    selectedModelId,
+  ]);
 
   const handleUnloadModel = useCallback(async () => {
     const nextStatus = await AIEngine.unloadModel();
@@ -376,7 +396,14 @@ function Settings({
     openExternalUrl(issueUrl);
   }, [openExternalUrl]);
 
-  const modelSummary = modelStatus?.installed
+  const isSystemManagedModel =
+    selectedModelId === 'apple-foundation' ||
+    Boolean(modelStatus?.systemManaged) ||
+    (Platform.OS === 'ios' &&
+      Boolean(modelStatus?.modelName.toLowerCase().includes('apple')));
+  const modelSummary = isSystemManagedModel
+    ? t('settings.systemManagedModel')
+    : modelStatus?.installed
     ? runtimeStatus?.loaded
       ? t('settings.loaded')
       : t('settings.installed')
@@ -723,7 +750,9 @@ function Settings({
         <StatusRow
           label={t('settings.modelFile')}
           value={
-            modelStatus?.installed
+            isSystemManagedModel
+              ? t('settings.systemManagedModel')
+              : modelStatus?.installed
               ? t('settings.installed')
               : modelStatus?.isDownloading
               ? t('settings.downloading')
@@ -732,25 +761,39 @@ function Settings({
         />
         <StatusRow
           label={t('settings.download')}
-          value={`${formatBytes(
-            modelStatus?.bytesDownloaded ?? 0,
-          )} / ${formatBytes(modelStatus?.totalBytes ?? 2588147712)}`}
+          value={
+            isSystemManagedModel
+              ? t('settings.systemManagedModel')
+              : `${formatBytes(
+                  modelStatus?.bytesDownloaded ?? 0,
+                )} / ${formatBytes(modelStatus?.totalBytes ?? 2588147712)}`
+          }
         />
-        <View style={styles.progressTrack}>
-          <View
-            style={[
-              styles.progressFill,
-              { width: `${downloadProgress * 100}%` },
-            ]}
-          />
-        </View>
+        {isSystemManagedModel ? null : (
+          <View style={styles.progressTrack}>
+            <View
+              style={[
+                styles.progressFill,
+                { width: `${downloadProgress * 100}%` },
+              ]}
+            />
+          </View>
+        )}
         {modelStatus?.error ? (
           <Text style={styles.errorText}>{modelStatus.error}</Text>
         ) : null}
         <View style={styles.actionRow}>
           <Button
-            disabled={modelStatus?.installed || modelStatus?.isDownloading}
-            label={t('settings.downloadModel')}
+            disabled={
+              isSystemManagedModel ||
+              modelStatus?.installed ||
+              modelStatus?.isDownloading
+            }
+            label={
+              isSystemManagedModel
+                ? t('settings.systemManagedModel')
+                : t('settings.downloadModel')
+            }
             onPress={handleDownloadModel}
             style={styles.modelButton}
             variant="ghost"
@@ -1038,7 +1081,10 @@ function Settings({
   return (
     <ScrollView
       key={activePanel}
-      contentContainerStyle={styles.container}
+      contentContainerStyle={[
+        styles.container,
+        { paddingBottom: SETTINGS_CONTENT_BOTTOM_PADDING + insets.bottom },
+      ]}
       style={styles.scroll}
       showsVerticalScrollIndicator={false}
     >
@@ -1455,7 +1501,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#F4F5F8',
   },
   container: {
-    paddingBottom: 42,
+    paddingBottom: SETTINGS_CONTENT_BOTTOM_PADDING,
     paddingHorizontal: 24,
     paddingTop: 26,
   },
@@ -1667,7 +1713,7 @@ const styles = StyleSheet.create({
     paddingVertical: 11,
   },
   personalityRowSelected: {
-    backgroundColor: 'rgba(0,122,255,0.08)',
+    backgroundColor: colors.accent,
   },
   personalityRowLast: {
     borderBottomWidth: 0,
@@ -1793,7 +1839,7 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   languageOptionActive: {
-    backgroundColor: 'rgba(0,122,255,0.08)',
+    backgroundColor: colors.accent,
   },
   languageOptionCopy: {
     flex: 1,
@@ -1839,7 +1885,7 @@ const styles = StyleSheet.create({
   },
   errorText: {
     ...typography.caption,
-    color: '#B42318',
+    color: colors.destructive,
     lineHeight: 16,
     marginBottom: 8,
   },

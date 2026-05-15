@@ -105,12 +105,13 @@ npm start
 # Metro on port 8082, useful when 8081 is occupied
 npm run start:android
 
-# Android app. This installs debug, maps device 8081 to Metro 8082,
-# and starts com.onda/.MainActivity.
+# Android app. This installs debug with Metro port 8082,
+# applies adb reverse for 8082, and starts com.openedgeai/.MainActivity.
 npm run android
 npm run android:8082
 
-# iOS app
+# iOS app. Requires Xcode and CocoaPods.
+npm run ios:pods
 npm run ios
 
 # Browser preview

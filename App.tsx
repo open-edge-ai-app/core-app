@@ -24,7 +24,11 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native';
-import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
+import {
+  SafeAreaProvider,
+  SafeAreaView,
+  useSafeAreaInsets,
+} from 'react-native-safe-area-context';
 
 import AppIcon from './src/components/AppIcon';
 import FloatingSelect, {
@@ -32,6 +36,7 @@ import FloatingSelect, {
 } from './src/components/FloatingSelect';
 import PastelBackground from './src/components/PastelBackground';
 import AIEngine, {
+  ModelId,
   ModelStatus,
   RuntimeStatus,
 } from './src/native/AIEngine';
@@ -102,7 +107,7 @@ type ModelOption = {
   action?: 'settings';
   detail: string;
   icon: IconDefinition;
-  id: 'gemma-4' | 'gemma-lite' | 'gemma-deep' | 'auto' | 'manage';
+  id: ModelId | 'auto' | 'manage';
   label: string;
 };
 
@@ -124,6 +129,7 @@ type WorkFolder = {
 
 type ModelStateSnapshot = {
   modelStatus: ModelStatus | null;
+  modelStatuses?: ModelStatus[];
   runtimeStatus: RuntimeStatus | null;
 };
 
@@ -207,6 +213,12 @@ const defaultPersonalCustomizationSettings: PersonalCustomizationSettings = {
 
 const modelOptions: ModelOption[] = [
   {
+    detail: 'Apple 기본 온디바이스 AI',
+    icon: appIcons.modelBalanced,
+    id: 'apple-foundation',
+    label: 'Apple Intelligence',
+  },
+  {
     detail: '빠르고 균형 잡힌 성능',
     icon: appIcons.modelBalanced,
     id: 'gemma-4',
@@ -243,30 +255,50 @@ const modelManageOption = modelOptions.find(model => model.id === 'manage')!;
 const defaultDownloadableModelOption = modelOptions.find(
   model => model.id === 'gemma-4',
 )!;
+const visibleHeaderModelOptions = modelOptions.filter(
+  model =>
+    model.id === 'gemma-4' ||
+    (Platform.OS === 'ios' && model.id === 'apple-foundation'),
+);
+const defaultSelectedModelId: ModelId =
+  Platform.OS === 'ios' ? 'apple-foundation' : 'gemma-4';
 
-const getActiveModelOption = (
-  modelStatus: ModelStatus | null,
-) => {
-  if (!modelStatus?.installed) {
-    return null;
-  }
+const getModelStatusForId = (
+  statuses: ModelStatus[],
+  modelId: ModelOption['id'],
+) =>
+  statuses.find(status => {
+    if (status.modelId === modelId) {
+      return true;
+    }
 
-  const normalizedModelName = modelStatus.modelName.toLowerCase();
+    const normalizedName = status.modelName.toLowerCase();
+    if (modelId === 'apple-foundation') {
+      return (
+        normalizedName.includes('apple') ||
+        normalizedName.includes('foundation')
+      );
+    }
 
-  if (normalizedModelName.includes('lite')) {
-    return modelOptions.find(model => model.id === 'gemma-lite') ?? null;
-  }
+    if (modelId === 'gemma-4') {
+      return normalizedName.includes('gemma');
+    }
 
-  if (normalizedModelName.includes('deep')) {
-    return modelOptions.find(model => model.id === 'gemma-deep') ?? null;
-  }
+    return false;
+  }) ?? null;
 
-  if (normalizedModelName.includes('gemma')) {
-    return modelOptions.find(model => model.id === 'gemma-4') ?? null;
-  }
+const isSystemManagedModel = (
+  modelId: ModelOption['id'],
+  status?: ModelStatus | null,
+) =>
+  modelId === 'apple-foundation' ||
+  Boolean(status?.systemManaged) ||
+  Boolean(status?.modelName.toLowerCase().includes('apple'));
 
-  return null;
-};
+const normalizeSelectedModelId = (modelId: ModelOption['id']) =>
+  Platform.OS === 'ios' || modelId !== 'apple-foundation'
+    ? modelId
+    : defaultSelectedModelId;
 
 const mainMenuRows: MenuIconRow[] = [
   {
@@ -442,8 +474,8 @@ const parseStoredAppState = (
       selectedModelId:
         typeof parsed.selectedModelId === 'string' &&
         isModelOptionId(parsed.selectedModelId)
-          ? parsed.selectedModelId
-          : 'gemma-4',
+          ? normalizeSelectedModelId(parsed.selectedModelId)
+          : defaultSelectedModelId,
       sessionTitle:
         typeof parsed.sessionTitle === 'string'
           ? parsed.sessionTitle
@@ -523,62 +555,70 @@ function AppContent() {
   const [settingsPanel, setSettingsPanel] =
     useState<SettingsPanelId>('root');
   const [selectedModelId, setSelectedModelId] =
-    useState<ModelOption['id']>('gemma-4');
+    useState<ModelOption['id']>(defaultSelectedModelId);
   const [modelStatus, setModelStatus] = useState<ModelStatus | null>(null);
+  const [modelStatuses, setModelStatuses] = useState<ModelStatus[]>([]);
   const [isModelDownloadStarting, setIsModelDownloadStarting] =
     useState(false);
 
   const handleModelStateChange = useCallback(
     ({
       modelStatus: nextModelStatus,
+      modelStatuses: nextModelStatuses,
     }: ModelStateSnapshot) => {
       setModelStatus(nextModelStatus);
+      if (nextModelStatuses) {
+        setModelStatuses(nextModelStatuses);
+      } else if (nextModelStatus) {
+        setModelStatuses(currentStatuses => {
+          const nextModelId =
+            nextModelStatus.modelId ?? selectedModelId;
+          const remainingStatuses = currentStatuses.filter(
+            status => status.modelId !== nextModelId,
+          );
+          return [...remainingStatuses, nextModelStatus];
+        });
+      }
     },
-    [],
+    [selectedModelId],
   );
 
   const refreshModelState = useCallback(async () => {
-    const nextModelStatus = await AIEngine.getModelStatus();
+    const nextModelStatuses = await AIEngine.getModelStatuses();
+    const nextModelStatus =
+      getModelStatusForId(nextModelStatuses, selectedModelId) ??
+      nextModelStatuses[0] ??
+      null;
     handleModelStateChange({
       modelStatus: nextModelStatus,
+      modelStatuses: nextModelStatuses,
       runtimeStatus: null,
     });
-  }, [handleModelStateChange]);
-
-  const activeModelOption = useMemo(
-    () => getActiveModelOption(modelStatus),
-    [modelStatus],
-  );
+  }, [handleModelStateChange, selectedModelId]);
 
   const selectedModel = useMemo(
     () =>
-      activeModelOption ??
       modelOptions.find(
         model => model.id === selectedModelId && model.action !== 'settings',
       ) ??
       modelOptions[0],
-    [activeModelOption, selectedModelId],
+    [selectedModelId],
   );
-  const headerSelectedModelId = activeModelOption?.id ?? null;
-  const isHeaderModelDownloading =
-    Boolean(modelStatus?.isDownloading) || isModelDownloadStarting;
-  const headerModelLabel = activeModelOption
-    ? activeModelOption.label
-    : isHeaderModelDownloading
-    ? '다운로드 중'
-    : '모델 선택';
-  const modelDownloadProgress =
-    modelStatus == null || modelStatus.totalBytes <= 0
-      ? 0
-      : Math.min(1, modelStatus.bytesDownloaded / modelStatus.totalBytes);
+  const headerSelectedModelId = selectedModel.id;
+  const headerModelLabel = selectedModel.label;
   const isSettingsDetailPanel =
     activeScreen === 'settings' && settingsPanel !== 'root';
 
-  const handleDownloadModelFromMenu = useCallback(async () => {
+  const handleDownloadModelFromMenu = useCallback(async (modelId: ModelOption['id']) => {
+    const status = getModelStatusForId(modelStatuses, modelId);
+
     if (
+      modelId === 'manage' ||
+      modelId === 'auto' ||
+      isSystemManagedModel(modelId, status) ||
       isModelDownloadStarting ||
-      modelStatus?.installed ||
-      modelStatus?.isDownloading
+      status?.installed ||
+      status?.isDownloading
     ) {
       return;
     }
@@ -586,30 +626,41 @@ function AppContent() {
     setIsModelDownloadStarting(true);
 
     try {
-      const nextModelStatus = await AIEngine.downloadModel();
+      const nextModelStatus = await AIEngine.downloadModel(modelId);
       setModelStatus(nextModelStatus);
+      setModelStatuses(currentStatuses => {
+        const nextModelId = nextModelStatus.modelId ?? modelId;
+        const remainingStatuses = currentStatuses.filter(
+          currentStatus => currentStatus.modelId !== nextModelId,
+        );
+        return [...remainingStatuses, nextModelStatus];
+      });
     } finally {
       setIsModelDownloadStarting(false);
     }
   }, [
     isModelDownloadStarting,
-    modelStatus?.installed,
-    modelStatus?.isDownloading,
+    modelStatuses,
   ]);
 
   const modelSelectOptions = useMemo<
     FloatingSelectOption<ModelOption['id']>[]
   >(() => {
-    const visibleModelOptions = activeModelOption
-      ? [activeModelOption, modelManageOption]
-      : [defaultDownloadableModelOption, modelManageOption];
+    const visibleModelOptions = [
+      ...visibleHeaderModelOptions,
+      modelManageOption,
+    ];
 
     return visibleModelOptions.map((model, index) => {
+      const status = getModelStatusForId(modelStatuses, model.id);
+      const isSystemManaged = isSystemManagedModel(model.id, status);
       const isDownloadableMissingModel =
-        !activeModelOption && model.id === defaultDownloadableModelOption.id;
+        !isSystemManaged &&
+        model.id === defaultDownloadableModelOption.id &&
+        !status?.installed;
 
       return {
-        description: isDownloadableMissingModel ? undefined : model.detail,
+        description: model.detail,
         dividerBefore: index > 0 && model.action === 'settings',
         label: model.label,
         trailingIcon: isDownloadableMissingModel
@@ -622,8 +673,8 @@ function AppContent() {
       };
     });
   }, [
-    activeModelOption,
     modelStatus,
+    modelStatuses,
   ]);
   const handleModelMenuExpandedChange = useCallback((expanded: boolean) => {
     if (expanded) {
@@ -648,11 +699,15 @@ function AppContent() {
 
       setSelectedModelId(modelId);
 
-      if (!modelStatus?.installed) {
-        handleDownloadModelFromMenu().catch(() => undefined);
+      const nextStatus = getModelStatusForId(modelStatuses, modelId);
+      if (
+        !nextStatus?.installed &&
+        !isSystemManagedModel(modelId, nextStatus)
+      ) {
+        handleDownloadModelFromMenu(modelId).catch(() => undefined);
       }
     },
-    [handleDownloadModelFromMenu, modelStatus?.installed],
+    [handleDownloadModelFromMenu, modelStatuses],
   );
 
   const handleHeaderModelOptionPress = useCallback(
@@ -661,17 +716,19 @@ function AppContent() {
         return;
       }
 
+      const optionStatus = getModelStatusForId(modelStatuses, option.value);
       const isDownloadableMissingModel =
-        !activeModelOption &&
-        option.value === defaultDownloadableModelOption.id;
+        option.value === defaultDownloadableModelOption.id &&
+        !optionStatus?.installed &&
+        !isSystemManagedModel(option.value, optionStatus);
 
       if (isDownloadableMissingModel) {
-        if (modelStatus?.isDownloading || isModelDownloadStarting) {
+        if (optionStatus?.isDownloading || isModelDownloadStarting) {
           return;
         }
 
         setSelectedModelId(option.value);
-        handleDownloadModelFromMenu().catch(() => undefined);
+        handleDownloadModelFromMenu(option.value).catch(() => undefined);
         return;
       }
 
@@ -679,11 +736,10 @@ function AppContent() {
       setIsModelMenuOpen(false);
     },
     [
-      activeModelOption,
       handleDownloadModelFromMenu,
       handleSelectModel,
       isModelDownloadStarting,
-      modelStatus?.isDownloading,
+      modelStatuses,
     ],
   );
 
@@ -1306,13 +1362,12 @@ function AppContent() {
 
   return (
     <DisplaySettingsProvider>
-      <SafeAreaProvider>
-        <StatusBar
-          barStyle="dark-content"
-          backgroundColor={colors.background}
-        />
-        <SafeAreaView style={styles.safeArea}>
-          <PastelBackground />
+      <StatusBar
+        barStyle="dark-content"
+        backgroundColor={colors.background}
+      />
+      <SafeAreaView edges={['top', 'left', 'right']} style={styles.safeArea}>
+        <PastelBackground />
 
           <View style={styles.header}>
             <View style={styles.headerSide}>
@@ -1390,13 +1445,25 @@ function AppContent() {
           {isModelMenuOpen ? (
             <View style={styles.modelMenuOverlay}>
               {modelSelectOptions.map(option => {
+                const optionStatus = getModelStatusForId(
+                  modelStatuses,
+                  option.value,
+                );
                 const isSelected = option.value === headerSelectedModelId;
                 const isDownloadableMissingModel =
-                  !activeModelOption &&
-                  option.value === defaultDownloadableModelOption.id;
+                  option.value === defaultDownloadableModelOption.id &&
+                  !optionStatus?.installed &&
+                  !isSystemManagedModel(option.value, optionStatus);
                 const isDownloadInProgress =
                   isDownloadableMissingModel &&
-                  (modelStatus?.isDownloading || isModelDownloadStarting);
+                  (optionStatus?.isDownloading || isModelDownloadStarting);
+                const optionDownloadProgress =
+                  optionStatus == null || optionStatus.totalBytes <= 0
+                    ? 0
+                    : Math.min(
+                        1,
+                        optionStatus.bytesDownloaded / optionStatus.totalBytes,
+                      );
 
                 return (
                   <Pressable
@@ -1444,22 +1511,14 @@ function AppContent() {
                             <View
                               style={[
                                 styles.modelMenuProgressFill,
-                                { width: `${modelDownloadProgress * 100}%` },
+                                { width: `${optionDownloadProgress * 100}%` },
                               ]}
                             />
                           </View>
                         ) : null}
                       </View>
                     </View>
-                    {isSelected ? (
-                      <View style={styles.modelMenuTrailingCircle}>
-                        <AppIcon
-                          color={colors.primary}
-                          icon={appIcons.selected}
-                          size={14}
-                        />
-                      </View>
-                    ) : isDownloadInProgress ? (
+                    {isDownloadInProgress ? (
                       <View style={styles.modelMenuDownloadPill}>
                         <ActivityIndicator
                           color={colors.primary}
@@ -1480,6 +1539,14 @@ function AppContent() {
                           size={14}
                         />
                       </View>
+                    ) : isSelected ? (
+                      <View style={styles.modelMenuTrailingCircle}>
+                        <AppIcon
+                          color={colors.primary}
+                          icon={appIcons.selected}
+                          size={14}
+                        />
+                      </View>
                     ) : null}
                   </Pressable>
                 );
@@ -1495,6 +1562,7 @@ function AppContent() {
                 messages={activeMessages}
                 onMessagesChange={handleChatMessagesChange}
                 onSessionTitleChange={handleActiveSessionTitleChange}
+                selectedModelId={selectedModel.id}
                 selectedModelLabel={selectedModel.label}
                 sessionId={activeSessionId}
               />
@@ -1505,6 +1573,7 @@ function AppContent() {
                 onPanelChange={setSettingsPanel}
                 onPersonalCustomizationChange={setPersonalCustomization}
                 personalCustomization={personalCustomization}
+                selectedModelId={selectedModel.id}
               />
             )}
           </View>
@@ -1527,8 +1596,7 @@ function AppContent() {
             workFolders={workFolders}
             workFolderSessions={workFolderSessions}
           />
-        </SafeAreaView>
-      </SafeAreaProvider>
+      </SafeAreaView>
     </DisplaySettingsProvider>
   );
 }
@@ -1574,6 +1642,7 @@ function FullScreenMenu({
   workFolderSessions: ChatSession[];
 }) {
   const { height: windowHeight, width } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
   const slideX = useRef(new Animated.Value(-width)).current;
   const menuFrameRef = useRef<React.ElementRef<typeof View>>(null);
   const actionMenuAnchorRef = useRef<RecentActionMenuAnchor | null>(null);
@@ -2123,6 +2192,10 @@ function FullScreenMenu({
   const isWorkFolderActionPrimaryDisabled =
     workFolderActionDialog?.type === 'settings' &&
     !workFolderActionTitleDraft.trim();
+  const menuSafeAreaStyle = {
+    paddingBottom: Platform.OS === 'ios' ? insets.bottom : 0,
+    paddingTop: Platform.OS === 'ios' ? insets.top : 0,
+  };
 
   return (
     <Modal
@@ -2141,7 +2214,10 @@ function FullScreenMenu({
           },
         ]}
       >
-        <SafeAreaView style={styles.menuSafeArea}>
+        <SafeAreaView
+          edges={['left', 'right']}
+          style={[styles.menuSafeArea, menuSafeAreaStyle]}
+        >
           <View
             onLayout={handleMenuFrameLayout}
             ref={menuFrameRef}
@@ -3064,7 +3140,7 @@ const styles = StyleSheet.create({
   },
   modelSelectorActive: {
     backgroundColor: colors.card,
-    borderColor: 'rgba(0,122,255,0.34)',
+    borderColor: colors.ring,
   },
   modelSelectorText: {
     ...typography.caption,
@@ -3110,10 +3186,10 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
   },
   modelMenuOptionDownloadable: {
-    backgroundColor: '#F8FBFF',
+    backgroundColor: colors.muted,
   },
   modelMenuOptionSelected: {
-    backgroundColor: 'rgba(0,122,255,0.06)',
+    backgroundColor: colors.accent,
   },
   modelMenuOptionDisabled: {
     opacity: 0.54,
@@ -3177,7 +3253,7 @@ const styles = StyleSheet.create({
   modelMenuDownloadPill: {
     alignItems: 'center',
     backgroundColor: colors.accent,
-    borderColor: 'rgba(0,122,255,0.14)',
+    borderColor: colors.border,
     borderRadius: 999,
     borderWidth: StyleSheet.hairlineWidth,
     flexDirection: 'row',
@@ -3726,7 +3802,9 @@ const styles = StyleSheet.create({
 function App() {
   return (
     <I18nProvider>
-      <AppContent />
+      <SafeAreaProvider>
+        <AppContent />
+      </SafeAreaProvider>
     </I18nProvider>
   );
 }

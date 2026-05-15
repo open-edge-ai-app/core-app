@@ -17,6 +17,7 @@ import {
   StyleSheet,
   View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import AppIcon from '../components/AppIcon';
 import ChatBubble, { ChatRole } from '../components/ChatBubble';
@@ -24,6 +25,7 @@ import LoadingDots from '../components/LoadingDots';
 import { I18nKey, useI18n } from '../i18n';
 import AIEngine, {
   AIChatMessage,
+  ModelId,
   MultimodalAttachment,
 } from '../native/AIEngine';
 import { pickAttachment } from '../native/FilePicker';
@@ -88,6 +90,7 @@ type ChatScreenProps = {
     title: string,
     options?: SessionTitleChangeOptions,
   ) => void;
+  selectedModelId?: ModelId | string;
   selectedModelLabel?: string;
   sessionId?: string | null;
 };
@@ -265,10 +268,12 @@ function ChatScreen({
   messages,
   onMessagesChange,
   onSessionTitleChange,
+  selectedModelId = 'gemma-4',
   selectedModelLabel = 'Gemma 4',
   sessionId = null,
 }: ChatScreenProps) {
   const { locale, t } = useI18n();
+  const insets = useSafeAreaInsets();
   const scrollViewRef = useRef<ScrollView>(null);
   const inputRef = useRef<React.ElementRef<typeof TextInput>>(null);
   const isNearThreadEndRef = useRef(true);
@@ -312,19 +317,32 @@ function ChatScreen({
   const canSubmit = draft.trim().length > 0 || selectedAttachments.length > 0;
   const shouldShowStopButton = isGenerationBusy && !canSubmit;
 
+  const bottomSafeAreaInset = Platform.OS === 'ios' ? insets.bottom : 0;
+  const composerBottomOffset =
+    keyboardHeight > 0 ? keyboardHeight : bottomSafeAreaInset;
   const composerOffsetStyle = useMemo(
     () => ({
-      marginBottom: Platform.OS === 'android' ? keyboardHeight : 0,
+      bottom: composerBottomOffset,
+      paddingBottom: keyboardHeight > 0 ? 8 : 6,
     }),
-    [keyboardHeight],
+    [composerBottomOffset, keyboardHeight],
   );
   const scrollToBottomButtonOffsetStyle = useMemo(
     () => ({
       bottom:
         SCROLL_TO_BOTTOM_BUTTON_OFFSET +
-        (Platform.OS === 'android' ? keyboardHeight : 0),
+        composerBottomOffset,
     }),
-    [keyboardHeight],
+    [composerBottomOffset],
+  );
+  const scrollContentBottomInsetStyle = useMemo(
+    () => ({
+      paddingBottom:
+        (hasUserMessages
+          ? THREAD_SCROLL_BOTTOM_INSET
+          : INITIAL_SCROLL_BOTTOM_INSET) + composerBottomOffset,
+    }),
+    [composerBottomOffset, hasUserMessages],
   );
 
   const scrollToThreadEnd = useCallback((animated = true) => {
@@ -356,20 +374,18 @@ function ChatScreen({
   );
 
   useEffect(() => {
-    if (Platform.OS !== 'android') {
-      return;
-    }
-
     const handleKeyboardShow = (event: KeyboardEvent) => {
       setKeyboardHeight(event.endCoordinates.height);
     };
-    const showSubscription = Keyboard.addListener(
-      'keyboardDidShow',
-      handleKeyboardShow,
-    );
-    const hideSubscription = Keyboard.addListener('keyboardDidHide', () => {
-      setKeyboardHeight(0);
-    });
+    const handleKeyboardHide = () => setKeyboardHeight(0);
+    const showSubscription =
+      Platform.OS === 'ios'
+        ? Keyboard.addListener('keyboardWillChangeFrame', handleKeyboardShow)
+        : Keyboard.addListener('keyboardDidShow', handleKeyboardShow);
+    const hideSubscription =
+      Platform.OS === 'ios'
+        ? Keyboard.addListener('keyboardWillHide', handleKeyboardHide)
+        : Keyboard.addListener('keyboardDidHide', handleKeyboardHide);
 
     return () => {
       showSubscription.remove();
@@ -589,6 +605,7 @@ function ChatScreen({
         {
           attachments: attachmentsForPrompt,
           chatSessionId: resolvedSessionId ?? undefined,
+          modelId: selectedModelId,
         },
       );
 
@@ -665,6 +682,7 @@ function ChatScreen({
     onMessagesChange,
     onSessionTitleChange,
     selectedModelLabel,
+    selectedModelId,
     sessionId,
     systemHistory,
     t,
@@ -862,6 +880,7 @@ function ChatScreen({
           {
             attachments: sourceAttachments,
             chatSessionId: sessionId ?? undefined,
+            modelId: selectedModelId,
           },
         );
 
@@ -912,6 +931,7 @@ function ChatScreen({
       messages,
       onMessagesChange,
       selectedModelLabel,
+      selectedModelId,
       sessionId,
       t,
     ],
@@ -961,15 +981,13 @@ function ChatScreen({
   }, []);
 
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      style={styles.container}
-    >
+    <KeyboardAvoidingView style={styles.container}>
       <ScrollView
         contentContainerStyle={[
           styles.scrollContent,
           !hasUserMessages && styles.scrollContentInitial,
           hasUserMessages && styles.scrollContentThread,
+          scrollContentBottomInsetStyle,
         ]}
         keyboardShouldPersistTaps="handled"
         onScroll={handleThreadScroll}
@@ -1501,12 +1519,14 @@ const styles = StyleSheet.create({
   composer: {
     backgroundColor: 'transparent',
     bottom: 0,
+    elevation: 20,
     left: 0,
     paddingBottom: 6,
     paddingHorizontal: 12,
     paddingTop: 14,
     position: 'absolute',
     right: 0,
+    zIndex: 20,
   },
   inputPanel: {
     backgroundColor: colors.card,

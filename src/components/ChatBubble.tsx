@@ -7,16 +7,6 @@ import {
   View,
 } from 'react-native';
 
-import claudeLogo from '@lobehub/icons-static-png/light/claude-color.png';
-import deepseekLogo from '@lobehub/icons-static-png/light/deepseek-color.png';
-import geminiLogo from '@lobehub/icons-static-png/light/gemini-color.png';
-import gemmaLogo from '@lobehub/icons-static-png/light/gemma-color.png';
-import huggingFaceLogo from '@lobehub/icons-static-png/light/huggingface-color.png';
-import mistralLogo from '@lobehub/icons-static-png/light/mistral-color.png';
-import ollamaLogo from '@lobehub/icons-static-png/light/ollama.png';
-import openaiLogo from '@lobehub/icons-static-png/light/openai.png';
-import qwenLogo from '@lobehub/icons-static-png/light/qwen-color.png';
-
 import MarkdownText from './MarkdownText';
 import AppIcon from './AppIcon';
 import { Button } from './ui';
@@ -45,74 +35,6 @@ type ChatBubbleProps = {
   text: string;
   thumbnail?: ImageSourcePropType;
   timestamp?: string;
-};
-
-type AssistantProfile = {
-  backgroundColor: string;
-  foregroundColor: string;
-  logoSource?: ImageSourcePropType;
-};
-
-const modelLogoProfiles: Array<{
-  matches: string[];
-  source: ImageSourcePropType;
-}> = [
-  {
-    matches: ['gemma'],
-    source: gemmaLogo,
-  },
-  {
-    matches: ['gemini'],
-    source: geminiLogo,
-  },
-  {
-    matches: ['openai', 'gpt'],
-    source: openaiLogo,
-  },
-  {
-    matches: ['claude', 'anthropic'],
-    source: claudeLogo,
-  },
-  {
-    matches: ['deepseek'],
-    source: deepseekLogo,
-  },
-  {
-    matches: ['mistral'],
-    source: mistralLogo,
-  },
-  {
-    matches: ['qwen'],
-    source: qwenLogo,
-  },
-  {
-    matches: ['hugging face', 'huggingface', 'hf '],
-    source: huggingFaceLogo,
-  },
-  {
-    matches: ['ollama'],
-    source: ollamaLogo,
-  },
-];
-
-const getAssistantProfile = (assistantName: string): AssistantProfile => {
-  const normalizedName = assistantName.toLowerCase();
-  const matchedLogo = modelLogoProfiles.find(profile =>
-    profile.matches.some(match => normalizedName.includes(match)),
-  );
-
-  if (matchedLogo) {
-    return {
-      backgroundColor: '#FFFFFF',
-      foregroundColor: colors.foreground,
-      logoSource: matchedLogo.source,
-    };
-  }
-
-  return {
-    backgroundColor: colors.muted,
-    foregroundColor: colors.foreground,
-  };
 };
 
 const getAttachmentDisplayName = (
@@ -149,7 +71,6 @@ function ChatBubble({
   actions = [],
   attachmentFallbackName = 'Attachment',
   attachments = [],
-  assistantName = 'Gemma 4',
   isRetryDisabled = false,
   onRetry,
   reasoning,
@@ -158,7 +79,6 @@ function ChatBubble({
   thumbnail,
   timestamp,
 }: ChatBubbleProps) {
-  const assistantProfile = getAssistantProfile(assistantName);
   const [isCopied, setIsCopied] = useState(false);
   const [isReasoningExpanded, setIsReasoningExpanded] = useState(false);
   const copiedTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -246,36 +166,7 @@ function ChatBubble({
 
   return (
     <View style={styles.assistantRow}>
-      <View
-        accessibilityLabel={`${assistantName} 모델 프로필`}
-        accessibilityRole="image"
-        accessible
-        style={[
-          styles.avatarIcon,
-          { backgroundColor: assistantProfile.backgroundColor },
-        ]}
-      >
-        {assistantProfile.logoSource ? (
-          <Image
-            resizeMode="contain"
-            source={assistantProfile.logoSource}
-            style={styles.avatarLogo}
-          />
-        ) : (
-          <AppIcon
-            color={assistantProfile.foregroundColor}
-            icon={appIcons.chatAssistant}
-            size={14}
-          />
-        )}
-      </View>
-
       <View style={styles.assistantContent}>
-        <View style={styles.assistantHeader}>
-          <Text style={styles.botLabel}>{assistantName}</Text>
-          {timestamp ? <Text style={styles.timestamp}>{timestamp}</Text> : null}
-        </View>
-
         {thumbnail ? (
           <Image source={thumbnail} style={styles.thumbnail} />
         ) : null}
@@ -302,47 +193,55 @@ function ChatBubble({
 
         <MarkdownText selectable style={styles.assistantText} text={text} />
 
-        {canUseAssistantActions ? (
-          <View style={styles.assistantActions}>
-            <Pressable
-              accessibilityLabel="AI 응답 전체 복사"
-              accessibilityRole="button"
-              hitSlop={6}
-              onPress={handleCopyResponse}
-              style={({ pressed }) => [
-                styles.assistantActionButton,
-                pressed && styles.assistantActionButtonPressed,
-              ]}
-            >
-              <AppIcon
-                color={isCopied ? colors.success : colors.mutedForeground}
-                icon={appIcons.copy}
-                size={13}
-              />
-              {isCopied ? (
-                <Text style={styles.assistantActionFeedback}>복사됨</Text>
+        {canUseAssistantActions || timestamp ? (
+          <View style={styles.assistantFooter}>
+            <View style={styles.assistantActions}>
+              {canUseAssistantActions ? (
+                <Pressable
+                  accessibilityLabel="AI 응답 전체 복사"
+                  accessibilityRole="button"
+                  hitSlop={6}
+                  onPress={handleCopyResponse}
+                  style={({ pressed }) => [
+                    styles.assistantActionButton,
+                    pressed && styles.assistantActionButtonPressed,
+                  ]}
+                >
+                  <AppIcon
+                    color={isCopied ? colors.success : colors.mutedForeground}
+                    icon={appIcons.copy}
+                    size={13}
+                  />
+                  {isCopied ? (
+                    <Text style={styles.assistantActionFeedback}>복사됨</Text>
+                  ) : null}
+                </Pressable>
               ) : null}
-            </Pressable>
 
-            {onRetry ? (
-              <Pressable
-                accessibilityLabel="AI 응답 다시 시도"
-                accessibilityRole="button"
-                disabled={isRetryDisabled}
-                hitSlop={6}
-                onPress={onRetry}
-                style={({ pressed }) => [
-                  styles.assistantActionButton,
-                  pressed && styles.assistantActionButtonPressed,
-                  isRetryDisabled && styles.assistantActionButtonDisabled,
-                ]}
-              >
-                <AppIcon
-                  color={colors.mutedForeground}
-                  icon={appIcons.retry}
-                  size={13}
-                />
-              </Pressable>
+              {canUseAssistantActions && onRetry ? (
+                <Pressable
+                  accessibilityLabel="AI 응답 다시 시도"
+                  accessibilityRole="button"
+                  disabled={isRetryDisabled}
+                  hitSlop={6}
+                  onPress={onRetry}
+                  style={({ pressed }) => [
+                    styles.assistantActionButton,
+                    pressed && styles.assistantActionButtonPressed,
+                    isRetryDisabled && styles.assistantActionButtonDisabled,
+                  ]}
+                >
+                  <AppIcon
+                    color={colors.mutedForeground}
+                    icon={appIcons.retry}
+                    size={13}
+                  />
+                </Pressable>
+              ) : null}
+            </View>
+
+            {timestamp ? (
+              <Text style={styles.assistantFooterTimestamp}>{timestamp}</Text>
             ) : null}
           </View>
         ) : null}
@@ -367,42 +266,10 @@ function ChatBubble({
 
 const styles = StyleSheet.create({
   assistantRow: {
-    flexDirection: 'row',
-    gap: 11,
     marginBottom: 22,
-  },
-  avatarIcon: {
-    alignItems: 'center',
-    borderColor: colors.border,
-    borderRadius: 10,
-    borderWidth: StyleSheet.hairlineWidth,
-    height: 28,
-    justifyContent: 'center',
-    overflow: 'hidden',
-    width: 28,
-  },
-  avatarLogo: {
-    height: 20,
-    width: 20,
   },
   assistantContent: {
     flex: 1,
-  },
-  assistantHeader: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 8,
-  },
-  botLabel: {
-    ...typography.label,
-    color: colors.foreground,
-    fontSize: 14,
-  },
-  timestamp: {
-    ...typography.caption,
-    color: colors.mutedForeground,
-    fontSize: 11,
   },
   assistantText: {
     ...typography.body,
@@ -444,11 +311,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 9,
   },
+  assistantFooter: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 10,
+  },
   assistantActions: {
     alignItems: 'center',
     flexDirection: 'row',
     gap: 6,
-    marginTop: 10,
   },
   assistantActionButton: {
     alignItems: 'center',
@@ -473,6 +345,11 @@ const styles = StyleSheet.create({
     color: colors.success,
     fontSize: 11,
     fontWeight: '700',
+  },
+  assistantFooterTimestamp: {
+    ...typography.caption,
+    color: colors.mutedForeground,
+    fontSize: 11,
   },
   userRow: {
     alignItems: 'flex-end',

@@ -20,10 +20,10 @@ npm install
 | ------------------------- | --------------------------------------------------- |
 | `npm start`               | Start Metro on the default port.                    |
 | `npm run start:android`   | Start Metro on port `8082`.                         |
-| `npm run android`         | Install debug, map device `8081` to Metro `8082`, and launch Android. |
+| `npm run android`         | Install debug with Metro port `8082`, apply reverse, and launch Android. |
 | `npm run android:8082`    | Same as `npm run android`; kept for explicit Android 8082 workflows. |
 | `npm run android:activate`| Re-apply the Android port reverse and foreground the app.             |
-| `npm run android:reverse` | Re-apply only `adb reverse tcp:8081 tcp:8082`.                         |
+| `npm run android:reverse` | Re-apply only `adb reverse tcp:8082 tcp:8082`.                         |
 | `npm run ios`             | Build and run the iOS app.                          |
 | `npm run web`             | Start the Vite web preview.                         |
 | `npm run lint`            | Run ESLint.                                         |
@@ -39,7 +39,8 @@ npm run start:android
 npm run android
 ```
 
-The Android script maps the device's React Native default port to Metro `8082`:
+The Android script builds the debug APK with React Native's dev server port set
+to `8082` and maps device `8082` to host `8082`:
 
 ```sh
 adb devices
@@ -54,12 +55,13 @@ and returns HTML instead of the React Native bundle.
 Install CocoaPods dependencies when needed:
 
 ```sh
-cd ios
-bundle install
-bundle exec pod install
-cd ..
+npm run ios:pods
 npm run ios
 ```
+
+The iOS helper checks that full Xcode is selected, installs Pods when they are
+missing, and runs the `OpenEdgeAI` scheme on the simulator. You can set
+`OPEN_EDGE_AI_IOS_SIMULATOR` to target a specific simulator name.
 
 The iOS app shell exists, but the native AI bridge is planned future work.
 

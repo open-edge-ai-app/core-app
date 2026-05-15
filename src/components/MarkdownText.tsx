@@ -36,6 +36,34 @@ const inlinePattern =
   /(\[[^\]]+\]\([^)]+\)|`[^`\n]+`|\*\*[^*\n]+?\*\*|__[^_\n]+?__|\*[^*\n]+?\*|_[^_\n]+?_)/g;
 const codeTokenPattern =
   /(\/\/.*$|#.*$|\/\*.*?\*\/|"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|`(?:\\.|[^`\\])*`|\b(?:abstract|and|as|async|await|break|catch|class|const|continue|data|def|do|else|enum|export|extends|false|finally|for|from|fun|function|if|implements|import|in|interface|is|let|new|null|object|or|override|private|public|return|static|struct|super|suspend|switch|this|throw|true|try|type|undefined|val|var|when|while|yield)\b|\b\d+(?:\.\d+)?\b|[{}[\]().,;:+\-*/%=<>!&|?]+)/g;
+const codePalette =
+  Platform.OS === 'ios'
+    ? {
+        block: '#000000',
+        border: 'rgba(255,255,255,0.16)',
+        comment: '#A3A3A3',
+        header: '#111111',
+        keyword: '#FFFFFF',
+        muted: '#D4D4D4',
+        number: '#D4D4D4',
+        pressed: 'rgba(255,255,255,0.12)',
+        punctuation: '#D4D4D4',
+        string: '#E5E5E5',
+        text: '#FFFFFF',
+      }
+    : {
+        block: '#111827',
+        border: 'rgba(203,213,225,0.16)',
+        comment: '#94A3B8',
+        header: '#0F172A',
+        keyword: '#93C5FD',
+        muted: '#CBD5E1',
+        number: '#FDE68A',
+        pressed: 'rgba(203,213,225,0.12)',
+        punctuation: '#CBD5E1',
+        string: '#86EFAC',
+        text: '#F8FAFC',
+      };
 
 const isBlockStart = (line: string) => blockStartPattern.test(line.trim());
 
@@ -357,7 +385,7 @@ function CodeBlock({ code, language }: CodeBlockProps) {
           ]}
         >
           <AppIcon
-            color={copied ? colors.success : '#CBD5E1'}
+            color={copied ? colors.success : codePalette.muted}
             icon={appIcons.copy}
             size={12}
           />
@@ -571,14 +599,14 @@ const styles = StyleSheet.create({
     color: colors.mutedForeground,
   },
   codeBlock: {
-    backgroundColor: '#111827',
+    backgroundColor: codePalette.block,
     borderRadius: 8,
     overflow: 'hidden',
   },
   codeHeader: {
     alignItems: 'center',
-    backgroundColor: '#0F172A',
-    borderBottomColor: 'rgba(203,213,225,0.16)',
+    backgroundColor: codePalette.header,
+    borderBottomColor: codePalette.border,
     borderBottomWidth: StyleSheet.hairlineWidth,
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -587,7 +615,7 @@ const styles = StyleSheet.create({
   },
   codeLanguage: {
     ...typography.caption,
-    color: '#CBD5E1',
+    color: codePalette.muted,
     textTransform: 'lowercase',
   },
   copyButton: {
@@ -599,11 +627,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 7,
   },
   copyButtonPressed: {
-    backgroundColor: 'rgba(203,213,225,0.12)',
+    backgroundColor: codePalette.pressed,
   },
   copyButtonText: {
     ...typography.caption,
-    color: '#CBD5E1',
+    color: codePalette.muted,
     fontSize: 11,
   },
   copyButtonTextCopied: {
@@ -615,27 +643,27 @@ const styles = StyleSheet.create({
   },
   codeText: {
     ...typography.caption,
-    color: '#F8FAFC',
+    color: codePalette.text,
     fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
     fontSize: 13,
     fontWeight: '500',
     lineHeight: 19,
   },
   codeKeyword: {
-    color: '#93C5FD',
+    color: codePalette.keyword,
   },
   codeString: {
-    color: '#86EFAC',
+    color: codePalette.string,
   },
   codeNumber: {
-    color: '#FDE68A',
+    color: codePalette.number,
   },
   codeComment: {
-    color: '#94A3B8',
+    color: codePalette.comment,
     fontStyle: 'italic',
   },
   codePunctuation: {
-    color: '#CBD5E1',
+    color: codePalette.punctuation,
   },
 });
 

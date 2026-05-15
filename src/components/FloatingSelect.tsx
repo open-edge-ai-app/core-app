@@ -375,7 +375,7 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   optionRowActive: {
-    backgroundColor: 'rgba(0,122,255,0.08)',
+    backgroundColor: colors.accent,
   },
   optionRowDisabled: {
     opacity: 0.54,

@@ -468,6 +468,24 @@ const omitRecordKey = <Value,>(
   return nextRecord;
 };
 
+const createPersonalSystemPrompt = (
+  settings: PersonalCustomizationSettings,
+) =>
+  [
+    settings.userName.trim() ? `User name: ${settings.userName.trim()}` : '',
+    resolvePersonalityPrompt(settings.personality).trim(),
+    settings.customInstructions.trim(),
+    settings.memoryEnabled && settings.savedMemories.length > 0
+      ? `Saved memories:\n${settings.savedMemories
+          .map(memory => memory.trim())
+          .filter(Boolean)
+          .map(memory => `- ${memory}`)
+          .join('\n')}`
+      : '',
+  ]
+    .filter(Boolean)
+    .join('\n\n');
+
 function AppContent() {
   const { t } = useI18n();
   const activeSessionIdRef = useRef<string | null>(null);
@@ -775,7 +793,9 @@ function AppContent() {
         setWorkFolderSessions(storedWorkFolderSessions);
         setWorkFolders(storedState?.workFolders ?? []);
         setSelectedModelId(storedState?.selectedModelId ?? 'gemma-4');
-        setPersonalCustomization(storedState.personalCustomization);
+        setPersonalCustomization(
+          storedState?.personalCustomization ?? defaultPersonalCustomizationSettings,
+        );
         setChatMessagesBySessionId(hydratedMessagesBySessionId);
         setDraftChatMessages(
           hydrateMessages(storedState?.draftChatMessages),
@@ -878,7 +898,10 @@ function AppContent() {
 
   const activeSystemPrompt = useMemo(
     () =>
-      createCommonSystemPrompt(personalCustomization, activeWorkFolderMemory),
+      createCommonSystemPrompt(
+        createPersonalSystemPrompt(personalCustomization),
+        activeWorkFolderMemory,
+      ),
     [activeWorkFolderMemory, personalCustomization],
   );
 

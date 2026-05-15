@@ -660,12 +660,13 @@ function ChatScreen({
     }
   }, [
     hasUserMessages,
-    defaultAttachmentName,
     conversationMessages,
+    messages,
     onMessagesChange,
     onSessionTitleChange,
     selectedModelLabel,
     sessionId,
+    systemHistory,
     t,
   ]);
 
@@ -906,7 +907,9 @@ function ChatScreen({
     },
     [
       isGenerationBusy,
+      commonSystemPrompt,
       conversationMessages,
+      messages,
       onMessagesChange,
       selectedModelLabel,
       sessionId,

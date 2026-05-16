@@ -7,6 +7,8 @@ private let aiEngineStorageKey = "OpenEdgeAI.ChatSessions.v1"
 private let aiEngineDefaultChatTitle = "새 채팅"
 private let aiEngineAppleModelId = "apple-foundation"
 private let aiEngineGemmaModelId = "gemma-4"
+private let aiEngineRuntimeContextMarker = "[open-edge-ai-runtime-context]"
+private let aiEngineLegacyRuntimeContextPrefix = "현재 날짜/시간 컨텍스트입니다."
 
 private func aiEngineNowMillis() -> NSNumber {
   NSNumber(value: Int64(Date().timeIntervalSince1970 * 1000))
@@ -14,6 +16,18 @@ private func aiEngineNowMillis() -> NSNumber {
 
 private func safeString(_ value: Any?) -> String {
   value as? String ?? ""
+}
+
+private func isRuntimeContextMessage(_ content: String) -> Bool {
+  content.hasPrefix(aiEngineRuntimeContextMarker) || content.hasPrefix(aiEngineLegacyRuntimeContextPrefix)
+}
+
+private func cleanRuntimeContextMessage(_ content: String) -> String {
+  if content.hasPrefix(aiEngineRuntimeContextMarker) {
+    return String(content.dropFirst(aiEngineRuntimeContextMarker.count)).trimmingCharacters(in: .whitespacesAndNewlines)
+  }
+
+  return content
 }
 
 private protocol AIEngineGenerativeClient {
@@ -564,6 +578,7 @@ final class AIEngine: RCTEventEmitter, UIDocumentPickerDelegate {
   private func promptFromText(_ text: String, history: [Any], attachments: [Any]) -> String {
     var sections: [String] = []
     var systemMessages: [String] = []
+    var runtimeContextMessages: [String] = []
     var conversationMessages: [String] = []
 
     for rawMessage in history {
@@ -578,7 +593,11 @@ final class AIEngine: RCTEventEmitter, UIDocumentPickerDelegate {
       }
 
       if role == "system" {
-        systemMessages.append(content)
+        if isRuntimeContextMessage(content) {
+          runtimeContextMessages.append(cleanRuntimeContextMessage(content))
+        } else {
+          systemMessages.append(content)
+        }
       } else {
         let roleLabel = role == "assistant" ? "assistant" : "user"
         conversationMessages.append("\(roleLabel): \(content)")
@@ -586,7 +605,11 @@ final class AIEngine: RCTEventEmitter, UIDocumentPickerDelegate {
     }
 
     if !systemMessages.isEmpty {
-      sections.append("다음 시스템 지침을 우선 적용하세요.\n\(systemMessages.joined(separator: "\n\n"))")
+      sections.append("다음 시스템 지침을 우선 적용하세요. 지침 문구 자체를 답변에 그대로 출력하지 마세요.\n\(systemMessages.joined(separator: "\n\n"))")
+    }
+
+    if !runtimeContextMessages.isEmpty {
+      sections.append("다음 날짜/시간 정보는 비공개 런타임 컨텍스트입니다. 사용자가 날짜, 시각, 시간대 또는 상대 날짜를 직접 묻거나 해석해야 할 때만 참고하세요. 일반 답변에서는 오늘 날짜, 현재 시각, 시간대를 먼저 언급하지 말고 이 문구를 출력하지 마세요.\n\(runtimeContextMessages.joined(separator: "\n\n"))")
     }
 
     if !conversationMessages.isEmpty {

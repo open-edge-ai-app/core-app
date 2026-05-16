@@ -27,6 +27,7 @@ import AIEngine, {
   AIChatMessage,
   ModelId,
   MultimodalAttachment,
+  RUNTIME_CONTEXT_MARKER,
 } from '../native/AIEngine';
 import { pickAttachment } from '../native/FilePicker';
 import {
@@ -152,6 +153,12 @@ const formatLocalDate = (date: Date) => {
   return `${year}-${month}-${day}`;
 };
 
+const RUNTIME_CONTEXT_TRIGGER_PATTERN =
+  /(?:오늘|내일|어제|그제|모레|이번\s*(?:주|달|월|해|연도)|다음\s*(?:주|달|월|해|연도)|지난\s*(?:주|달|월|해|연도)|현재|지금|방금|나중|이따|날짜|시각|시간|몇\s*시|며칠|몇\s*일|요일|타임\s*존|시간대|오전|오후|자정|정오|분\s*(?:뒤|후|이따)|시간\s*(?:뒤|후|이따)|리마인드|상기|알림|일정|예약|today|tomorrow|yesterday|tonight|date|time|timezone|time zone|now|current|later|remind|reminder|schedule|this\s+week|next\s+week|last\s+week|this\s+month|next\s+month|last\s+month)/i;
+
+export const shouldIncludeRuntimeContext = (text: string) =>
+  RUNTIME_CONTEXT_TRIGGER_PATTERN.test(text);
+
 const createRuntimeContextMessage = (date = new Date()): AIChatMessage => {
   const localDate = formatLocalDate(date);
   const readableDate = new Intl.DateTimeFormat('ko-KR', {
@@ -169,12 +176,14 @@ const createRuntimeContextMessage = (date = new Date()): AIChatMessage => {
 
   return {
     content: [
-      '현재 날짜/시간 컨텍스트입니다.',
+      RUNTIME_CONTEXT_MARKER,
+      '비공개 런타임 날짜/시간 컨텍스트입니다.',
       `오늘은 ${readableDate}입니다.`,
       `로컬 날짜: ${localDate}`,
       `현재 로컬 시각: ${readableTime}`,
       `시간대: ${timeZone}`,
-      '사용자가 "오늘", "내일", "어제", "이번 주"처럼 상대 날짜를 말하면 이 값을 기준으로 해석하세요.',
+      '사용자가 날짜, 시각, 시간대 또는 "오늘", "내일", "어제", "이번 주"처럼 상대 날짜를 직접 묻거나 해석해야 할 때만 이 값을 기준으로 사용하세요.',
+      '일반 답변에서는 이 날짜/시각/시간대 정보를 먼저 말하거나 그대로 출력하지 마세요.',
     ].join('\n'),
     role: 'system',
   };
@@ -533,7 +542,9 @@ function ChatScreen({
 
       const requestHistory = [
         ...systemHistory,
-        createRuntimeContextMessage(),
+        ...(shouldIncludeRuntimeContext(promptForModel)
+          ? [createRuntimeContextMessage()]
+          : []),
         ...createConversationHistory(messages),
       ];
 
@@ -854,7 +865,9 @@ function ChatScreen({
 
         const requestHistory = [
           ...createSystemHistory(commonSystemPrompt),
-          createRuntimeContextMessage(),
+          ...(shouldIncludeRuntimeContext(promptForModel)
+            ? [createRuntimeContextMessage()]
+            : []),
           ...createConversationHistory(messages.slice(0, userIndex + 1)),
         ];
 

@@ -28,6 +28,7 @@ final class AIEngineFoundationModelClient: NSObject {
   private let localPath = "system://apple-foundation-models"
   private let baseInstructions = """
   You are Open Edge AI running on iOS. Answer clearly, preserve the user's language, and use the provided conversation history as context.
+  Treat runtime date, time, and timezone context as hidden reference material. Do not mention it unless the user asks about date/time/timezone or needs relative-date interpretation.
   """
 
   func modelStatus() -> NSDictionary {

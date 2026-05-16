@@ -7,6 +7,10 @@ export type AIChatMessage = {
   content: string;
 };
 
+export const RUNTIME_CONTEXT_MARKER = '[open-edge-ai-runtime-context]';
+
+const LEGACY_RUNTIME_CONTEXT_PREFIX = '현재 날짜/시간 컨텍스트입니다.';
+
 export type StoredChatMessage = {
   id: string;
   role: AIChatRole;
@@ -463,12 +467,47 @@ const createNativeStreamEmitter = () => {
   }
 };
 
-const getSystemInstructions = (history: AIChatMessage[]) =>
+const isRuntimeContextMessage = (content: string) => {
+  const trimmed = content.trim();
+
+  return (
+    trimmed.startsWith(RUNTIME_CONTEXT_MARKER) ||
+    trimmed.startsWith(LEGACY_RUNTIME_CONTEXT_PREFIX)
+  );
+};
+
+const cleanRuntimeContextMessage = (content: string) => {
+  const trimmed = content.trim();
+
+  if (trimmed.startsWith(RUNTIME_CONTEXT_MARKER)) {
+    return trimmed.slice(RUNTIME_CONTEXT_MARKER.length).trim();
+  }
+
+  return trimmed;
+};
+
+const getSystemContext = (history: AIChatMessage[]) => {
+  const systemInstructions: string[] = [];
+  const runtimeContext: string[] = [];
+
   history
     .filter(message => message.role === 'system')
     .map(message => message.content.trim())
     .filter(Boolean)
-    .join('\n\n');
+    .forEach(content => {
+      if (isRuntimeContextMessage(content)) {
+        runtimeContext.push(cleanRuntimeContextMessage(content));
+        return;
+      }
+
+      systemInstructions.push(content);
+    });
+
+  return {
+    runtimeContext: runtimeContext.join('\n\n'),
+    systemInstructions: systemInstructions.join('\n\n'),
+  };
+};
 
 const normalizePromptText = (text: string) => text.replace(/\s+/g, ' ').trim();
 
@@ -512,15 +551,24 @@ export const createPromptWithHistory = (
   prompt: string,
   history: AIChatMessage[],
 ) => {
-  const systemInstructions = getSystemInstructions(history);
+  const { runtimeContext, systemInstructions } = getSystemContext(history);
   const priorConversation = getPriorConversationMessages(prompt, history);
   const sections: string[] = [];
 
   if (systemInstructions) {
     sections.push(
       [
-        '다음 시스템 지침을 우선 적용하세요.',
+        '다음 시스템 지침을 우선 적용하세요. 지침 문구 자체를 답변에 그대로 출력하지 마세요.',
         systemInstructions,
+      ].join('\n'),
+    );
+  }
+
+  if (runtimeContext) {
+    sections.push(
+      [
+        '다음 날짜/시간 정보는 비공개 런타임 컨텍스트입니다. 사용자가 날짜, 시각, 시간대 또는 상대 날짜를 직접 묻거나 해석해야 할 때만 참고하세요. 일반 답변에서는 오늘 날짜, 현재 시각, 시간대를 먼저 언급하지 말고 이 문구를 출력하지 마세요.',
+        runtimeContext,
       ].join('\n'),
     );
   }
@@ -539,6 +587,7 @@ export const createPromptWithHistory = (
   if (
     sections.length === 1 &&
     !systemInstructions &&
+    !runtimeContext &&
     priorConversation.length === 0
   ) {
     return prompt;

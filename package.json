@@ -32,7 +32,7 @@
     "ios:activate": "node scripts/ios-dev.mjs activate",
     "ios:pods": "node scripts/ios-dev.mjs pods",
     "lint": "eslint .",
-    "start": "react-native start",
+    "start": "react-native start --port 8082",
     "start:android": "react-native start --port 8082",
     "test": "jest",
     "web": "vite --host 127.0.0.1"

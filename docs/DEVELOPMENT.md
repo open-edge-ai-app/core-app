@@ -18,7 +18,7 @@ npm install
 
 | Command                   | Purpose                                             |
 | ------------------------- | --------------------------------------------------- |
-| `npm start`               | Start Metro on the default port.                    |
+| `npm start`               | Start Metro on the app port `8082`.                 |
 | `npm run start:android`   | Start Metro on port `8082`.                         |
 | `npm run android`         | Install debug with Metro port `8082`, apply reverse, and launch Android. |
 | `npm run android:8082`    | Same as `npm run android`; kept for explicit Android 8082 workflows. |

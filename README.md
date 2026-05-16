@@ -99,10 +99,10 @@ npm install
 ### Run
 
 ```sh
-# Metro for the default React Native port
+# Metro for the app's React Native port
 npm start
 
-# Metro on port 8082, useful when 8081 is occupied
+# Same Metro port, kept for Android-specific workflows
 npm run start:android
 
 # Android app. This installs debug with Metro port 8082,

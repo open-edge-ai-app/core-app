@@ -6,6 +6,7 @@ PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 WORKDIR="${LITERT_LM_BUILD_DIR:-/tmp/OpenEdgeLiteRTLMMinimal}"
 MINIMAL_REPO="${LITERT_LM_MINIMAL_REPO:-https://github.com/scriptease/LiteRTLMMinimal.git}"
 OUT_DIR="$PROJECT_ROOT/ios/Frameworks"
+IOS_MIN_VERSION="${IOS_MIN_VERSION:-26.2}"
 
 export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
 
@@ -99,7 +100,7 @@ MODULEMAP
   <key>CFBundleShortVersionString</key><string>1.0.0</string>
   <key>CFBundleVersion</key><string>1</string>
   <key>CFBundleSupportedPlatforms</key><array><string>$plist_platform_name</string></array>
-  <key>MinimumOSVersion</key><string>15.1</string>
+  <key>MinimumOSVersion</key><string>$IOS_MIN_VERSION</string>
 </dict>
 </plist>
 PLIST
@@ -132,7 +133,7 @@ wrap_constraint_provider_framework() {
   <key>CFBundleShortVersionString</key><string>1.0.0</string>
   <key>CFBundleVersion</key><string>1</string>
   <key>CFBundleSupportedPlatforms</key><array><string>$plist_platform_name</string></array>
-  <key>MinimumOSVersion</key><string>15.1</string>
+  <key>MinimumOSVersion</key><string>$IOS_MIN_VERSION</string>
 </dict>
 </plist>
 PLIST

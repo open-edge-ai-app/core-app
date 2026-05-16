@@ -1,12 +1,4 @@
-# Resolve react_native_pods.rb with node to allow for hoisting
-require Pod::Executable.execute_command('node', ['-p',
-  'require.resolve(
-    "react-native/scripts/react_native_pods.rb",
-    {paths: [process.argv[1]]},
-  )', __dir__]).strip
-
-platform :ios, min_ios_version_supported
-prepare_react_native_project!
+platform :ios, '26.2'
 
 linkage = ENV['USE_FRAMEWORKS']
 if linkage != nil
@@ -15,7 +7,6 @@ if linkage != nil
 end
 
 target 'OpenEdgeAI' do
-  config = use_native_modules!
   litert_lm_frameworks_dir = File.join(__dir__, 'Frameworks')
   litert_lm_runtime_available =
     File.exist?(File.join(litert_lm_frameworks_dir, 'LiteRTLM.xcframework')) &&
@@ -25,20 +16,5 @@ target 'OpenEdgeAI' do
     pod 'OpenEdgeLiteRTLMRuntime', :path => '.'
   else
     Pod::UI.warn 'LiteRT-LM iOS runtime is not linked. Run `bash scripts/build-ios-litertlm-runtime.sh sim` and then `cd ios && pod install` to enable Gemma 4 on iOS.'
-  end
-
-  use_react_native!(
-    :path => config[:reactNativePath],
-    # An absolute path to your application root.
-    :app_path => "#{Pod::Config.instance.installation_root}/.."
-  )
-
-  post_install do |installer|
-    react_native_post_install(
-      installer,
-      config[:reactNativePath],
-      :mac_catalyst_enabled => false,
-      # :ccache_enabled => true
-    )
   end
 end

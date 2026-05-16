@@ -50,7 +50,7 @@ details may change before the first stable release.
 | Android native bridge    | Active      |
 | Local model lifecycle    | Active      |
 | Vector DB / RAG pipeline | Active      |
-| iOS native AI module     | Planned     |
+| iOS native app           | Active      |
 | Public release process   | In progress |
 
 ## Repository Structure
@@ -89,6 +89,7 @@ For a more detailed tree, see [docs/PROJECT_STRUCTURE.md](docs/PROJECT_STRUCTURE
 - OpenJDK 17 for Android builds
 - Android Studio and Android SDK for Android development
 - Xcode and CocoaPods for iOS development on macOS
+- iOS 26.2 or newer for native Apple Foundation Models and Gemma runtime testing
 
 ### Install
 
@@ -99,7 +100,7 @@ npm install
 ### Run
 
 ```sh
-# Metro for the app's React Native port
+# Metro for Android React Native workflows
 npm start
 
 # Same Metro port, kept for Android-specific workflows
@@ -110,7 +111,7 @@ npm run start:android
 npm run android
 npm run android:8082
 
-# iOS app. Requires Xcode and CocoaPods.
+# Native iOS app. Requires Xcode and CocoaPods; Metro is not required.
 npm run ios:pods
 npm run ios
 
@@ -155,15 +156,17 @@ logos, and prepared app icon sets.
 
 ## Architecture
 
-Open Edge AI is split into a cross-platform React Native shell and native model
-execution modules.
+Open Edge AI uses a React Native shell on Android, a native SwiftUI shell on
+iOS, and native model execution modules on each platform.
 
 ```text
-React Native UI
+Android React Native UI
   -> src/native/AIEngine.ts
-  -> NativeModules.AIEngine
   -> Android Kotlin bridge
-  -> Query router / model runtime / vector DB / indexing workers
+
+iOS SwiftUI UI
+  -> AIEngineFoundationModelClient / AIEngineGemmaModelClient
+  -> Apple Foundation Models / LiteRT-LM runtime
 ```
 
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for details.

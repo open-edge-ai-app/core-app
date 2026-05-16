@@ -7,7 +7,7 @@ Pod::Spec.new do |s|
   s.license = { :type => 'Apache-2.0' }
   s.author = { 'Open Edge AI' => 'open-edge-ai' }
   s.source = { :path => '.' }
-  s.platform = :ios, '15.1'
+  s.platform = :ios, '26.2'
   s.vendored_frameworks = ['Frameworks/GemmaModelConstraintProvider.xcframework']
   s.frameworks = ['AVFoundation', 'AVFAudio', 'AudioToolbox']
   s.pod_target_xcconfig = {

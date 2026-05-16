@@ -7,11 +7,12 @@ import { fileURLToPath } from 'node:url';
 
 const bundleId = process.env.OPEN_EDGE_AI_BUNDLE_IDENTIFIER ?? 'com.openedgeai';
 const scheme = process.env.OPEN_EDGE_AI_IOS_SCHEME ?? 'OpenEdgeAI';
-const metroPort = process.env.OPEN_EDGE_METRO_PORT ?? '8082';
 const simulatorName = process.env.OPEN_EDGE_AI_IOS_SIMULATOR;
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 const projectRoot = resolve(scriptDir, '..');
 const iosRoot = resolve(projectRoot, 'ios');
+const workspacePath = resolve(iosRoot, 'OpenEdgeAI.xcworkspace');
+const derivedDataPath = resolve(iosRoot, 'build');
 
 const command = process.argv[2] ?? 'run';
 
@@ -118,13 +119,37 @@ const bootSimulator = () => {
 };
 
 const runIos = () => {
-  const args = ['react-native', 'run-ios', '--scheme', scheme, '--port', metroPort];
+  const simulatorId = bootSimulator();
+  const destination = `platform=iOS Simulator,id=${simulatorId}`;
 
-  if (simulatorName) {
-    args.push('--simulator', simulatorName);
-  }
+  run(
+    'xcodebuild',
+    [
+      '-workspace',
+      workspacePath,
+      '-scheme',
+      scheme,
+      '-configuration',
+      'Debug',
+      '-destination',
+      destination,
+      '-derivedDataPath',
+      derivedDataPath,
+      'build',
+    ],
+    { cwd: iosRoot },
+  );
 
-  run('npx', args);
+  const appPath = resolve(
+    derivedDataPath,
+    'Build',
+    'Products',
+    'Debug-iphonesimulator',
+    `${scheme}.app`,
+  );
+
+  run('xcrun', ['simctl', 'install', simulatorId, appPath]);
+  run('xcrun', ['simctl', 'launch', simulatorId, bundleId]);
 };
 
 const activate = () => {

@@ -67,6 +67,8 @@ yarn-error.log
 *.task
 android/app/src/main/assets/models/*
 !android/app/src/main/assets/models/README.md
+ios/Frameworks/*.xcframework/
+!ios/Frameworks/README.md
 
 # Ruby / CocoaPods
 **/Pods/

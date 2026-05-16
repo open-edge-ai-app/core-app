@@ -16,6 +16,16 @@ end
 
 target 'OpenEdgeAI' do
   config = use_native_modules!
+  litert_lm_frameworks_dir = File.join(__dir__, 'Frameworks')
+  litert_lm_runtime_available =
+    File.exist?(File.join(litert_lm_frameworks_dir, 'LiteRTLM.xcframework')) &&
+    File.exist?(File.join(litert_lm_frameworks_dir, 'GemmaModelConstraintProvider.xcframework'))
+
+  if litert_lm_runtime_available
+    pod 'OpenEdgeLiteRTLMRuntime', :path => '.'
+  else
+    Pod::UI.warn 'LiteRT-LM iOS runtime is not linked. Run `bash scripts/build-ios-litertlm-runtime.sh sim` and then `cd ios && pod install` to enable Gemma 4 on iOS.'
+  end
 
   use_react_native!(
     :path => config[:reactNativePath],

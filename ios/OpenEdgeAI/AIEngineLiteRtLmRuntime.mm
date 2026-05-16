@@ -6,7 +6,7 @@
 
 static NSString *const AIEngineLiteRtLmRuntimeErrorDomain = @"OpenEdgeAI.LiteRtLMRuntime";
 static NSString *const AIEngineLiteRtLmMissingRuntimeMessage =
-  @"LiteRT-LM iOS 런타임 라이브러리가 앱 번들에 없습니다. 공식 CLiteRTLM.framework, libLiteRTLM.dylib 또는 LiteRTLM.framework를 Frameworks에 포함해야 Gemma 4를 iOS에서 실행할 수 있습니다.";
+  @"LiteRT-LM iOS 런타임이 앱에 연결되지 않았습니다. `bash scripts/build-ios-litertlm-runtime.sh sim` 실행 후 `cd ios && pod install`을 다시 실행해야 Gemma 4를 iOS에서 실행할 수 있습니다.";
 
 typedef enum {
   LiteRtLmInputDataTypeText = 0,
@@ -445,6 +445,12 @@ static void AIEngineLiteRtLmRuntimeStreamCallback(void *callbackData, const char
 - (BOOL)resolveFunctionsLocked
 {
   if ([self hasRequiredFunctionsLocked]) {
+    return YES;
+  }
+
+  if ([self bindFunctionsLockedFromHandle:RTLD_DEFAULT libraryPath:@"linked LiteRT-LM symbols"]) {
+    _libraryHandle = RTLD_DEFAULT;
+    _ownsLibraryHandle = NO;
     return YES;
   }
 

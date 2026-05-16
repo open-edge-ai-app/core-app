@@ -106,7 +106,7 @@ npm start
 npm run start:android
 
 # Android app. This installs debug, maps device 8081 to Metro 8082,
-# and starts com.onda/.MainActivity.
+# and starts com.openedgeai/.MainActivity.
 npm run android
 npm run android:8082
 

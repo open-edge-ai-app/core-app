@@ -6,7 +6,7 @@
 
 static NSString *const AIEngineLiteRtLmRuntimeErrorDomain = @"OpenEdgeAI.LiteRtLMRuntime";
 static NSString *const AIEngineLiteRtLmMissingRuntimeMessage =
-  @"LiteRT-LM iOS 런타임 라이브러리가 앱 번들에 없습니다. libLiteRTLM.dylib 또는 LiteRTLM.framework를 Frameworks에 포함해야 Gemma 4를 iOS에서 실행할 수 있습니다.";
+  @"LiteRT-LM iOS 런타임 라이브러리가 앱 번들에 없습니다. 공식 CLiteRTLM.framework, libLiteRTLM.dylib 또는 LiteRTLM.framework를 Frameworks에 포함해야 Gemma 4를 iOS에서 실행할 수 있습니다.";
 
 typedef enum {
   LiteRtLmInputDataTypeText = 0,
@@ -38,6 +38,13 @@ typedef int (*LiteRtLmSessionGenerateContentStreamFn)(void *session, const LiteR
 typedef void (*LiteRtLmResponsesDeleteFn)(void *responses);
 typedef int (*LiteRtLmResponsesGetNumCandidatesFn)(const void *responses);
 typedef const char *(*LiteRtLmResponsesGetTextAtFn)(const void *responses, int index);
+typedef void *(*LiteRtLmConversationCreateFn)(void *engine, void *conversationConfig);
+typedef void (*LiteRtLmConversationDeleteFn)(void *conversation);
+typedef void *(*LiteRtLmConversationSendMessageFn)(void *conversation, const char *messageJSON, const char *extraContextJSON, const void *optionalArgs);
+typedef int (*LiteRtLmConversationSendMessageStreamFn)(void *conversation, const char *messageJSON, const char *extraContextJSON, const void *optionalArgs, LiteRtLmStreamCallback callback, void *callbackData);
+typedef void (*LiteRtLmConversationCancelFn)(void *conversation);
+typedef void (*LiteRtLmJSONResponseDeleteFn)(void *response);
+typedef const char *(*LiteRtLmJSONResponseGetStringFn)(const void *response);
 
 @interface AIEngineLiteRtLmStreamState : NSObject
 @property (nonatomic, strong) NSMutableString *output;
@@ -54,6 +61,8 @@ static void AIEngineLiteRtLmRuntimeStreamCallback(void *callbackData, const char
 @interface AIEngineLiteRtLmRuntime ()
 @property (nonatomic) BOOL loading;
 @property (nonatomic, copy, nullable) NSString *lastError;
++ (NSString *)displayTextFromStreamChunk:(NSString *)chunk;
++ (nullable NSString *)displayTextFromJSONObject:(id)json;
 @end
 
 @implementation AIEngineLiteRtLmRuntime {
@@ -76,9 +85,17 @@ static void AIEngineLiteRtLmRuntimeStreamCallback(void *callbackData, const char
   LiteRtLmResponsesDeleteFn _responsesDelete;
   LiteRtLmResponsesGetNumCandidatesFn _responsesGetNumCandidates;
   LiteRtLmResponsesGetTextAtFn _responsesGetTextAt;
+  LiteRtLmConversationCreateFn _conversationCreate;
+  LiteRtLmConversationDeleteFn _conversationDelete;
+  LiteRtLmConversationSendMessageFn _conversationSendMessage;
+  LiteRtLmConversationSendMessageStreamFn _conversationSendMessageStream;
+  LiteRtLmConversationCancelFn _conversationCancel;
+  LiteRtLmJSONResponseDeleteFn _jsonResponseDelete;
+  LiteRtLmJSONResponseGetStringFn _jsonResponseGetString;
 
   void *_engine;
   void *_activeSession;
+  void *_activeConversation;
   NSString *_loadedModelPath;
 }
 
@@ -178,6 +195,10 @@ static void AIEngineLiteRtLmRuntimeStreamCallback(void *callbackData, const char
     }
   }
 
+  if ([self canUseConversationAPI]) {
+    return [self generateConversationPrompt:prompt];
+  }
+
   void *session = [self createSessionForGeneration];
   if (session == NULL) {
     return [self resultWithMessage:nil error:self.lastError ?: @"LiteRT-LM 세션을 만들지 못했습니다."];
@@ -219,6 +240,10 @@ static void AIEngineLiteRtLmRuntimeStreamCallback(void *callbackData, const char
     if (![self canGenerateLocked]) {
       return [self resultWithMessage:nil error:self.lastError ?: AIEngineLiteRtLmMissingRuntimeMessage];
     }
+  }
+
+  if ([self canUseConversationAPI]) {
+    return [self streamConversationPrompt:prompt onChunk:onChunk];
   }
 
   void *session = [self createSessionForGeneration];
@@ -274,6 +299,9 @@ static void AIEngineLiteRtLmRuntimeStreamCallback(void *callbackData, const char
 - (void)unload
 {
   @synchronized (self) {
+    if (_activeConversation != NULL && _conversationCancel != NULL) {
+      _conversationCancel(_activeConversation);
+    }
     if (_activeSession != NULL && _sessionCancel != NULL) {
       _sessionCancel(_activeSession);
     }
@@ -286,11 +314,95 @@ static void AIEngineLiteRtLmRuntimeStreamCallback(void *callbackData, const char
 - (BOOL)cancelActiveGeneration
 {
   @synchronized (self) {
+    if (_activeConversation != NULL && _conversationCancel != NULL) {
+      _conversationCancel(_activeConversation);
+      return YES;
+    }
     if (_activeSession == NULL || _sessionCancel == NULL) {
       return NO;
     }
     _sessionCancel(_activeSession);
     return YES;
+  }
+}
+
+- (NSDictionary<NSString *, id> *)generateConversationPrompt:(NSString *)prompt
+{
+  void *conversation = [self createConversationForGeneration];
+  if (conversation == NULL) {
+    return [self resultWithMessage:nil error:self.lastError ?: @"LiteRT-LM 대화 세션을 만들지 못했습니다."];
+  }
+
+  NSString *messageJSON = [self userMessageJSONForPrompt:prompt];
+  const char *messageBytes = messageJSON.UTF8String;
+  const char *contextBytes = "{}";
+
+  @try {
+    void *response = _conversationSendMessage(conversation, messageBytes, contextBytes, NULL);
+    if (response == NULL) {
+      return [self resultWithMessage:nil error:@"LiteRT-LM 대화 응답 생성에 실패했습니다."];
+    }
+
+    @try {
+      const char *responseBytes = _jsonResponseGetString(response);
+      NSString *responseText = responseBytes != NULL ? [NSString stringWithUTF8String:responseBytes] : @"";
+      NSString *message = [self displayTextFromResponseString:responseText] ?: responseText ?: @"";
+      return [self resultWithMessage:message error:nil];
+    } @finally {
+      _jsonResponseDelete(response);
+    }
+  } @finally {
+    [self finishConversation:conversation];
+  }
+}
+
+- (NSDictionary<NSString *, id> *)streamConversationPrompt:(NSString *)prompt
+                                                   onChunk:(AIEngineLiteRtLmChunkHandler)onChunk
+{
+  void *conversation = [self createConversationForGeneration];
+  if (conversation == NULL) {
+    return [self resultWithMessage:nil error:self.lastError ?: @"LiteRT-LM 대화 세션을 만들지 못했습니다."];
+  }
+
+  AIEngineLiteRtLmStreamState *state = [[AIEngineLiteRtLmStreamState alloc] init];
+  state.output = [[NSMutableString alloc] init];
+  state.onChunk = onChunk ?: ^(NSString *chunk) {};
+  state.semaphore = dispatch_semaphore_create(0);
+
+  void *callbackData = (__bridge_retained void *)state;
+  NSString *messageJSON = [self userMessageJSONForPrompt:prompt];
+  const char *messageBytes = messageJSON.UTF8String;
+  const char *contextBytes = "{}";
+
+  @try {
+    int started = _conversationSendMessageStream(conversation, messageBytes, contextBytes, NULL, AIEngineLiteRtLmRuntimeStreamCallback, callbackData);
+    if (started != 0) {
+      CFRelease(callbackData);
+      return [self resultWithMessage:nil error:@"LiteRT-LM 대화 스트리밍 응답을 시작하지 못했습니다."];
+    }
+
+    dispatch_time_t timeout = dispatch_time(DISPATCH_TIME_NOW, (int64_t)(180 * NSEC_PER_SEC));
+    long waitResult = dispatch_semaphore_wait(state.semaphore, timeout);
+    if (waitResult != 0) {
+      _conversationCancel(conversation);
+      dispatch_time_t cancelTimeout = dispatch_time(DISPATCH_TIME_NOW, (int64_t)(5 * NSEC_PER_SEC));
+      if (dispatch_semaphore_wait(state.semaphore, cancelTimeout) == 0) {
+        CFRelease(callbackData);
+      }
+      return [self resultWithMessage:nil error:@"LiteRT-LM 대화 응답이 제한 시간 안에 완료되지 않았습니다."];
+    }
+
+    NSString *error = nil;
+    NSString *message = nil;
+    @synchronized (state) {
+      error = state.errorMessage;
+      message = [state.output copy];
+    }
+
+    CFRelease(callbackData);
+    return [self resultWithMessage:error == nil ? message : nil error:error];
+  } @finally {
+    [self finishConversation:conversation];
   }
 }
 
@@ -309,7 +421,13 @@ static void AIEngineLiteRtLmRuntimeStreamCallback(void *callbackData, const char
 
   @synchronized (state) {
     if (chunkText.length > 0) {
-      [state.output appendString:chunkText];
+      NSString *displayText = [AIEngineLiteRtLmRuntime displayTextFromStreamChunk:chunkText];
+      if (displayText.length > 0) {
+        [state.output appendString:displayText];
+        chunkText = displayText;
+      } else {
+        chunkText = nil;
+      }
     }
     if (errorText.length > 0) {
       state.errorMessage = errorText;
@@ -388,6 +506,20 @@ static void AIEngineLiteRtLmRuntimeStreamCallback(void *callbackData, const char
     reinterpret_cast<LiteRtLmResponsesGetNumCandidatesFn>(dlsym(handle, "litert_lm_responses_get_num_candidates"));
   LiteRtLmResponsesGetTextAtFn responsesGetTextAt =
     reinterpret_cast<LiteRtLmResponsesGetTextAtFn>(dlsym(handle, "litert_lm_responses_get_response_text_at"));
+  LiteRtLmConversationCreateFn conversationCreate =
+    reinterpret_cast<LiteRtLmConversationCreateFn>(dlsym(handle, "litert_lm_conversation_create"));
+  LiteRtLmConversationDeleteFn conversationDelete =
+    reinterpret_cast<LiteRtLmConversationDeleteFn>(dlsym(handle, "litert_lm_conversation_delete"));
+  LiteRtLmConversationSendMessageFn conversationSendMessage =
+    reinterpret_cast<LiteRtLmConversationSendMessageFn>(dlsym(handle, "litert_lm_conversation_send_message"));
+  LiteRtLmConversationSendMessageStreamFn conversationSendMessageStream =
+    reinterpret_cast<LiteRtLmConversationSendMessageStreamFn>(dlsym(handle, "litert_lm_conversation_send_message_stream"));
+  LiteRtLmConversationCancelFn conversationCancel =
+    reinterpret_cast<LiteRtLmConversationCancelFn>(dlsym(handle, "litert_lm_conversation_cancel_process"));
+  LiteRtLmJSONResponseDeleteFn jsonResponseDelete =
+    reinterpret_cast<LiteRtLmJSONResponseDeleteFn>(dlsym(handle, "litert_lm_json_response_delete"));
+  LiteRtLmJSONResponseGetStringFn jsonResponseGetString =
+    reinterpret_cast<LiteRtLmJSONResponseGetStringFn>(dlsym(handle, "litert_lm_json_response_get_string"));
 
   if (
     engineSettingsCreate == NULL ||
@@ -423,6 +555,13 @@ static void AIEngineLiteRtLmRuntimeStreamCallback(void *callbackData, const char
   _responsesDelete = responsesDelete;
   _responsesGetNumCandidates = responsesGetNumCandidates;
   _responsesGetTextAt = responsesGetTextAt;
+  _conversationCreate = conversationCreate;
+  _conversationDelete = conversationDelete;
+  _conversationSendMessage = conversationSendMessage;
+  _conversationSendMessageStream = conversationSendMessageStream;
+  _conversationCancel = conversationCancel;
+  _jsonResponseDelete = jsonResponseDelete;
+  _jsonResponseGetString = jsonResponseGetString;
   _runtimeLibraryPath = [libraryPath copy];
   self.lastError = nil;
   return YES;
@@ -432,6 +571,8 @@ static void AIEngineLiteRtLmRuntimeStreamCallback(void *callbackData, const char
 {
   NSMutableArray<NSString *> *paths = [[NSMutableArray alloc] init];
   NSArray<NSString *> *libraryNames = @[
+    @"CLiteRTLM.framework/CLiteRTLM",
+    @"libCLiteRTLM.dylib",
     @"libLiteRTLM.dylib",
     @"libLiteRtLM.dylib",
     @"libLiteRtLm.dylib",
@@ -540,6 +681,56 @@ static void AIEngineLiteRtLmRuntimeStreamCallback(void *callbackData, const char
   }
 }
 
+- (void *)createConversationForGeneration
+{
+  @synchronized (self) {
+    if (![self canGenerateLocked] || ![self canUseConversationAPILocked]) {
+      return NULL;
+    }
+
+    void *conversation = _conversationCreate(_engine, NULL);
+    if (conversation == NULL) {
+      self.lastError = @"LiteRT-LM 대화 세션 생성에 실패했습니다.";
+      return NULL;
+    }
+
+    _activeConversation = conversation;
+    return conversation;
+  }
+}
+
+- (void)finishConversation:(void *)conversation
+{
+  @synchronized (self) {
+    if (_activeConversation == conversation) {
+      _activeConversation = NULL;
+    }
+  }
+
+  if (conversation != NULL && _conversationDelete != NULL) {
+    _conversationDelete(conversation);
+  }
+}
+
+- (BOOL)canUseConversationAPI
+{
+  @synchronized (self) {
+    return [self canUseConversationAPILocked];
+  }
+}
+
+- (BOOL)canUseConversationAPILocked
+{
+  return
+    _conversationCreate != NULL &&
+    _conversationDelete != NULL &&
+    _conversationSendMessage != NULL &&
+    _conversationSendMessageStream != NULL &&
+    _conversationCancel != NULL &&
+    _jsonResponseDelete != NULL &&
+    _jsonResponseGetString != NULL;
+}
+
 - (BOOL)canGenerateLocked
 {
   return _engine != NULL && [self hasRequiredFunctionsLocked];
@@ -547,12 +738,97 @@ static void AIEngineLiteRtLmRuntimeStreamCallback(void *callbackData, const char
 
 - (void)closeEngineLocked
 {
+  if (_activeConversation != NULL && _conversationCancel != NULL) {
+    _conversationCancel(_activeConversation);
+  }
+  _activeConversation = NULL;
   if (_engine != NULL && _engineDelete != NULL) {
     _engineDelete(_engine);
   }
   _engine = NULL;
   _activeSession = NULL;
   _loadedModelPath = nil;
+}
+
+- (NSString *)userMessageJSONForPrompt:(NSString *)prompt
+{
+  NSDictionary<NSString *, id> *message = @{
+    @"role": @"user",
+    @"content": @[
+      @{
+        @"type": @"text",
+        @"text": prompt ?: @"",
+      },
+    ],
+  };
+  NSData *data = [NSJSONSerialization dataWithJSONObject:message options:0 error:nil];
+  if (data == nil) {
+    return @"{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"\"}]}";
+  }
+  return [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding] ?: @"";
+}
+
+- (nullable NSString *)displayTextFromResponseString:(NSString *)responseString
+{
+  return [AIEngineLiteRtLmRuntime displayTextFromStreamChunk:responseString];
+}
+
++ (NSString *)displayTextFromStreamChunk:(NSString *)chunk
+{
+  if (chunk.length == 0) {
+    return @"";
+  }
+
+  NSData *data = [chunk dataUsingEncoding:NSUTF8StringEncoding];
+  if (data == nil) {
+    return chunk;
+  }
+
+  id json = [NSJSONSerialization JSONObjectWithData:data options:0 error:nil];
+  if (json == nil) {
+    return chunk;
+  }
+
+  NSString *extracted = [self displayTextFromJSONObject:json];
+  return extracted ?: @"";
+}
+
++ (nullable NSString *)displayTextFromJSONObject:(id)json
+{
+  if ([json isKindOfClass:[NSString class]]) {
+    return (NSString *)json;
+  }
+
+  if ([json isKindOfClass:[NSArray class]]) {
+    NSMutableString *text = [[NSMutableString alloc] init];
+    for (id item in (NSArray *)json) {
+      NSString *part = [self displayTextFromJSONObject:item];
+      if (part.length > 0) {
+        [text appendString:part];
+      }
+    }
+    return text;
+  }
+
+  if (![json isKindOfClass:[NSDictionary class]]) {
+    return nil;
+  }
+
+  NSDictionary *object = (NSDictionary *)json;
+  id content = object[@"content"];
+  if ([content isKindOfClass:[NSString class]]) {
+    return content;
+  }
+  if ([content isKindOfClass:[NSArray class]]) {
+    return [self displayTextFromJSONObject:content];
+  }
+
+  id text = object[@"text"];
+  if ([text isKindOfClass:[NSString class]]) {
+    return text;
+  }
+
+  return nil;
 }
 
 - (NSDictionary<NSString *, id> *)resultWithMessage:(nullable NSString *)message

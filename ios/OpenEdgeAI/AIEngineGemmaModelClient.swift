@@ -118,6 +118,7 @@ final class AIEngineGemmaModelClient: NSObject, URLSessionDownloadDelegate {
     if fileSize(at: modelFile) == modelSizeBytes {
       lastError = nil
       bytesDownloaded = modelSizeBytes
+      warmRuntimeIfPossible(modelPath: modelFile.path)
       return modelStatus(started: false)
     }
 
@@ -282,6 +283,7 @@ final class AIEngineGemmaModelClient: NSObject, URLSessionDownloadDelegate {
       bytesDownloaded = finalSize
       lastError = nil
       lock.unlock()
+      warmRuntimeIfPossible(modelPath: destination.path)
     } catch {
       lock.lock()
       lastError = error.localizedDescription
@@ -349,6 +351,13 @@ final class AIEngineGemmaModelClient: NSObject, URLSessionDownloadDelegate {
   private func runtimeCacheDirectoryURL() -> URL {
     let caches = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
     return caches.appendingPathComponent("litert-lm", isDirectory: true)
+  }
+
+  private func warmRuntimeIfPossible(modelPath: String) {
+    let cacheDirectory = runtimeCacheDirectoryURL().path
+    DispatchQueue.global(qos: .userInitiated).async { [runtime] in
+      _ = runtime.loadModel(atPath: modelPath, cacheDirectory: cacheDirectory)
+    }
   }
 
   private func modelFileURL() -> URL {

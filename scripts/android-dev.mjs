@@ -4,13 +4,14 @@ import { spawnSync } from 'node:child_process';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const appId = 'com.onda';
-const activity = 'com.onda/.MainActivity';
+const appId = 'com.openedgeai';
+const activity = `${appId}/.MainActivity`;
 const defaultMetroPort = process.env.OPEN_EDGE_METRO_PORT ?? '8082';
 const deviceMetroPort = '8081';
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 const projectRoot = resolve(scriptDir, '..');
 const androidRoot = resolve(projectRoot, 'android');
+const gradleWrapper = process.platform === 'win32' ? 'gradlew.bat' : './gradlew';
 
 const command = process.argv[2] ?? 'install';
 
@@ -76,7 +77,7 @@ const startActivity = serial => {
 };
 
 const installDebug = () => {
-  run('./gradlew', [':app:installDebug', '--console=plain'], {
+  run(gradleWrapper, [':app:installDebug', '--console=plain'], {
     cwd: androidRoot,
   });
 };

@@ -79,7 +79,57 @@ private struct NativeChatSession: Identifiable, Codable, Equatable {
 private struct NativeProject: Identifiable, Codable, Equatable {
   var id: String
   var title: String
+  var iconName: String
+  var systemPrompt: String
   var createdAt: Date
+
+  init(
+    id: String,
+    title: String,
+    iconName: String,
+    systemPrompt: String,
+    createdAt: Date
+  ) {
+    self.id = id
+    self.title = title
+    self.iconName = iconName
+    self.systemPrompt = systemPrompt
+    self.createdAt = createdAt
+  }
+
+  private enum CodingKeys: String, CodingKey {
+    case id
+    case title
+    case iconName
+    case systemPrompt
+    case createdAt
+  }
+
+  init(from decoder: Decoder) throws {
+    let container = try decoder.container(keyedBy: CodingKeys.self)
+    id = try container.decode(String.self, forKey: .id)
+    title = try container.decode(String.self, forKey: .title)
+    iconName = try container.decodeIfPresent(String.self, forKey: .iconName) ?? NativeProjectIcon.defaultIcon.systemImage
+    systemPrompt = try container.decodeIfPresent(String.self, forKey: .systemPrompt) ?? ""
+    createdAt = try container.decode(Date.self, forKey: .createdAt)
+  }
+}
+
+private struct NativeProjectIcon: Identifiable, Equatable {
+  var id: String { systemImage }
+  var systemImage: String
+  var title: String
+
+  static let defaultIcon = NativeProjectIcon(systemImage: "folder", title: "폴더")
+
+  static let all: [NativeProjectIcon] = [
+    defaultIcon,
+    NativeProjectIcon(systemImage: "sparkles", title: "AI"),
+    NativeProjectIcon(systemImage: "terminal", title: "코드"),
+    NativeProjectIcon(systemImage: "doc.text", title: "문서"),
+    NativeProjectIcon(systemImage: "brain.head.profile", title: "메모리"),
+    NativeProjectIcon(systemImage: "chart.bar", title: "분석")
+  ]
 }
 
 private struct NativeModelStatus: Equatable {
@@ -245,15 +295,19 @@ private final class NativeChatStore: ObservableObject {
     }
   }
 
-  func createProject(title: String) {
+  func createProject(title: String, iconName: String, systemPrompt: String) {
     let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !trimmedTitle.isEmpty else {
       return
     }
+    let selectedIconName = iconName.isEmpty ? NativeProjectIcon.defaultIcon.systemImage : iconName
+    let trimmedSystemPrompt = systemPrompt.trimmingCharacters(in: .whitespacesAndNewlines)
 
     let project = NativeProject(
       id: UUID().uuidString,
       title: trimmedTitle,
+      iconName: selectedIconName,
+      systemPrompt: trimmedSystemPrompt,
       createdAt: Date()
     )
     projects.insert(project, at: 0)
@@ -1098,8 +1152,7 @@ private struct NativeSessionsView: View {
   @Binding var showingSettings: Bool
   @EnvironmentObject private var store: NativeChatStore
   @State private var searchText = ""
-  @State private var showingProjectCreator = false
-  @State private var projectTitleDraft = ""
+  @State private var isProjectCreatorPresented = false
 
   private var recentSessions: [NativeChatSession] {
     let sortedSessions = store.sessions.sorted { $0.updatedAt > $1.updatedAt }
@@ -1137,15 +1190,14 @@ private struct NativeSessionsView: View {
           VStack(alignment: .leading, spacing: 26) {
             NativeSessionsSection(title: "프로젝트") {
               Button {
-                projectTitleDraft = ""
-                showingProjectCreator = true
+                isProjectCreatorPresented = true
               } label: {
                 NativeSessionsIconRow(systemImage: "folder.badge.plus", title: "새 프로젝트")
               }
               .buttonStyle(.plain)
 
               ForEach(store.projects) { project in
-                NativeSessionsIconRow(systemImage: "folder", title: project.title)
+                NativeSessionsIconRow(systemImage: project.iconName, title: project.title)
                   .contextMenu {
                     Button(role: .destructive) {
                       store.deleteProject(project)
@@ -1221,17 +1273,11 @@ private struct NativeSessionsView: View {
     }
     .background(Color.white)
     .frame(maxWidth: .infinity, maxHeight: .infinity)
-    .alert("새 프로젝트", isPresented: $showingProjectCreator) {
-      TextField("프로젝트 이름", text: $projectTitleDraft)
-      Button("취소", role: .cancel) {
-        projectTitleDraft = ""
-      }
-      Button("생성") {
-        store.createProject(title: projectTitleDraft)
-        projectTitleDraft = ""
-      }
-    } message: {
-      Text("프로젝트 이름을 입력하세요.")
+    .sheet(isPresented: $isProjectCreatorPresented) {
+      NativeProjectCreatorView()
+        .environmentObject(store)
+        .presentationDetents([.large])
+        .presentationDragIndicator(.visible)
     }
     .gesture(
       DragGesture(minimumDistance: 24)
@@ -1254,6 +1300,166 @@ private struct NativeSessionsView: View {
     DispatchQueue.main.asyncAfter(deadline: .now() + 0.22) {
       showingSettings = true
     }
+  }
+}
+
+private struct NativeProjectCreatorView: View {
+  @Environment(\.dismiss) private var dismiss
+  @EnvironmentObject private var store: NativeChatStore
+  @State private var projectTitle = ""
+  @State private var selectedIconName = NativeProjectIcon.defaultIcon.systemImage
+  @State private var systemPrompt = ""
+  @FocusState private var focusedField: Field?
+
+  private enum Field: Hashable {
+    case title
+    case systemPrompt
+  }
+
+  private var canCreate: Bool {
+    !projectTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+  }
+
+  var body: some View {
+    NavigationStack {
+      ScrollView(showsIndicators: false) {
+        VStack(alignment: .leading, spacing: 26) {
+          NativeProjectCreatorSection(title: "프로젝트 명") {
+            TextField("예: Atlas", text: $projectTitle)
+              .focused($focusedField, equals: .title)
+              .font(.system(size: 17, weight: .semibold))
+              .foregroundColor(.black)
+              .textInputAutocapitalization(.words)
+              .padding(.horizontal, 16)
+              .frame(height: 54)
+              .background(Color.black.opacity(0.04))
+              .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+          }
+
+          NativeProjectCreatorSection(title: "아이콘") {
+            LazyVGrid(
+              columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: 3),
+              alignment: .leading,
+              spacing: 10
+            ) {
+              ForEach(NativeProjectIcon.all) { icon in
+                NativeProjectIconOption(
+                  icon: icon,
+                  isSelected: selectedIconName == icon.systemImage
+                ) {
+                  selectedIconName = icon.systemImage
+                }
+              }
+            }
+          }
+
+          NativeProjectCreatorSection(title: "시스템 프롬프트") {
+            ZStack(alignment: .topLeading) {
+              TextEditor(text: $systemPrompt)
+                .focused($focusedField, equals: .systemPrompt)
+                .font(.system(size: 16, weight: .regular))
+                .foregroundColor(.black)
+                .scrollContentBackground(.hidden)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 10)
+                .frame(minHeight: 168)
+
+              if systemPrompt.isEmpty {
+                Text("이 프로젝트에서 항상 적용할 지침을 입력하세요.")
+                  .font(.system(size: 16, weight: .regular))
+                  .foregroundColor(.black.opacity(0.35))
+                  .padding(.horizontal, 17)
+                  .padding(.vertical, 18)
+                  .allowsHitTesting(false)
+              }
+            }
+            .background(Color.black.opacity(0.04))
+            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+          }
+        }
+        .padding(.horizontal, 24)
+        .padding(.top, 20)
+        .padding(.bottom, 34)
+      }
+      .background(Color.white)
+      .navigationTitle("새 프로젝트")
+      .navigationBarTitleDisplayMode(.inline)
+      .toolbar {
+        ToolbarItem(placement: .cancellationAction) {
+          Button("취소") {
+            dismiss()
+          }
+          .foregroundColor(.black)
+        }
+
+        ToolbarItem(placement: .confirmationAction) {
+          Button("생성", action: createProject)
+            .fontWeight(.semibold)
+            .foregroundColor(canCreate ? .black : .black.opacity(0.3))
+            .disabled(!canCreate)
+        }
+      }
+      .onAppear {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+          focusedField = .title
+        }
+      }
+    }
+  }
+
+  private func createProject() {
+    guard canCreate else {
+      return
+    }
+    store.createProject(
+      title: projectTitle,
+      iconName: selectedIconName,
+      systemPrompt: systemPrompt
+    )
+    dismiss()
+  }
+}
+
+private struct NativeProjectCreatorSection<Content: View>: View {
+  var title: String
+  @ViewBuilder var content: Content
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 12) {
+      Text(title)
+        .font(.system(size: 15, weight: .semibold))
+        .foregroundColor(.black.opacity(0.58))
+
+      content
+    }
+  }
+}
+
+private struct NativeProjectIconOption: View {
+  var icon: NativeProjectIcon
+  var isSelected: Bool
+  var action: () -> Void
+
+  var body: some View {
+    Button(action: action) {
+      VStack(spacing: 8) {
+        Image(systemName: icon.systemImage)
+          .font(.system(size: 19, weight: .semibold))
+        Text(icon.title)
+          .font(.system(size: 13, weight: .semibold))
+          .lineLimit(1)
+      }
+      .foregroundColor(isSelected ? .white : .black)
+      .frame(maxWidth: .infinity)
+      .frame(height: 78)
+      .background(isSelected ? Color.black : Color.black.opacity(0.04))
+      .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+      .overlay(
+        RoundedRectangle(cornerRadius: 14, style: .continuous)
+          .stroke(isSelected ? Color.black : Color.black.opacity(0.08), lineWidth: 1)
+      )
+    }
+    .buttonStyle(.plain)
   }
 }
 

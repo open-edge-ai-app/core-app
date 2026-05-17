@@ -9,7 +9,8 @@ struct OpenEdgeAIApp: App {
     WindowGroup {
       NativeRootView()
         .environmentObject(store)
-        .preferredColorScheme(.light)
+        .preferredColorScheme(store.appearanceMode.colorScheme)
+        .tint(store.accentColor.color)
     }
   }
 }
@@ -40,6 +41,112 @@ private enum NativeModel: String, CaseIterable, Identifiable, Codable {
       return "Apple 기본 온디바이스 AI"
     case .gemma:
       return "다운로드 가능한 로컬 모델"
+    }
+  }
+}
+
+private enum NativeFontSizeSetting: String, CaseIterable, Identifiable {
+  case small
+  case standard
+  case large
+
+  var id: String { rawValue }
+
+  var title: String {
+    switch self {
+    case .small:
+      return "작게"
+    case .standard:
+      return "기본"
+    case .large:
+      return "크게"
+    }
+  }
+
+  var bodySize: CGFloat {
+    switch self {
+    case .small:
+      return 15
+    case .standard:
+      return 16
+    case .large:
+      return 18
+    }
+  }
+
+  var inputSize: CGFloat {
+    switch self {
+    case .small:
+      return 15
+    case .standard:
+      return 16
+    case .large:
+      return 17
+    }
+  }
+}
+
+private enum NativeAppearanceMode: String, CaseIterable, Identifiable {
+  case light
+  case dark
+
+  var id: String { rawValue }
+
+  var title: String {
+    switch self {
+    case .light:
+      return "화이트 모드"
+    case .dark:
+      return "다크 모드"
+    }
+  }
+
+  var colorScheme: ColorScheme {
+    switch self {
+    case .light:
+      return .light
+    case .dark:
+      return .dark
+    }
+  }
+}
+
+private enum NativeAccentColor: String, CaseIterable, Identifiable {
+  case black
+  case blue
+  case green
+  case purple
+  case orange
+
+  var id: String { rawValue }
+
+  var title: String {
+    switch self {
+    case .black:
+      return "검정"
+    case .blue:
+      return "파랑"
+    case .green:
+      return "초록"
+    case .purple:
+      return "보라"
+    case .orange:
+      return "주황"
+    }
+  }
+
+  var color: Color {
+    switch self {
+    case .black:
+      return .black
+    case .blue:
+      return .blue
+    case .green:
+      return .green
+    case .purple:
+      return .purple
+    case .orange:
+      return .orange
     }
   }
 }
@@ -267,6 +374,9 @@ private final class NativeChatStore: ObservableObject {
   @Published var userName = ""
   @Published var personality = "Balanced"
   @Published var memoryEnabled = true
+  @Published var fontSizeSetting: NativeFontSizeSetting = .standard
+  @Published var appearanceMode: NativeAppearanceMode = .light
+  @Published var accentColor: NativeAccentColor = .black
 
   private let storageKey = "OpenEdgeAI.NativeChatSessions.v1"
   private let projectsStorageKey = "OpenEdgeAI.NativeProjects.v1"
@@ -531,7 +641,10 @@ private final class NativeChatStore: ObservableObject {
       "userName": userName,
       "personality": personality,
       "memoryEnabled": memoryEnabled,
-      "selectedModel": selectedModel.rawValue
+      "selectedModel": selectedModel.rawValue,
+      "fontSize": fontSizeSetting.rawValue,
+      "appearanceMode": appearanceMode.rawValue,
+      "accentColor": accentColor.rawValue
     ]
     UserDefaults.standard.set(data, forKey: settingsKey)
   }
@@ -835,6 +948,18 @@ private final class NativeChatStore: ObservableObject {
     userName = data["userName"] as? String ?? ""
     personality = data["personality"] as? String ?? "Balanced"
     memoryEnabled = data["memoryEnabled"] as? Bool ?? true
+    if let raw = data["fontSize"] as? String,
+       let setting = NativeFontSizeSetting(rawValue: raw) {
+      fontSizeSetting = setting
+    }
+    if let raw = data["appearanceMode"] as? String,
+       let mode = NativeAppearanceMode(rawValue: raw) {
+      appearanceMode = mode
+    }
+    if let raw = data["accentColor"] as? String,
+       let color = NativeAccentColor(rawValue: raw) {
+      accentColor = color
+    }
     if let raw = data["selectedModel"] as? String,
        let model = NativeModel(rawValue: raw) {
       selectedModel = model
@@ -1030,12 +1155,14 @@ private struct NativeChatTranscript: View {
 }
 
 private struct NativeEmptyChatView: View {
+  @EnvironmentObject private var store: NativeChatStore
+
   var body: some View {
     VStack(alignment: .leading, spacing: 12) {
       Text("Open Edge AI")
-        .font(.system(size: 28, weight: .bold))
+        .font(.system(size: store.fontSizeSetting.bodySize + 12, weight: .bold))
       Text("기기 안에서 실행되는 AI와 대화를 시작하세요.")
-        .font(.system(size: 16))
+        .font(.system(size: store.fontSizeSetting.bodySize))
         .foregroundColor(.black.opacity(0.62))
     }
     .frame(maxWidth: .infinity, alignment: .leading)
@@ -1054,7 +1181,7 @@ private struct NativeMessageView: View {
 
       if message.role == .user {
         Text(message.text.isEmpty ? "첨부 파일" : message.text)
-          .font(.system(size: 16))
+          .font(.system(size: store.fontSizeSetting.bodySize))
           .foregroundColor(.white)
           .padding(.horizontal, 14)
           .padding(.vertical, 10)
@@ -1064,7 +1191,7 @@ private struct NativeMessageView: View {
           .textSelection(.enabled)
       } else {
         NativeMarkdownText(text: message.text.isEmpty ? "응답 준비 중..." : message.text)
-          .font(.system(size: 16))
+          .font(.system(size: store.fontSizeSetting.bodySize))
           .foregroundColor(.black)
           .frame(maxWidth: .infinity, alignment: .leading)
           .textSelection(.enabled)
@@ -1189,13 +1316,13 @@ private struct NativeInputBar: View {
         .buttonStyle(.plain)
 
         TextEditor(text: $store.inputText)
-          .font(.system(size: 16))
+          .font(.system(size: store.fontSizeSetting.inputSize))
           .focused($focused)
           .frame(minHeight: 38, maxHeight: 110)
           .overlay(alignment: .topLeading) {
             if store.inputText.isEmpty {
               Text("무엇이든 묻거나 검색하고 만들어보세요...")
-                .font(.system(size: 16))
+                .font(.system(size: store.fontSizeSetting.inputSize))
                 .foregroundColor(.black.opacity(0.35))
                 .padding(.top, 8)
                 .padding(.leading, 1)
@@ -2095,6 +2222,16 @@ private struct NativeSettingsView: View {
           }
 
           NavigationLink {
+            NativeAppearanceSettingsView()
+          } label: {
+            NativeSettingsNavigationRow(
+              icon: "circle.lefthalf.filled",
+              title: "모양",
+              detail: "\(store.fontSizeSetting.title), \(store.appearanceMode.title)"
+            )
+          }
+
+          NavigationLink {
             NativeAppInfoSettingsView()
           } label: {
             NativeSettingsNavigationRow(
@@ -2201,6 +2338,80 @@ private struct NativeModelSettingsView: View {
     }
     .navigationTitle("모델")
     .navigationBarTitleDisplayMode(.inline)
+  }
+}
+
+private struct NativeAppearanceSettingsView: View {
+  @EnvironmentObject private var store: NativeChatStore
+
+  var body: some View {
+    List {
+      Section("글씨 크기") {
+        Picker("글씨 크기", selection: $store.fontSizeSetting) {
+          ForEach(NativeFontSizeSetting.allCases) { setting in
+            Text(setting.title).tag(setting)
+          }
+        }
+        .pickerStyle(.segmented)
+
+        HStack {
+          Text("미리보기")
+            .font(.system(size: store.fontSizeSetting.bodySize))
+          Spacer()
+          Text(store.fontSizeSetting.title)
+            .font(.system(size: 13))
+            .foregroundColor(.black.opacity(0.55))
+        }
+      }
+
+      Section("화면 모드") {
+        Picker("모드", selection: $store.appearanceMode) {
+          ForEach(NativeAppearanceMode.allCases) { mode in
+            Text(mode.title).tag(mode)
+          }
+        }
+        .pickerStyle(.segmented)
+      }
+
+      Section("강조 컬러") {
+        ForEach(NativeAccentColor.allCases) { accentColor in
+          Button {
+            store.accentColor = accentColor
+            store.saveSettings()
+          } label: {
+            HStack(spacing: 12) {
+              Circle()
+                .fill(accentColor.color)
+                .frame(width: 22, height: 22)
+                .overlay(
+                  Circle()
+                    .stroke(Color.black.opacity(0.12), lineWidth: 1)
+                )
+
+              Text(accentColor.title)
+                .foregroundColor(.black)
+
+              Spacer()
+
+              if store.accentColor == accentColor {
+                Image(systemName: "checkmark")
+                  .font(.system(size: 14, weight: .bold))
+                  .foregroundColor(store.accentColor.color)
+              }
+            }
+          }
+          .buttonStyle(.plain)
+        }
+      }
+    }
+    .navigationTitle("모양")
+    .navigationBarTitleDisplayMode(.inline)
+    .onChange(of: store.fontSizeSetting) { _, _ in
+      store.saveSettings()
+    }
+    .onChange(of: store.appearanceMode) { _, _ in
+      store.saveSettings()
+    }
   }
 }
 

@@ -1268,19 +1268,12 @@ private struct NativeSessionsView: View {
   @Binding var isPresented: Bool
   @Binding var showingSettings: Bool
   @EnvironmentObject private var store: NativeChatStore
-  @State private var searchText = ""
+  @State private var isSearchPresented = false
   @State private var isProjectCreatorPresented = false
   @State private var renameTarget: NativeRenameTarget?
 
   private var recentSessions: [NativeChatSession] {
-    let sortedSessions = store.sessions.sorted { $0.updatedAt > $1.updatedAt }
-    let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-    guard !query.isEmpty else {
-      return sortedSessions
-    }
-    return sortedSessions.filter { session in
-      session.title.lowercased().contains(query)
-    }
+    store.sessions.sorted { $0.updatedAt > $1.updatedAt }
   }
 
   var body: some View {
@@ -1296,7 +1289,7 @@ private struct NativeSessionsView: View {
           Spacer(minLength: 12)
 
           NativeSessionsSearchPill(
-            searchText: $searchText,
+            onSearchPress: openSearch,
             onSettingsPress: openSettings
           )
         }
@@ -1409,6 +1402,15 @@ private struct NativeSessionsView: View {
         .presentationDetents([.large])
         .presentationDragIndicator(.visible)
     }
+    .sheet(isPresented: $isSearchPresented) {
+      NativeSearchView { session in
+        store.selectSession(session)
+        close()
+      }
+      .environmentObject(store)
+      .presentationDetents([.large])
+      .presentationDragIndicator(.visible)
+    }
     .sheet(item: $renameTarget) { target in
       NativeRenameSheet(target: target)
         .environmentObject(store)
@@ -1433,6 +1435,311 @@ private struct NativeSessionsView: View {
 
   private func openSettings() {
     showingSettings = true
+  }
+
+  private func openSearch() {
+    isSearchPresented = true
+  }
+}
+
+private struct NativeSearchResult: Identifiable {
+  enum Kind {
+    case session(NativeChatSession)
+    case project(NativeProject)
+  }
+
+  var id: String
+  var title: String
+  var subtitle: String
+  var systemImage: String
+  var kind: Kind
+}
+
+private struct NativeSearchView: View {
+  @Environment(\.dismiss) private var dismiss
+  @EnvironmentObject private var store: NativeChatStore
+  var onSelectSession: (NativeChatSession) -> Void
+  @State private var query = ""
+  @FocusState private var isSearchFocused: Bool
+
+  private var normalizedQuery: String {
+    query.trimmingCharacters(in: .whitespacesAndNewlines)
+  }
+
+  private var searchResults: [NativeSearchResult] {
+    let query = normalizedQuery
+    guard !query.isEmpty else {
+      return []
+    }
+
+    let projectResults = store.projects
+      .sorted { $0.createdAt > $1.createdAt }
+      .filter { project in
+        project.title.localizedCaseInsensitiveContains(query)
+          || project.systemPrompt.localizedCaseInsensitiveContains(query)
+      }
+      .map { project in
+        NativeSearchResult(
+          id: "project-\(project.id)",
+          title: project.title,
+          subtitle: project.systemPrompt.isEmpty ? "프로젝트" : clipped(project.systemPrompt),
+          systemImage: project.iconName,
+          kind: .project(project)
+        )
+      }
+
+    let sessionResults = store.sessions
+      .sorted { $0.updatedAt > $1.updatedAt }
+      .filter { session in
+        session.title.localizedCaseInsensitiveContains(query)
+          || session.messages.contains { message in
+            message.text.localizedCaseInsensitiveContains(query)
+              || message.attachments.contains { attachment in
+                attachment.name.localizedCaseInsensitiveContains(query)
+              }
+          }
+      }
+      .map { session in
+        let matchingMessage = session.messages.first { message in
+          message.text.localizedCaseInsensitiveContains(query)
+            || message.attachments.contains { attachment in
+              attachment.name.localizedCaseInsensitiveContains(query)
+            }
+        }
+        return NativeSearchResult(
+          id: "session-\(session.id)",
+          title: session.title,
+          subtitle: clipped(matchingMessage?.text ?? session.updatedAt.formatted(date: .abbreviated, time: .shortened)),
+          systemImage: "bubble.left.and.bubble.right",
+          kind: .session(session)
+        )
+      }
+
+    return projectResults + sessionResults
+  }
+
+  private var recentSessions: [NativeChatSession] {
+    Array(store.sessions.sorted { $0.updatedAt > $1.updatedAt }.prefix(8))
+  }
+
+  var body: some View {
+    NavigationStack {
+      VStack(spacing: 0) {
+        HStack(spacing: 10) {
+          Image(systemName: "magnifyingglass")
+            .font(.system(size: 18, weight: .semibold))
+            .foregroundColor(.black.opacity(0.75))
+
+          TextField("검색", text: $query)
+            .focused($isSearchFocused)
+            .font(.system(size: 17, weight: .medium))
+            .foregroundColor(.black)
+            .textInputAutocapitalization(.never)
+            .autocorrectionDisabled()
+
+          if !query.isEmpty {
+            Button {
+              query = ""
+            } label: {
+              Image(systemName: "xmark.circle.fill")
+                .font(.system(size: 17, weight: .semibold))
+                .foregroundColor(.black.opacity(0.35))
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("검색어 지우기")
+          }
+        }
+        .padding(.horizontal, 14)
+        .frame(height: 48)
+        .background(Color.black.opacity(0.05))
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .padding(.horizontal, 18)
+        .padding(.top, 14)
+        .padding(.bottom, 8)
+
+        ScrollView(showsIndicators: false) {
+          VStack(alignment: .leading, spacing: 24) {
+            if normalizedQuery.isEmpty {
+              NativeSearchSection(title: "최근 대화") {
+                if recentSessions.isEmpty {
+                  NativeSearchEmptyState(text: "최근 대화가 없습니다")
+                } else {
+                  ForEach(recentSessions) { session in
+                    NativeSearchSessionButton(session: session, subtitle: session.updatedAt.formatted(date: .abbreviated, time: .shortened)) {
+                      select(session)
+                    }
+                  }
+                }
+              }
+            } else if searchResults.isEmpty {
+              NativeSearchEmptyState(text: "검색 결과가 없습니다")
+                .padding(.top, 80)
+            } else {
+              NativeSearchSection(title: "검색 결과") {
+                ForEach(searchResults) { result in
+                  NativeSearchResultRow(result: result) {
+                    if case .session(let session) = result.kind {
+                      select(session)
+                    }
+                  }
+                }
+              }
+            }
+          }
+          .padding(.horizontal, 22)
+          .padding(.top, 12)
+          .padding(.bottom, 36)
+        }
+        .scrollDismissesKeyboard(.interactively)
+      }
+      .background(Color.white)
+      .navigationTitle("검색")
+      .navigationBarTitleDisplayMode(.inline)
+      .toolbar {
+        ToolbarItem(placement: .cancellationAction) {
+          Button("닫기") {
+            dismiss()
+          }
+          .foregroundColor(.black)
+        }
+      }
+      .onAppear {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+          isSearchFocused = true
+        }
+      }
+    }
+  }
+
+  private func select(_ session: NativeChatSession) {
+    dismiss()
+    onSelectSession(session)
+  }
+
+  private func clipped(_ text: String) -> String {
+    let cleaned = text
+      .replacingOccurrences(of: "\n", with: " ")
+      .trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !cleaned.isEmpty else {
+      return "대화"
+    }
+    return cleaned.count > 92 ? "\(cleaned.prefix(92))..." : cleaned
+  }
+}
+
+private struct NativeSearchSection<Content: View>: View {
+  var title: String
+  @ViewBuilder var content: Content
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 14) {
+      Text(title)
+        .font(.system(size: 15, weight: .bold))
+        .foregroundColor(.black.opacity(0.62))
+
+      VStack(alignment: .leading, spacing: 12) {
+        content
+      }
+    }
+  }
+}
+
+private struct NativeSearchSessionButton: View {
+  var session: NativeChatSession
+  var subtitle: String
+  var action: () -> Void
+
+  var body: some View {
+    Button(action: action) {
+      NativeSearchRowContent(
+        systemImage: "bubble.left.and.bubble.right",
+        title: session.title,
+        subtitle: subtitle,
+        showsChevron: true
+      )
+    }
+    .buttonStyle(.plain)
+  }
+}
+
+private struct NativeSearchResultRow: View {
+  var result: NativeSearchResult
+  var action: () -> Void
+
+  var body: some View {
+    switch result.kind {
+    case .session:
+      Button(action: action) {
+        NativeSearchRowContent(
+          systemImage: result.systemImage,
+          title: result.title,
+          subtitle: result.subtitle,
+          showsChevron: true
+        )
+      }
+      .buttonStyle(.plain)
+    case .project:
+      NativeSearchRowContent(
+        systemImage: result.systemImage,
+        title: result.title,
+        subtitle: result.subtitle,
+        showsChevron: false
+      )
+    }
+  }
+}
+
+private struct NativeSearchRowContent: View {
+  var systemImage: String
+  var title: String
+  var subtitle: String
+  var showsChevron: Bool
+
+  var body: some View {
+    HStack(spacing: 12) {
+      Image(systemName: systemImage)
+        .font(.system(size: 17, weight: .semibold))
+        .foregroundColor(.black)
+        .frame(width: 28, height: 28)
+
+      VStack(alignment: .leading, spacing: 4) {
+        Text(title)
+          .font(.system(size: 16, weight: .semibold))
+          .foregroundColor(.black)
+          .lineLimit(1)
+
+        Text(subtitle)
+          .font(.system(size: 13, weight: .regular))
+          .foregroundColor(.black.opacity(0.5))
+          .lineLimit(2)
+      }
+
+      Spacer(minLength: 8)
+
+      if showsChevron {
+        Image(systemName: "chevron.right")
+          .font(.system(size: 13, weight: .semibold))
+          .foregroundColor(.black.opacity(0.25))
+      }
+    }
+    .padding(.horizontal, 14)
+    .padding(.vertical, 12)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(Color.black.opacity(0.035))
+    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+    .contentShape(Rectangle())
+  }
+}
+
+private struct NativeSearchEmptyState: View {
+  var text: String
+
+  var body: some View {
+    Text(text)
+      .font(.system(size: 15, weight: .medium))
+      .foregroundColor(.black.opacity(0.42))
+      .frame(maxWidth: .infinity, alignment: .center)
+      .padding(.vertical, 24)
   }
 }
 
@@ -1675,29 +1982,18 @@ private struct NativeProjectIconOption: View {
 }
 
 private struct NativeSessionsSearchPill: View {
-  @Binding var searchText: String
+  var onSearchPress: () -> Void
   var onSettingsPress: () -> Void
-  @FocusState private var isFocused: Bool
 
   var body: some View {
     HStack(spacing: 10) {
-      Button {
-        isFocused = true
-      } label: {
+      Button(action: onSearchPress) {
         Image(systemName: "magnifyingglass")
           .font(.system(size: 21, weight: .semibold))
           .foregroundColor(.black)
       }
       .buttonStyle(.plain)
       .accessibilityLabel("대화 검색")
-
-      if isFocused || !searchText.isEmpty {
-        TextField("검색", text: $searchText)
-          .focused($isFocused)
-          .font(.system(size: 14, weight: .medium))
-          .frame(width: 74)
-          .textInputAutocapitalization(.never)
-      }
 
       Button(action: onSettingsPress) {
         Image(systemName: "gearshape")

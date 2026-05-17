@@ -1656,11 +1656,9 @@ private struct NativeSessionsSearchPill: View {
 
       Button(action: onSettingsPress) {
         Image(systemName: "gearshape")
-          .font(.system(size: 15, weight: .semibold))
-          .foregroundColor(.white)
+          .font(.system(size: 19, weight: .semibold))
+          .foregroundColor(.black)
           .frame(width: 32, height: 32)
-          .background(Color.black)
-          .clipShape(Circle())
       }
       .buttonStyle(.plain)
       .accessibilityLabel("설정 열기")

@@ -1296,10 +1296,7 @@ private struct NativeSessionsView: View {
   }
 
   private func openSettings() {
-    close()
-    DispatchQueue.main.asyncAfter(deadline: .now() + 0.22) {
-      showingSettings = true
-    }
+    showingSettings = true
   }
 }
 

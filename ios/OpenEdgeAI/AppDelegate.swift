@@ -2068,6 +2068,11 @@ private struct NativeInputBar: View {
   @Binding var showingFileImporter: Bool
   @FocusState private var focused: Bool
 
+  private var editorHeight: CGFloat {
+    let lineCount = max(1, store.inputText.components(separatedBy: .newlines).count)
+    return min(CGFloat(lineCount) * 20 + 22, 82)
+  }
+
   var body: some View {
     VStack(spacing: 8) {
       if !store.queuedDrafts.isEmpty {
@@ -2107,7 +2112,7 @@ private struct NativeInputBar: View {
             .focused($focused)
             .scrollContentBackground(.hidden)
             .background(Color.clear)
-            .frame(minHeight: 64, maxHeight: 122)
+            .frame(height: editorHeight)
 
           if store.inputText.isEmpty {
             Text("무엇이든 묻거나 검색하고 만들어보세요...")
@@ -2119,14 +2124,14 @@ private struct NativeInputBar: View {
           }
         }
 
-        HStack(spacing: 8) {
+        HStack(spacing: 6) {
           Button {
             showingFileImporter = true
           } label: {
             Image(systemName: "paperclip")
               .font(.system(size: 17, weight: .semibold))
               .foregroundColor(store.accentColor.color)
-              .frame(width: 36, height: 34)
+              .frame(width: 34, height: 30)
           }
           .buttonStyle(.plain)
           .accessibilityLabel("파일 첨부")
@@ -2143,7 +2148,7 @@ private struct NativeInputBar: View {
             Image(systemName: store.isGenerating && !store.canSend ? "stop.fill" : "arrow.up")
               .font(.system(size: 15, weight: .bold))
               .foregroundColor(store.accentColor.foregroundColor)
-              .frame(width: 36, height: 36)
+              .frame(width: 32, height: 32)
               .background(store.accentColor.color)
               .clipShape(Circle())
           }
@@ -2154,8 +2159,8 @@ private struct NativeInputBar: View {
         }
       }
       .padding(.horizontal, 10)
-      .padding(.top, 8)
-      .padding(.bottom, 8)
+      .padding(.top, 6)
+      .padding(.bottom, 6)
       .background(Color.oeSurface)
       .overlay(
         RoundedRectangle(cornerRadius: 22, style: .continuous)
@@ -2164,7 +2169,7 @@ private struct NativeInputBar: View {
       .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
     }
     .padding(.horizontal, 10)
-    .padding(.bottom, 8)
+    .padding(.bottom, 6)
   }
 }
 

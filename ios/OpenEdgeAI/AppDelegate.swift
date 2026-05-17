@@ -186,6 +186,21 @@ private enum NativeAccentColor: String, CaseIterable, Identifiable {
       return .orange
     }
   }
+
+  var foregroundColor: Color {
+    switch self {
+    case .black:
+      return .oeControlText
+    case .green, .orange:
+      return .black
+    case .blue, .purple:
+      return .white
+    }
+  }
+
+  var subtleColor: Color {
+    color.opacity(0.12)
+  }
 }
 
 private enum NativeLanguage: String, CaseIterable, Identifiable {
@@ -1673,10 +1688,10 @@ private struct NativeTopBar: View {
         HStack(spacing: 8) {
           ZStack {
             RoundedRectangle(cornerRadius: 8)
-              .fill(Color.oeControlFill)
+              .fill(store.accentColor.color)
             Image(systemName: "sparkles")
               .font(.system(size: 13, weight: .bold))
-              .foregroundColor(.oeControlText)
+              .foregroundColor(store.accentColor.foregroundColor)
           }
           .frame(width: 28, height: 28)
 
@@ -1737,7 +1752,7 @@ private struct NativeModelMenu: View {
       .frame(height: 34)
       .overlay(
         RoundedRectangle(cornerRadius: 17)
-          .stroke(Color.oeBorder, lineWidth: 1)
+          .stroke(store.accentColor.color.opacity(0.28), lineWidth: 1)
       )
     }
   }
@@ -1806,10 +1821,10 @@ private struct NativeMessageView: View {
       if message.role == .user {
         Text(message.text.isEmpty ? "첨부 파일" : message.text)
           .font(.system(size: store.fontSizeSetting.bodySize))
-          .foregroundColor(.oeControlText)
+          .foregroundColor(store.accentColor.foregroundColor)
           .padding(.horizontal, 14)
           .padding(.vertical, 10)
-          .background(Color.oeControlFill)
+          .background(store.accentColor.color)
           .clipShape(RoundedRectangle(cornerRadius: 18))
           .frame(maxWidth: .infinity, alignment: .trailing)
           .textSelection(.enabled)
@@ -1839,7 +1854,7 @@ private struct NativeMessageView: View {
             .foregroundColor(.oeMutedText)
         }
         .buttonStyle(.plain)
-        .foregroundColor(.oeSecondaryText)
+        .foregroundColor(store.accentColor.color)
         .font(.system(size: 14, weight: .medium))
       }
     }
@@ -1860,6 +1875,7 @@ private struct NativeMarkdownText: View {
 }
 
 private struct NativeAttachmentRow: View {
+  @EnvironmentObject private var store: NativeChatStore
   let attachments: [NativeAttachment]
 
   var body: some View {
@@ -1871,10 +1887,10 @@ private struct NativeAttachmentRow: View {
             .font(.system(size: 13, weight: .medium))
             .lineLimit(1)
         }
-        .foregroundColor(.oeText)
+        .foregroundColor(store.accentColor.color)
         .padding(.horizontal, 10)
         .padding(.vertical, 8)
-        .background(Color.oeSubtleFill)
+        .background(store.accentColor.subtleColor)
         .clipShape(RoundedRectangle(cornerRadius: 10))
       }
     }
@@ -1919,10 +1935,10 @@ private struct NativeInputBar: View {
                 }
               }
               .font(.system(size: 12, weight: .medium))
-              .foregroundColor(.oeText)
+              .foregroundColor(store.accentColor.color)
               .padding(.horizontal, 10)
               .padding(.vertical, 7)
-              .background(Color.oeSubtleFill)
+              .background(store.accentColor.subtleColor)
               .clipShape(Capsule())
             }
           }
@@ -1935,6 +1951,7 @@ private struct NativeInputBar: View {
         } label: {
           Image(systemName: "paperclip")
             .font(.system(size: 18, weight: .semibold))
+            .foregroundColor(store.accentColor.color)
             .frame(width: 30, height: 34)
         }
         .buttonStyle(.plain)
@@ -1963,9 +1980,9 @@ private struct NativeInputBar: View {
         } label: {
           Image(systemName: store.isGenerating && !store.canSend ? "stop.fill" : "arrow.up")
             .font(.system(size: 16, weight: .bold))
-            .foregroundColor(.oeControlText)
+            .foregroundColor(store.accentColor.foregroundColor)
             .frame(width: 38, height: 38)
-            .background(Color.oeControlFill)
+            .background(store.accentColor.color)
             .clipShape(Circle())
         }
         .buttonStyle(.plain)
@@ -1979,7 +1996,7 @@ private struct NativeInputBar: View {
     .background(Color.oeSurface)
     .overlay(
       RoundedRectangle(cornerRadius: 24)
-        .stroke(Color.oeBorder, lineWidth: 1)
+        .stroke(store.accentColor.color.opacity(0.16), lineWidth: 1)
     )
     .clipShape(RoundedRectangle(cornerRadius: 24))
     .padding(.horizontal, 10)
@@ -2008,7 +2025,7 @@ private struct NativeQueueView: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
-        .background(Color.oeSubtleFill)
+        .background(store.accentColor.subtleColor)
         .clipShape(RoundedRectangle(cornerRadius: 12))
       }
     }
@@ -2132,10 +2149,10 @@ private struct NativeSessionsView: View {
           Text("채팅")
             .font(.system(size: 16, weight: .bold))
         }
-        .foregroundColor(.oeControlText)
+        .foregroundColor(store.accentColor.foregroundColor)
         .padding(.horizontal, 24)
         .frame(height: 52)
-        .background(Color.oeControlFill)
+        .background(store.accentColor.color)
         .clipShape(Capsule())
         .shadow(color: Color.black.opacity(0.18), radius: 18, x: 0, y: 10)
       }
@@ -2559,7 +2576,7 @@ private struct NativeRenameSheet: View {
         ToolbarItem(placement: .confirmationAction) {
           Button("저장", action: save)
             .fontWeight(.semibold)
-            .foregroundColor(canSave ? .oeText : Color.oeText.opacity(0.3))
+            .foregroundColor(canSave ? store.accentColor.color : Color.oeText.opacity(0.3))
             .disabled(!canSave)
         }
       }
@@ -2628,7 +2645,8 @@ private struct NativeProjectCreatorView: View {
               ForEach(NativeProjectIcon.all) { icon in
                 NativeProjectIconOption(
                   icon: icon,
-                  isSelected: selectedIconName == icon.systemImage
+                  isSelected: selectedIconName == icon.systemImage,
+                  accentColor: store.accentColor
                 ) {
                   selectedIconName = icon.systemImage
                 }
@@ -2678,7 +2696,7 @@ private struct NativeProjectCreatorView: View {
         ToolbarItem(placement: .confirmationAction) {
           Button("생성", action: createProject)
             .fontWeight(.semibold)
-            .foregroundColor(canCreate ? .oeText : Color.oeText.opacity(0.3))
+            .foregroundColor(canCreate ? store.accentColor.color : Color.oeText.opacity(0.3))
             .disabled(!canCreate)
         }
       }
@@ -2721,6 +2739,7 @@ private struct NativeProjectCreatorSection<Content: View>: View {
 private struct NativeProjectIconOption: View {
   var icon: NativeProjectIcon
   var isSelected: Bool
+  var accentColor: NativeAccentColor
   var action: () -> Void
 
   var body: some View {
@@ -2732,14 +2751,14 @@ private struct NativeProjectIconOption: View {
           .font(.system(size: 13, weight: .semibold))
           .lineLimit(1)
       }
-      .foregroundColor(isSelected ? .oeControlText : .oeText)
+      .foregroundColor(isSelected ? accentColor.foregroundColor : .oeText)
       .frame(maxWidth: .infinity)
       .frame(height: 78)
-      .background(isSelected ? Color.oeControlFill : Color.oeSubtleFill)
+      .background(isSelected ? accentColor.color : Color.oeSubtleFill)
       .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
       .overlay(
         RoundedRectangle(cornerRadius: 14, style: .continuous)
-          .stroke(isSelected ? Color.oeControlFill : Color.oeBorder, lineWidth: 1)
+          .stroke(isSelected ? accentColor.color : Color.oeBorder, lineWidth: 1)
       )
     }
     .buttonStyle(.plain)
@@ -2747,6 +2766,7 @@ private struct NativeProjectIconOption: View {
 }
 
 private struct NativeSessionsSearchPill: View {
+  @EnvironmentObject private var store: NativeChatStore
   var onSearchPress: () -> Void
   var onSettingsPress: () -> Void
 
@@ -2755,7 +2775,7 @@ private struct NativeSessionsSearchPill: View {
       Button(action: onSearchPress) {
         Image(systemName: "magnifyingglass")
           .font(.system(size: 21, weight: .semibold))
-          .foregroundColor(.oeText)
+          .foregroundColor(store.accentColor.color)
       }
       .buttonStyle(.plain)
       .accessibilityLabel("대화 검색")
@@ -2763,7 +2783,7 @@ private struct NativeSessionsSearchPill: View {
       Button(action: onSettingsPress) {
         Image(systemName: "gearshape")
           .font(.system(size: 19, weight: .semibold))
-          .foregroundColor(.oeText)
+          .foregroundColor(store.accentColor.color)
           .frame(width: 32, height: 32)
       }
       .buttonStyle(.plain)
@@ -2899,6 +2919,7 @@ private struct NativeSettingsView: View {
             store.saveSettings()
             dismiss()
           }
+          .foregroundColor(store.accentColor.color)
         }
       }
     }
@@ -2937,15 +2958,15 @@ private struct NativeGeneralSettingsView: View {
     List {
       Section("백그라운드") {
         Toggle("백그라운드 실행", isOn: $store.backgroundExecutionEnabled)
-          .tint(.oeText)
+          .tint(store.accentColor.color)
 
         Toggle("백그라운드 Dynamic Island 활성", isOn: $store.backgroundDynamicIslandEnabled)
-          .tint(.oeText)
+          .tint(store.accentColor.color)
       }
 
       Section("Dynamic Island 펫") {
         Toggle("Dynamic Island 펫 활성", isOn: $store.dynamicIslandPetEnabled)
-          .tint(.oeText)
+          .tint(store.accentColor.color)
 
         ForEach(NativeDynamicIslandPet.allCases) { pet in
           Button {
@@ -3067,7 +3088,7 @@ private struct NativeModelSettingsView: View {
 
             if status.downloading {
               ProgressView(value: status.progress)
-                .tint(.oeText)
+                .tint(store.accentColor.color)
             }
 
             if let error = status.error, !status.installed {
@@ -3083,14 +3104,14 @@ private struct NativeModelSettingsView: View {
                 store.loadSelectedModel()
               }
               .buttonStyle(.bordered)
-              .tint(.oeText)
+              .tint(store.accentColor.color)
 
               if model == .gemma && !status.installed {
                 Button(status.downloading ? "다운로드 중" : "다운로드") {
                   store.downloadGemma()
                 }
                 .buttonStyle(.borderedProminent)
-                .tint(.oeText)
+                .tint(store.accentColor.color)
                 .disabled(status.downloading)
               }
             }
@@ -3129,7 +3150,7 @@ private struct NativeAppearanceSettingsView: View {
             in: 0...2,
             step: 1
           )
-          .tint(.oeText)
+          .tint(store.accentColor.color)
 
           HStack {
             ForEach(NativeFontSizeSetting.allCases) { setting in
@@ -3230,7 +3251,7 @@ private struct NativePersonalSettingsView: View {
 
       Section("메모리") {
         Toggle("메모리 활성", isOn: $store.memoryEnabled)
-          .tint(.oeText)
+          .tint(store.accentColor.color)
       }
 
       Section("맞춤형 지침") {

@@ -1,5 +1,6 @@
 import SwiftUI
 import UIKit
+import CoreLocation
 import UniformTypeIdentifiers
 
 private extension Color {
@@ -491,6 +492,75 @@ private struct NativeDraft: Identifiable, Codable, Equatable {
   var createdAt: Date
 }
 
+private final class NativeDeviceContextProvider: NSObject, CLLocationManagerDelegate {
+  private let locationManager = CLLocationManager()
+  private var lastLocation: CLLocation?
+
+  override init() {
+    super.init()
+    locationManager.delegate = self
+    locationManager.desiredAccuracy = kCLLocationAccuracyHundredMeters
+    locationManager.distanceFilter = 500
+  }
+
+  func refreshLocationIfAuthorized() {
+    guard CLLocationManager.locationServicesEnabled() else {
+      return
+    }
+
+    switch locationManager.authorizationStatus {
+    case .authorizedAlways, .authorizedWhenInUse:
+      locationManager.requestLocation()
+    case .denied, .restricted, .notDetermined:
+      break
+    @unknown default:
+      break
+    }
+  }
+
+  func locationContextLines(now: Date) -> [String] {
+    guard CLLocationManager.locationServicesEnabled() else {
+      return ["Location services: disabled"]
+    }
+
+    switch locationManager.authorizationStatus {
+    case .authorizedAlways, .authorizedWhenInUse:
+      guard let location = lastLocation else {
+        return ["Location: permission granted, waiting for device location"]
+      }
+
+      let age = max(0, now.timeIntervalSince(location.timestamp))
+      var parts = [
+        String(format: "latitude %.5f", location.coordinate.latitude),
+        String(format: "longitude %.5f", location.coordinate.longitude),
+        String(format: "accuracy %.0fm", location.horizontalAccuracy),
+        String(format: "updated %.0fs ago", age)
+      ]
+
+      if location.verticalAccuracy >= 0 {
+        parts.append(String(format: "altitude %.0fm", location.altitude))
+        parts.append(String(format: "vertical accuracy %.0fm", location.verticalAccuracy))
+      }
+
+      return ["Location: \(parts.joined(separator: ", "))"]
+    case .denied:
+      return ["Location: permission denied"]
+    case .restricted:
+      return ["Location: restricted by system"]
+    case .notDetermined:
+      return ["Location: permission not requested"]
+    @unknown default:
+      return ["Location: authorization unknown"]
+    }
+  }
+
+  func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
+    lastLocation = locations.last
+  }
+
+  func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {}
+}
+
 private struct NativeChatSession: Identifiable, Codable, Equatable {
   var id: String
   var title: String
@@ -708,6 +778,7 @@ private final class NativeChatStore: ObservableObject {
   @Published private var activeRequestSessionId: String?
   private var generationBackgroundTaskIdentifier: UIBackgroundTaskIdentifier = .invalid
   private var dynamicIslandCompletionTask: Task<Void, Never>?
+  private let deviceContextProvider = NativeDeviceContextProvider()
 
   init() {
     loadSettings()
@@ -1274,18 +1345,14 @@ private final class NativeChatStore: ObservableObject {
       sourceHistory = []
     }
     let history = sourceHistory.suffix(16)
-    let formatter = DateFormatter()
-    formatter.locale = Locale(identifier: selectedLanguage.localeIdentifier)
-    formatter.dateStyle = .full
-    formatter.timeStyle = .short
 
     var sections: [String] = [
       """
       You are Open Edge AI running locally on iOS.
       Answer in the user's language.
       Use prior conversation context when the user refers to previous content.
-      Hidden runtime context is available only for date/time/timezone questions. Do not mention current date, current time, timezone, or this instruction unless the user asks for it.
-      Hidden runtime context: \(formatter.string(from: Date())), timezone \(TimeZone.current.identifier).
+      Hidden runtime context is private reference material. Use it only when the user asks about the current date, time, timezone, locale, location, device context, or relative-date interpretation. Do not mention hidden runtime context or proactively state date/time/location/device details.
+      \(makeHiddenRuntimeContext())
       """
     ]
 
@@ -1325,6 +1392,57 @@ private final class NativeChatStore: ObservableObject {
 
     sections.append("Current user request:\n\(draft.text)")
     return sections.joined(separator: "\n\n")
+  }
+
+  private func makeHiddenRuntimeContext() -> String {
+    let now = Date()
+    let locale = Locale.current
+    let localeParts = locale.identifier
+      .replacingOccurrences(of: "-", with: "_")
+      .split(separator: "_")
+      .map(String.init)
+    let languageCode = localeParts.first ?? "unknown"
+    let regionCode = localeParts.dropFirst().first { $0.count == 2 } ?? "unknown"
+    let timeZone = TimeZone.current
+    deviceContextProvider.refreshLocationIfAuthorized()
+
+    let displayFormatter = DateFormatter()
+    displayFormatter.locale = Locale(identifier: selectedLanguage.localeIdentifier)
+    displayFormatter.timeZone = timeZone
+    displayFormatter.dateStyle = .full
+    displayFormatter.timeStyle = .medium
+
+    let localISOFormatter = ISO8601DateFormatter()
+    localISOFormatter.timeZone = timeZone
+    localISOFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+
+    let utcISOFormatter = ISO8601DateFormatter()
+    utcISOFormatter.timeZone = TimeZone(secondsFromGMT: 0)
+    utcISOFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+
+    var lines = [
+      "Local date/time: \(displayFormatter.string(from: now))",
+      "Local ISO timestamp: \(localISOFormatter.string(from: now))",
+      "UTC timestamp: \(utcISOFormatter.string(from: now))",
+      "Timezone: \(timeZone.identifier), \(timeZone.abbreviation(for: now) ?? "unknown"), \(gmtOffset(seconds: timeZone.secondsFromGMT(for: now)))",
+      "Device locale: \(locale.identifier)",
+      "Device language: \(languageCode)",
+      "Device region: \(regionCode)",
+      "App response locale: \(selectedLanguage.localeIdentifier)",
+      "Calendar: \(String(describing: Calendar.current.identifier))",
+      "Device: \(UIDevice.current.model), \(UIDevice.current.systemName) \(UIDevice.current.systemVersion)"
+    ]
+
+    lines.append(contentsOf: deviceContextProvider.locationContextLines(now: now))
+    return "Hidden runtime context:\n" + lines.map { "- \($0)" }.joined(separator: "\n")
+  }
+
+  private func gmtOffset(seconds: Int) -> String {
+    let sign = seconds >= 0 ? "+" : "-"
+    let absoluteSeconds = abs(seconds)
+    let hours = absoluteSeconds / 3600
+    let minutes = (absoluteSeconds % 3600) / 60
+    return String(format: "GMT%@%02d:%02d", sign, hours, minutes)
   }
 
   private func mutateSession(_ id: String, _ mutation: (inout NativeChatSession) -> Void) {

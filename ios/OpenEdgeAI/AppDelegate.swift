@@ -690,6 +690,35 @@ private final class NativeChatStore: ObservableObject {
     return currentSession?.title ?? "Open Edge AI"
   }
 
+  var dynamicIslandDetail: String {
+    if isGenerating {
+      if queuedDrafts.isEmpty {
+        return "현재 대화에서 \(selectedModel.title) 응답을 생성하고 있습니다."
+      }
+      return "현재 응답 생성 후 후속 질문 \(queuedDrafts.count)개를 이어서 실행합니다."
+    }
+    if !queuedDrafts.isEmpty {
+      return "후속 질문 \(queuedDrafts.count)개가 대기열에 있습니다."
+    }
+    if dynamicIslandActivityHold {
+      return "마지막 응답이 완료되었습니다."
+    }
+    return "Open Edge AI가 다음 작업을 기다리는 중입니다."
+  }
+
+  var dynamicIslandProgress: Double {
+    if isGenerating {
+      return queuedDrafts.isEmpty ? 0.64 : 0.72
+    }
+    if !queuedDrafts.isEmpty {
+      return 0.28
+    }
+    if dynamicIslandActivityHold {
+      return 1
+    }
+    return 0.12
+  }
+
   var dynamicIslandPetMotion: NativeDynamicIslandPetMotion {
     if isGenerating {
       return .running
@@ -1378,7 +1407,9 @@ private final class NativeChatStore: ObservableObject {
       pet: selectedDynamicIslandPet.rawValue,
       petEnabled: dynamicIslandPetEnabled,
       motion: dynamicIslandPetMotion.rawValue,
-      queuedCount: queuedDrafts.count
+      queuedCount: queuedDrafts.count,
+      progress: dynamicIslandProgress,
+      detail: dynamicIslandDetail
     )
   }
 
@@ -1480,7 +1511,7 @@ private struct NativeDynamicIslandActivityView: View {
           size: 34
         )
       } else {
-        NativeDynamicIslandPulseView(isActive: store.isGenerating)
+        NativeDynamicIslandLogoView(size: 30)
       }
 
       VStack(alignment: .leading, spacing: 2) {
@@ -1497,14 +1528,12 @@ private struct NativeDynamicIslandActivityView: View {
 
       Spacer(minLength: 6)
 
-      if !store.queuedDrafts.isEmpty {
-        Text("\(store.queuedDrafts.count)")
-          .font(.system(size: 11, weight: .bold))
-          .foregroundColor(.white)
-          .frame(minWidth: 22, minHeight: 22)
-          .background(Color.white.opacity(0.16))
-          .clipShape(Capsule())
-      }
+      NativeDynamicIslandProgressRing(
+        progress: store.dynamicIslandProgress,
+        isActive: store.isGenerating,
+        size: 25,
+        lineWidth: 3
+      )
     }
     .padding(.horizontal, 13)
     .frame(width: store.dynamicIslandPetEnabled ? 286 : 262, height: 54)
@@ -1513,6 +1542,52 @@ private struct NativeDynamicIslandActivityView: View {
     .shadow(color: Color.black.opacity(0.22), radius: 16, x: 0, y: 9)
     .accessibilityLabel("\(store.dynamicIslandTitle), \(store.dynamicIslandSubtitle)")
     .allowsHitTesting(false)
+  }
+}
+
+private struct NativeDynamicIslandLogoView: View {
+  var size: CGFloat
+
+  var body: some View {
+    ZStack {
+      RoundedRectangle(cornerRadius: size * 0.28, style: .continuous)
+        .stroke(Color.white.opacity(0.86), lineWidth: max(1.2, size * 0.07))
+        .rotationEffect(.degrees(-14))
+
+      Text("OE")
+        .font(.system(size: size * 0.34, weight: .black, design: .rounded))
+        .foregroundColor(.white)
+    }
+    .frame(width: size, height: size)
+    .accessibilityHidden(true)
+  }
+}
+
+private struct NativeDynamicIslandProgressRing: View {
+  var progress: Double
+  var isActive: Bool
+  var size: CGFloat
+  var lineWidth: CGFloat
+
+  private var clampedProgress: Double {
+    min(max(progress, 0.08), 1)
+  }
+
+  var body: some View {
+    ZStack {
+      Circle()
+        .stroke(Color.white.opacity(0.18), lineWidth: lineWidth)
+
+      Circle()
+        .trim(from: 0, to: clampedProgress)
+        .stroke(
+          Color.white.opacity(isActive ? 1 : 0.78),
+          style: StrokeStyle(lineWidth: lineWidth, lineCap: .round)
+        )
+        .rotationEffect(.degrees(-90))
+    }
+    .frame(width: size, height: size)
+    .accessibilityHidden(true)
   }
 }
 

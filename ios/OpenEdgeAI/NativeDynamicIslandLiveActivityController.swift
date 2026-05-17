@@ -18,7 +18,9 @@ final class NativeDynamicIslandLiveActivityController {
     pet: String,
     petEnabled: Bool,
     motion: String,
-    queuedCount: Int
+    queuedCount: Int,
+    progress: Double,
+    detail: String
   ) {
     guard enabled, isVisible, ActivityAuthorizationInfo().areActivitiesEnabled else {
       end(dismissalPolicy: .immediate)
@@ -32,7 +34,9 @@ final class NativeDynamicIslandLiveActivityController {
         pet: pet,
         petEnabled: petEnabled,
         motion: motion,
-        queuedCount: queuedCount
+        queuedCount: queuedCount,
+        progress: progress,
+        detail: detail
       ),
       staleDate: Date().addingTimeInterval(90)
     )

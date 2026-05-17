@@ -9,6 +9,8 @@ struct OpenEdgeAIDynamicIslandAttributes: ActivityAttributes {
     var petEnabled: Bool
     var motion: String
     var queuedCount: Int
+    var progress: Double
+    var detail: String
   }
 
   var sessionId: String

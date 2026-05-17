@@ -11,71 +11,95 @@ struct OpenEdgeAILiveActivityWidget: Widget {
     } dynamicIsland: { context in
       DynamicIsland {
         DynamicIslandExpandedRegion(.leading) {
-          OpenEdgeAIIslandPet(
-            pet: context.state.pet,
-            motion: context.state.motion,
-            isEnabled: context.state.petEnabled,
-            size: 34
-          )
-          .frame(width: 42, height: 38)
+          OpenEdgeAIIslandIdentity(state: context.state, size: 48)
+            .frame(width: 58, height: 54)
+        }
+
+        DynamicIslandExpandedRegion(.trailing) {
+          VStack(spacing: 5) {
+            OpenEdgeAIIslandProgressRing(
+              progress: context.state.progress,
+              isActive: context.state.motion == "running",
+              size: 42,
+              lineWidth: 4
+            )
+
+            Text(statusText(for: context.state))
+              .font(.system(size: 10, weight: .bold))
+              .foregroundStyle(.white.opacity(0.72))
+              .lineLimit(1)
+              .minimumScaleFactor(0.72)
+          }
+          .frame(width: 58)
         }
 
         DynamicIslandExpandedRegion(.center) {
-          VStack(alignment: .leading, spacing: 2) {
+          VStack(alignment: .leading, spacing: 3) {
             Text(context.state.title)
               .font(.system(size: 13, weight: .semibold))
               .foregroundStyle(.white)
               .lineLimit(1)
+              .minimumScaleFactor(0.82)
 
             Text(context.state.subtitle)
               .font(.system(size: 11, weight: .medium))
               .foregroundStyle(.white.opacity(0.66))
               .lineLimit(1)
+              .minimumScaleFactor(0.78)
           }
           .frame(maxWidth: .infinity, alignment: .leading)
         }
 
-        DynamicIslandExpandedRegion(.trailing) {
-          OpenEdgeAIQueueBadge(count: context.state.queuedCount)
-        }
-
         DynamicIslandExpandedRegion(.bottom) {
-          HStack(spacing: 6) {
-            Circle()
-              .fill(.white.opacity(context.state.motion == "running" ? 1 : 0.45))
-              .frame(width: 6, height: 6)
+          VStack(alignment: .leading, spacing: 7) {
+            OpenEdgeAIActivityDetailRow(
+              icon: context.state.motion == "running" ? "bolt.fill" : "clock",
+              text: context.state.detail
+            )
 
-            Text(context.state.motion == "running" ? "응답 생성 중" : "대기 중")
-              .font(.system(size: 11, weight: .medium))
-              .foregroundStyle(.white.opacity(0.7))
-              .lineLimit(1)
-
-            Spacer(minLength: 0)
+            if context.state.queuedCount > 0 {
+              OpenEdgeAIActivityDetailRow(
+                icon: "text.line.first.and.arrowtriangle.forward",
+                text: "대기열 \(context.state.queuedCount)개가 다음 작업으로 준비되어 있습니다."
+              )
+            }
           }
+          .padding(.top, 2)
         }
       } compactLeading: {
-        OpenEdgeAIIslandPet(
-          pet: context.state.pet,
-          motion: context.state.motion,
-          isEnabled: context.state.petEnabled,
-          size: 21
+        OpenEdgeAIIslandIdentity(state: context.state, size: 22)
+          .frame(width: 24, height: 24)
+      } compactTrailing: {
+        OpenEdgeAIIslandProgressRing(
+          progress: context.state.progress,
+          isActive: context.state.motion == "running",
+          size: 22,
+          lineWidth: 2.6
         )
         .frame(width: 24, height: 24)
-      } compactTrailing: {
-        Text(context.state.queuedCount > 0 ? "\(context.state.queuedCount)" : "AI")
-          .font(.system(size: 12, weight: .bold))
-          .foregroundStyle(.white)
-          .frame(width: 24, height: 24)
       } minimal: {
-        OpenEdgeAIIslandPet(
-          pet: context.state.pet,
-          motion: context.state.motion,
-          isEnabled: context.state.petEnabled,
-          size: 17
+        OpenEdgeAIIslandProgressRing(
+          progress: context.state.progress,
+          isActive: context.state.motion == "running",
+          size: 18,
+          lineWidth: 2.2
         )
         .frame(width: 18, height: 18)
       }
     }
+  }
+
+  private func statusText(for state: OpenEdgeAIDynamicIslandAttributes.ContentState) -> String {
+    if state.motion == "running" {
+      return "진행 중"
+    }
+    if state.queuedCount > 0 {
+      return "대기 \(state.queuedCount)"
+    }
+    if state.progress >= 1 {
+      return "완료"
+    }
+    return "대기"
   }
 }
 
@@ -83,53 +107,123 @@ private struct OpenEdgeAILockScreenActivityView: View {
   var state: OpenEdgeAIDynamicIslandAttributes.ContentState
 
   var body: some View {
-    HStack(spacing: 12) {
-      OpenEdgeAIIslandPet(
-        pet: state.pet,
-        motion: state.motion,
-        isEnabled: state.petEnabled,
-        size: 36
-      )
-      .frame(width: 44, height: 40)
+    HStack(spacing: 13) {
+      OpenEdgeAIIslandIdentity(state: state, size: 40)
+        .frame(width: 48, height: 46)
 
-      VStack(alignment: .leading, spacing: 3) {
+      VStack(alignment: .leading, spacing: 4) {
         Text(state.title)
           .font(.system(size: 14, weight: .semibold))
           .foregroundStyle(.white)
           .lineLimit(1)
 
-        Text(state.subtitle)
+        Text(state.detail)
           .font(.system(size: 12, weight: .medium))
           .foregroundStyle(.white.opacity(0.66))
-          .lineLimit(1)
+          .lineLimit(2)
       }
 
       Spacer(minLength: 8)
 
-      OpenEdgeAIQueueBadge(count: state.queuedCount)
+      OpenEdgeAIIslandProgressRing(
+        progress: state.progress,
+        isActive: state.motion == "running",
+        size: 34,
+        lineWidth: 3.5
+      )
+      .frame(width: 38, height: 38)
     }
     .padding(.horizontal, 14)
     .padding(.vertical, 12)
   }
 }
 
-private struct OpenEdgeAIQueueBadge: View {
-  var count: Int
+private struct OpenEdgeAIActivityDetailRow: View {
+  var icon: String
+  var text: String
 
   var body: some View {
-    Text(count > 0 ? "\(count)" : "ON")
-      .font(.system(size: 11, weight: .bold))
-      .foregroundStyle(.white)
-      .frame(minWidth: 26, minHeight: 24)
-      .padding(.horizontal, count > 0 ? 0 : 3)
-      .background(.white.opacity(0.14), in: Capsule())
+    HStack(spacing: 7) {
+      Image(systemName: icon)
+        .font(.system(size: 10, weight: .bold))
+        .foregroundStyle(.white.opacity(0.78))
+        .frame(width: 13)
+
+      Text(text)
+        .font(.system(size: 11, weight: .medium))
+        .foregroundStyle(.white.opacity(0.72))
+        .lineLimit(2)
+        .minimumScaleFactor(0.8)
+
+      Spacer(minLength: 0)
+    }
+  }
+}
+
+private struct OpenEdgeAIIslandIdentity: View {
+  var state: OpenEdgeAIDynamicIslandAttributes.ContentState
+  var size: CGFloat
+
+  var body: some View {
+    if state.petEnabled {
+      OpenEdgeAIIslandPet(
+        pet: state.pet,
+        motion: state.motion,
+        size: size
+      )
+    } else {
+      OpenEdgeAILiveMark(size: size)
+    }
+  }
+}
+
+private struct OpenEdgeAIIslandProgressRing: View {
+  var progress: Double
+  var isActive: Bool
+  var size: CGFloat
+  var lineWidth: CGFloat
+
+  private var clampedProgress: Double {
+    min(max(progress, 0.08), 1)
+  }
+
+  var body: some View {
+    ZStack {
+      Circle()
+        .stroke(.white.opacity(0.18), lineWidth: lineWidth)
+
+      Circle()
+        .trim(from: 0, to: clampedProgress)
+        .stroke(
+          .white.opacity(isActive ? 1 : 0.78),
+          style: StrokeStyle(lineWidth: lineWidth, lineCap: .round)
+        )
+        .rotationEffect(.degrees(-90))
+    }
+    .frame(width: size, height: size)
+  }
+}
+
+private struct OpenEdgeAILiveMark: View {
+  var size: CGFloat
+
+  var body: some View {
+    ZStack {
+      RoundedRectangle(cornerRadius: size * 0.28, style: .continuous)
+        .stroke(.white.opacity(0.86), lineWidth: max(1.2, size * 0.07))
+        .rotationEffect(.degrees(-14))
+
+      Text("OE")
+        .font(.system(size: size * 0.34, weight: .black, design: .rounded))
+        .foregroundStyle(.white)
+    }
+    .frame(width: size, height: size)
   }
 }
 
 private struct OpenEdgeAIIslandPet: View {
   var pet: String
   var motion: String
-  var isEnabled: Bool
   var size: CGFloat
 
   private var pixelSize: CGFloat {
@@ -184,31 +278,21 @@ private struct OpenEdgeAIIslandPet: View {
 
   var body: some View {
     ZStack(alignment: .topTrailing) {
-      if isEnabled {
-        VStack(spacing: 0) {
-          ForEach(rows.indices, id: \.self) { rowIndex in
-            HStack(spacing: 0) {
-              ForEach(rows[rowIndex].indices, id: \.self) { columnIndex in
-                Rectangle()
-                  .fill(color(for: rows[rowIndex][columnIndex]))
-                  .frame(width: pixelSize, height: pixelSize)
-              }
+      VStack(spacing: 0) {
+        ForEach(rows.indices, id: \.self) { rowIndex in
+          HStack(spacing: 0) {
+            ForEach(rows[rowIndex].indices, id: \.self) { columnIndex in
+              Rectangle()
+                .fill(color(for: rows[rowIndex][columnIndex]))
+                .frame(width: pixelSize, height: pixelSize)
             }
           }
         }
-        .frame(width: size, height: size)
-        .offset(y: yOffset)
-      } else {
-        Circle()
-          .stroke(.white.opacity(0.22), lineWidth: 1)
-          .frame(width: size * 0.72, height: size * 0.72)
-
-        Circle()
-          .fill(.white)
-          .frame(width: size * 0.22, height: size * 0.22)
       }
+      .frame(width: size, height: size)
+      .offset(y: yOffset)
 
-      if motion == "sleeping", isEnabled {
+      if motion == "sleeping" {
         Text("Z")
           .font(.system(size: max(7, size * 0.28), weight: .black, design: .monospaced))
           .foregroundStyle(.white.opacity(0.76))

@@ -643,20 +643,26 @@ private struct NativeRootView: View {
   @State private var showingFileImporter = false
 
   var body: some View {
-    VStack(spacing: 0) {
-      NativeTopBar(
-        showingSessions: $showingSessions,
-        showingSettings: $showingSettings
-      )
-      Divider()
-      NativeChatTranscript()
-      NativeInputBar(showingFileImporter: $showingFileImporter)
+    ZStack(alignment: .leading) {
+      VStack(spacing: 0) {
+        NativeTopBar(
+          showingSessions: $showingSessions,
+          showingSettings: $showingSettings
+        )
+        Divider()
+        NativeChatTranscript()
+        NativeInputBar(showingFileImporter: $showingFileImporter)
+      }
+      .background(Color.white)
+
+      if showingSessions {
+        NativeSessionsView(isPresented: $showingSessions)
+          .environmentObject(store)
+          .transition(.move(edge: .leading))
+          .zIndex(1)
+      }
     }
-    .background(Color.white)
-    .sheet(isPresented: $showingSessions) {
-      NativeSessionsView()
-        .environmentObject(store)
-    }
+    .animation(.easeOut(duration: 0.24), value: showingSessions)
     .sheet(isPresented: $showingSettings) {
       NativeSettingsView()
         .environmentObject(store)
@@ -684,12 +690,15 @@ private struct NativeTopBar: View {
   var body: some View {
     HStack(spacing: 12) {
       Button {
-        showingSessions = true
+        withAnimation(.easeOut(duration: 0.24)) {
+          showingSessions = true
+        }
       } label: {
         Image(systemName: "line.3.horizontal")
           .font(.system(size: 18, weight: .semibold))
           .frame(width: 36, height: 36)
       }
+      .accessibilityLabel("채팅 목록 열기")
       .buttonStyle(.plain)
 
       Button {
@@ -1047,15 +1056,15 @@ private struct NativeQueueView: View {
 }
 
 private struct NativeSessionsView: View {
-  @Environment(\.dismiss) private var dismiss
+  @Binding var isPresented: Bool
   @EnvironmentObject private var store: NativeChatStore
 
   var body: some View {
-    NavigationView {
+    NavigationStack {
       List {
         Button {
           store.createNewSession()
-          dismiss()
+          close()
         } label: {
           Label("새 채팅", systemImage: "plus")
         }
@@ -1063,7 +1072,7 @@ private struct NativeSessionsView: View {
         ForEach(store.sessions) { session in
           Button {
             store.selectSession(session)
-            dismiss()
+            close()
           } label: {
             VStack(alignment: .leading, spacing: 4) {
               Text(session.title)
@@ -1084,12 +1093,24 @@ private struct NativeSessionsView: View {
       }
       .navigationTitle("채팅")
       .toolbar {
-        ToolbarItem(placement: .confirmationAction) {
-          Button("닫기") {
-            dismiss()
+        ToolbarItem(placement: .navigationBarLeading) {
+          Button {
+            close()
+          } label: {
+            Image(systemName: "chevron.left")
+              .font(.system(size: 17, weight: .semibold))
           }
+          .accessibilityLabel("채팅 닫기")
         }
       }
+    }
+    .background(Color.white)
+    .frame(maxWidth: .infinity, maxHeight: .infinity)
+  }
+
+  private func close() {
+    withAnimation(.easeIn(duration: 0.2)) {
+      isPresented = false
     }
   }
 }

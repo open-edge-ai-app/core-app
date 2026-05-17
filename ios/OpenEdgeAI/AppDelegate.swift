@@ -276,6 +276,73 @@ private enum NativeLanguage: String, CaseIterable, Identifiable {
   }
 }
 
+private enum NativeDynamicIslandPet: String, CaseIterable, Identifiable {
+  case codex
+  case stacky
+  case nullSignal
+
+  var id: String { rawValue }
+
+  var title: String {
+    switch self {
+    case .codex:
+      return "Codex"
+    case .stacky:
+      return "Stacky"
+    case .nullSignal:
+      return "Null Signal"
+    }
+  }
+
+  var subtitle: String {
+    switch self {
+    case .codex:
+      return "작업을 따라 뛰는 기본 픽셀 펫"
+    case .stacky:
+      return "차분하게 쌓아 올리는 스택 펫"
+    case .nullSignal:
+      return "조용히 신호를 기다리는 모노 펫"
+    }
+  }
+
+  var primaryColor: Color {
+    switch self {
+    case .codex:
+      return Color.white
+    case .stacky:
+      return Color(white: 0.78)
+    case .nullSignal:
+      return Color(white: 0.18)
+    }
+  }
+
+  var secondaryColor: Color {
+    switch self {
+    case .codex:
+      return Color(white: 0.52)
+    case .stacky:
+      return Color.white
+    case .nullSignal:
+      return Color(white: 0.72)
+    }
+  }
+
+  var eyeColor: Color {
+    switch self {
+    case .nullSignal:
+      return Color.white
+    default:
+      return Color.black
+    }
+  }
+}
+
+private enum NativeDynamicIslandPetMotion {
+  case running
+  case resting
+  case sleeping
+}
+
 private struct NativeAttachment: Identifiable, Codable, Equatable {
   var id: String
   var name: String
@@ -505,6 +572,8 @@ private final class NativeChatStore: ObservableObject {
   @Published var selectedLanguage: NativeLanguage = .korean
   @Published var backgroundExecutionEnabled = false
   @Published var backgroundDynamicIslandEnabled = false
+  @Published var dynamicIslandPetEnabled = false
+  @Published var selectedDynamicIslandPet: NativeDynamicIslandPet = .codex
   @Published var dynamicIslandActivityHold = false
 
   private let storageKey = "OpenEdgeAI.NativeChatSessions.v1"
@@ -566,6 +635,16 @@ private final class NativeChatStore: ObservableObject {
       return "다음: \(clippedDynamicIslandText(nextDraft.text))"
     }
     return currentSession?.title ?? "Open Edge AI"
+  }
+
+  var dynamicIslandPetMotion: NativeDynamicIslandPetMotion {
+    if isGenerating {
+      return .running
+    }
+    if dynamicIslandActivityHold {
+      return .sleeping
+    }
+    return .resting
   }
 
   var canSend: Bool {
@@ -809,7 +888,9 @@ private final class NativeChatStore: ObservableObject {
       "accentColor": accentColor.rawValue,
       "selectedLanguage": selectedLanguage.rawValue,
       "backgroundExecutionEnabled": backgroundExecutionEnabled,
-      "backgroundDynamicIslandEnabled": backgroundDynamicIslandEnabled
+      "backgroundDynamicIslandEnabled": backgroundDynamicIslandEnabled,
+      "dynamicIslandPetEnabled": dynamicIslandPetEnabled,
+      "selectedDynamicIslandPet": selectedDynamicIslandPet.rawValue
     ]
     UserDefaults.standard.set(data, forKey: settingsKey)
   }
@@ -1131,6 +1212,11 @@ private final class NativeChatStore: ObservableObject {
     }
     backgroundExecutionEnabled = boolSetting(data["backgroundExecutionEnabled"], default: false)
     backgroundDynamicIslandEnabled = boolSetting(data["backgroundDynamicIslandEnabled"], default: false)
+    dynamicIslandPetEnabled = boolSetting(data["dynamicIslandPetEnabled"], default: false)
+    if let raw = data["selectedDynamicIslandPet"] as? String,
+       let pet = NativeDynamicIslandPet(rawValue: raw) {
+      selectedDynamicIslandPet = pet
+    }
     if let raw = data["selectedModel"] as? String,
        let model = NativeModel(rawValue: raw) {
       selectedModel = model
@@ -1194,7 +1280,7 @@ private final class NativeChatStore: ObservableObject {
 
     dynamicIslandActivityHold = true
     Task { @MainActor in
-      try? await Task.sleep(nanoseconds: 1_600_000_000)
+      try? await Task.sleep(nanoseconds: 3_800_000_000)
       if !self.isGenerating && self.queuedDrafts.isEmpty {
         self.dynamicIslandActivityHold = false
       }
@@ -1214,16 +1300,16 @@ private struct NativeRootView: View {
         NativeTopBar(
           showingSessions: $showingSessions
         )
-        .overlay(alignment: .bottom) {
-          if store.showsDynamicIslandActivity {
-            NativeDynamicIslandActivityView()
-              .environmentObject(store)
-              .offset(y: 42)
-              .transition(.scale(scale: 0.92, anchor: .top).combined(with: .opacity))
-              .zIndex(3)
-          }
-        }
         .zIndex(2)
+
+        if store.showsDynamicIslandActivity {
+          NativeDynamicIslandActivityView()
+            .environmentObject(store)
+            .padding(.bottom, 8)
+            .transition(.scale(scale: 0.92, anchor: .top).combined(with: .opacity))
+            .zIndex(2)
+        }
+
         Divider()
         NativeChatTranscript()
         NativeInputBar(showingFileImporter: $showingFileImporter)
@@ -1266,7 +1352,15 @@ private struct NativeDynamicIslandActivityView: View {
 
   var body: some View {
     HStack(spacing: 10) {
-      NativeDynamicIslandPulseView(isActive: store.isGenerating)
+      if store.dynamicIslandPetEnabled {
+        NativeDynamicIslandPetView(
+          pet: store.selectedDynamicIslandPet,
+          motion: store.dynamicIslandPetMotion,
+          size: 34
+        )
+      } else {
+        NativeDynamicIslandPulseView(isActive: store.isGenerating)
+      }
 
       VStack(alignment: .leading, spacing: 2) {
         Text(store.dynamicIslandTitle)
@@ -1292,12 +1386,130 @@ private struct NativeDynamicIslandActivityView: View {
       }
     }
     .padding(.horizontal, 13)
-    .frame(width: 262, height: 54)
+    .frame(width: store.dynamicIslandPetEnabled ? 286 : 262, height: 54)
     .background(Color.black)
     .clipShape(Capsule())
     .shadow(color: Color.black.opacity(0.22), radius: 16, x: 0, y: 9)
     .accessibilityLabel("\(store.dynamicIslandTitle), \(store.dynamicIslandSubtitle)")
     .allowsHitTesting(false)
+  }
+}
+
+private struct NativeDynamicIslandPetView: View {
+  var pet: NativeDynamicIslandPet
+  var motion: NativeDynamicIslandPetMotion
+  var size: CGFloat
+  @State private var phase = false
+
+  private var rows: [[Int]] {
+    switch pet {
+    case .codex:
+      return [
+        [0, 0, 2, 2, 2, 0, 0],
+        [0, 2, 1, 1, 1, 2, 0],
+        [2, 1, 4, 1, 4, 1, 2],
+        [2, 1, 1, 3, 1, 1, 2],
+        [0, 2, 1, 1, 1, 2, 0],
+        [0, 0, 2, 3, 2, 0, 0],
+        [0, 2, 0, 0, 0, 2, 0]
+      ]
+    case .stacky:
+      return [
+        [0, 0, 2, 2, 2, 0, 0],
+        [0, 2, 3, 3, 3, 2, 0],
+        [2, 3, 4, 3, 4, 3, 2],
+        [2, 1, 1, 1, 1, 1, 2],
+        [2, 3, 3, 3, 3, 3, 2],
+        [0, 2, 1, 1, 1, 2, 0],
+        [0, 2, 0, 0, 0, 2, 0]
+      ]
+    case .nullSignal:
+      return [
+        [0, 0, 2, 2, 2, 0, 0],
+        [0, 2, 1, 1, 1, 2, 0],
+        [2, 1, 4, 1, 4, 1, 2],
+        [2, 1, 1, 2, 1, 1, 2],
+        [2, 1, 3, 3, 3, 1, 2],
+        [0, 2, 1, 1, 1, 2, 0],
+        [0, 0, 2, 0, 2, 0, 0]
+      ]
+    }
+  }
+
+  private var pixelSize: CGFloat {
+    size / 7
+  }
+
+  private var bodyOffset: CGFloat {
+    switch motion {
+    case .running:
+      return phase ? -3 : 2
+    case .resting:
+      return phase ? -1 : 1
+    case .sleeping:
+      return 1
+    }
+  }
+
+  private var tilt: Double {
+    switch motion {
+    case .running:
+      return phase ? -7 : 7
+    case .resting:
+      return phase ? -2 : 2
+    case .sleeping:
+      return -4
+    }
+  }
+
+  var body: some View {
+    ZStack(alignment: .topTrailing) {
+      VStack(spacing: 0) {
+        ForEach(rows.indices, id: \.self) { rowIndex in
+          HStack(spacing: 0) {
+            ForEach(rows[rowIndex].indices, id: \.self) { columnIndex in
+              Rectangle()
+                .fill(color(for: rows[rowIndex][columnIndex]))
+                .frame(width: pixelSize, height: pixelSize)
+            }
+          }
+        }
+      }
+      .frame(width: size, height: size)
+      .offset(y: bodyOffset)
+      .rotationEffect(.degrees(tilt))
+      .animation(.easeInOut(duration: motion == .running ? 0.28 : 0.9).repeatForever(autoreverses: true), value: phase)
+
+      if motion == .sleeping {
+        Text("Z")
+          .font(.system(size: 9, weight: .black, design: .monospaced))
+          .foregroundColor(.white.opacity(0.78))
+          .offset(x: 7, y: -6)
+      }
+    }
+    .frame(width: size + 8, height: size + 6)
+    .onAppear {
+      phase = true
+    }
+    .onChange(of: motion) { _, _ in
+      phase.toggle()
+    }
+    .accessibilityHidden(true)
+  }
+
+  private func color(for value: Int) -> Color {
+    switch value {
+    case 1:
+      return pet.primaryColor
+    case 2:
+      return pet.eyeColor.opacity(pet == .nullSignal ? 0.9 : 1)
+    case 3:
+      return pet.secondaryColor
+    case 4:
+      return pet.eyeColor
+    default:
+      return Color.clear
+    }
   }
 }
 
@@ -2623,6 +2835,25 @@ private struct NativeGeneralSettingsView: View {
           .tint(.black)
       }
 
+      Section("Dynamic Island 펫") {
+        Toggle("Dynamic Island 펫 활성", isOn: $store.dynamicIslandPetEnabled)
+          .tint(.black)
+
+        ForEach(NativeDynamicIslandPet.allCases) { pet in
+          Button {
+            store.selectedDynamicIslandPet = pet
+            store.dynamicIslandPetEnabled = true
+            store.saveSettings()
+          } label: {
+            NativeDynamicIslandPetOption(
+              pet: pet,
+              isSelected: store.selectedDynamicIslandPet == pet
+            )
+          }
+          .buttonStyle(.plain)
+        }
+      }
+
       Section("언어") {
         Picker("언어", selection: $store.selectedLanguage) {
           ForEach(NativeLanguage.allCases) { language in
@@ -2645,9 +2876,57 @@ private struct NativeGeneralSettingsView: View {
         store.dismissDynamicIslandActivity()
       }
     }
+    .onChange(of: store.dynamicIslandPetEnabled) { _, isEnabled in
+      if isEnabled {
+        store.backgroundDynamicIslandEnabled = true
+      }
+      store.saveSettings()
+    }
+    .onChange(of: store.selectedDynamicIslandPet) { _, _ in
+      store.saveSettings()
+    }
     .onChange(of: store.selectedLanguage) { _, _ in
       store.saveSettings()
     }
+  }
+}
+
+private struct NativeDynamicIslandPetOption: View {
+  var pet: NativeDynamicIslandPet
+  var isSelected: Bool
+
+  var body: some View {
+    HStack(spacing: 12) {
+      NativeDynamicIslandPetView(
+        pet: pet,
+        motion: isSelected ? .running : .resting,
+        size: 30
+      )
+      .frame(width: 42, height: 38)
+      .background(Color.black)
+      .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+
+      VStack(alignment: .leading, spacing: 3) {
+        Text(pet.title)
+          .font(.system(size: 16, weight: .semibold))
+          .foregroundColor(.black)
+
+        Text(pet.subtitle)
+          .font(.system(size: 12))
+          .foregroundColor(.black.opacity(0.52))
+          .lineLimit(1)
+      }
+
+      Spacer()
+
+      if isSelected {
+        Image(systemName: "checkmark")
+          .font(.system(size: 14, weight: .bold))
+          .foregroundColor(.black)
+      }
+    }
+    .padding(.vertical, 4)
+    .contentShape(Rectangle())
   }
 }
 

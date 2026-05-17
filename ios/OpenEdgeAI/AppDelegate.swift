@@ -1343,10 +1343,9 @@ private struct NativeSessionsIconRow: View {
 private struct NativeSettingsView: View {
   @Environment(\.dismiss) private var dismiss
   @EnvironmentObject private var store: NativeChatStore
-  private let personalities = ["Balanced", "Direct", "Friendly", "Creative", "Precise"]
 
   var body: some View {
-    NavigationView {
+    NavigationStack {
       List {
         Section {
           HStack(spacing: 12) {
@@ -1367,82 +1366,35 @@ private struct NativeSettingsView: View {
           }
         }
 
-        Section("모델") {
-          ForEach(NativeModel.allCases) { model in
-            let status = store.modelStatuses[model] ?? NativeModelStatus(model: model)
-            VStack(alignment: .leading, spacing: 8) {
-              HStack {
-                VStack(alignment: .leading, spacing: 3) {
-                  Text(model.title)
-                    .font(.system(size: 16, weight: .semibold))
-                  Text(model.subtitle)
-                    .font(.system(size: 13))
-                    .foregroundColor(.black.opacity(0.55))
-                }
-                Spacer()
-                if store.selectedModel == model {
-                  Image(systemName: "checkmark.circle.fill")
-                }
-              }
-
-              if status.downloading {
-                ProgressView(value: status.progress)
-                  .tint(.black)
-              }
-
-              if let error = status.error, !status.installed {
-                Text(error)
-                  .font(.system(size: 12))
-                  .foregroundColor(.black.opacity(0.55))
-              }
-
-              HStack {
-                Button("선택") {
-                  store.selectedModel = model
-                  store.saveSettings()
-                  store.loadSelectedModel()
-                }
-                .buttonStyle(.bordered)
-                .tint(.black)
-
-                if model == .gemma && !status.installed {
-                  Button(status.downloading ? "다운로드 중" : "다운로드") {
-                    store.downloadGemma()
-                  }
-                  .buttonStyle(.borderedProminent)
-                  .tint(.black)
-                  .disabled(status.downloading)
-                }
-              }
-            }
+        Section("설정") {
+          NavigationLink {
+            NativeModelSettingsView()
+          } label: {
+            NativeSettingsNavigationRow(
+              icon: "cpu",
+              title: "모델",
+              detail: store.selectedModel.title
+            )
           }
-        }
 
-        Section("개인 맞춤 설정") {
-          TextField("이름", text: $store.userName)
-          Picker("성격", selection: $store.personality) {
-            ForEach(personalities, id: \.self) { personality in
-              Text(personality).tag(personality)
-            }
+          NavigationLink {
+            NativePersonalSettingsView()
+          } label: {
+            NativeSettingsNavigationRow(
+              icon: "person.crop.circle",
+              title: "개인 맞춤 설정",
+              detail: "이름, 성격, 메모리"
+            )
           }
-          Toggle("메모리 활성", isOn: $store.memoryEnabled)
-            .tint(.black)
-          VStack(alignment: .leading, spacing: 8) {
-            Text("맞춤형 지침")
-              .font(.system(size: 13, weight: .semibold))
-            TextEditor(text: $store.systemPrompt)
-              .frame(minHeight: 110)
-          }
-        }
 
-        Section("정보") {
-          Link("문제 신고하기", destination: URL(string: "https://github.com/open-edge-ai-app/core-app/issues")!)
-          Link("기여하기", destination: URL(string: "https://github.com/open-edge-ai-app/core-app")!)
-          HStack {
-            Text("버전")
-            Spacer()
-            Text(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.0.1")
-              .foregroundColor(.black.opacity(0.55))
+          NavigationLink {
+            NativeAppInfoSettingsView()
+          } label: {
+            NativeSettingsNavigationRow(
+              icon: "info.circle",
+              title: "정보",
+              detail: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.0.1"
+            )
           }
         }
       }
@@ -1456,5 +1408,152 @@ private struct NativeSettingsView: View {
         }
       }
     }
+  }
+}
+
+private struct NativeSettingsNavigationRow: View {
+  var icon: String
+  var title: String
+  var detail: String
+
+  var body: some View {
+    HStack(spacing: 12) {
+      Image(systemName: icon)
+        .font(.system(size: 17, weight: .semibold))
+        .foregroundColor(.black)
+        .frame(width: 28, height: 28)
+
+      Text(title)
+        .foregroundColor(.black)
+
+      Spacer()
+
+      Text(detail)
+        .font(.system(size: 13))
+        .foregroundColor(.black.opacity(0.45))
+        .lineLimit(1)
+    }
+  }
+}
+
+private struct NativeModelSettingsView: View {
+  @EnvironmentObject private var store: NativeChatStore
+
+  var body: some View {
+    List {
+      Section {
+        ForEach(NativeModel.allCases) { model in
+          let status = store.modelStatuses[model] ?? NativeModelStatus(model: model)
+          VStack(alignment: .leading, spacing: 8) {
+            HStack {
+              VStack(alignment: .leading, spacing: 3) {
+                Text(model.title)
+                  .font(.system(size: 16, weight: .semibold))
+                Text(model.subtitle)
+                  .font(.system(size: 13))
+                  .foregroundColor(.black.opacity(0.55))
+              }
+              Spacer()
+              if store.selectedModel == model {
+                Image(systemName: "checkmark.circle.fill")
+              }
+            }
+
+            if status.downloading {
+              ProgressView(value: status.progress)
+                .tint(.black)
+            }
+
+            if let error = status.error, !status.installed {
+              Text(error)
+                .font(.system(size: 12))
+                .foregroundColor(.black.opacity(0.55))
+            }
+
+            HStack {
+              Button("선택") {
+                store.selectedModel = model
+                store.saveSettings()
+                store.loadSelectedModel()
+              }
+              .buttonStyle(.bordered)
+              .tint(.black)
+
+              if model == .gemma && !status.installed {
+                Button(status.downloading ? "다운로드 중" : "다운로드") {
+                  store.downloadGemma()
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(.black)
+                .disabled(status.downloading)
+              }
+            }
+          }
+        }
+      }
+    }
+    .navigationTitle("모델")
+    .navigationBarTitleDisplayMode(.inline)
+  }
+}
+
+private struct NativePersonalSettingsView: View {
+  @EnvironmentObject private var store: NativeChatStore
+  private let personalities = ["Balanced", "Direct", "Friendly", "Creative", "Precise"]
+
+  var body: some View {
+    List {
+      Section("기본 정보") {
+        TextField("이름", text: $store.userName)
+        Picker("성격", selection: $store.personality) {
+          ForEach(personalities, id: \.self) { personality in
+            Text(personality).tag(personality)
+          }
+        }
+      }
+
+      Section("메모리") {
+        Toggle("메모리 활성", isOn: $store.memoryEnabled)
+          .tint(.black)
+      }
+
+      Section("맞춤형 지침") {
+        TextEditor(text: $store.systemPrompt)
+          .frame(minHeight: 160)
+      }
+    }
+    .navigationTitle("개인 맞춤 설정")
+    .navigationBarTitleDisplayMode(.inline)
+    .onDisappear {
+      store.saveSettings()
+    }
+  }
+}
+
+private struct NativeAppInfoSettingsView: View {
+  var body: some View {
+    List {
+      Section("지원") {
+        Link("문제 신고하기", destination: URL(string: "https://github.com/open-edge-ai-app/core-app/issues")!)
+        Link("기여하기", destination: URL(string: "https://github.com/open-edge-ai-app/core-app")!)
+      }
+
+      Section("앱 정보") {
+        HStack {
+          Text("버전")
+          Spacer()
+          Text(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.0.1")
+            .foregroundColor(.black.opacity(0.55))
+        }
+        HStack {
+          Text("플랫폼")
+          Spacer()
+          Text("iOS native")
+            .foregroundColor(.black.opacity(0.55))
+        }
+      }
+    }
+    .navigationTitle("정보")
+    .navigationBarTitleDisplayMode(.inline)
   }
 }

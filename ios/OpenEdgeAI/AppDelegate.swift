@@ -1846,20 +1846,9 @@ private struct NativeTopBar: View {
       Button {
         store.createNewSession()
       } label: {
-        HStack(spacing: 8) {
-          ZStack {
-            RoundedRectangle(cornerRadius: 8)
-              .fill(store.accentColor.color)
-            Image(systemName: "sparkles")
-              .font(.system(size: 13, weight: .bold))
-              .foregroundColor(store.accentColor.foregroundColor)
-          }
-          .frame(width: 28, height: 28)
-
-          Text(store.currentSession?.title ?? "Open Edge AI")
-            .font(.system(size: 15, weight: .semibold))
-            .lineLimit(1)
-        }
+        Text(store.currentSession?.title ?? "Open Edge AI")
+          .font(.system(size: 15, weight: .semibold))
+          .lineLimit(1)
       }
       .buttonStyle(.plain)
 

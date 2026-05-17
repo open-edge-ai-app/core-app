@@ -329,53 +329,86 @@ private enum NativeLanguage: String, CaseIterable, Identifiable {
 }
 
 private enum NativeDynamicIslandPet: String, CaseIterable, Identifiable {
-  case codex
+  case orbit
   case stacky
   case nullSignal
+  case luma
+  case flux
 
   var id: String { rawValue }
 
   var title: String {
     switch self {
-    case .codex:
-      return "Codex"
+    case .orbit:
+      return "Orbit"
     case .stacky:
       return "Stacky"
     case .nullSignal:
-      return "Null Signal"
+      return "Signal"
+    case .luma:
+      return "Luma"
+    case .flux:
+      return "Flux"
     }
   }
 
   var subtitle: String {
     switch self {
-    case .codex:
-      return "작업을 따라 뛰는 기본 픽셀 펫"
+    case .orbit:
+      return "푸른 궤도로 작업을 따라가는 기본 펫"
     case .stacky:
-      return "차분하게 쌓아 올리는 스택 펫"
+      return "노란 블록으로 차분하게 쌓아 올리는 펫"
     case .nullSignal:
-      return "조용히 신호를 기다리는 모노 펫"
+      return "보라색 신호를 조용히 기다리는 펫"
+    case .luma:
+      return "민트빛으로 가볍게 반응하는 펫"
+    case .flux:
+      return "코랄 톤으로 빠르게 뛰는 펫"
     }
   }
 
   var primaryColor: Color {
     switch self {
-    case .codex:
-      return Color.white
+    case .orbit:
+      return Color(red: 0.18, green: 0.58, blue: 1)
     case .stacky:
-      return Color(white: 0.78)
+      return Color(red: 1, green: 0.68, blue: 0.20)
     case .nullSignal:
-      return Color(white: 0.18)
+      return Color(red: 0.62, green: 0.36, blue: 1)
+    case .luma:
+      return Color(red: 0.22, green: 0.86, blue: 0.68)
+    case .flux:
+      return Color(red: 1, green: 0.38, blue: 0.34)
     }
   }
 
   var secondaryColor: Color {
     switch self {
-    case .codex:
-      return Color(white: 0.52)
+    case .orbit:
+      return Color(red: 0.55, green: 0.92, blue: 1)
     case .stacky:
-      return Color.white
+      return Color(red: 1, green: 0.93, blue: 0.48)
     case .nullSignal:
-      return Color(white: 0.72)
+      return Color(red: 0.90, green: 0.78, blue: 1)
+    case .luma:
+      return Color(red: 0.78, green: 1, blue: 0.42)
+    case .flux:
+      return Color(red: 1, green: 0.78, blue: 0.22)
+    }
+  }
+
+  var outlineColor: Color {
+    switch self {
+    case .orbit:
+      return Color(red: 0.04, green: 0.12, blue: 0.24)
+    case .stacky:
+      return Color(red: 0.28, green: 0.17, blue: 0.04)
+    case .nullSignal:
+      return Color(red: 0.20, green: 0.08, blue: 0.36)
+    case .luma:
+      return Color(red: 0.04, green: 0.24, blue: 0.22)
+    case .flux:
+      return Color(red: 0.36, green: 0.08, blue: 0.05)
     }
   }
 
@@ -383,8 +416,10 @@ private enum NativeDynamicIslandPet: String, CaseIterable, Identifiable {
     switch self {
     case .nullSignal:
       return Color.white
+    case .flux:
+      return Color.white
     default:
-      return Color.black
+      return Color(red: 0.03, green: 0.05, blue: 0.07)
     }
   }
 }
@@ -625,7 +660,7 @@ private final class NativeChatStore: ObservableObject {
   @Published var backgroundExecutionEnabled = false
   @Published var backgroundDynamicIslandEnabled = true
   @Published var dynamicIslandPetEnabled = false
-  @Published var selectedDynamicIslandPet: NativeDynamicIslandPet = .codex
+  @Published var selectedDynamicIslandPet: NativeDynamicIslandPet = .orbit
   @Published var dynamicIslandActivityHold = false
 
   private let storageKey = "OpenEdgeAI.NativeChatSessions.v1"
@@ -1311,6 +1346,8 @@ private final class NativeChatStore: ObservableObject {
     if let raw = data["selectedDynamicIslandPet"] as? String,
        let pet = NativeDynamicIslandPet(rawValue: raw) {
       selectedDynamicIslandPet = pet
+    } else if data["selectedDynamicIslandPet"] as? String == "codex" {
+      selectedDynamicIslandPet = .orbit
     }
     if let raw = data["selectedModel"] as? String,
        let model = NativeModel(rawValue: raw) {
@@ -1607,15 +1644,15 @@ private struct NativeDynamicIslandPetView: View {
 
   private var rows: [[Int]] {
     switch pet {
-    case .codex:
+    case .orbit:
       return [
         [0, 0, 2, 2, 2, 0, 0],
         [0, 2, 1, 1, 1, 2, 0],
         [2, 1, 4, 1, 4, 1, 2],
         [2, 1, 1, 3, 1, 1, 2],
         [0, 2, 1, 1, 1, 2, 0],
-        [0, 0, 2, 3, 2, 0, 0],
-        [0, 2, 0, 0, 0, 2, 0]
+        [0, 3, 2, 1, 2, 3, 0],
+        [3, 0, 2, 0, 2, 0, 3]
       ]
     case .stacky:
       return [
@@ -1625,7 +1662,7 @@ private struct NativeDynamicIslandPetView: View {
         [2, 1, 1, 1, 1, 1, 2],
         [2, 3, 3, 3, 3, 3, 2],
         [0, 2, 1, 1, 1, 2, 0],
-        [0, 2, 0, 0, 0, 2, 0]
+        [3, 2, 0, 0, 0, 2, 3]
       ]
     case .nullSignal:
       return [
@@ -1636,6 +1673,26 @@ private struct NativeDynamicIslandPetView: View {
         [2, 1, 3, 3, 3, 1, 2],
         [0, 2, 1, 1, 1, 2, 0],
         [0, 0, 2, 0, 2, 0, 0]
+      ]
+    case .luma:
+      return [
+        [0, 0, 3, 3, 3, 0, 0],
+        [0, 3, 1, 1, 1, 3, 0],
+        [3, 1, 4, 1, 4, 1, 3],
+        [2, 1, 1, 1, 1, 1, 2],
+        [0, 3, 1, 2, 1, 3, 0],
+        [0, 0, 3, 1, 3, 0, 0],
+        [0, 3, 0, 0, 0, 3, 0]
+      ]
+    case .flux:
+      return [
+        [0, 0, 3, 1, 3, 0, 0],
+        [0, 3, 1, 1, 1, 3, 0],
+        [3, 1, 4, 1, 4, 1, 3],
+        [2, 1, 1, 3, 1, 1, 2],
+        [0, 3, 1, 1, 1, 3, 0],
+        [0, 0, 2, 3, 2, 0, 0],
+        [0, 2, 0, 0, 0, 2, 0]
       ]
     }
   }
@@ -1706,7 +1763,7 @@ private struct NativeDynamicIslandPetView: View {
     case 1:
       return pet.primaryColor
     case 2:
-      return pet.eyeColor.opacity(pet == .nullSignal ? 0.9 : 1)
+      return pet.outlineColor
     case 3:
       return pet.secondaryColor
     case 4:

@@ -232,6 +232,16 @@ private struct OpenEdgeAIIslandPet: View {
 
   private var rows: [[Int]] {
     switch pet {
+    case "orbit":
+      return [
+        [0, 0, 2, 2, 2, 0, 0],
+        [0, 2, 1, 1, 1, 2, 0],
+        [2, 1, 4, 1, 4, 1, 2],
+        [2, 1, 1, 3, 1, 1, 2],
+        [0, 2, 1, 1, 1, 2, 0],
+        [0, 3, 2, 1, 2, 3, 0],
+        [3, 0, 2, 0, 2, 0, 3]
+      ]
     case "stacky":
       return [
         [0, 0, 2, 2, 2, 0, 0],
@@ -240,7 +250,7 @@ private struct OpenEdgeAIIslandPet: View {
         [2, 1, 1, 1, 1, 1, 2],
         [2, 3, 3, 3, 3, 3, 2],
         [0, 2, 1, 1, 1, 2, 0],
-        [0, 2, 0, 0, 0, 2, 0]
+        [3, 2, 0, 0, 0, 2, 3]
       ]
     case "nullSignal":
       return [
@@ -252,6 +262,26 @@ private struct OpenEdgeAIIslandPet: View {
         [0, 2, 1, 1, 1, 2, 0],
         [0, 0, 2, 0, 2, 0, 0]
       ]
+    case "luma":
+      return [
+        [0, 0, 3, 3, 3, 0, 0],
+        [0, 3, 1, 1, 1, 3, 0],
+        [3, 1, 4, 1, 4, 1, 3],
+        [2, 1, 1, 1, 1, 1, 2],
+        [0, 3, 1, 2, 1, 3, 0],
+        [0, 0, 3, 1, 3, 0, 0],
+        [0, 3, 0, 0, 0, 3, 0]
+      ]
+    case "flux":
+      return [
+        [0, 0, 3, 1, 3, 0, 0],
+        [0, 3, 1, 1, 1, 3, 0],
+        [3, 1, 4, 1, 4, 1, 3],
+        [2, 1, 1, 3, 1, 1, 2],
+        [0, 3, 1, 1, 1, 3, 0],
+        [0, 0, 2, 3, 2, 0, 0],
+        [0, 2, 0, 0, 0, 2, 0]
+      ]
     default:
       return [
         [0, 0, 2, 2, 2, 0, 0],
@@ -259,8 +289,8 @@ private struct OpenEdgeAIIslandPet: View {
         [2, 1, 4, 1, 4, 1, 2],
         [2, 1, 1, 3, 1, 1, 2],
         [0, 2, 1, 1, 1, 2, 0],
-        [0, 0, 2, 3, 2, 0, 0],
-        [0, 2, 0, 0, 0, 2, 0]
+        [0, 3, 2, 1, 2, 3, 0],
+        [3, 0, 2, 0, 2, 0, 3]
       ]
     }
   }
@@ -305,15 +335,69 @@ private struct OpenEdgeAIIslandPet: View {
   private func color(for value: Int) -> Color {
     switch value {
     case 1:
-      return pet == "nullSignal" ? .black.opacity(0.82) : .white
+      return primaryColor
     case 2:
-      return pet == "nullSignal" ? .white.opacity(0.9) : .black
+      return outlineColor
     case 3:
-      return pet == "stacky" ? .white : .white.opacity(0.52)
+      return secondaryColor
     case 4:
-      return pet == "nullSignal" ? .white : .black
+      return eyeColor
     default:
       return .clear
+    }
+  }
+
+  private var primaryColor: Color {
+    switch pet {
+    case "stacky":
+      return Color(red: 1, green: 0.68, blue: 0.20)
+    case "nullSignal":
+      return Color(red: 0.62, green: 0.36, blue: 1)
+    case "luma":
+      return Color(red: 0.22, green: 0.86, blue: 0.68)
+    case "flux":
+      return Color(red: 1, green: 0.38, blue: 0.34)
+    default:
+      return Color(red: 0.18, green: 0.58, blue: 1)
+    }
+  }
+
+  private var secondaryColor: Color {
+    switch pet {
+    case "stacky":
+      return Color(red: 1, green: 0.93, blue: 0.48)
+    case "nullSignal":
+      return Color(red: 0.90, green: 0.78, blue: 1)
+    case "luma":
+      return Color(red: 0.78, green: 1, blue: 0.42)
+    case "flux":
+      return Color(red: 1, green: 0.78, blue: 0.22)
+    default:
+      return Color(red: 0.55, green: 0.92, blue: 1)
+    }
+  }
+
+  private var outlineColor: Color {
+    switch pet {
+    case "stacky":
+      return Color(red: 0.28, green: 0.17, blue: 0.04)
+    case "nullSignal":
+      return Color(red: 0.20, green: 0.08, blue: 0.36)
+    case "luma":
+      return Color(red: 0.04, green: 0.24, blue: 0.22)
+    case "flux":
+      return Color(red: 0.36, green: 0.08, blue: 0.05)
+    default:
+      return Color(red: 0.04, green: 0.12, blue: 0.24)
+    }
+  }
+
+  private var eyeColor: Color {
+    switch pet {
+    case "nullSignal", "flux":
+      return .white
+    default:
+      return Color(red: 0.03, green: 0.05, blue: 0.07)
     }
   }
 }

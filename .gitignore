@@ -47,6 +47,9 @@ yarn-error.log
 .env.*
 !.env.example
 
+# Local agent tooling
+.agents/
+
 # fastlane
 #
 # It is recommended to not store the screenshots in the git repo. Instead, use fastlane to re-generate the

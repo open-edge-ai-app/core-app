@@ -5,8 +5,8 @@ import Foundation
 final class NativeDynamicIslandLiveActivityController {
   static let shared = NativeDynamicIslandLiveActivityController()
 
-  private var activity: Activity<OpenEdgeAIDynamicIslandAttributes>?
-  private var lastSkippedReason: String?
+  private var activeActivity: Activity<OpenEdgeAIDynamicIslandAttributes>?
+  private var lastLogMessage: String?
 
   private init() {}
 
@@ -24,24 +24,19 @@ final class NativeDynamicIslandLiveActivityController {
     detail: String
   ) {
     guard enabled else {
-      logSkipped("disabled in settings")
-      end(dismissalPolicy: .immediate)
+      endAll(reason: "disabled in settings", dismissalPolicy: .immediate)
       return
     }
 
     guard isVisible else {
-      logSkipped("no active or queued work")
-      end(dismissalPolicy: .immediate)
+      endAll(reason: "no active or queued work", dismissalPolicy: .immediate)
       return
     }
 
     guard ActivityAuthorizationInfo().areActivitiesEnabled else {
-      logSkipped("Live Activities disabled by system")
-      end(dismissalPolicy: .immediate)
+      endAll(reason: "Live Activities disabled by system", dismissalPolicy: .immediate)
       return
     }
-
-    lastSkippedReason = nil
 
     let content = ActivityContent(
       state: OpenEdgeAIDynamicIslandAttributes.ContentState(
@@ -57,54 +52,77 @@ final class NativeDynamicIslandLiveActivityController {
       staleDate: Date().addingTimeInterval(90)
     )
 
-    if let currentActivity = currentActivity() {
-      if currentActivity.attributes.sessionId == sessionId {
-        activity = currentActivity
-        Task {
-          await currentActivity.update(content)
-          print("OpenEdgeAI Live Activity updated")
-        }
-        return
+    if let activity = activity(for: sessionId) {
+      activeActivity = activity
+      Task {
+        await activity.update(content)
+        self.log("updated")
       }
-
-      end(dismissalPolicy: .immediate)
+      return
     }
 
+    endMismatchedActivities(keeping: sessionId)
+
     do {
-      activity = try Activity.request(
+      activeActivity = try Activity.request(
         attributes: OpenEdgeAIDynamicIslandAttributes(sessionId: sessionId),
         content: content,
         pushType: nil
       )
-      print("OpenEdgeAI Live Activity requested")
+      log("requested")
     } catch {
       print("OpenEdgeAI Live Activity request failed: \(error.localizedDescription)")
     }
   }
 
   func end(dismissalPolicy: ActivityUIDismissalPolicy = .after(Date().addingTimeInterval(3))) {
+    endAll(reason: "ended", dismissalPolicy: dismissalPolicy)
+  }
+
+  private func activity(for sessionId: String) -> Activity<OpenEdgeAIDynamicIslandAttributes>? {
+    if activeActivity?.attributes.sessionId == sessionId {
+      return activeActivity
+    }
+    return Activity<OpenEdgeAIDynamicIslandAttributes>.activities.first { activity in
+      activity.attributes.sessionId == sessionId
+    }
+  }
+
+  private func endMismatchedActivities(keeping sessionId: String) {
     let activities = Activity<OpenEdgeAIDynamicIslandAttributes>.activities
-    activity = nil
+      .filter { $0.attributes.sessionId != sessionId }
+    guard !activities.isEmpty else {
+      return
+    }
 
     Task {
-      for liveActivity in activities {
-        await liveActivity.end(nil, dismissalPolicy: dismissalPolicy)
+      for activity in activities {
+        await activity.end(nil, dismissalPolicy: .immediate)
       }
     }
   }
 
-  private func currentActivity() -> Activity<OpenEdgeAIDynamicIslandAttributes>? {
-    if let activity {
-      return activity
-    }
-    return Activity<OpenEdgeAIDynamicIslandAttributes>.activities.first
-  }
+  private func endAll(reason: String, dismissalPolicy: ActivityUIDismissalPolicy) {
+    let activities = Activity<OpenEdgeAIDynamicIslandAttributes>.activities
+    activeActivity = nil
+    log("skipped: \(reason)")
 
-  private func logSkipped(_ reason: String) {
-    guard lastSkippedReason != reason else {
+    guard !activities.isEmpty else {
       return
     }
-    lastSkippedReason = reason
-    print("OpenEdgeAI Live Activity skipped: \(reason)")
+
+    Task {
+      for activity in activities {
+        await activity.end(nil, dismissalPolicy: dismissalPolicy)
+      }
+    }
+  }
+
+  private func log(_ message: String) {
+    guard lastLogMessage != message else {
+      return
+    }
+    lastLogMessage = message
+    print("OpenEdgeAI Live Activity \(message)")
   }
 }

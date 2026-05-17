@@ -702,8 +702,16 @@ private final class NativeChatStore: ObservableObject {
     currentSession?.messages ?? []
   }
 
+  var canRunBackgroundDynamicIsland: Bool {
+    backgroundExecutionEnabled && backgroundDynamicIslandEnabled
+  }
+
+  var canRunDynamicIslandPet: Bool {
+    canRunBackgroundDynamicIsland && dynamicIslandPetEnabled
+  }
+
   var showsDynamicIslandActivity: Bool {
-    backgroundDynamicIslandEnabled && (isGenerating || !queuedDrafts.isEmpty || dynamicIslandActivityHold)
+    canRunBackgroundDynamicIsland && (isGenerating || !queuedDrafts.isEmpty || dynamicIslandActivityHold)
   }
 
   var dynamicIslandTitle: String {
@@ -1343,6 +1351,12 @@ private final class NativeChatStore: ObservableObject {
       backgroundDynamicIslandEnabled = true
     }
     dynamicIslandPetEnabled = boolSetting(data["dynamicIslandPetEnabled"], default: false)
+    if !backgroundExecutionEnabled {
+      backgroundDynamicIslandEnabled = false
+      dynamicIslandPetEnabled = false
+    } else if !backgroundDynamicIslandEnabled {
+      dynamicIslandPetEnabled = false
+    }
     if let raw = data["selectedDynamicIslandPet"] as? String,
        let pet = NativeDynamicIslandPet(rawValue: raw) {
       selectedDynamicIslandPet = pet
@@ -1373,7 +1387,7 @@ private final class NativeChatStore: ObservableObject {
       return
     }
 
-    if backgroundDynamicIslandEnabled {
+    if canRunBackgroundDynamicIsland {
       Task { @MainActor in
         try? await Task.sleep(nanoseconds: 450_000_000)
         self.runQueuedDraftIfReady()
@@ -1422,10 +1436,17 @@ private final class NativeChatStore: ObservableObject {
     } else {
       endGenerationBackgroundTaskIfNeeded()
     }
+
+    if !backgroundExecutionEnabled {
+      dynamicIslandActivityHold = false
+      syncDynamicIslandLiveActivity()
+    } else if backgroundDynamicIslandEnabled {
+      refreshDynamicIslandActivity()
+    }
   }
 
   private func presentDynamicIslandActivity() {
-    guard backgroundDynamicIslandEnabled else {
+    guard canRunBackgroundDynamicIsland else {
       dynamicIslandActivityHold = false
       syncDynamicIslandLiveActivity()
       return
@@ -1444,13 +1465,13 @@ private final class NativeChatStore: ObservableObject {
 
   private func syncDynamicIslandLiveActivity() {
     NativeDynamicIslandLiveActivityController.shared.sync(
-      enabled: backgroundDynamicIslandEnabled,
+      enabled: canRunBackgroundDynamicIsland,
       isVisible: showsDynamicIslandActivity,
       sessionId: selectedSessionId ?? "open-edge-ai",
       title: dynamicIslandTitle,
       subtitle: dynamicIslandSubtitle,
       pet: selectedDynamicIslandPet.rawValue,
-      petEnabled: dynamicIslandPetEnabled,
+      petEnabled: canRunDynamicIslandPet,
       motion: dynamicIslandPetMotion.rawValue,
       queuedCount: queuedDrafts.count,
       progress: dynamicIslandProgress,
@@ -3113,14 +3134,20 @@ private struct NativeGeneralSettingsView: View {
 
         Toggle("백그라운드 Dynamic Island 활성", isOn: $store.backgroundDynamicIslandEnabled)
           .tint(store.accentColor.color)
+          .disabled(!store.backgroundExecutionEnabled)
+          .opacity(store.backgroundExecutionEnabled ? 1 : 0.42)
       }
 
       Section("Dynamic Island 펫") {
         Toggle("Dynamic Island 펫 활성", isOn: $store.dynamicIslandPetEnabled)
           .tint(store.accentColor.color)
+          .disabled(!store.canRunBackgroundDynamicIsland)
 
         ForEach(NativeDynamicIslandPet.allCases) { pet in
           Button {
+            guard store.canRunBackgroundDynamicIsland else {
+              return
+            }
             store.selectedDynamicIslandPet = pet
             store.dynamicIslandPetEnabled = true
             store.saveSettings()
@@ -3131,8 +3158,11 @@ private struct NativeGeneralSettingsView: View {
             )
           }
           .buttonStyle(.plain)
+          .disabled(!store.canRunBackgroundDynamicIsland)
         }
       }
+      .disabled(!store.canRunBackgroundDynamicIsland)
+      .opacity(store.canRunBackgroundDynamicIsland ? 1 : 0.42)
 
       Section("언어") {
         Picker("언어", selection: $store.selectedLanguage) {
@@ -3145,13 +3175,20 @@ private struct NativeGeneralSettingsView: View {
     }
     .navigationTitle("일반")
     .navigationBarTitleDisplayMode(.inline)
-    .onChange(of: store.backgroundExecutionEnabled) { _, _ in
+    .onChange(of: store.backgroundExecutionEnabled) { _, isEnabled in
+      if !isEnabled {
+        store.backgroundDynamicIslandEnabled = false
+        store.dynamicIslandPetEnabled = false
+      }
       store.saveSettings()
       store.refreshBackgroundExecutionState()
     }
-    .onChange(of: store.backgroundDynamicIslandEnabled) { _, _ in
+    .onChange(of: store.backgroundDynamicIslandEnabled) { _, isEnabled in
+      if !isEnabled {
+        store.dynamicIslandPetEnabled = false
+      }
       store.saveSettings()
-      if store.backgroundDynamicIslandEnabled {
+      if store.canRunBackgroundDynamicIsland {
         store.runQueuedDraftIfReady()
         store.refreshDynamicIslandActivity()
       } else {
@@ -3159,8 +3196,8 @@ private struct NativeGeneralSettingsView: View {
       }
     }
     .onChange(of: store.dynamicIslandPetEnabled) { _, isEnabled in
-      if isEnabled {
-        store.backgroundDynamicIslandEnabled = true
+      if isEnabled && !store.canRunBackgroundDynamicIsland {
+        store.dynamicIslandPetEnabled = false
       }
       store.saveSettings()
       store.refreshDynamicIslandActivity()

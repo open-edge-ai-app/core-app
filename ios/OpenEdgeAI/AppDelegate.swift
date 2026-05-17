@@ -705,7 +705,7 @@ private final class NativeChatStore: ObservableObject {
   private let settingsKey = "OpenEdgeAI.NativeSettings.v1"
   private let currentSettingsSchemaVersion = 2
   private var activeAssistantMessageId: String?
-  private var activeRequestSessionId: String?
+  @Published private var activeRequestSessionId: String?
   private var generationBackgroundTaskIdentifier: UIBackgroundTaskIdentifier = .invalid
   private var dynamicIslandCompletionTask: Task<Void, Never>?
 
@@ -738,6 +738,10 @@ private final class NativeChatStore: ObservableObject {
 
   var currentMessages: [NativeMessage] {
     currentSession?.messages ?? []
+  }
+
+  var activeWritingSessionId: String? {
+    isGenerating ? activeRequestSessionId : nil
   }
 
   var canRunBackgroundDynamicIsland: Bool {
@@ -2386,7 +2390,10 @@ private struct NativeSessionsView: View {
                       store.selectSession(session)
                       close()
                     } label: {
-                      NativeSessionListRow(title: session.title)
+                      NativeSessionListRow(
+                        title: session.title,
+                        isWriting: store.activeWritingSessionId == session.id
+                      )
                     }
                     .buttonStyle(.plain)
                     .contextMenu {
@@ -2486,16 +2493,29 @@ private struct NativeSessionsView: View {
 
 private struct NativeSessionListRow: View {
   var title: String
+  var isWriting = false
 
   var body: some View {
-    Text(title)
-      .font(.system(size: 16, weight: .regular))
-      .foregroundColor(.oeText)
-      .lineLimit(1)
-      .padding(.horizontal, 4)
-      .padding(.vertical, 6)
-      .frame(maxWidth: .infinity, alignment: .leading)
-      .contentShape(Rectangle())
+    HStack(spacing: 10) {
+      Text(title)
+        .font(.system(size: 16, weight: .regular))
+        .foregroundColor(.oeText)
+        .lineLimit(1)
+
+      Spacer(minLength: 10)
+
+      if isWriting {
+        ProgressView()
+          .controlSize(.small)
+          .tint(.oeMutedText)
+          .frame(width: 18, height: 18)
+          .accessibilityLabel("응답 생성 중")
+      }
+    }
+    .padding(.horizontal, 4)
+    .padding(.vertical, 6)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .contentShape(Rectangle())
   }
 }
 

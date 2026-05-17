@@ -76,6 +76,12 @@ private struct NativeChatSession: Identifiable, Codable, Equatable {
   var messages: [NativeMessage]
 }
 
+private struct NativeProject: Identifiable, Codable, Equatable {
+  var id: String
+  var title: String
+  var createdAt: Date
+}
+
 private struct NativeModelStatus: Equatable {
   var modelId: String
   var title: String
@@ -150,6 +156,7 @@ private struct NativeModelStatus: Equatable {
 @MainActor
 private final class NativeChatStore: ObservableObject {
   @Published var sessions: [NativeChatSession] = []
+  @Published var projects: [NativeProject] = []
   @Published var selectedSessionId: String?
   @Published var inputText = ""
   @Published var pendingAttachments: [NativeAttachment] = []
@@ -164,6 +171,7 @@ private final class NativeChatStore: ObservableObject {
   @Published var memoryEnabled = true
 
   private let storageKey = "OpenEdgeAI.NativeChatSessions.v1"
+  private let projectsStorageKey = "OpenEdgeAI.NativeProjects.v1"
   private let settingsKey = "OpenEdgeAI.NativeSettings.v1"
   private var activeAssistantMessageId: String?
   private var activeRequestSessionId: String?
@@ -171,6 +179,7 @@ private final class NativeChatStore: ObservableObject {
   init() {
     loadSettings()
     loadSessions()
+    loadProjects()
 
     if sessions.isEmpty {
       createNewSession()
@@ -234,6 +243,26 @@ private final class NativeChatStore: ObservableObject {
     } else {
       saveSessions()
     }
+  }
+
+  func createProject(title: String) {
+    let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !trimmedTitle.isEmpty else {
+      return
+    }
+
+    let project = NativeProject(
+      id: UUID().uuidString,
+      title: trimmedTitle,
+      createdAt: Date()
+    )
+    projects.insert(project, at: 0)
+    saveProjects()
+  }
+
+  func deleteProject(_ project: NativeProject) {
+    projects.removeAll { $0.id == project.id }
+    saveProjects()
   }
 
   func sendCurrentInput() {
@@ -611,6 +640,23 @@ private final class NativeChatStore: ObservableObject {
       return
     }
     UserDefaults.standard.set(data, forKey: storageKey)
+  }
+
+  private func loadProjects() {
+    guard let data = UserDefaults.standard.data(forKey: projectsStorageKey),
+          let decoded = try? JSONDecoder().decode([NativeProject].self, from: data)
+    else {
+      projects = []
+      return
+    }
+    projects = decoded.sorted { $0.createdAt > $1.createdAt }
+  }
+
+  private func saveProjects() {
+    guard let data = try? JSONEncoder().encode(projects) else {
+      return
+    }
+    UserDefaults.standard.set(data, forKey: projectsStorageKey)
   }
 
   private func loadSettings() {
@@ -1059,6 +1105,8 @@ private struct NativeSessionsView: View {
   @Binding var isPresented: Bool
   @EnvironmentObject private var store: NativeChatStore
   @State private var searchText = ""
+  @State private var showingProjectCreator = false
+  @State private var projectTitleDraft = ""
 
   private var recentSessions: [NativeChatSession] {
     let sortedSessions = store.sessions.sorted { $0.updatedAt > $1.updatedAt }
@@ -1097,7 +1145,25 @@ private struct NativeSessionsView: View {
             }
 
             NativeSessionsSection(title: "프로젝트") {
-              NativeSessionsIconRow(systemImage: "folder.badge.plus", title: "새 프로젝트")
+              Button {
+                projectTitleDraft = ""
+                showingProjectCreator = true
+              } label: {
+                NativeSessionsIconRow(systemImage: "folder.badge.plus", title: "새 프로젝트")
+              }
+              .buttonStyle(.plain)
+
+              ForEach(store.projects) { project in
+                NativeSessionsIconRow(systemImage: "folder", title: project.title)
+                  .contextMenu {
+                    Button(role: .destructive) {
+                      store.deleteProject(project)
+                    } label: {
+                      Label("삭제", systemImage: "trash")
+                    }
+                  }
+              }
+
               NativeSessionsIconRow(systemImage: "terminal", title: "로컬 모델")
               NativeSessionsIconRow(systemImage: "doc.text", title: "개인 메모리")
             }
@@ -1164,6 +1230,18 @@ private struct NativeSessionsView: View {
     }
     .background(Color.white)
     .frame(maxWidth: .infinity, maxHeight: .infinity)
+    .alert("새 프로젝트", isPresented: $showingProjectCreator) {
+      TextField("프로젝트 이름", text: $projectTitleDraft)
+      Button("취소", role: .cancel) {
+        projectTitleDraft = ""
+      }
+      Button("생성") {
+        store.createProject(title: projectTitleDraft)
+        projectTitleDraft = ""
+      }
+    } message: {
+      Text("프로젝트 이름을 입력하세요.")
+    }
     .gesture(
       DragGesture(minimumDistance: 24)
         .onEnded { value in

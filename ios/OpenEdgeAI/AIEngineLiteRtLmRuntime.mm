@@ -40,8 +40,8 @@ typedef int (*LiteRtLmResponsesGetNumCandidatesFn)(const void *responses);
 typedef const char *(*LiteRtLmResponsesGetTextAtFn)(const void *responses, int index);
 typedef void *(*LiteRtLmConversationCreateFn)(void *engine, void *conversationConfig);
 typedef void (*LiteRtLmConversationDeleteFn)(void *conversation);
-typedef void *(*LiteRtLmConversationSendMessageFn)(void *conversation, const char *messageJSON, const char *extraContextJSON, const void *optionalArgs);
-typedef int (*LiteRtLmConversationSendMessageStreamFn)(void *conversation, const char *messageJSON, const char *extraContextJSON, const void *optionalArgs, LiteRtLmStreamCallback callback, void *callbackData);
+typedef void *(*LiteRtLmConversationSendMessageFn)(void *conversation, const char *messageJSON, const char *extraContextJSON);
+typedef int (*LiteRtLmConversationSendMessageStreamFn)(void *conversation, const char *messageJSON, const char *extraContextJSON, LiteRtLmStreamCallback callback, void *callbackData);
 typedef void (*LiteRtLmConversationCancelFn)(void *conversation);
 typedef void (*LiteRtLmJSONResponseDeleteFn)(void *response);
 typedef const char *(*LiteRtLmJSONResponseGetStringFn)(const void *response);
@@ -274,7 +274,9 @@ static void AIEngineLiteRtLmRuntimeStreamCallback(void *callbackData, const char
     dispatch_time_t timeout = dispatch_time(DISPATCH_TIME_NOW, (int64_t)(180 * NSEC_PER_SEC));
     long waitResult = dispatch_semaphore_wait(state.semaphore, timeout);
     if (waitResult != 0) {
-      _sessionCancel(session);
+      if (_sessionCancel != NULL) {
+        _sessionCancel(session);
+      }
       dispatch_time_t cancelTimeout = dispatch_time(DISPATCH_TIME_NOW, (int64_t)(5 * NSEC_PER_SEC));
       if (dispatch_semaphore_wait(state.semaphore, cancelTimeout) == 0) {
         CFRelease(callbackData);
@@ -338,7 +340,7 @@ static void AIEngineLiteRtLmRuntimeStreamCallback(void *callbackData, const char
   const char *contextBytes = "{}";
 
   @try {
-    void *response = _conversationSendMessage(conversation, messageBytes, contextBytes, NULL);
+    void *response = _conversationSendMessage(conversation, messageBytes, contextBytes);
     if (response == NULL) {
       return [self resultWithMessage:nil error:@"LiteRT-LM 대화 응답 생성에 실패했습니다."];
     }
@@ -375,7 +377,7 @@ static void AIEngineLiteRtLmRuntimeStreamCallback(void *callbackData, const char
   const char *contextBytes = "{}";
 
   @try {
-    int started = _conversationSendMessageStream(conversation, messageBytes, contextBytes, NULL, AIEngineLiteRtLmRuntimeStreamCallback, callbackData);
+    int started = _conversationSendMessageStream(conversation, messageBytes, contextBytes, AIEngineLiteRtLmRuntimeStreamCallback, callbackData);
     if (started != 0) {
       CFRelease(callbackData);
       return [self resultWithMessage:nil error:@"LiteRT-LM 대화 스트리밍 응답을 시작하지 못했습니다."];
@@ -536,7 +538,6 @@ static void AIEngineLiteRtLmRuntimeStreamCallback(void *callbackData, const char
     engineDelete == NULL ||
     engineCreateSession == NULL ||
     sessionDelete == NULL ||
-    sessionCancel == NULL ||
     sessionGenerateContent == NULL ||
     sessionGenerateContentStream == NULL ||
     responsesDelete == NULL ||
@@ -588,6 +589,15 @@ static void AIEngineLiteRtLmRuntimeStreamCallback(void *callbackData, const char
     @"LiteRTLM.framework/LiteRTLM",
   ];
   NSBundle *bundle = [NSBundle mainBundle];
+  NSString *executableName = bundle.infoDictionary[@"CFBundleExecutable"];
+  NSString *executablePath = bundle.executablePath;
+  if (executablePath.length > 0) {
+    [paths addObject:executablePath];
+  }
+  if (executableName.length > 0) {
+    [paths addObject:[bundle.bundlePath stringByAppendingPathComponent:[NSString stringWithFormat:@"%@.debug.dylib", executableName]]];
+  }
+
   NSArray<NSString *> *directories = @[
     bundle.privateFrameworksPath ?: @"",
     [bundle.bundlePath stringByAppendingPathComponent:@"Frameworks"] ?: @"",
@@ -619,7 +629,6 @@ static void AIEngineLiteRtLmRuntimeStreamCallback(void *callbackData, const char
     _engineDelete != NULL &&
     _engineCreateSession != NULL &&
     _sessionDelete != NULL &&
-    _sessionCancel != NULL &&
     _sessionGenerateContent != NULL &&
     _sessionGenerateContentStream != NULL &&
     _responsesDelete != NULL &&
@@ -633,7 +642,7 @@ static void AIEngineLiteRtLmRuntimeStreamCallback(void *callbackData, const char
 {
   const char *modelPathBytes = modelPath.UTF8String;
   const char *cacheDirectoryBytes = cacheDirectory.UTF8String;
-  void *settings = _engineSettingsCreate(modelPathBytes, backend, backend, "cpu");
+  void *settings = _engineSettingsCreate(modelPathBytes, backend, NULL, NULL);
   if (settings == NULL) {
     self.lastError = [NSString stringWithFormat:@"LiteRT-LM %@ 설정을 만들지 못했습니다.", [NSString stringWithUTF8String:backend]];
     return NULL;

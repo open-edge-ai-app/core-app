@@ -505,6 +505,7 @@ private final class NativeChatStore: ObservableObject {
   @Published var selectedLanguage: NativeLanguage = .korean
   @Published var backgroundExecutionEnabled = false
   @Published var backgroundDynamicIslandEnabled = false
+  @Published var dynamicIslandActivityHold = false
 
   private let storageKey = "OpenEdgeAI.NativeChatSessions.v1"
   private let projectsStorageKey = "OpenEdgeAI.NativeProjects.v1"
@@ -541,6 +542,30 @@ private final class NativeChatStore: ObservableObject {
 
   var currentMessages: [NativeMessage] {
     currentSession?.messages ?? []
+  }
+
+  var showsDynamicIslandActivity: Bool {
+    backgroundDynamicIslandEnabled && (isGenerating || !queuedDrafts.isEmpty || dynamicIslandActivityHold)
+  }
+
+  var dynamicIslandTitle: String {
+    if isGenerating && !queuedDrafts.isEmpty {
+      return "후속 질문 자동 실행 중"
+    }
+    if isGenerating {
+      return "\(selectedModel.title) 응답 중"
+    }
+    if dynamicIslandActivityHold {
+      return "응답 완료"
+    }
+    return "후속 질문 실행 준비"
+  }
+
+  var dynamicIslandSubtitle: String {
+    if let nextDraft = queuedDrafts.first {
+      return "다음: \(clippedDynamicIslandText(nextDraft.text))"
+    }
+    return currentSession?.title ?? "Open Edge AI"
   }
 
   var canSend: Bool {
@@ -647,6 +672,7 @@ private final class NativeChatStore: ObservableObject {
 
     if isGenerating {
       queuedDrafts.append(draft)
+      presentDynamicIslandActivity()
       return
     }
 
@@ -662,6 +688,14 @@ private final class NativeChatStore: ObservableObject {
       return
     }
     queuedDrafts[index].text = text
+  }
+
+  func runQueuedDraftIfReady() {
+    guard !isGenerating, !queuedDrafts.isEmpty else {
+      return
+    }
+    let next = queuedDrafts.removeFirst()
+    send(next)
   }
 
   func retry(message: NativeMessage) {
@@ -813,6 +847,7 @@ private final class NativeChatStore: ObservableObject {
     activeAssistantMessageId = assistantMessage.id
     activeRequestSessionId = sessionId
     statusMessage = nil
+    presentDynamicIslandActivity()
 
     let prompt = makePrompt(for: sessionId, draft: draft)
     streamResponse(prompt: prompt, assistantId: assistantMessage.id, sessionId: sessionId)
@@ -846,6 +881,7 @@ private final class NativeChatStore: ObservableObject {
     activeAssistantMessageId = assistantId
     activeRequestSessionId = sessionId
     statusMessage = nil
+    presentDynamicIslandActivity()
 
     let prompt = makePrompt(for: sessionId, draft: draft, historyMessages: historyMessages)
     streamResponse(prompt: prompt, assistantId: assistantId, sessionId: sessionId)
@@ -910,10 +946,8 @@ private final class NativeChatStore: ObservableObject {
     activeAssistantMessageId = nil
     activeRequestSessionId = nil
 
-    if !queuedDrafts.isEmpty {
-      let next = queuedDrafts.removeFirst()
-      send(next)
-    }
+    scheduleNextQueuedDraft()
+    presentDynamicIslandActivity()
   }
 
   private func makePrompt(for sessionId: String, draft: NativeDraft, historyMessages: [NativeMessage]? = nil) -> String {
@@ -1078,7 +1112,7 @@ private final class NativeChatStore: ObservableObject {
     systemPrompt = data["systemPrompt"] as? String ?? ""
     userName = data["userName"] as? String ?? ""
     personality = data["personality"] as? String ?? "Balanced"
-    memoryEnabled = data["memoryEnabled"] as? Bool ?? true
+    memoryEnabled = boolSetting(data["memoryEnabled"], default: true)
     if let raw = data["fontSize"] as? String,
        let setting = NativeFontSizeSetting(rawValue: raw) {
       fontSizeSetting = setting
@@ -1095,8 +1129,8 @@ private final class NativeChatStore: ObservableObject {
        let language = NativeLanguage(rawValue: raw) {
       selectedLanguage = language
     }
-    backgroundExecutionEnabled = data["backgroundExecutionEnabled"] as? Bool ?? false
-    backgroundDynamicIslandEnabled = data["backgroundDynamicIslandEnabled"] as? Bool ?? false
+    backgroundExecutionEnabled = boolSetting(data["backgroundExecutionEnabled"], default: false)
+    backgroundDynamicIslandEnabled = boolSetting(data["backgroundDynamicIslandEnabled"], default: false)
     if let raw = data["selectedModel"] as? String,
        let model = NativeModel(rawValue: raw) {
       selectedModel = model
@@ -1112,6 +1146,60 @@ private final class NativeChatStore: ObservableObject {
     }
     return cleaned.count > 24 ? "\(cleaned.prefix(24))..." : cleaned
   }
+
+  private func scheduleNextQueuedDraft() {
+    guard !queuedDrafts.isEmpty else {
+      return
+    }
+
+    if backgroundDynamicIslandEnabled {
+      Task { @MainActor in
+        try? await Task.sleep(nanoseconds: 450_000_000)
+        self.runQueuedDraftIfReady()
+      }
+    } else {
+      runQueuedDraftIfReady()
+    }
+  }
+
+  private func clippedDynamicIslandText(_ text: String) -> String {
+    let cleaned = text
+      .replacingOccurrences(of: "\n", with: " ")
+      .trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !cleaned.isEmpty else {
+      return "첨부 파일"
+    }
+    return cleaned.count > 24 ? "\(cleaned.prefix(24))..." : cleaned
+  }
+
+  private func boolSetting(_ value: Any?, default defaultValue: Bool) -> Bool {
+    if let value = value as? Bool {
+      return value
+    }
+    if let value = value as? NSNumber {
+      return value.boolValue
+    }
+    return defaultValue
+  }
+
+  func dismissDynamicIslandActivity() {
+    dynamicIslandActivityHold = false
+  }
+
+  private func presentDynamicIslandActivity() {
+    guard backgroundDynamicIslandEnabled else {
+      dynamicIslandActivityHold = false
+      return
+    }
+
+    dynamicIslandActivityHold = true
+    Task { @MainActor in
+      try? await Task.sleep(nanoseconds: 1_600_000_000)
+      if !self.isGenerating && self.queuedDrafts.isEmpty {
+        self.dynamicIslandActivityHold = false
+      }
+    }
+  }
 }
 
 private struct NativeRootView: View {
@@ -1126,6 +1214,16 @@ private struct NativeRootView: View {
         NativeTopBar(
           showingSessions: $showingSessions
         )
+        .overlay(alignment: .bottom) {
+          if store.showsDynamicIslandActivity {
+            NativeDynamicIslandActivityView()
+              .environmentObject(store)
+              .offset(y: 42)
+              .transition(.scale(scale: 0.92, anchor: .top).combined(with: .opacity))
+              .zIndex(3)
+          }
+        }
+        .zIndex(2)
         Divider()
         NativeChatTranscript()
         NativeInputBar(showingFileImporter: $showingFileImporter)
@@ -1143,6 +1241,7 @@ private struct NativeRootView: View {
       }
     }
     .animation(.easeOut(duration: 0.24), value: showingSessions)
+    .animation(.spring(response: 0.28, dampingFraction: 0.82), value: store.showsDynamicIslandActivity)
     .sheet(isPresented: $showingSettings) {
       NativeSettingsView()
         .environmentObject(store)
@@ -1158,6 +1257,76 @@ private struct NativeRootView: View {
     }
     .task {
       await store.pollModelStatuses()
+    }
+  }
+}
+
+private struct NativeDynamicIslandActivityView: View {
+  @EnvironmentObject private var store: NativeChatStore
+
+  var body: some View {
+    HStack(spacing: 10) {
+      NativeDynamicIslandPulseView(isActive: store.isGenerating)
+
+      VStack(alignment: .leading, spacing: 2) {
+        Text(store.dynamicIslandTitle)
+          .font(.system(size: 12, weight: .semibold))
+          .foregroundColor(.white)
+          .lineLimit(1)
+
+        Text(store.dynamicIslandSubtitle)
+          .font(.system(size: 11, weight: .medium))
+          .foregroundColor(.white.opacity(0.66))
+          .lineLimit(1)
+      }
+
+      Spacer(minLength: 6)
+
+      if !store.queuedDrafts.isEmpty {
+        Text("\(store.queuedDrafts.count)")
+          .font(.system(size: 11, weight: .bold))
+          .foregroundColor(.white)
+          .frame(minWidth: 22, minHeight: 22)
+          .background(Color.white.opacity(0.16))
+          .clipShape(Capsule())
+      }
+    }
+    .padding(.horizontal, 13)
+    .frame(width: 262, height: 54)
+    .background(Color.black)
+    .clipShape(Capsule())
+    .shadow(color: Color.black.opacity(0.22), radius: 16, x: 0, y: 9)
+    .accessibilityLabel("\(store.dynamicIslandTitle), \(store.dynamicIslandSubtitle)")
+    .allowsHitTesting(false)
+  }
+}
+
+private struct NativeDynamicIslandPulseView: View {
+  var isActive: Bool
+  @State private var isAnimating = false
+
+  var body: some View {
+    ZStack {
+      Circle()
+        .stroke(Color.white.opacity(0.18), lineWidth: 1)
+        .frame(width: 24, height: 24)
+
+      Circle()
+        .fill(Color.white.opacity(isActive ? 0.28 : 0.18))
+        .frame(width: 24, height: 24)
+        .scaleEffect(isActive && isAnimating ? 1.18 : 0.76)
+        .opacity(isActive && isAnimating ? 0.1 : 0.24)
+
+      Circle()
+        .fill(Color.white)
+        .frame(width: isActive ? 8 : 6, height: isActive ? 8 : 6)
+        .scaleEffect(isActive && isAnimating ? 0.72 : 1)
+    }
+    .frame(width: 28, height: 28)
+    .onAppear {
+      withAnimation(.easeInOut(duration: 0.92).repeatForever(autoreverses: true)) {
+        isAnimating = true
+      }
     }
   }
 }
@@ -2470,6 +2639,11 @@ private struct NativeGeneralSettingsView: View {
     }
     .onChange(of: store.backgroundDynamicIslandEnabled) { _, _ in
       store.saveSettings()
+      if store.backgroundDynamicIslandEnabled {
+        store.runQueuedDraftIfReady()
+      } else {
+        store.dismissDynamicIslandActivity()
+      }
     }
     .onChange(of: store.selectedLanguage) { _, _ in
       store.saveSettings()

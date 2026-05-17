@@ -1138,12 +1138,6 @@ private struct NativeSessionsView: View {
 
         ScrollView(showsIndicators: false) {
           VStack(alignment: .leading, spacing: 26) {
-            VStack(alignment: .leading, spacing: 20) {
-              NativeSessionsIconRow(systemImage: "photo.on.rectangle.angled", title: "이미지")
-              NativeSessionsIconRow(systemImage: "chevron.left.forwardslash.chevron.right", title: "코드 작성")
-              NativeSessionsIconRow(systemImage: "ellipsis", title: "더 보기")
-            }
-
             NativeSessionsSection(title: "프로젝트") {
               Button {
                 projectTitleDraft = ""

@@ -710,8 +710,16 @@ private final class NativeChatStore: ObservableObject {
     canRunBackgroundDynamicIsland && dynamicIslandPetEnabled
   }
 
-  var showsDynamicIslandActivity: Bool {
-    canRunBackgroundDynamicIsland && (isGenerating || !queuedDrafts.isEmpty || dynamicIslandActivityHold)
+  var hasDynamicIslandActivity: Bool {
+    isGenerating || !queuedDrafts.isEmpty || dynamicIslandActivityHold
+  }
+
+  var showsInAppDynamicIslandActivity: Bool {
+    hasDynamicIslandActivity
+  }
+
+  var showsSystemDynamicIslandActivity: Bool {
+    canRunBackgroundDynamicIsland && hasDynamicIslandActivity
   }
 
   var dynamicIslandTitle: String {
@@ -1423,7 +1431,7 @@ private final class NativeChatStore: ObservableObject {
   }
 
   func refreshDynamicIslandActivity() {
-    if showsDynamicIslandActivity {
+    if hasDynamicIslandActivity {
       presentDynamicIslandActivity()
     } else {
       syncDynamicIslandLiveActivity()
@@ -1446,12 +1454,6 @@ private final class NativeChatStore: ObservableObject {
   }
 
   private func presentDynamicIslandActivity() {
-    guard canRunBackgroundDynamicIsland else {
-      dynamicIslandActivityHold = false
-      syncDynamicIslandLiveActivity()
-      return
-    }
-
     dynamicIslandActivityHold = true
     syncDynamicIslandLiveActivity()
     Task { @MainActor in
@@ -1466,7 +1468,7 @@ private final class NativeChatStore: ObservableObject {
   private func syncDynamicIslandLiveActivity() {
     NativeDynamicIslandLiveActivityController.shared.sync(
       enabled: canRunBackgroundDynamicIsland,
-      isVisible: showsDynamicIslandActivity,
+      isVisible: showsSystemDynamicIslandActivity,
       sessionId: selectedSessionId ?? "open-edge-ai",
       title: dynamicIslandTitle,
       subtitle: dynamicIslandSubtitle,
@@ -1520,19 +1522,20 @@ private struct NativeRootView: View {
         )
         .zIndex(2)
 
-        if store.showsDynamicIslandActivity {
-          NativeDynamicIslandActivityView()
-            .environmentObject(store)
-            .padding(.bottom, 8)
-            .transition(.scale(scale: 0.92, anchor: .top).combined(with: .opacity))
-            .zIndex(2)
-        }
-
         Divider()
         NativeChatTranscript()
         NativeInputBar(showingFileImporter: $showingFileImporter)
       }
       .background(Color.oeBackground)
+      .overlay(alignment: .top) {
+        if store.showsInAppDynamicIslandActivity {
+          NativeDynamicIslandActivityView()
+            .environmentObject(store)
+            .padding(.top, 4)
+            .transition(.scale(scale: 0.92, anchor: .top).combined(with: .opacity))
+            .zIndex(3)
+        }
+      }
 
       if showingSessions {
         NativeSessionsView(
@@ -1545,7 +1548,7 @@ private struct NativeRootView: View {
       }
     }
     .animation(.easeOut(duration: 0.24), value: showingSessions)
-    .animation(.spring(response: 0.28, dampingFraction: 0.82), value: store.showsDynamicIslandActivity)
+    .animation(.spring(response: 0.28, dampingFraction: 0.82), value: store.showsInAppDynamicIslandActivity)
     .sheet(isPresented: $showingSettings) {
       NativeSettingsView()
         .environmentObject(store)

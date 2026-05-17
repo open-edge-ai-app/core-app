@@ -2050,7 +2050,7 @@ private struct NativeSessionsView: View {
                   .foregroundColor(.black.opacity(0.45))
                   .padding(.vertical, 6)
               } else {
-                VStack(alignment: .leading, spacing: 8) {
+                VStack(alignment: .leading, spacing: 2) {
                   ForEach(recentSessions) { session in
                     Button {
                       store.selectSession(session)
@@ -2162,12 +2162,10 @@ private struct NativeSessionListRow: View {
       .font(.system(size: 16, weight: .regular))
       .foregroundColor(.black)
       .lineLimit(1)
-      .padding(.horizontal, 12)
+      .padding(.horizontal, 4)
+      .padding(.vertical, 6)
       .frame(maxWidth: .infinity, alignment: .leading)
-      .frame(minHeight: 42)
-      .background(Color.black.opacity(0.035))
-      .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-      .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+      .contentShape(Rectangle())
   }
 }
 

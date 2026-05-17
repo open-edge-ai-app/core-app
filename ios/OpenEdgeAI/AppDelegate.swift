@@ -623,7 +623,7 @@ private final class NativeChatStore: ObservableObject {
   @Published var accentColor: NativeAccentColor = .black
   @Published var selectedLanguage: NativeLanguage = .korean
   @Published var backgroundExecutionEnabled = false
-  @Published var backgroundDynamicIslandEnabled = false
+  @Published var backgroundDynamicIslandEnabled = true
   @Published var dynamicIslandPetEnabled = false
   @Published var selectedDynamicIslandPet: NativeDynamicIslandPet = .codex
   @Published var dynamicIslandActivityHold = false
@@ -631,6 +631,7 @@ private final class NativeChatStore: ObservableObject {
   private let storageKey = "OpenEdgeAI.NativeChatSessions.v1"
   private let projectsStorageKey = "OpenEdgeAI.NativeProjects.v1"
   private let settingsKey = "OpenEdgeAI.NativeSettings.v1"
+  private let currentSettingsSchemaVersion = 2
   private var activeAssistantMessageId: String?
   private var activeRequestSessionId: String?
   private var generationBackgroundTaskIdentifier: UIBackgroundTaskIdentifier = .invalid
@@ -964,6 +965,7 @@ private final class NativeChatStore: ObservableObject {
 
   func saveSettings() {
     let data: [String: Any] = [
+      "settingsSchemaVersion": currentSettingsSchemaVersion,
       "systemPrompt": systemPrompt,
       "userName": userName,
       "personality": personality,
@@ -1279,6 +1281,7 @@ private final class NativeChatStore: ObservableObject {
 
   private func loadSettings() {
     let data = UserDefaults.standard.dictionary(forKey: settingsKey) ?? [:]
+    let storedSettingsSchemaVersion = data["settingsSchemaVersion"] as? Int ?? 0
     systemPrompt = data["systemPrompt"] as? String ?? ""
     userName = data["userName"] as? String ?? ""
     personality = data["personality"] as? String ?? "Balanced"
@@ -1300,7 +1303,10 @@ private final class NativeChatStore: ObservableObject {
       selectedLanguage = language
     }
     backgroundExecutionEnabled = boolSetting(data["backgroundExecutionEnabled"], default: false)
-    backgroundDynamicIslandEnabled = boolSetting(data["backgroundDynamicIslandEnabled"], default: false)
+    backgroundDynamicIslandEnabled = boolSetting(data["backgroundDynamicIslandEnabled"], default: true)
+    if storedSettingsSchemaVersion < currentSettingsSchemaVersion {
+      backgroundDynamicIslandEnabled = true
+    }
     dynamicIslandPetEnabled = boolSetting(data["dynamicIslandPetEnabled"], default: false)
     if let raw = data["selectedDynamicIslandPet"] as? String,
        let pet = NativeDynamicIslandPet(rawValue: raw) {
@@ -1309,6 +1315,9 @@ private final class NativeChatStore: ObservableObject {
     if let raw = data["selectedModel"] as? String,
        let model = NativeModel(rawValue: raw) {
       selectedModel = model
+    }
+    if storedSettingsSchemaVersion < currentSettingsSchemaVersion {
+      saveSettings()
     }
   }
 
@@ -1324,7 +1333,6 @@ private final class NativeChatStore: ObservableObject {
 
   private func scheduleNextQueuedDraft() {
     guard !queuedDrafts.isEmpty else {
-      syncDynamicIslandLiveActivity()
       return
     }
 
@@ -1389,7 +1397,7 @@ private final class NativeChatStore: ObservableObject {
     dynamicIslandActivityHold = true
     syncDynamicIslandLiveActivity()
     Task { @MainActor in
-      try? await Task.sleep(nanoseconds: 3_800_000_000)
+      try? await Task.sleep(nanoseconds: 12_000_000_000)
       if !self.isGenerating && self.queuedDrafts.isEmpty {
         self.dynamicIslandActivityHold = false
         self.syncDynamicIslandLiveActivity()

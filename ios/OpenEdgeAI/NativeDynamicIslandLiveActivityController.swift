@@ -6,6 +6,7 @@ final class NativeDynamicIslandLiveActivityController {
   static let shared = NativeDynamicIslandLiveActivityController()
 
   private var activity: Activity<OpenEdgeAIDynamicIslandAttributes>?
+  private var lastSkippedReason: String?
 
   private init() {}
 
@@ -22,10 +23,25 @@ final class NativeDynamicIslandLiveActivityController {
     progress: Double,
     detail: String
   ) {
-    guard enabled, isVisible, ActivityAuthorizationInfo().areActivitiesEnabled else {
+    guard enabled else {
+      logSkipped("disabled in settings")
       end(dismissalPolicy: .immediate)
       return
     }
+
+    guard isVisible else {
+      logSkipped("no active or queued work")
+      end(dismissalPolicy: .immediate)
+      return
+    }
+
+    guard ActivityAuthorizationInfo().areActivitiesEnabled else {
+      logSkipped("Live Activities disabled by system")
+      end(dismissalPolicy: .immediate)
+      return
+    }
+
+    lastSkippedReason = nil
 
     let content = ActivityContent(
       state: OpenEdgeAIDynamicIslandAttributes.ContentState(
@@ -46,6 +62,7 @@ final class NativeDynamicIslandLiveActivityController {
         activity = currentActivity
         Task {
           await currentActivity.update(content)
+          print("OpenEdgeAI Live Activity updated")
         }
         return
       }
@@ -59,6 +76,7 @@ final class NativeDynamicIslandLiveActivityController {
         content: content,
         pushType: nil
       )
+      print("OpenEdgeAI Live Activity requested")
     } catch {
       print("OpenEdgeAI Live Activity request failed: \(error.localizedDescription)")
     }
@@ -80,5 +98,13 @@ final class NativeDynamicIslandLiveActivityController {
       return activity
     }
     return Activity<OpenEdgeAIDynamicIslandAttributes>.activities.first
+  }
+
+  private func logSkipped(_ reason: String) {
+    guard lastSkippedReason != reason else {
+      return
+    }
+    lastSkippedReason = reason
+    print("OpenEdgeAI Live Activity skipped: \(reason)")
   }
 }

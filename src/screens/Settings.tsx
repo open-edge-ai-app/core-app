@@ -41,6 +41,7 @@ import {
   useI18n,
 } from '../i18n';
 import AIEngine, {
+  IndexingResult,
   IndexingStatus,
   ModelStatus,
   RuntimeStatus,
@@ -64,6 +65,9 @@ const defaultStatus: IndexingStatus = {
   smsEnabled: false,
   smsIndexedItems: 0,
 };
+
+const getErrorMessage = (error: unknown) =>
+  error instanceof Error ? error.message : String(error);
 
 const textSizeLabelKeys: Record<string, I18nKey> = {
   compact: 'settings.textSize.compact.label',
@@ -286,40 +290,60 @@ function Settings({
     });
   }, [modelStatus, onModelStateChange]);
 
-  const handleStartIndexing = useCallback(async () => {
-    const result = await AIEngine.startIndexing();
-    setStatus(result.status);
+  const runIndexingAction = useCallback(async (
+    action: () => Promise<IndexingResult>,
+  ) => {
+    try {
+      const result = await action();
+      setStatus(result.status);
+    } catch (error) {
+      setStatus(previousStatus => ({
+        ...previousStatus,
+        isIndexing: false,
+        lastError: getErrorMessage(error),
+      }));
+    }
   }, []);
+
+  const handleStartIndexing = useCallback(async () => {
+    await runIndexingAction(() => AIEngine.startIndexing());
+  }, [runIndexingAction]);
 
   const handleSmsToggle = useCallback(async (enabled: boolean) => {
-    const result = await AIEngine.setIndexingSourceEnabled('sms', enabled);
-    setStatus(result.status);
-  }, []);
+    await runIndexingAction(() =>
+      AIEngine.setIndexingSourceEnabled('sms', enabled),
+    );
+  }, [runIndexingAction]);
 
   const handleGalleryToggle = useCallback(async (enabled: boolean) => {
-    const result = await AIEngine.setIndexingSourceEnabled('gallery', enabled);
-    setStatus(result.status);
-  }, []);
+    await runIndexingAction(() =>
+      AIEngine.setIndexingSourceEnabled('gallery', enabled),
+    );
+  }, [runIndexingAction]);
 
   const handleDocumentToggle = useCallback(async (enabled: boolean) => {
-    const result = await AIEngine.setIndexingSourceEnabled('document', enabled);
-    setStatus(result.status);
-  }, []);
+    await runIndexingAction(() =>
+      AIEngine.setIndexingSourceEnabled('document', enabled),
+    );
+  }, [runIndexingAction]);
+
+  const handleAddDocumentFolder = useCallback(async () => {
+    await runIndexingAction(() => AIEngine.addDocumentFolder());
+  }, [runIndexingAction]);
 
   const handleDeleteSms = useCallback(async () => {
-    const result = await AIEngine.deleteIndexingSource('sms');
-    setStatus(result.status);
-  }, []);
+    await runIndexingAction(() => AIEngine.deleteIndexingSource('sms'));
+  }, [runIndexingAction]);
 
   const handleDeleteGallery = useCallback(async () => {
-    const result = await AIEngine.deleteIndexingSource('gallery');
-    setStatus(result.status);
-  }, []);
+    await runIndexingAction(() => AIEngine.deleteIndexingSource('gallery'));
+  }, [runIndexingAction]);
 
   const handleDeleteDocuments = useCallback(async () => {
-    const result = await AIEngine.deleteIndexingSource('document');
-    setStatus(result.status);
-  }, []);
+    await runIndexingAction(() =>
+      AIEngine.deleteIndexingSource('document'),
+    );
+  }, [runIndexingAction]);
 
   const updatePersonalCustomization = useCallback(
     (patch: Partial<PersonalCustomizationSettings>) => {
@@ -841,6 +865,9 @@ function Settings({
           label={t('settings.lastEmbedding')}
           value={status.lastIndexedAt ?? t('settings.noRecord')}
         />
+        {status.lastError ? (
+          <Text style={styles.errorText}>{status.lastError}</Text>
+        ) : null}
 
         <View style={styles.toggleRow}>
           <View style={styles.switchCopy}>
@@ -887,6 +914,15 @@ function Settings({
         <Text style={styles.description}>
           {t('settings.embeddingHelp')}
         </Text>
+
+        <Button
+          disabled={status.isIndexing}
+          label={t('settings.addDocumentFolder')}
+          textStyle={styles.refreshButtonText}
+          onPress={handleAddDocumentFolder}
+          style={styles.refreshButton}
+          variant="ghost"
+        />
 
         <Button
           disabled={status.isIndexing}

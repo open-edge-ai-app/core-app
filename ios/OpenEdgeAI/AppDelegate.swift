@@ -1838,22 +1838,33 @@ private struct NativeDynamicIslandPetView: View {
   private var bodyOffset: CGFloat {
     switch motion {
     case .running:
-      return phase ? -3 : 2
+      return phase ? -1.1 : 0.7
     case .resting:
-      return phase ? -1 : 1
+      return phase ? -0.4 : 0.4
     case .sleeping:
-      return 1
+      return 0.6
     }
   }
 
   private var tilt: Double {
     switch motion {
     case .running:
-      return phase ? -7 : 7
+      return phase ? -2.5 : 2.5
     case .resting:
-      return phase ? -2 : 2
+      return phase ? -0.8 : 0.8
     case .sleeping:
-      return -4
+      return -2
+    }
+  }
+
+  private var animationDuration: Double {
+    switch motion {
+    case .running:
+      return 0.58
+    case .resting:
+      return 1.35
+    case .sleeping:
+      return 1
     }
   }
 
@@ -1873,7 +1884,20 @@ private struct NativeDynamicIslandPetView: View {
       .frame(width: size, height: size)
       .offset(y: bodyOffset)
       .rotationEffect(.degrees(tilt))
-      .animation(.easeInOut(duration: motion == .running ? 0.28 : 0.9).repeatForever(autoreverses: true), value: phase)
+      .animation(.easeInOut(duration: animationDuration).repeatForever(autoreverses: true), value: phase)
+
+      if motion == .running {
+        HStack(spacing: 2) {
+          ForEach(0..<3, id: \.self) { index in
+            RoundedRectangle(cornerRadius: 1.5, style: .continuous)
+              .fill(pet.secondaryColor.opacity(index == 1 ? 0.9 : 0.64))
+              .frame(width: 3.5, height: phase == (index == 1) ? 7 : 4)
+          }
+        }
+        .offset(x: 8, y: -8)
+        .opacity(phase ? 1 : 0.62)
+        .animation(.easeInOut(duration: 0.5).repeatForever(autoreverses: true), value: phase)
+      }
 
       if motion == .sleeping {
         Text("Z")

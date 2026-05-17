@@ -53,7 +53,7 @@ struct OpenEdgeAILiveActivityWidget: Widget {
         DynamicIslandExpandedRegion(.bottom) {
           VStack(alignment: .leading, spacing: 7) {
             OpenEdgeAIActivityDetailRow(
-              icon: context.state.motion == "running" ? "bolt.fill" : "clock",
+              icon: context.state.motion == "running" ? "gearshape.fill" : "clock",
               text: context.state.detail
             )
 
@@ -298,9 +298,9 @@ private struct OpenEdgeAIIslandPet: View {
   private var yOffset: CGFloat {
     switch motion {
     case "running":
-      return -1.5
+      return -0.7
     case "sleeping":
-      return 1.5
+      return 0.8
     default:
       return 0
     }
@@ -321,6 +321,17 @@ private struct OpenEdgeAIIslandPet: View {
       }
       .frame(width: size, height: size)
       .offset(y: yOffset)
+
+      if motion == "running" {
+        HStack(spacing: max(1, size * 0.05)) {
+          ForEach(0..<3, id: \.self) { index in
+            RoundedRectangle(cornerRadius: max(1, size * 0.04), style: .continuous)
+              .fill(secondaryColor.opacity(index == 1 ? 0.9 : 0.64))
+              .frame(width: max(2, size * 0.08), height: index == 1 ? max(5, size * 0.18) : max(3, size * 0.11))
+          }
+        }
+        .offset(x: size * 0.2, y: -size * 0.2)
+      }
 
       if motion == "sleeping" {
         Text("Z")

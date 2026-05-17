@@ -1643,7 +1643,8 @@ function FullScreenMenu({
 }) {
   const { height: windowHeight, width } = useWindowDimensions();
   const insets = useSafeAreaInsets();
-  const slideX = useRef(new Animated.Value(-width)).current;
+  const hiddenSlideX = -Math.max(width, 1);
+  const slideX = useRef(new Animated.Value(hiddenSlideX)).current;
   const menuFrameRef = useRef<React.ElementRef<typeof View>>(null);
   const actionMenuAnchorRef = useRef<RecentActionMenuAnchor | null>(null);
   const workFolderActionMenuAnchorRef = useRef<RecentActionMenuAnchor | null>(
@@ -1790,13 +1791,6 @@ function FullScreenMenu({
   useEffect(() => {
     if (visible) {
       setIsRendered(true);
-      slideX.setValue(-width);
-      Animated.timing(slideX, {
-        duration: 260,
-        easing: Easing.out(Easing.cubic),
-        toValue: 0,
-        useNativeDriver: false,
-      }).start();
       return;
     }
 
@@ -1804,17 +1798,40 @@ function FullScreenMenu({
       return;
     }
 
+    slideX.stopAnimation();
     Animated.timing(slideX, {
       duration: 210,
       easing: Easing.in(Easing.cubic),
-      toValue: -width,
-      useNativeDriver: false,
+      toValue: hiddenSlideX,
+      useNativeDriver: true,
     }).start(({ finished }) => {
       if (finished) {
         setIsRendered(false);
       }
     });
-  }, [isRendered, slideX, visible, width]);
+  }, [hiddenSlideX, isRendered, slideX, visible]);
+
+  useEffect(() => {
+    if (!visible || !isRendered) {
+      return undefined;
+    }
+
+    slideX.stopAnimation();
+    slideX.setValue(hiddenSlideX);
+
+    const frameId = requestAnimationFrame(() => {
+      Animated.timing(slideX, {
+        duration: 280,
+        easing: Easing.out(Easing.cubic),
+        toValue: 0,
+        useNativeDriver: true,
+      }).start();
+    });
+
+    return () => {
+      cancelAnimationFrame(frameId);
+    };
+  }, [hiddenSlideX, isRendered, slideX, visible]);
 
   useEffect(() => {
     if (visible) {

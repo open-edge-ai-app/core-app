@@ -2418,23 +2418,23 @@ private struct NativeSessionsView: View {
         store.createNewSession()
         close()
       } label: {
-        HStack(spacing: 10) {
+        HStack(spacing: 6) {
           Image(systemName: "square.and.pencil")
-            .font(.system(size: 18, weight: .semibold))
+            .font(.system(size: 17, weight: .semibold))
           Text("채팅")
-            .font(.system(size: 16, weight: .bold))
+            .font(.system(size: 15, weight: .bold))
         }
         .foregroundColor(store.accentColor.foregroundColor)
-        .padding(.horizontal, 24)
-        .frame(height: 52)
+        .padding(.horizontal, 18)
+        .frame(height: 48)
         .background(store.accentColor.color)
         .clipShape(Capsule())
-        .shadow(color: Color.black.opacity(0.18), radius: 18, x: 0, y: 10)
+        .shadow(color: Color.black.opacity(0.16), radius: 14, x: 0, y: 8)
       }
       .buttonStyle(.plain)
       .accessibilityLabel("새 채팅")
-      .padding(.trailing, 34)
-      .padding(.bottom, 34)
+      .padding(.trailing, 26)
+      .padding(.bottom, 26)
     }
     .background(Color.oeBackground)
     .frame(maxWidth: .infinity, maxHeight: .infinity)

@@ -151,6 +151,131 @@ private enum NativeAccentColor: String, CaseIterable, Identifiable {
   }
 }
 
+private enum NativeLanguage: String, CaseIterable, Identifiable {
+  case korean = "ko"
+  case english = "en"
+  case simplifiedChinese = "zh-Hans"
+  case hindi = "hi"
+  case spanish = "es"
+  case french = "fr"
+  case arabic = "ar"
+  case bengali = "bn"
+  case russian = "ru"
+  case portuguese = "pt"
+  case urdu = "ur"
+  case indonesian = "id"
+  case german = "de"
+  case japanese = "ja"
+  case turkish = "tr"
+
+  var id: String { rawValue }
+
+  var nativeName: String {
+    switch self {
+    case .korean:
+      return "한국어"
+    case .english:
+      return "English"
+    case .simplifiedChinese:
+      return "简体中文"
+    case .hindi:
+      return "हिन्दी"
+    case .spanish:
+      return "Español"
+    case .french:
+      return "Français"
+    case .arabic:
+      return "العربية"
+    case .bengali:
+      return "বাংলা"
+    case .russian:
+      return "Русский"
+    case .portuguese:
+      return "Português"
+    case .urdu:
+      return "اردو"
+    case .indonesian:
+      return "Bahasa Indonesia"
+    case .german:
+      return "Deutsch"
+    case .japanese:
+      return "日本語"
+    case .turkish:
+      return "Türkçe"
+    }
+  }
+
+  var englishName: String {
+    switch self {
+    case .korean:
+      return "Korean"
+    case .english:
+      return "English"
+    case .simplifiedChinese:
+      return "Chinese (Simplified)"
+    case .hindi:
+      return "Hindi"
+    case .spanish:
+      return "Spanish"
+    case .french:
+      return "French"
+    case .arabic:
+      return "Arabic"
+    case .bengali:
+      return "Bengali"
+    case .russian:
+      return "Russian"
+    case .portuguese:
+      return "Portuguese"
+    case .urdu:
+      return "Urdu"
+    case .indonesian:
+      return "Indonesian"
+    case .german:
+      return "German"
+    case .japanese:
+      return "Japanese"
+    case .turkish:
+      return "Turkish"
+    }
+  }
+
+  var localeIdentifier: String {
+    switch self {
+    case .korean:
+      return "ko_KR"
+    case .english:
+      return "en_US"
+    case .simplifiedChinese:
+      return "zh_Hans_CN"
+    case .hindi:
+      return "hi_IN"
+    case .spanish:
+      return "es_ES"
+    case .french:
+      return "fr_FR"
+    case .arabic:
+      return "ar_SA"
+    case .bengali:
+      return "bn_BD"
+    case .russian:
+      return "ru_RU"
+    case .portuguese:
+      return "pt_BR"
+    case .urdu:
+      return "ur_PK"
+    case .indonesian:
+      return "id_ID"
+    case .german:
+      return "de_DE"
+    case .japanese:
+      return "ja_JP"
+    case .turkish:
+      return "tr_TR"
+    }
+  }
+}
+
 private struct NativeAttachment: Identifiable, Codable, Equatable {
   var id: String
   var name: String
@@ -377,6 +502,9 @@ private final class NativeChatStore: ObservableObject {
   @Published var fontSizeSetting: NativeFontSizeSetting = .standard
   @Published var appearanceMode: NativeAppearanceMode = .light
   @Published var accentColor: NativeAccentColor = .black
+  @Published var selectedLanguage: NativeLanguage = .korean
+  @Published var backgroundExecutionEnabled = false
+  @Published var backgroundDynamicIslandEnabled = false
 
   private let storageKey = "OpenEdgeAI.NativeChatSessions.v1"
   private let projectsStorageKey = "OpenEdgeAI.NativeProjects.v1"
@@ -644,7 +772,10 @@ private final class NativeChatStore: ObservableObject {
       "selectedModel": selectedModel.rawValue,
       "fontSize": fontSizeSetting.rawValue,
       "appearanceMode": appearanceMode.rawValue,
-      "accentColor": accentColor.rawValue
+      "accentColor": accentColor.rawValue,
+      "selectedLanguage": selectedLanguage.rawValue,
+      "backgroundExecutionEnabled": backgroundExecutionEnabled,
+      "backgroundDynamicIslandEnabled": backgroundDynamicIslandEnabled
     ]
     UserDefaults.standard.set(data, forKey: settingsKey)
   }
@@ -797,7 +928,7 @@ private final class NativeChatStore: ObservableObject {
     }
     let history = sourceHistory.suffix(16)
     let formatter = DateFormatter()
-    formatter.locale = Locale(identifier: "ko_KR")
+    formatter.locale = Locale(identifier: selectedLanguage.localeIdentifier)
     formatter.dateStyle = .full
     formatter.timeStyle = .short
 
@@ -960,6 +1091,12 @@ private final class NativeChatStore: ObservableObject {
        let color = NativeAccentColor(rawValue: raw) {
       accentColor = color
     }
+    if let raw = data["selectedLanguage"] as? String,
+       let language = NativeLanguage(rawValue: raw) {
+      selectedLanguage = language
+    }
+    backgroundExecutionEnabled = data["backgroundExecutionEnabled"] as? Bool ?? false
+    backgroundDynamicIslandEnabled = data["backgroundDynamicIslandEnabled"] as? Bool ?? false
     if let raw = data["selectedModel"] as? String,
        let model = NativeModel(rawValue: raw) {
       selectedModel = model
@@ -2216,6 +2353,16 @@ private struct NativeSettingsView: View {
 
         Section("설정") {
           NavigationLink {
+            NativeGeneralSettingsView()
+          } label: {
+            NativeSettingsNavigationRow(
+              icon: "gearshape",
+              title: "일반",
+              detail: store.selectedLanguage.nativeName
+            )
+          }
+
+          NavigationLink {
             NativeModelSettingsView()
           } label: {
             NativeSettingsNavigationRow(
@@ -2290,6 +2437,42 @@ private struct NativeSettingsNavigationRow: View {
         .font(.system(size: 13))
         .foregroundColor(.black.opacity(0.45))
         .lineLimit(1)
+    }
+  }
+}
+
+private struct NativeGeneralSettingsView: View {
+  @EnvironmentObject private var store: NativeChatStore
+
+  var body: some View {
+    List {
+      Section("백그라운드") {
+        Toggle("백그라운드 실행", isOn: $store.backgroundExecutionEnabled)
+          .tint(.black)
+
+        Toggle("백그라운드 Dynamic Island 활성", isOn: $store.backgroundDynamicIslandEnabled)
+          .tint(.black)
+      }
+
+      Section("언어") {
+        Picker("언어", selection: $store.selectedLanguage) {
+          ForEach(NativeLanguage.allCases) { language in
+            Text("\(language.nativeName) · \(language.englishName)")
+              .tag(language)
+          }
+        }
+      }
+    }
+    .navigationTitle("일반")
+    .navigationBarTitleDisplayMode(.inline)
+    .onChange(of: store.backgroundExecutionEnabled) { _, _ in
+      store.saveSettings()
+    }
+    .onChange(of: store.backgroundDynamicIslandEnabled) { _, _ in
+      store.saveSettings()
+    }
+    .onChange(of: store.selectedLanguage) { _, _ in
+      store.saveSettings()
     }
   }
 }

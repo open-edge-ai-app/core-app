@@ -1133,13 +1133,13 @@ private struct NativeInputBar: View {
         }
       }
 
-      HStack(alignment: .bottom, spacing: 10) {
+      HStack(alignment: .bottom, spacing: 4) {
         Button {
           showingFileImporter = true
         } label: {
           Image(systemName: "paperclip")
             .font(.system(size: 18, weight: .semibold))
-            .frame(width: 34, height: 34)
+            .frame(width: 30, height: 34)
         }
         .buttonStyle(.plain)
 
@@ -1153,7 +1153,7 @@ private struct NativeInputBar: View {
                 .font(.system(size: 16))
                 .foregroundColor(.black.opacity(0.35))
                 .padding(.top, 8)
-                .padding(.leading, 5)
+                .padding(.leading, 1)
                 .allowsHitTesting(false)
             }
           }
@@ -1177,7 +1177,7 @@ private struct NativeInputBar: View {
         .opacity(!store.isGenerating && !store.canSend ? 0.35 : 1)
       }
     }
-    .padding(.horizontal, 14)
+    .padding(.horizontal, 10)
     .padding(.top, 10)
     .padding(.bottom, 10)
     .background(Color.white)

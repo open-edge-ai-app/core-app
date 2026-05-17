@@ -59,6 +59,7 @@ class AIEngineModule(
     private val memoryIndexer = MemoryIndexer(reactContext, vectorDBHelper)
     private val chatContextManager = ChatContextManager(vectorDBHelper, GemmaManager())
     private var filePickerPromise: Promise? = null
+    private var documentFolderPickerPromise: Promise? = null
     private val runtimeLifecycleExecutor = Executors.newSingleThreadExecutor { runnable ->
         Thread(runnable, "open-edge-ai-runtime-lifecycle").apply {
             isDaemon = true
@@ -186,6 +187,34 @@ class AIEngineModule(
             result
                 .onSuccess { indexingResult -> promise.resolve(indexingResult.toWritableMap()) }
                 .onFailure { error -> promise.reject("INDEXING_DELETE_ERROR", error) }
+        }
+    }
+
+    @ReactMethod
+    fun addDocumentFolder(promise: Promise) {
+        val activity = reactContext.currentActivity
+        if (activity == null) {
+            promise.reject("DOCUMENT_FOLDER_NO_ACTIVITY", "현재 폴더 선택 화면을 열 수 없습니다.")
+            return
+        }
+
+        if (documentFolderPickerPromise != null || filePickerPromise != null) {
+            promise.reject("DOCUMENT_FOLDER_BUSY", "이미 파일 또는 폴더 선택이 진행 중입니다.")
+            return
+        }
+
+        documentFolderPickerPromise = promise
+        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT_TREE).apply {
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            addFlags(Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION)
+            addFlags(Intent.FLAG_GRANT_PREFIX_URI_PERMISSION)
+        }
+
+        try {
+            activity.startActivityForResult(intent, DOCUMENT_FOLDER_REQUEST_CODE)
+        } catch (error: Exception) {
+            documentFolderPickerPromise = null
+            promise.reject("DOCUMENT_FOLDER_OPEN_ERROR", error)
         }
     }
 
@@ -468,6 +497,11 @@ class AIEngineModule(
         resultCode: Int,
         data: Intent?,
     ) {
+        if (requestCode == DOCUMENT_FOLDER_REQUEST_CODE) {
+            handleDocumentFolderResult(resultCode, data)
+            return
+        }
+
         if (requestCode != FILE_PICKER_REQUEST_CODE) {
             return
         }
@@ -503,6 +537,44 @@ class AIEngineModule(
     }
 
     override fun onNewIntent(intent: Intent) = Unit
+
+    private fun handleDocumentFolderResult(
+        resultCode: Int,
+        data: Intent?,
+    ) {
+        val promise = documentFolderPickerPromise ?: return
+        documentFolderPickerPromise = null
+
+        if (resultCode != Activity.RESULT_OK) {
+            promise.resolve(memoryIndexer.getStatus().toWritableMap())
+            return
+        }
+
+        val uri = data?.data
+        if (uri == null) {
+            promise.resolve(memoryIndexer.getStatus().toWritableMap())
+            return
+        }
+
+        try {
+            val flags = data.flags and
+                (Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_PREFIX_URI_PERMISSION)
+            if ((flags and Intent.FLAG_GRANT_READ_URI_PERMISSION) != 0) {
+                reactContext.contentResolver.takePersistableUriPermission(
+                    uri,
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION,
+                )
+            }
+        } catch (_: Exception) {
+            // Some providers grant transient tree access only.
+        }
+
+        memoryIndexer.addDocumentFolder(uri.toString()) { result ->
+            result
+                .onSuccess { indexingResult -> promise.resolve(indexingResult.toWritableMap()) }
+                .onFailure { error -> promise.reject("DOCUMENT_FOLDER_INDEX_ERROR", error) }
+        }
+    }
 
     @ReactMethod
     fun addListener(eventName: String) = Unit
@@ -550,6 +622,8 @@ class AIEngineModule(
         disposed = true
         filePickerPromise?.resolve(null)
         filePickerPromise = null
+        documentFolderPickerPromise?.resolve(memoryIndexer.getStatus().toWritableMap())
+        documentFolderPickerPromise = null
         reactContext.removeLifecycleEventListener(this)
         reactContext.removeActivityEventListener(this)
         runtimeLifecycleExecutor.shutdownNow()
@@ -1177,6 +1251,7 @@ class AIEngineModule(
     companion object {
         const val NAME = "AIEngine"
         private const val FILE_PICKER_REQUEST_CODE = 41042
+        private const val DOCUMENT_FOLDER_REQUEST_CODE = 41043
         private const val STREAM_EVENT_NAME = "AIEngineStreamChunk"
         private const val MAX_CHAT_TITLE_LENGTH = 40
         private const val DEFAULT_CHAT_TITLE = "새 채팅"

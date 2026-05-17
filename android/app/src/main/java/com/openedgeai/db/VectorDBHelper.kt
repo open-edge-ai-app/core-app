@@ -71,6 +71,7 @@ class VectorDBHelper(
         db.execSQL("CREATE INDEX IF NOT EXISTS idx_chats_updated_at ON chats(updated_at)")
         db.execSQL("CREATE INDEX IF NOT EXISTS idx_chat_messages_chat_order ON chat_messages(chat_id, sort_order)")
         db.execSQL("CREATE INDEX IF NOT EXISTS idx_chat_history_chat_created ON chat_history(chat_id, created_at)")
+        createDocumentTables(db)
     }
 
     override fun onUpgrade(
@@ -78,11 +79,45 @@ class VectorDBHelper(
         oldVersion: Int,
         newVersion: Int,
     ) {
-        db.execSQL("DROP TABLE IF EXISTS memory_vectors")
-        db.execSQL("DROP TABLE IF EXISTS chat_history")
-        db.execSQL("DROP TABLE IF EXISTS chat_messages")
-        db.execSQL("DROP TABLE IF EXISTS chats")
-        onCreate(db)
+        if (oldVersion < 2) {
+            createDocumentTables(db)
+            db.delete("memory_vectors", "source = ?", arrayOf(SOURCE_DOCUMENT))
+        }
+    }
+
+    private fun createDocumentTables(db: SQLiteDatabase) {
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS document_catalog (
+                document_id TEXT PRIMARY KEY,
+                uri TEXT NOT NULL,
+                name TEXT NOT NULL,
+                mime_type TEXT,
+                size INTEGER NOT NULL,
+                modified_at INTEGER NOT NULL,
+                relative_path TEXT,
+                access_mode TEXT NOT NULL,
+                fingerprint TEXT NOT NULL,
+                preview TEXT NOT NULL,
+                indexed_at INTEGER NOT NULL
+            )
+            """.trimIndent(),
+        )
+        db.execSQL("CREATE INDEX IF NOT EXISTS idx_document_catalog_fingerprint ON document_catalog(fingerprint)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS idx_document_catalog_modified ON document_catalog(modified_at)")
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS document_excerpt_cache (
+                document_id TEXT NOT NULL,
+                fingerprint TEXT NOT NULL,
+                query_signature TEXT NOT NULL,
+                excerpt TEXT NOT NULL,
+                created_at INTEGER NOT NULL,
+                PRIMARY KEY(document_id, fingerprint, query_signature)
+            )
+            """.trimIndent(),
+        )
+        db.execSQL("CREATE INDEX IF NOT EXISTS idx_document_excerpt_cache_document ON document_excerpt_cache(document_id)")
     }
 
     fun insert(record: VectorRecord): Long {
@@ -111,6 +146,10 @@ class VectorDBHelper(
     }
 
     fun search(queryEmbedding: FloatArray, limit: Int): List<VectorRecord> {
+        return searchWithScores(queryEmbedding, limit).map { result -> result.record }
+    }
+
+    fun searchWithScores(queryEmbedding: FloatArray, limit: Int): List<VectorSearchResult> {
         if (queryEmbedding.isEmpty() || limit <= 0) {
             return emptyList()
         }
@@ -122,11 +161,11 @@ class VectorDBHelper(
             """.trimIndent(),
             emptyArray(),
         ).use { cursor ->
-            val records = mutableListOf<Pair<VectorRecord, Float>>()
+            val records = mutableListOf<VectorSearchResult>()
             while (cursor.moveToNext()) {
                 val embedding = cursor.getBlob(4).toFloatArray()
                 val score = cosineSimilarity(queryEmbedding, embedding)
-                records.add(
+                val record =
                     VectorRecord(
                         id = cursor.getLong(0),
                         source = cursor.getString(1),
@@ -136,14 +175,13 @@ class VectorDBHelper(
                         uri = cursor.getStringOrNull(5),
                         timestamp = cursor.getLongOrNull(6),
                         metadata = cursor.getStringOrNull(7),
-                    ) to score,
-                )
+                    )
+                records.add(VectorSearchResult(record, score))
             }
 
             records
-                .sortedByDescending { (_, score) -> score }
+                .sortedByDescending { result -> result.score }
                 .take(limit)
-                .map { (record, _) -> record }
         }
     }
 
@@ -160,8 +198,116 @@ class VectorDBHelper(
             if (cursor.moveToFirst()) cursor.getInt(0) else 0
         }
 
-    fun deleteBySource(source: String): Int =
-        writableDatabase.delete("memory_vectors", "source = ?", arrayOf(source))
+    fun deleteBySource(source: String): Int {
+        if (source != SOURCE_DOCUMENT) {
+            return writableDatabase.delete("memory_vectors", "source = ?", arrayOf(source))
+        }
+
+        writableDatabase.beginTransaction()
+        return try {
+            val deleted = writableDatabase.delete("memory_vectors", "source = ?", arrayOf(source))
+            writableDatabase.delete("document_excerpt_cache", null, null)
+            writableDatabase.delete("document_catalog", null, null)
+            writableDatabase.setTransactionSuccessful()
+            deleted
+        } finally {
+            writableDatabase.endTransaction()
+        }
+    }
+
+    fun upsertDocument(record: DocumentCatalogRecord): Long {
+        val values = ContentValues().apply {
+            put("document_id", record.documentId)
+            put("uri", record.uri)
+            put("name", record.name)
+            put("mime_type", record.mimeType)
+            put("size", record.size)
+            put("modified_at", record.modifiedAt)
+            put("relative_path", record.relativePath)
+            put("access_mode", record.accessMode)
+            put("fingerprint", record.fingerprint)
+            put("preview", record.preview)
+            put("indexed_at", record.indexedAt)
+        }
+
+        return writableDatabase.insertWithOnConflict(
+            "document_catalog",
+            null,
+            values,
+            SQLiteDatabase.CONFLICT_REPLACE,
+        )
+    }
+
+    fun getDocument(documentId: String): DocumentCatalogRecord? =
+        readableDatabase.rawQuery(
+            """
+            SELECT document_id, uri, name, mime_type, size, modified_at, relative_path,
+                   access_mode, fingerprint, preview, indexed_at
+            FROM document_catalog
+            WHERE document_id = ?
+            """.trimIndent(),
+            arrayOf(documentId),
+        ).use { cursor ->
+            if (!cursor.moveToFirst()) {
+                return@use null
+            }
+            cursor.toDocumentCatalogRecord()
+        }
+
+    fun getDocumentFingerprint(documentId: String): String? =
+        readableDatabase.rawQuery(
+            "SELECT fingerprint FROM document_catalog WHERE document_id = ?",
+            arrayOf(documentId),
+        ).use { cursor ->
+            if (cursor.moveToFirst()) cursor.getString(0) else null
+        }
+
+    fun getCachedDocumentExcerpt(
+        documentId: String,
+        fingerprint: String,
+        querySignature: String,
+    ): String? =
+        readableDatabase.rawQuery(
+            """
+            SELECT excerpt
+            FROM document_excerpt_cache
+            WHERE document_id = ? AND fingerprint = ? AND query_signature = ?
+            """.trimIndent(),
+            arrayOf(documentId, fingerprint, querySignature),
+        ).use { cursor ->
+            if (cursor.moveToFirst()) cursor.getString(0) else null
+        }
+
+    fun upsertDocumentExcerptCache(
+        documentId: String,
+        fingerprint: String,
+        querySignature: String,
+        excerpt: String,
+    ): Long =
+        writableDatabase.insertWithOnConflict(
+            "document_excerpt_cache",
+            null,
+            ContentValues().apply {
+                put("document_id", documentId)
+                put("fingerprint", fingerprint)
+                put("query_signature", querySignature)
+                put("excerpt", excerpt)
+                put("created_at", System.currentTimeMillis())
+            },
+            SQLiteDatabase.CONFLICT_REPLACE,
+        )
+
+    /**
+     * Delete document_excerpt_cache rows older than [olderThanMillis] (epoch ms).
+     * Used to bound table growth — caches are query-specific so old entries are unlikely
+     * to be reused, and a fresh excerpt can always be regenerated from the source file.
+     */
+    fun pruneDocumentExcerptCache(olderThanMillis: Long): Int =
+        writableDatabase.delete(
+            "document_excerpt_cache",
+            "created_at < ?",
+            arrayOf(olderThanMillis.toString()),
+        )
 
     fun lastIndexedAt(): Long? =
         readableDatabase.rawQuery("SELECT MAX(created_at) FROM memory_vectors", emptyArray()).use { cursor ->
@@ -415,9 +561,25 @@ class VectorDBHelper(
     private fun android.database.Cursor.getLongOrNull(index: Int): Long? =
         if (isNull(index)) null else getLong(index)
 
+    private fun android.database.Cursor.toDocumentCatalogRecord(): DocumentCatalogRecord =
+        DocumentCatalogRecord(
+            documentId = getString(0),
+            uri = getString(1),
+            name = getString(2),
+            mimeType = getStringOrNull(3),
+            size = getLong(4),
+            modifiedAt = getLong(5),
+            relativePath = getStringOrNull(6),
+            accessMode = getString(7),
+            fingerprint = getString(8),
+            preview = getString(9),
+            indexedAt = getLong(10),
+        )
+
     companion object {
         private const val DB_NAME = "open_edge_ai_memory.db"
-        private const val DB_VERSION = 1
+        private const val DB_VERSION = 2
+        private const val SOURCE_DOCUMENT = "document"
         private const val FLOAT_BYTES = 4
         private const val DEFAULT_CHAT_LIMIT = 50
     }

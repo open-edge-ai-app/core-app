@@ -257,6 +257,7 @@ const defaultMessages = {
   'settings.smsEmbeddingCaption': '문자 임베딩',
   'settings.galleryEmbeddingCaption': '사진 임베딩',
   'settings.documentEmbeddingCaption': '다운로드/공유 문서 임베딩',
+  'settings.addDocumentFolder': '문서 폴더 추가',
   'settings.embeddingHelp':
     '백그라운드 작업과 권한 상태는 네이티브 엔진 연결에 맞춰 갱신됩니다.',
   'settings.startEmbedding': 'SMS/갤러리/문서 임베딩 생성',
@@ -417,6 +418,7 @@ const en: Record<I18nKey, string> = {
   'settings.smsEmbeddingCaption': 'Text message embeddings',
   'settings.galleryEmbeddingCaption': 'Photo embeddings',
   'settings.documentEmbeddingCaption': 'Downloaded/shared document embeddings',
+  'settings.addDocumentFolder': 'Add document folder',
   'settings.embeddingHelp':
     'Background jobs and permission state update with the native engine.',
   'settings.startEmbedding': 'Create SMS/Gallery/Document embeddings',

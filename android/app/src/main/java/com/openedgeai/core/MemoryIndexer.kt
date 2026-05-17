@@ -7,18 +7,20 @@ import android.content.SharedPreferences
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
+import android.provider.DocumentsContract
 import android.provider.MediaStore
 import android.provider.Telephony
+import com.openedgeai.db.DocumentCatalogRecord
 import com.openedgeai.db.VectorDao
 import com.openedgeai.db.VectorDBHelper
 import com.openedgeai.db.VectorRecord
+import java.security.MessageDigest
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
-import java.util.zip.ZipInputStream
 
 class MemoryIndexer(
     context: Context,
@@ -30,6 +32,7 @@ class MemoryIndexer(
     private val running = AtomicBoolean(false)
     private val embedManager = EmbedManager(appContext)
     private val visionManager = VisionManager(appContext)
+    private val documentTextExtractor = DocumentTextExtractor(appContext)
     private val preferences: SharedPreferences =
         appContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
@@ -130,6 +133,11 @@ class MemoryIndexer(
         if (!isSourceEnabled(SOURCE_SMS)) {
             return false
         }
+        if (!embedManager.isAvailable()) {
+            lastError = TEXT_EMBEDDING_MODEL_MISSING
+            return false
+        }
+
         val text = buildSmsText(address, timestamp, body)
         val embedding = embedManager.embed(text)
         return dao.insert(
@@ -195,6 +203,28 @@ class MemoryIndexer(
         }
     }
 
+    fun addDocumentFolder(
+        folderUri: String,
+        onComplete: (Result<IndexingResult>) -> Unit,
+    ) {
+        val normalizedUri = folderUri.trim()
+        if (normalizedUri.isBlank()) {
+            onComplete(Result.failure(IllegalArgumentException("Document folder URI is empty.")))
+            return
+        }
+
+        val folders = getDocumentFolderUris().toMutableSet()
+        folders.add(normalizedUri)
+        preferences.edit().putStringSet(DOCUMENT_FOLDER_URIS_KEY, folders).apply()
+
+        if (!isSourceEnabled(SOURCE_DOCUMENT)) {
+            onComplete(Result.success(IndexingResult(0, 0, 0, 0, 0, getStatus())))
+            return
+        }
+
+        startSourceIndexing(SOURCE_DOCUMENT, onComplete)
+    }
+
     fun startSourceIndexing(
         source: String,
         onComplete: (Result<IndexingResult>) -> Unit,
@@ -246,7 +276,7 @@ class MemoryIndexer(
             return 0
         }
         if (!embedManager.isAvailable()) {
-            error("Text embedding model is missing.")
+            throw IllegalStateException(TEXT_EMBEDDING_MODEL_MISSING)
         }
 
         var indexed = 0
@@ -298,9 +328,23 @@ class MemoryIndexer(
             return 0
         }
         if (!embedManager.isAvailable()) {
-            error("Text embedding model is missing.")
+            throw IllegalStateException(TEXT_EMBEDDING_MODEL_MISSING)
         }
 
+        // Bound document_excerpt_cache growth by dropping entries older than the retention
+        // window each time the user re-indexes. Excerpts are query-specific so old rows are
+        // unlikely to hit again, and a fresh excerpt can always be regenerated on demand.
+        dao.pruneDocumentExcerptCache(
+            System.currentTimeMillis() - DOCUMENT_EXCERPT_CACHE_TTL_MILLIS,
+        )
+
+        var indexed = 0
+        indexed += indexMediaStoreDocuments(limit)
+        indexed += indexSafDocumentFolders(limit)
+        return indexed
+    }
+
+    private fun indexMediaStoreDocuments(limit: Int? = null): Int {
         var indexed = 0
         val externalFiles = MediaStore.Files.getContentUri("external")
         val projection = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
@@ -326,7 +370,7 @@ class MemoryIndexer(
             externalFiles,
             projection,
             buildDocumentSelection(),
-            DOCUMENT_MIME_TYPES,
+            buildDocumentSelectionArgs(),
             buildSortOrder(MediaStore.Files.FileColumns.DATE_MODIFIED, limit),
         )?.use { cursor ->
             val relativePathIndex = cursor.getColumnIndex(MediaStore.Files.FileColumns.RELATIVE_PATH)
@@ -338,30 +382,188 @@ class MemoryIndexer(
                 val size = cursor.getLong(4)
                 val relativePath = if (relativePathIndex >= 0) cursor.getString(relativePathIndex) else null
                 val uri = ContentUris.withAppendedId(externalFiles, id)
-                val baseText = buildDocumentText(name, modified, mimeType, relativePath, uri)
-                val extractedText = extractDocumentText(uri, mimeType)
-                val chunks = buildDocumentChunks(baseText, extractedText)
-                chunks.forEachIndexed { chunkIndex, chunk ->
-                    val embedding = embedManager.embed(chunk)
-                    val insertedId = dao.insert(
-                        VectorRecord(
-                            id = 0,
-                            source = SOURCE_DOCUMENT,
-                            sourceId = "$id:$chunkIndex",
-                            text = chunk,
-                            embedding = embedding,
-                            uri = uri.toString(),
-                            timestamp = modified,
-                            metadata = "mimeType=${mimeType.orEmpty()};size=$size;relativePath=${relativePath.orEmpty()};chunk=$chunkIndex;chunks=${chunks.size}",
-                        ),
+                if (indexDocumentCatalogRecord(
+                        documentId = "mediastore:$id",
+                        uri = uri,
+                        name = name,
+                        modified = modified,
+                        mimeType = mimeType,
+                        size = size,
+                        relativePath = relativePath,
+                        accessMode = DOCUMENT_ACCESS_MEDIASTORE,
                     )
-                    if (insertedId > 0) {
-                        indexed += 1
-                    }
+                ) {
+                    indexed += 1
                 }
             }
         }
         return indexed
+    }
+
+    private fun indexSafDocumentFolders(limit: Int? = null): Int {
+        var indexed = 0
+        val maxDocuments = limit ?: MAX_SAF_DOCUMENTS_PER_RUN
+        getDocumentFolderUris().forEach { folderUri ->
+            if (indexed >= maxDocuments) {
+                return@forEach
+            }
+            indexed += indexSafDocumentFolder(
+                treeUri = Uri.parse(folderUri),
+                remaining = maxDocuments - indexed,
+            )
+        }
+        return indexed
+    }
+
+    private fun indexSafDocumentFolder(
+        treeUri: Uri,
+        remaining: Int,
+    ): Int =
+        try {
+            val rootDocumentId = DocumentsContract.getTreeDocumentId(treeUri)
+            val rootDocumentUri = DocumentsContract.buildDocumentUriUsingTree(treeUri, rootDocumentId)
+            scanSafChildren(
+                treeUri = treeUri,
+                parentDocumentUri = rootDocumentUri,
+                relativePath = "",
+                remaining = remaining,
+                depth = 0,
+            )
+        } catch (_: Exception) {
+            0
+        }
+
+    private fun scanSafChildren(
+        treeUri: Uri,
+        parentDocumentUri: Uri,
+        relativePath: String,
+        remaining: Int,
+        depth: Int,
+    ): Int {
+        if (remaining <= 0) {
+            return 0
+        }
+        // Hard-cap the recursion depth so a pathological folder tree (or a symlink loop
+        // exposed through SAF) cannot blow the stack. MAX_SAF_DEPTH covers typical user
+        // document hierarchies with plenty of headroom.
+        if (depth >= MAX_SAF_DEPTH) {
+            return 0
+        }
+
+        var indexed = 0
+        val childrenUri = DocumentsContract.buildChildDocumentsUriUsingTree(
+            treeUri,
+            DocumentsContract.getDocumentId(parentDocumentUri),
+        )
+        val projection = arrayOf(
+            DocumentsContract.Document.COLUMN_DOCUMENT_ID,
+            DocumentsContract.Document.COLUMN_DISPLAY_NAME,
+            DocumentsContract.Document.COLUMN_MIME_TYPE,
+            DocumentsContract.Document.COLUMN_LAST_MODIFIED,
+            DocumentsContract.Document.COLUMN_SIZE,
+        )
+
+        appContext.contentResolver.query(childrenUri, projection, null, null, null)?.use { cursor ->
+            while (cursor.moveToNext() && indexed < remaining) {
+                val documentId = cursor.getString(0)
+                val name = cursor.getString(1).orEmpty()
+                val mimeType = cursor.getString(2)
+                val modified = cursor.getLong(3)
+                val size = cursor.getLong(4)
+                val childUri = DocumentsContract.buildDocumentUriUsingTree(treeUri, documentId)
+                val childRelativePath = if (relativePath.isBlank()) name else "$relativePath/$name"
+
+                if (mimeType == DocumentsContract.Document.MIME_TYPE_DIR) {
+                    indexed += scanSafChildren(
+                        treeUri = treeUri,
+                        parentDocumentUri = childUri,
+                        relativePath = childRelativePath,
+                        remaining = remaining - indexed,
+                        depth = depth + 1,
+                    )
+                    continue
+                }
+
+                if (!isDocumentMimeType(mimeType, name)) {
+                    continue
+                }
+
+                if (indexDocumentCatalogRecord(
+                        documentId = "saf:${childUri.toString().stableDocumentHash()}",
+                        uri = childUri,
+                        name = name,
+                        modified = modified,
+                        mimeType = mimeType,
+                        size = size.coerceAtLeast(0L),
+                        relativePath = childRelativePath,
+                        accessMode = DOCUMENT_ACCESS_SAF,
+                    )
+                ) {
+                    indexed += 1
+                }
+            }
+        }
+        return indexed
+    }
+
+    private fun indexDocumentCatalogRecord(
+        documentId: String,
+        uri: Uri,
+        name: String?,
+        modified: Long,
+        mimeType: String?,
+        size: Long,
+        relativePath: String?,
+        accessMode: String,
+    ): Boolean {
+        val resolvedName = name.orEmpty().ifBlank { uri.lastPathSegment.orEmpty() }
+        val resolvedMimeType = mimeType ?: appContext.contentResolver.getType(uri)
+        val normalizedModified = normalizeDocumentTimestamp(modified)
+        val fingerprint = buildDocumentFingerprint(
+            name = resolvedName,
+            modified = normalizedModified,
+            mimeType = resolvedMimeType,
+            size = size,
+            relativePath = relativePath,
+        )
+        if (dao.getDocumentFingerprint(documentId) == fingerprint) {
+            return false
+        }
+
+        val preview = documentTextExtractor.readPreview(uri, resolvedMimeType)
+        val indexedAt = System.currentTimeMillis()
+        val catalogRecord = DocumentCatalogRecord(
+            documentId = documentId,
+            uri = uri.toString(),
+            name = resolvedName,
+            mimeType = resolvedMimeType,
+            size = size,
+            modifiedAt = normalizedModified,
+            relativePath = relativePath,
+            accessMode = accessMode,
+            fingerprint = fingerprint,
+            preview = preview,
+            indexedAt = indexedAt,
+        )
+        val text = buildDocumentIndexText(catalogRecord)
+        val embedding = embedManager.embed(text)
+        if (embedding.isEmpty()) {
+            return false
+        }
+
+        dao.upsertDocument(catalogRecord)
+        return dao.insert(
+            VectorRecord(
+                id = 0,
+                source = SOURCE_DOCUMENT,
+                sourceId = documentId,
+                text = text,
+                embedding = embedding,
+                uri = uri.toString(),
+                timestamp = normalizedModified,
+                metadata = "documentId=$documentId;mimeType=${resolvedMimeType.orEmpty()};size=$size;relativePath=${relativePath.orEmpty()};accessMode=$accessMode;fingerprint=$fingerprint",
+            ),
+        ) > 0
     }
 
     private fun indexGallery(limit: Int? = null): Int {
@@ -434,93 +636,27 @@ class MemoryIndexer(
         uri: Uri,
     ): String = "${formatDate(timestamp)} gallery image ${name.orEmpty()} at $uri"
 
-    private fun buildDocumentText(
-        name: String?,
-        timestamp: Long,
-        mimeType: String?,
-        relativePath: String?,
-        uri: Uri,
-    ): String =
-        "${formatDate(timestamp)} document file ${name.orEmpty()} ${mimeType.orEmpty()} from ${relativePath.orEmpty()} at $uri"
-
-    private fun extractDocumentText(uri: Uri, mimeType: String?): String =
-        try {
-            when (mimeType?.lowercase(Locale.US)) {
-                "text/plain",
-                "text/csv",
-                "text/markdown",
-                "application/json" -> readTextDocument(uri)
-                "application/vnd.openxmlformats-officedocument.wordprocessingml.document" -> readDocxDocument(uri)
-                else -> ""
-            }
-        } catch (error: Exception) {
-            ""
-        }
-
-    private fun readTextDocument(uri: Uri): String =
-        appContext.contentResolver.openInputStream(uri).use { input ->
-            requireNotNull(input) { "Unable to open document: $uri" }
-            input.bufferedReader(Charsets.UTF_8).use { reader ->
-                reader.readText().take(MAX_DOCUMENT_TEXT_CHARS)
-            }
-        }
-
-    private fun readDocxDocument(uri: Uri): String {
-        val text = StringBuilder()
-        appContext.contentResolver.openInputStream(uri).use { input ->
-            requireNotNull(input) { "Unable to open document: $uri" }
-            ZipInputStream(input.buffered()).use { zip ->
-                while (true) {
-                    val entry = zip.nextEntry ?: break
-                    if (entry.name == "word/document.xml") {
-                        val xml = zip.bufferedReader(Charsets.UTF_8).use { reader ->
-                            reader.readText()
-                        }
-                        text.append(
-                            xml
-                                .replace(Regex("<w:tab\\b[^>]*/>"), "\t")
-                                .replace(Regex("</w:p>"), "\n")
-                                .replace(Regex("<[^>]+>"), " ")
-                                .replace("&amp;", "&")
-                                .replace("&lt;", "<")
-                                .replace("&gt;", ">")
-                                .replace("&quot;", "\"")
-                                .replace("&apos;", "'"),
-                        )
-                        break
-                    }
-                }
-            }
-        }
-        return normalizeDocumentBody(text.toString()).take(MAX_DOCUMENT_TEXT_CHARS)
-    }
-
-    private fun buildDocumentChunks(baseText: String, extractedText: String): List<String> {
-        val body = normalizeDocumentBody(extractedText)
-        if (body.isBlank()) {
-            return listOf(baseText)
-        }
-
-        val chunks = mutableListOf<String>()
-        var start = 0
-        while (start < body.length && chunks.size < MAX_DOCUMENT_CHUNKS) {
-            val end = minOf(body.length, start + DOCUMENT_CHUNK_CHARS)
-            val chunkBody = body.substring(start, end).trim()
-            if (chunkBody.isNotBlank()) {
-                chunks.add("$baseText\nContent chunk ${chunks.size + 1}:\n$chunkBody")
-            }
-            if (end == body.length) {
-                break
-            }
-            start = maxOf(end - DOCUMENT_CHUNK_OVERLAP_CHARS, start + 1)
-        }
-        return chunks.ifEmpty { listOf(baseText) }
-    }
-
-    private fun normalizeDocumentBody(text: String): String =
-        text
+    private fun buildDocumentIndexText(record: DocumentCatalogRecord): String =
+        listOf(
+            "${formatDate(record.modifiedAt)} document file ${record.name}",
+            "documentId=${record.documentId}",
+            "mimeType=${record.mimeType.orEmpty()}",
+            "path=${record.relativePath.orEmpty()}",
+            "uri=${record.uri}",
+            "preview=${record.preview}",
+        )
+            .joinToString(separator = "\n")
             .replace(Regex("\\s+"), " ")
             .trim()
+
+    private fun buildDocumentFingerprint(
+        name: String,
+        modified: Long,
+        mimeType: String?,
+        size: Long,
+        relativePath: String?,
+    ): String =
+        "$name|${mimeType.orEmpty()}|$size|$modified|${relativePath.orEmpty()}".stableDocumentHash()
 
     private fun formatDate(timestamp: Long): String =
         if (timestamp <= 0) {
@@ -537,7 +673,9 @@ class MemoryIndexer(
         }
 
     private fun hasDocumentPermission(): Boolean =
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        if (getDocumentFolderUris().isNotEmpty()) {
+            true
+        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             true
         } else {
             hasPermission(Manifest.permission.READ_EXTERNAL_STORAGE)
@@ -553,12 +691,40 @@ class MemoryIndexer(
             "$column DESC LIMIT $limit"
         }
 
-    private fun buildDocumentSelection(): String =
-        DOCUMENT_MIME_TYPES.joinToString(
+    private fun buildDocumentSelection(): String {
+        val mimeSelection = DOCUMENT_MIME_TYPES.joinToString(
             prefix = "${MediaStore.Files.FileColumns.MIME_TYPE} IN (",
             postfix = ")",
             separator = ",",
         ) { "?" }
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+            return mimeSelection
+        }
+        return "$mimeSelection AND (${MediaStore.Files.FileColumns.RELATIVE_PATH} LIKE ? OR ${MediaStore.Files.FileColumns.RELATIVE_PATH} LIKE ?)"
+    }
+
+    private fun buildDocumentSelectionArgs(): Array<String> =
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+            DOCUMENT_MIME_TYPES
+        } else {
+            DOCUMENT_MIME_TYPES + arrayOf("Download/%", "Documents/%")
+        }
+
+    private fun isDocumentMimeType(
+        mimeType: String?,
+        name: String?,
+    ): Boolean {
+        val normalizedMime = mimeType?.lowercase(Locale.US)
+        if (normalizedMime in DOCUMENT_MIME_TYPES) {
+            return true
+        }
+
+        val normalizedName = name.orEmpty().lowercase(Locale.US)
+        return DOCUMENT_EXTENSIONS.any { extension -> normalizedName.endsWith(extension) }
+    }
+
+    private fun getDocumentFolderUris(): Set<String> =
+        preferences.getStringSet(DOCUMENT_FOLDER_URIS_KEY, emptySet()).orEmpty()
 
     private fun normalizeDocumentTimestamp(timestamp: Long): Long =
         if (timestamp in 1 until 10_000_000_000L) {
@@ -592,10 +758,14 @@ class MemoryIndexer(
         private const val SOURCE_DOCUMENT = "document"
         private const val PREFS_NAME = "open_edge_ai_indexing"
         private const val DEFAULT_SOURCE_ENABLED = false
-        private const val DOCUMENT_CHUNK_CHARS = 1200
-        private const val DOCUMENT_CHUNK_OVERLAP_CHARS = 160
-        private const val MAX_DOCUMENT_CHUNKS = 24
-        private const val MAX_DOCUMENT_TEXT_CHARS = 30_000
+        private const val DOCUMENT_FOLDER_URIS_KEY = "document_folder_uris"
+        private const val DOCUMENT_ACCESS_MEDIASTORE = "mediastore"
+        private const val DOCUMENT_ACCESS_SAF = "saf"
+        private const val MAX_SAF_DOCUMENTS_PER_RUN = 500
+        private const val MAX_SAF_DEPTH = 12
+        private const val DOCUMENT_EXCERPT_CACHE_TTL_MILLIS = 14L * 24 * 60 * 60 * 1000 // 14 days
+        private const val TEXT_EMBEDDING_MODEL_MISSING =
+            "Text embedding model is missing. Add universal_sentence_encoder.tflite to android/app/src/main/assets/models."
         private val DATE_FORMAT = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.KOREA)
         private val DOCUMENT_MIME_TYPES = arrayOf(
             "application/pdf",
@@ -610,5 +780,24 @@ class MemoryIndexer(
             "application/vnd.ms-powerpoint",
             "application/vnd.openxmlformats-officedocument.presentationml.presentation",
         )
+        private val DOCUMENT_EXTENSIONS = arrayOf(
+            ".pdf",
+            ".txt",
+            ".csv",
+            ".md",
+            ".markdown",
+            ".json",
+            ".doc",
+            ".docx",
+            ".xls",
+            ".xlsx",
+            ".ppt",
+            ".pptx",
+        )
     }
+}
+
+private fun String.stableDocumentHash(): String {
+    val digest = MessageDigest.getInstance("SHA-256").digest(toByteArray(Charsets.UTF_8))
+    return digest.joinToString(separator = "") { byte -> "%02x".format(byte) }.take(32)
 }

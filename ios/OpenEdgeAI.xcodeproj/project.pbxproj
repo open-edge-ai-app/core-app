@@ -27,9 +27,7 @@
 		5DCACB8F33CDC322A6C60F78 /* libPods-OpenEdgeAI.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-OpenEdgeAI.a"; sourceTree = BUILT_PRODUCTS_DIR; };
 		761780EC2CA45674006654EE /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AppDelegate.swift; path = OpenEdgeAI/AppDelegate.swift; sourceTree = "<group>"; };
 		81AB9BB72411601600AC10FF /* LaunchScreen.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; name = LaunchScreen.storyboard; path = OpenEdgeAI/LaunchScreen.storyboard; sourceTree = "<group>"; };
-		9F3A48A32DCD4B7A9B8C1201 /* AIEngineClipboardModule.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; name = AIEngineClipboardModule.m; path = OpenEdgeAI/AIEngineClipboardModule.m; sourceTree = "<group>"; };
 		A1F4C9A12D0B4E8591F00000 /* AIEngineFoundationModelClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AIEngineFoundationModelClient.swift; path = OpenEdgeAI/AIEngineFoundationModelClient.swift; sourceTree = "<group>"; };
-		A1F4C9A12D0B4E8591F00002 /* AIEngineModule.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AIEngineModule.swift; path = OpenEdgeAI/AIEngineModule.swift; sourceTree = "<group>"; };
 		A1F4C9A12D0B4E8591F00004 /* AIEngineGemmaModelClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AIEngineGemmaModelClient.swift; path = OpenEdgeAI/AIEngineGemmaModelClient.swift; sourceTree = "<group>"; };
 		A1F4C9A12D0B4E8591F00006 /* AIEngineLiteRtLmRuntime.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; name = AIEngineLiteRtLmRuntime.mm; path = OpenEdgeAI/AIEngineLiteRtLmRuntime.mm; sourceTree = "<group>"; };
 		A1F4C9A12D0B4E8591F00008 /* AIEngineLiteRtLmRuntime.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = AIEngineLiteRtLmRuntime.h; path = OpenEdgeAI/AIEngineLiteRtLmRuntime.h; sourceTree = "<group>"; };
@@ -58,8 +56,6 @@
 				A1F4C9A12D0B4E8591F00004 /* AIEngineGemmaModelClient.swift */,
 				A1F4C9A12D0B4E8591F00008 /* AIEngineLiteRtLmRuntime.h */,
 				A1F4C9A12D0B4E8591F00006 /* AIEngineLiteRtLmRuntime.mm */,
-				A1F4C9A12D0B4E8591F00002 /* AIEngineModule.swift */,
-				9F3A48A32DCD4B7A9B8C1201 /* AIEngineClipboardModule.m */,
 				A1F4C9A12D0B4E8591F00009 /* OpenEdgeAI-Bridging-Header.h */,
 				13B07FB61A68108700A75B9A /* Info.plist */,
 				81AB9BB72411601600AC10FF /* LaunchScreen.storyboard */,

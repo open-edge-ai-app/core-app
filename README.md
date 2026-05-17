@@ -4,8 +4,9 @@
   <h1>Open Edge AI</h1>
 
   <p>
-    Local-first AI chat for mobile. Built with React Native, backed by native
-    on-device AI modules, and designed to keep private context close to the user.
+    Local-first AI chat for mobile. Built with React Native on Android,
+    native SwiftUI on iOS, and on-device AI modules that keep private context
+    close to the user.
   </p>
 
   <p>
@@ -18,13 +19,14 @@
 
 ## Overview
 
-Open Edge AI is an open-source React Native application for building a modern
-AI chat experience around local models, multimodal inputs, and device-side
-retrieval. The app currently includes:
+Open Edge AI is an open-source mobile AI app for building a modern chat
+experience around local models, multimodal inputs, and device-side retrieval.
+Android uses a React Native shell; iOS uses a separate native SwiftUI shell.
+The app currently includes:
 
 - a polished iOS-inspired chat interface;
 - persistent chat sessions and work folders;
-- a typed React Native bridge for native AI calls;
+- an Android React Native bridge for native AI calls;
 - Android Kotlin modules for model status, model loading, routing, embeddings,
   vector search, and background indexing;
 - a web preview target for fast UI iteration with `react-native-web`.
@@ -46,7 +48,7 @@ details may change before the first stable release.
 
 | Area                     | Status      |
 | ------------------------ | ----------- |
-| React Native chat UI     | Active      |
+| Android React Native UI  | Active      |
 | Android native bridge    | Active      |
 | Local model lifecycle    | Active      |
 | Vector DB / RAG pipeline | Active      |
@@ -71,7 +73,7 @@ details may change before the first stable release.
 │       ├── core/               # Model runtime, routing, embeddings, vision
 │       ├── db/                 # SQLite vector store helpers
 │       └── workers/            # Background indexing workers
-├── ios/                        # iOS app shell and future Swift AI module home
+├── ios/                        # Native SwiftUI iOS app and Swift AI runtime
 ├── docs/                       # Architecture, development, and structure docs
 ├── .github/                    # Issue templates, PR template, CI, Dependabot
 ├── COMMERCIAL_SUPPORT.md       # Voluntary commercial support notice
@@ -112,6 +114,7 @@ npm run android
 npm run android:8082
 
 # Native iOS app. Requires Xcode and CocoaPods; Metro is not required.
+# React Native CLI iOS discovery is disabled in react-native.config.js.
 npm run ios:pods
 npm run ios
 
@@ -157,7 +160,9 @@ logos, and prepared app icon sets.
 ## Architecture
 
 Open Edge AI uses a React Native shell on Android, a native SwiftUI shell on
-iOS, and native model execution modules on each platform.
+iOS, and native model execution modules on each platform. The React Native CLI
+is configured to ignore the iOS project so RN tooling cannot build or mutate
+the SwiftUI app path.
 
 ```text
 Android React Native UI

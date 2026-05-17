@@ -1718,22 +1718,18 @@ private struct NativeSettingsView: View {
     NavigationStack {
       List {
         Section {
-          HStack(spacing: 12) {
-            RoundedRectangle(cornerRadius: 12)
-              .fill(Color.black)
-              .frame(width: 44, height: 44)
-              .overlay(
-                Image(systemName: "sparkles")
-                  .foregroundColor(.white)
-              )
-            VStack(alignment: .leading, spacing: 3) {
-              Text("Open Edge AI")
-                .font(.system(size: 18, weight: .bold))
-              Text("iOS native")
-                .font(.system(size: 13))
-                .foregroundColor(.black.opacity(0.55))
-            }
+          VStack(alignment: .leading, spacing: 8) {
+            Image("OpenEdgeLogo")
+              .resizable()
+              .scaledToFit()
+              .frame(width: 164, height: 42, alignment: .leading)
+              .accessibilityLabel("Open Edge AI")
+
+            Text("iOS native")
+              .font(.system(size: 13))
+              .foregroundColor(.black.opacity(0.55))
           }
+          .padding(.vertical, 2)
         }
 
         Section("설정") {

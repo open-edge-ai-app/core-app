@@ -692,8 +692,7 @@ private struct NativeRootView: View {
     ZStack(alignment: .leading) {
       VStack(spacing: 0) {
         NativeTopBar(
-          showingSessions: $showingSessions,
-          showingSettings: $showingSettings
+          showingSessions: $showingSessions
         )
         Divider()
         NativeChatTranscript()
@@ -702,7 +701,10 @@ private struct NativeRootView: View {
       .background(Color.white)
 
       if showingSessions {
-        NativeSessionsView(isPresented: $showingSessions)
+        NativeSessionsView(
+          isPresented: $showingSessions,
+          showingSettings: $showingSettings
+        )
           .environmentObject(store)
           .transition(.move(edge: .leading))
           .zIndex(1)
@@ -731,7 +733,6 @@ private struct NativeRootView: View {
 private struct NativeTopBar: View {
   @EnvironmentObject private var store: NativeChatStore
   @Binding var showingSessions: Bool
-  @Binding var showingSettings: Bool
 
   var body: some View {
     HStack(spacing: 12) {
@@ -770,15 +771,6 @@ private struct NativeTopBar: View {
       Spacer(minLength: 8)
 
       NativeModelMenu()
-
-      Button {
-        showingSettings = true
-      } label: {
-        Image(systemName: "gearshape")
-          .font(.system(size: 17, weight: .semibold))
-          .frame(width: 34, height: 34)
-      }
-      .buttonStyle(.plain)
     }
     .foregroundColor(.black)
     .padding(.horizontal, 16)
@@ -1103,6 +1095,7 @@ private struct NativeQueueView: View {
 
 private struct NativeSessionsView: View {
   @Binding var isPresented: Bool
+  @Binding var showingSettings: Bool
   @EnvironmentObject private var store: NativeChatStore
   @State private var searchText = ""
   @State private var showingProjectCreator = false
@@ -1131,7 +1124,10 @@ private struct NativeSessionsView: View {
 
           Spacer(minLength: 12)
 
-          NativeSessionsSearchPill(searchText: $searchText)
+          NativeSessionsSearchPill(
+            searchText: $searchText,
+            onSettingsPress: openSettings
+          )
         }
         .padding(.horizontal, 30)
         .padding(.top, 22)
@@ -1252,17 +1248,31 @@ private struct NativeSessionsView: View {
       isPresented = false
     }
   }
+
+  private func openSettings() {
+    close()
+    DispatchQueue.main.asyncAfter(deadline: .now() + 0.22) {
+      showingSettings = true
+    }
+  }
 }
 
 private struct NativeSessionsSearchPill: View {
   @Binding var searchText: String
+  var onSettingsPress: () -> Void
   @FocusState private var isFocused: Bool
 
   var body: some View {
     HStack(spacing: 10) {
-      Image(systemName: "magnifyingglass")
-        .font(.system(size: 21, weight: .semibold))
-        .foregroundColor(.black)
+      Button {
+        isFocused = true
+      } label: {
+        Image(systemName: "magnifyingglass")
+          .font(.system(size: 21, weight: .semibold))
+          .foregroundColor(.black)
+      }
+      .buttonStyle(.plain)
+      .accessibilityLabel("대화 검색")
 
       if isFocused || !searchText.isEmpty {
         TextField("검색", text: $searchText)
@@ -1272,12 +1282,16 @@ private struct NativeSessionsSearchPill: View {
           .textInputAutocapitalization(.never)
       }
 
-      Text("OE")
-        .font(.system(size: 12, weight: .bold))
-        .foregroundColor(.white)
-        .frame(width: 32, height: 32)
-        .background(Color.black)
-        .clipShape(Circle())
+      Button(action: onSettingsPress) {
+        Image(systemName: "gearshape")
+          .font(.system(size: 15, weight: .semibold))
+          .foregroundColor(.white)
+          .frame(width: 32, height: 32)
+          .background(Color.black)
+          .clipShape(Circle())
+      }
+      .buttonStyle(.plain)
+      .accessibilityLabel("설정 열기")
     }
     .padding(.leading, 16)
     .padding(.trailing, 8)
@@ -1285,10 +1299,6 @@ private struct NativeSessionsSearchPill: View {
     .background(Color.white)
     .clipShape(Capsule())
     .shadow(color: Color.black.opacity(0.1), radius: 22, x: 0, y: 12)
-    .onTapGesture {
-      isFocused = true
-    }
-    .accessibilityLabel("대화 검색")
   }
 }
 

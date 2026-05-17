@@ -2483,8 +2483,8 @@ private struct NativeSessionsView: View {
   @EnvironmentObject private var store: NativeChatStore
   @State private var isSearchPresented = false
   @State private var isProjectCreatorPresented = false
+  @State private var presentedProject: NativeProject?
   @State private var renameTarget: NativeRenameTarget?
-  @State private var activeProjectId: String?
 
   private var recentSessions: [NativeChatSession] {
     store.sessions
@@ -2492,30 +2492,10 @@ private struct NativeSessionsView: View {
       .sorted { $0.updatedAt > $1.updatedAt }
   }
 
-  private var activeProject: NativeProject? {
-    guard let activeProjectId else {
-      return nil
-    }
-    return store.projects.first { $0.id == activeProjectId }
-  }
-
-  private var activeProjectSessions: [NativeChatSession] {
-    guard let activeProject else {
-      return []
-    }
-    return store.sessions
-      .filter { $0.projectId == activeProject.id }
-      .sorted { $0.updatedAt > $1.updatedAt }
-  }
-
   @ViewBuilder
   private var sessionsContent: some View {
     VStack(alignment: .leading, spacing: 26) {
-      if let activeProject {
-        projectSessionsContent(for: activeProject)
-      } else {
-        rootSessionsContent
-      }
+      rootSessionsContent
     }
   }
 
@@ -2531,7 +2511,7 @@ private struct NativeSessionsView: View {
 
       ForEach(store.projects) { project in
         Button {
-          activeProjectId = project.id
+          presentedProject = project
         } label: {
           NativeSessionsIconRow(systemImage: project.iconName, title: project.title)
         }
@@ -2545,8 +2525,8 @@ private struct NativeSessionsView: View {
 
           Button(role: .destructive) {
             store.deleteProject(project)
-            if activeProjectId == project.id {
-              activeProjectId = nil
+            if presentedProject?.id == project.id {
+              presentedProject = nil
             }
           } label: {
             Label("삭제", systemImage: "trash")
@@ -2557,47 +2537,6 @@ private struct NativeSessionsView: View {
 
     NativeSessionsSection(title: "최근") {
       sessionList(recentSessions, emptyText: "최근 대화가 없습니다")
-    }
-  }
-
-  @ViewBuilder
-  private func projectSessionsContent(for project: NativeProject) -> some View {
-    Button {
-      activeProjectId = nil
-    } label: {
-      HStack(spacing: 8) {
-        Image(systemName: "chevron.left")
-          .font(.system(size: 14, weight: .bold))
-        Text("프로젝트")
-          .font(.system(size: 15, weight: .semibold))
-      }
-      .foregroundColor(.oeSecondaryText)
-      .frame(maxWidth: .infinity, alignment: .leading)
-      .contentShape(Rectangle())
-    }
-    .buttonStyle(.plain)
-
-    HStack(alignment: .center, spacing: 14) {
-      Image(systemName: project.iconName)
-        .font(.system(size: 24, weight: .semibold))
-        .foregroundColor(.oeText)
-        .frame(width: 34, height: 34)
-
-      VStack(alignment: .leading, spacing: 3) {
-        Text(project.title)
-          .font(.system(size: 23, weight: .bold))
-          .foregroundColor(.oeText)
-          .lineLimit(1)
-
-        Text("\(activeProjectSessions.count)개 채팅")
-          .font(.system(size: 13, weight: .medium))
-          .foregroundColor(.oeMutedText)
-      }
-    }
-    .frame(maxWidth: .infinity, alignment: .leading)
-
-    NativeSessionsSection(title: "채팅") {
-      sessionList(activeProjectSessions, emptyText: "프로젝트에 채팅이 없습니다")
     }
   }
 
@@ -2672,7 +2611,7 @@ private struct NativeSessionsView: View {
       }
 
       Button {
-        store.createNewSession(projectId: activeProject?.id)
+        store.createNewSession()
         close()
       } label: {
         HStack(spacing: 6) {
@@ -2706,11 +2645,24 @@ private struct NativeSessionsView: View {
         store.selectSession(session)
         close()
       } onSelectProject: { project in
-        activeProjectId = project.id
+        presentedProject = project
       }
       .environmentObject(store)
       .presentationDetents([.large])
       .presentationDragIndicator(.visible)
+    }
+    .sheet(item: $presentedProject) { project in
+      NativeProjectSessionsSheet(project: project) { session in
+        store.selectSession(session)
+        close()
+      } onCreateSession: { project in
+        store.createNewSession(projectId: project.id)
+        close()
+      }
+      .environmentObject(store)
+      .presentationDetents([.medium, .large])
+      .presentationDragIndicator(.visible)
+      .presentationCornerRadius(28)
     }
     .sheet(item: $renameTarget) { target in
       NativeRenameSheet(target: target)
@@ -2740,6 +2692,154 @@ private struct NativeSessionsView: View {
 
   private func openSearch() {
     isSearchPresented = true
+  }
+}
+
+private struct NativeProjectSessionsSheet: View {
+  @Environment(\.dismiss) private var dismiss
+  @EnvironmentObject private var store: NativeChatStore
+  var project: NativeProject
+  var onSelectSession: (NativeChatSession) -> Void
+  var onCreateSession: (NativeProject) -> Void
+  @State private var renameTarget: NativeRenameTarget?
+
+  private var projectSessions: [NativeChatSession] {
+    store.sessions
+      .filter { $0.projectId == project.id }
+      .sorted { $0.updatedAt > $1.updatedAt }
+  }
+
+  var body: some View {
+    NavigationStack {
+      ZStack(alignment: .bottomTrailing) {
+        ScrollView(showsIndicators: false) {
+          VStack(alignment: .leading, spacing: 26) {
+            projectHeader
+
+            NativeSessionsSection(title: "채팅") {
+              if projectSessions.isEmpty {
+                Text("프로젝트에 채팅이 없습니다")
+                  .font(.system(size: 15, weight: .medium))
+                  .foregroundColor(.oeMutedText)
+                  .padding(.vertical, 6)
+              } else {
+                VStack(alignment: .leading, spacing: 2) {
+                  ForEach(projectSessions) { session in
+                    Button {
+                      dismiss()
+                      onSelectSession(session)
+                    } label: {
+                      NativeSessionListRow(
+                        title: session.title,
+                        isWriting: store.activeWritingSessionId == session.id
+                      )
+                    }
+                    .buttonStyle(.plain)
+                    .contextMenu {
+                      Button {
+                        renameTarget = .session(id: session.id, title: session.title)
+                      } label: {
+                        Label("이름 변경", systemImage: "pencil")
+                      }
+
+                      Button(role: .destructive) {
+                        store.deleteSession(session)
+                      } label: {
+                        Label("삭제", systemImage: "trash")
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+          .padding(.horizontal, 28)
+          .padding(.top, 22)
+          .padding(.bottom, 112)
+        }
+
+        Button {
+          dismiss()
+          onCreateSession(project)
+        } label: {
+          HStack(spacing: 6) {
+            Image(systemName: "square.and.pencil")
+              .font(.system(size: 17, weight: .semibold))
+            Text("채팅")
+              .font(.system(size: 15, weight: .bold))
+          }
+          .foregroundColor(store.accentColor.foregroundColor)
+          .padding(.horizontal, 18)
+          .frame(height: 48)
+          .background(store.accentColor.color)
+          .clipShape(Capsule())
+          .shadow(color: Color.black.opacity(0.16), radius: 14, x: 0, y: 8)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("프로젝트 새 채팅")
+        .padding(.trailing, 24)
+        .padding(.bottom, 24)
+      }
+      .background(Color.oeBackground)
+      .navigationTitle(project.title)
+      .navigationBarTitleDisplayMode(.inline)
+      .toolbar {
+        ToolbarItem(placement: .cancellationAction) {
+          Button("닫기") {
+            dismiss()
+          }
+          .foregroundColor(.oeText)
+        }
+      }
+      .sheet(item: $renameTarget) { target in
+        NativeRenameSheet(target: target)
+          .environmentObject(store)
+          .presentationDetents([.medium])
+          .presentationDragIndicator(.visible)
+      }
+    }
+  }
+
+  private var projectHeader: some View {
+    VStack(alignment: .leading, spacing: 16) {
+      ZStack(alignment: .bottomLeading) {
+        RoundedRectangle(cornerRadius: 22, style: .continuous)
+          .fill(Color.oeSubtleFill)
+          .frame(height: 112)
+
+        HStack(alignment: .center, spacing: 14) {
+          ZStack {
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+              .fill(Color.oeText)
+              .frame(width: 62, height: 52)
+
+            Image(systemName: project.iconName)
+              .font(.system(size: 25, weight: .semibold))
+              .foregroundColor(Color.oeBackground)
+          }
+
+          VStack(alignment: .leading, spacing: 5) {
+            Text(project.title)
+              .font(.system(size: 24, weight: .bold))
+              .foregroundColor(.oeText)
+              .lineLimit(1)
+
+            Text("\(projectSessions.count)개 채팅")
+              .font(.system(size: 14, weight: .medium))
+              .foregroundColor(.oeMutedText)
+          }
+        }
+        .padding(.horizontal, 18)
+        .padding(.bottom, 18)
+      }
+
+      if !project.systemPrompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+        Text(project.systemPrompt)
+          .font(.system(size: 13, weight: .regular))
+          .foregroundColor(.oeMutedText)
+          .lineLimit(2)
+      }
+    }
   }
 }
 

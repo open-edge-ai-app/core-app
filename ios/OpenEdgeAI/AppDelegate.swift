@@ -85,6 +85,28 @@ private enum NativeFontSizeSetting: String, CaseIterable, Identifiable {
       return 17
     }
   }
+
+  var sliderValue: Double {
+    switch self {
+    case .small:
+      return 0
+    case .standard:
+      return 1
+    case .large:
+      return 2
+    }
+  }
+
+  init(sliderValue: Double) {
+    switch Int(sliderValue.rounded()) {
+    case 0:
+      self = .small
+    case 2:
+      self = .large
+    default:
+      self = .standard
+    }
+  }
 }
 
 private enum NativeAppearanceMode: String, CaseIterable, Identifiable {
@@ -3069,12 +3091,37 @@ private struct NativeAppearanceSettingsView: View {
   var body: some View {
     List {
       Section("글씨 크기") {
-        Picker("글씨 크기", selection: $store.fontSizeSetting) {
-          ForEach(NativeFontSizeSetting.allCases) { setting in
-            Text(setting.title).tag(setting)
+        VStack(alignment: .leading, spacing: 12) {
+          HStack {
+            Text("글씨 크기")
+              .font(.system(size: 16, weight: .semibold))
+
+            Spacer()
+
+            Text(store.fontSizeSetting.title)
+              .font(.system(size: 13, weight: .medium))
+              .foregroundColor(.black.opacity(0.55))
+          }
+
+          Slider(
+            value: Binding(
+              get: { store.fontSizeSetting.sliderValue },
+              set: { store.fontSizeSetting = NativeFontSizeSetting(sliderValue: $0) }
+            ),
+            in: 0...2,
+            step: 1
+          )
+          .tint(.black)
+
+          HStack {
+            ForEach(NativeFontSizeSetting.allCases) { setting in
+              Text(setting.title)
+                .font(.system(size: 12, weight: .medium))
+                .foregroundColor(.black.opacity(store.fontSizeSetting == setting ? 0.82 : 0.36))
+                .frame(maxWidth: .infinity, alignment: alignment(for: setting))
+            }
           }
         }
-        .pickerStyle(.segmented)
 
         HStack {
           Text("미리보기")
@@ -3133,6 +3180,17 @@ private struct NativeAppearanceSettingsView: View {
     }
     .onChange(of: store.appearanceMode) { _, _ in
       store.saveSettings()
+    }
+  }
+
+  private func alignment(for setting: NativeFontSizeSetting) -> Alignment {
+    switch setting {
+    case .small:
+      return .leading
+    case .standard:
+      return .center
+    case .large:
+      return .trailing
     }
   }
 }

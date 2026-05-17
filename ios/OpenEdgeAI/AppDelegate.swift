@@ -427,8 +427,10 @@ private final class NativeChatStore: ObservableObject {
   }
 
   func retry(message: NativeMessage) {
-    guard let session = currentSession,
-          let assistantIndex = session.messages.firstIndex(where: { $0.id == message.id })
+    guard !isGenerating,
+          let session = currentSession,
+          let assistantIndex = session.messages.firstIndex(where: { $0.id == message.id }),
+          session.messages[assistantIndex].role == .assistant
     else {
       return
     }
@@ -446,12 +448,9 @@ private final class NativeChatStore: ObservableObject {
       attachments: previousUser.attachments,
       createdAt: Date()
     )
+    let historyMessages = Array(session.messages[..<assistantIndex])
 
-    if isGenerating {
-      queuedDrafts.append(draft)
-    } else {
-      send(draft)
-    }
+    rewrite(draft, replacingAssistantId: message.id, in: session.id, historyMessages: historyMessages)
   }
 
   func cancelGeneration() {
@@ -572,26 +571,63 @@ private final class NativeChatStore: ObservableObject {
     statusMessage = nil
 
     let prompt = makePrompt(for: sessionId, draft: draft)
+    streamResponse(prompt: prompt, assistantId: assistantMessage.id, sessionId: sessionId)
+  }
+
+  private func rewrite(
+    _ draft: NativeDraft,
+    replacingAssistantId assistantId: String,
+    in sessionId: String,
+    historyMessages: [NativeMessage]
+  ) {
+    let now = Date()
+    var didResetMessage = false
+
+    mutateSession(sessionId) { session in
+      guard let index = session.messages.firstIndex(where: { $0.id == assistantId }) else {
+        return
+      }
+
+      session.messages[index].text = ""
+      session.messages[index].attachments = []
+      session.messages[index].createdAt = now
+      didResetMessage = true
+    }
+
+    guard didResetMessage else {
+      return
+    }
+
+    isGenerating = true
+    activeAssistantMessageId = assistantId
+    activeRequestSessionId = sessionId
+    statusMessage = nil
+
+    let prompt = makePrompt(for: sessionId, draft: draft, historyMessages: historyMessages)
+    streamResponse(prompt: prompt, assistantId: assistantId, sessionId: sessionId)
+  }
+
+  private func streamResponse(prompt: String, assistantId: String, sessionId: String) {
     let model = selectedModel
 
     if model == .gemma {
       AIEngineGemmaModelClient.shared.streamResponse(prompt: prompt) { [weak self] chunk in
         Task { @MainActor in
-          self?.appendChunk(chunk as String, to: assistantMessage.id, in: sessionId)
+          self?.appendChunk(chunk as String, to: assistantId, in: sessionId)
         }
       } completion: { [weak self] message, error in
         Task { @MainActor in
-          self?.finishGeneration(message: message as String?, error: error as String?, assistantId: assistantMessage.id, sessionId: sessionId)
+          self?.finishGeneration(message: message as String?, error: error as String?, assistantId: assistantId, sessionId: sessionId)
         }
       }
     } else {
       AIEngineFoundationModelClient.shared.streamResponse(prompt: prompt) { [weak self] chunk in
         Task { @MainActor in
-          self?.appendChunk(chunk as String, to: assistantMessage.id, in: sessionId)
+          self?.appendChunk(chunk as String, to: assistantId, in: sessionId)
         }
       } completion: { [weak self] message, error in
         Task { @MainActor in
-          self?.finishGeneration(message: message as String?, error: error as String?, assistantId: assistantMessage.id, sessionId: sessionId)
+          self?.finishGeneration(message: message as String?, error: error as String?, assistantId: assistantId, sessionId: sessionId)
         }
       }
     }
@@ -636,9 +672,17 @@ private final class NativeChatStore: ObservableObject {
     }
   }
 
-  private func makePrompt(for sessionId: String, draft: NativeDraft) -> String {
+  private func makePrompt(for sessionId: String, draft: NativeDraft, historyMessages: [NativeMessage]? = nil) -> String {
     let session = sessions.first { $0.id == sessionId }
-    let history = session?.messages.dropLast().suffix(16) ?? []
+    let sourceHistory: [NativeMessage]
+    if let historyMessages {
+      sourceHistory = historyMessages
+    } else if let session {
+      sourceHistory = Array(session.messages.dropLast())
+    } else {
+      sourceHistory = []
+    }
+    let history = sourceHistory.suffix(16)
     let formatter = DateFormatter()
     formatter.locale = Locale(identifier: "ko_KR")
     formatter.dateStyle = .full
@@ -1037,6 +1081,7 @@ private struct NativeMessageView: View {
           } label: {
             Image(systemName: "arrow.clockwise")
           }
+          .disabled(store.isGenerating)
 
           Text(message.createdAt.formatted(date: .omitted, time: .shortened))
             .font(.system(size: 12))

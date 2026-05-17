@@ -1462,30 +1462,27 @@ private struct NativeSessionsView: View {
                   .foregroundColor(.black.opacity(0.45))
                   .padding(.vertical, 6)
               } else {
-                ForEach(recentSessions) { session in
-                  Button {
-                    store.selectSession(session)
-                    close()
-                  } label: {
-                    Text(session.title)
-                      .font(.system(size: 16, weight: .regular))
-                      .foregroundColor(.black)
-                      .lineLimit(1)
-                      .frame(maxWidth: .infinity, alignment: .leading)
-                      .contentShape(Rectangle())
-                  }
-                  .buttonStyle(.plain)
-                  .contextMenu {
+                VStack(alignment: .leading, spacing: 8) {
+                  ForEach(recentSessions) { session in
                     Button {
-                      renameTarget = .session(id: session.id, title: session.title)
+                      store.selectSession(session)
+                      close()
                     } label: {
-                      Label("이름 변경", systemImage: "pencil")
+                      NativeSessionListRow(title: session.title)
                     }
+                    .buttonStyle(.plain)
+                    .contextMenu {
+                      Button {
+                        renameTarget = .session(id: session.id, title: session.title)
+                      } label: {
+                        Label("이름 변경", systemImage: "pencil")
+                      }
 
-                    Button(role: .destructive) {
-                      store.deleteSession(session)
-                    } label: {
-                      Label("삭제", systemImage: "trash")
+                      Button(role: .destructive) {
+                        store.deleteSession(session)
+                      } label: {
+                        Label("삭제", systemImage: "trash")
+                      }
                     }
                   }
                 }
@@ -1566,6 +1563,23 @@ private struct NativeSessionsView: View {
 
   private func openSearch() {
     isSearchPresented = true
+  }
+}
+
+private struct NativeSessionListRow: View {
+  var title: String
+
+  var body: some View {
+    Text(title)
+      .font(.system(size: 16, weight: .regular))
+      .foregroundColor(.black)
+      .lineLimit(1)
+      .padding(.horizontal, 12)
+      .frame(maxWidth: .infinity, alignment: .leading)
+      .frame(minHeight: 42)
+      .background(Color.black.opacity(0.035))
+      .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+      .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
   }
 }
 

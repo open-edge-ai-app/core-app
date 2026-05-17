@@ -132,6 +132,54 @@ private struct NativeProjectIcon: Identifiable, Equatable {
   ]
 }
 
+private enum NativeRenameTarget: Identifiable, Equatable {
+  case session(id: String, title: String)
+  case project(id: String, title: String)
+
+  var id: String {
+    switch self {
+    case .session(let id, _):
+      return "session-\(id)"
+    case .project(let id, _):
+      return "project-\(id)"
+    }
+  }
+
+  var title: String {
+    switch self {
+    case .session(_, let title), .project(_, let title):
+      return title
+    }
+  }
+
+  var navigationTitle: String {
+    switch self {
+    case .session:
+      return "채팅 이름 변경"
+    case .project:
+      return "프로젝트 이름 변경"
+    }
+  }
+
+  var fieldTitle: String {
+    switch self {
+    case .session:
+      return "채팅 이름"
+    case .project:
+      return "프로젝트 이름"
+    }
+  }
+
+  var placeholder: String {
+    switch self {
+    case .session:
+      return "예: 새 채팅"
+    case .project:
+      return "예: Atlas"
+    }
+  }
+}
+
 private struct NativeModelStatus: Equatable {
   var modelId: String
   var title: String
@@ -295,6 +343,18 @@ private final class NativeChatStore: ObservableObject {
     }
   }
 
+  func renameSession(id: String, title: String) {
+    let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !trimmedTitle.isEmpty,
+          let index = sessions.firstIndex(where: { $0.id == id })
+    else {
+      return
+    }
+
+    sessions[index].title = trimmedTitle
+    saveSessions()
+  }
+
   func createProject(title: String, iconName: String, systemPrompt: String) {
     let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !trimmedTitle.isEmpty else {
@@ -316,6 +376,18 @@ private final class NativeChatStore: ObservableObject {
 
   func deleteProject(_ project: NativeProject) {
     projects.removeAll { $0.id == project.id }
+    saveProjects()
+  }
+
+  func renameProject(id: String, title: String) {
+    let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !trimmedTitle.isEmpty,
+          let index = projects.firstIndex(where: { $0.id == id })
+    else {
+      return
+    }
+
+    projects[index].title = trimmedTitle
     saveProjects()
   }
 
@@ -1153,6 +1225,7 @@ private struct NativeSessionsView: View {
   @EnvironmentObject private var store: NativeChatStore
   @State private var searchText = ""
   @State private var isProjectCreatorPresented = false
+  @State private var renameTarget: NativeRenameTarget?
 
   private var recentSessions: [NativeChatSession] {
     let sortedSessions = store.sessions.sorted { $0.updatedAt > $1.updatedAt }
@@ -1199,6 +1272,12 @@ private struct NativeSessionsView: View {
               ForEach(store.projects) { project in
                 NativeSessionsIconRow(systemImage: project.iconName, title: project.title)
                   .contextMenu {
+                    Button {
+                      renameTarget = .project(id: project.id, title: project.title)
+                    } label: {
+                      Label("이름 변경", systemImage: "pencil")
+                    }
+
                     Button(role: .destructive) {
                       store.deleteProject(project)
                     } label: {
@@ -1232,6 +1311,12 @@ private struct NativeSessionsView: View {
                   }
                   .buttonStyle(.plain)
                   .contextMenu {
+                    Button {
+                      renameTarget = .session(id: session.id, title: session.title)
+                    } label: {
+                      Label("이름 변경", systemImage: "pencil")
+                    }
+
                     Button(role: .destructive) {
                       store.deleteSession(session)
                     } label: {
@@ -1279,6 +1364,12 @@ private struct NativeSessionsView: View {
         .presentationDetents([.large])
         .presentationDragIndicator(.visible)
     }
+    .sheet(item: $renameTarget) { target in
+      NativeRenameSheet(target: target)
+        .environmentObject(store)
+        .presentationDetents([.medium])
+        .presentationDragIndicator(.visible)
+    }
     .gesture(
       DragGesture(minimumDistance: 24)
         .onEnded { value in
@@ -1297,6 +1388,84 @@ private struct NativeSessionsView: View {
 
   private func openSettings() {
     showingSettings = true
+  }
+}
+
+private struct NativeRenameSheet: View {
+  @Environment(\.dismiss) private var dismiss
+  @EnvironmentObject private var store: NativeChatStore
+  let target: NativeRenameTarget
+  @State private var title: String
+  @FocusState private var isFocused: Bool
+
+  private var canSave: Bool {
+    !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+  }
+
+  init(target: NativeRenameTarget) {
+    self.target = target
+    _title = State(initialValue: target.title)
+  }
+
+  var body: some View {
+    NavigationStack {
+      VStack(alignment: .leading, spacing: 14) {
+        Text(target.fieldTitle)
+          .font(.system(size: 15, weight: .semibold))
+          .foregroundColor(.black.opacity(0.58))
+
+        TextField(target.placeholder, text: $title)
+          .focused($isFocused)
+          .font(.system(size: 17, weight: .semibold))
+          .foregroundColor(.black)
+          .textInputAutocapitalization(.sentences)
+          .padding(.horizontal, 16)
+          .frame(height: 54)
+          .background(Color.black.opacity(0.04))
+          .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+
+        Spacer(minLength: 0)
+      }
+      .padding(.horizontal, 24)
+      .padding(.top, 24)
+      .background(Color.white)
+      .navigationTitle(target.navigationTitle)
+      .navigationBarTitleDisplayMode(.inline)
+      .toolbar {
+        ToolbarItem(placement: .cancellationAction) {
+          Button("취소") {
+            dismiss()
+          }
+          .foregroundColor(.black)
+        }
+
+        ToolbarItem(placement: .confirmationAction) {
+          Button("저장", action: save)
+            .fontWeight(.semibold)
+            .foregroundColor(canSave ? .black : .black.opacity(0.3))
+            .disabled(!canSave)
+        }
+      }
+      .onAppear {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+          isFocused = true
+        }
+      }
+    }
+  }
+
+  private func save() {
+    guard canSave else {
+      return
+    }
+
+    switch target {
+    case .session(let id, _):
+      store.renameSession(id: id, title: title)
+    case .project(let id, _):
+      store.renameProject(id: id, title: title)
+    }
+    dismiss()
   }
 }
 

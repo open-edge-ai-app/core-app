@@ -2020,81 +2020,71 @@ private struct NativeInputBar: View {
         }
       }
 
-      ZStack(alignment: .topLeading) {
-        TextEditor(text: $store.inputText)
-          .font(.system(size: store.fontSizeSetting.inputSize))
-          .foregroundColor(.oeText)
-          .tint(store.accentColor.color)
-          .focused($focused)
-          .scrollContentBackground(.hidden)
-          .background(Color.clear)
-          .frame(minHeight: 64, maxHeight: 122)
-
-        if store.inputText.isEmpty {
-          Text("무엇이든 묻거나 검색하고 만들어보세요...")
+      VStack(spacing: 6) {
+        ZStack(alignment: .topLeading) {
+          TextEditor(text: $store.inputText)
             .font(.system(size: store.fontSizeSetting.inputSize))
-            .foregroundColor(.oeText.opacity(0.35))
-            .padding(.top, 8)
-            .padding(.leading, 5)
-            .allowsHitTesting(false)
+            .foregroundColor(.oeText)
+            .tint(store.accentColor.color)
+            .focused($focused)
+            .scrollContentBackground(.hidden)
+            .background(Color.clear)
+            .frame(minHeight: 64, maxHeight: 122)
+
+          if store.inputText.isEmpty {
+            Text("무엇이든 묻거나 검색하고 만들어보세요...")
+              .font(.system(size: store.fontSizeSetting.inputSize))
+              .foregroundColor(.oeText.opacity(0.35))
+              .padding(.top, 8)
+              .padding(.leading, 5)
+              .allowsHitTesting(false)
+          }
+        }
+
+        HStack(spacing: 8) {
+          Button {
+            showingFileImporter = true
+          } label: {
+            Image(systemName: "paperclip")
+              .font(.system(size: 17, weight: .semibold))
+              .foregroundColor(store.accentColor.color)
+              .frame(width: 36, height: 34)
+          }
+          .buttonStyle(.plain)
+          .accessibilityLabel("파일 첨부")
+
+          Spacer(minLength: 8)
+
+          Button {
+            if store.isGenerating && !store.canSend {
+              store.cancelGeneration()
+            } else {
+              store.sendCurrentInput()
+            }
+          } label: {
+            Image(systemName: store.isGenerating && !store.canSend ? "stop.fill" : "arrow.up")
+              .font(.system(size: 15, weight: .bold))
+              .foregroundColor(store.accentColor.foregroundColor)
+              .frame(width: 36, height: 36)
+              .background(store.accentColor.color)
+              .clipShape(Circle())
+          }
+          .buttonStyle(.plain)
+          .disabled(!store.isGenerating && !store.canSend)
+          .opacity(!store.isGenerating && !store.canSend ? 0.35 : 1)
+          .accessibilityLabel(store.isGenerating && !store.canSend ? "응답 중지" : "메시지 보내기")
         }
       }
       .padding(.horizontal, 10)
-      .padding(.vertical, 8)
+      .padding(.top, 8)
+      .padding(.bottom, 8)
       .background(Color.oeSurface)
       .overlay(
-        RoundedRectangle(cornerRadius: 20, style: .continuous)
+        RoundedRectangle(cornerRadius: 22, style: .continuous)
           .stroke(store.accentColor.color.opacity(focused ? 0.42 : 0.18), lineWidth: focused ? 1.4 : 1)
       )
-      .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-
-      HStack(spacing: 8) {
-        Button {
-          showingFileImporter = true
-        } label: {
-          Image(systemName: "paperclip")
-            .font(.system(size: 17, weight: .semibold))
-            .foregroundColor(store.accentColor.color)
-            .frame(width: 36, height: 36)
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel("파일 첨부")
-
-        Divider()
-          .frame(height: 20)
-
-        Button {
-          if store.isGenerating && !store.canSend {
-            store.cancelGeneration()
-          } else {
-            store.sendCurrentInput()
-          }
-        } label: {
-          Image(systemName: store.isGenerating && !store.canSend ? "stop.fill" : "arrow.up")
-            .font(.system(size: 15, weight: .bold))
-            .foregroundColor(store.accentColor.foregroundColor)
-            .frame(width: 36, height: 36)
-            .background(store.accentColor.color)
-            .clipShape(Circle())
-        }
-        .buttonStyle(.plain)
-        .disabled(!store.isGenerating && !store.canSend)
-        .opacity(!store.isGenerating && !store.canSend ? 0.35 : 1)
-        .accessibilityLabel(store.isGenerating && !store.canSend ? "응답 중지" : "메시지 보내기")
-      }
-      .padding(.horizontal, 6)
-      .padding(.vertical, 4)
-      .background(Color.oeSurface)
-      .overlay(
-        Capsule()
-          .stroke(store.accentColor.color.opacity(0.16), lineWidth: 1)
-      )
-      .clipShape(Capsule())
-      .frame(maxWidth: .infinity, alignment: .trailing)
+      .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
     }
-    .padding(.horizontal, 10)
-    .padding(.top, 8)
-    .padding(.bottom, 8)
     .padding(.horizontal, 10)
     .padding(.bottom, 8)
   }

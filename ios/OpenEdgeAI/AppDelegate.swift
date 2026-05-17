@@ -564,6 +564,7 @@ private final class NativeDeviceContextProvider: NSObject, CLLocationManagerDele
 private struct NativeChatSession: Identifiable, Codable, Equatable {
   var id: String
   var title: String
+  var projectId: String?
   var createdAt: Date
   var updatedAt: Date
   var messages: [NativeMessage]
@@ -936,11 +937,12 @@ private final class NativeChatStore: ObservableObject {
     !inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !pendingAttachments.isEmpty
   }
 
-  func createNewSession() {
+  func createNewSession(projectId: String? = nil) {
     let now = Date()
     let session = NativeChatSession(
       id: UUID().uuidString,
       title: "새 채팅",
+      projectId: projectId,
       createdAt: now,
       updatedAt: now,
       messages: []
@@ -1003,6 +1005,16 @@ private final class NativeChatStore: ObservableObject {
 
   func deleteProject(_ project: NativeProject) {
     projects.removeAll { $0.id == project.id }
+    sessions.removeAll { $0.projectId == project.id }
+    if let selectedSessionId,
+       sessions.contains(where: { $0.id == selectedSessionId }) == false {
+      self.selectedSessionId = sessions.sorted { $0.updatedAt > $1.updatedAt }.first?.id
+    }
+    if sessions.isEmpty {
+      createNewSession()
+    } else {
+      saveSessions()
+    }
     saveProjects()
   }
 
@@ -1366,6 +1378,11 @@ private final class NativeChatStore: ObservableObject {
       sections.append("Custom instructions:\n\(systemPrompt)")
     }
 
+    if let project = project(for: session),
+       !project.systemPrompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+      sections.append("Project instructions for \(project.title):\n\(project.systemPrompt)")
+    }
+
     if !history.isEmpty {
       let historyText = history.map { message in
         "\(message.role == .assistant ? "assistant" : "user"): \(message.text)"
@@ -1392,6 +1409,13 @@ private final class NativeChatStore: ObservableObject {
 
     sections.append("Current user request:\n\(draft.text)")
     return sections.joined(separator: "\n\n")
+  }
+
+  private func project(for session: NativeChatSession?) -> NativeProject? {
+    guard let projectId = session?.projectId else {
+      return nil
+    }
+    return projects.first { $0.id == projectId }
   }
 
   private func makeHiddenRuntimeContext() -> String {
@@ -2460,9 +2484,159 @@ private struct NativeSessionsView: View {
   @State private var isSearchPresented = false
   @State private var isProjectCreatorPresented = false
   @State private var renameTarget: NativeRenameTarget?
+  @State private var activeProjectId: String?
 
   private var recentSessions: [NativeChatSession] {
-    store.sessions.sorted { $0.updatedAt > $1.updatedAt }
+    store.sessions
+      .filter { $0.projectId == nil }
+      .sorted { $0.updatedAt > $1.updatedAt }
+  }
+
+  private var activeProject: NativeProject? {
+    guard let activeProjectId else {
+      return nil
+    }
+    return store.projects.first { $0.id == activeProjectId }
+  }
+
+  private var activeProjectSessions: [NativeChatSession] {
+    guard let activeProject else {
+      return []
+    }
+    return store.sessions
+      .filter { $0.projectId == activeProject.id }
+      .sorted { $0.updatedAt > $1.updatedAt }
+  }
+
+  @ViewBuilder
+  private var sessionsContent: some View {
+    VStack(alignment: .leading, spacing: 26) {
+      if let activeProject {
+        projectSessionsContent(for: activeProject)
+      } else {
+        rootSessionsContent
+      }
+    }
+  }
+
+  @ViewBuilder
+  private var rootSessionsContent: some View {
+    NativeSessionsSection(title: "프로젝트") {
+      Button {
+        isProjectCreatorPresented = true
+      } label: {
+        NativeSessionsIconRow(systemImage: "folder.badge.plus", title: "새 프로젝트")
+      }
+      .buttonStyle(.plain)
+
+      ForEach(store.projects) { project in
+        Button {
+          activeProjectId = project.id
+        } label: {
+          NativeSessionsIconRow(systemImage: project.iconName, title: project.title)
+        }
+        .buttonStyle(.plain)
+        .contextMenu {
+          Button {
+            renameTarget = .project(id: project.id, title: project.title)
+          } label: {
+            Label("이름 변경", systemImage: "pencil")
+          }
+
+          Button(role: .destructive) {
+            store.deleteProject(project)
+            if activeProjectId == project.id {
+              activeProjectId = nil
+            }
+          } label: {
+            Label("삭제", systemImage: "trash")
+          }
+        }
+      }
+    }
+
+    NativeSessionsSection(title: "최근") {
+      sessionList(recentSessions, emptyText: "최근 대화가 없습니다")
+    }
+  }
+
+  @ViewBuilder
+  private func projectSessionsContent(for project: NativeProject) -> some View {
+    Button {
+      activeProjectId = nil
+    } label: {
+      HStack(spacing: 8) {
+        Image(systemName: "chevron.left")
+          .font(.system(size: 14, weight: .bold))
+        Text("프로젝트")
+          .font(.system(size: 15, weight: .semibold))
+      }
+      .foregroundColor(.oeSecondaryText)
+      .frame(maxWidth: .infinity, alignment: .leading)
+      .contentShape(Rectangle())
+    }
+    .buttonStyle(.plain)
+
+    HStack(alignment: .center, spacing: 14) {
+      Image(systemName: project.iconName)
+        .font(.system(size: 24, weight: .semibold))
+        .foregroundColor(.oeText)
+        .frame(width: 34, height: 34)
+
+      VStack(alignment: .leading, spacing: 3) {
+        Text(project.title)
+          .font(.system(size: 23, weight: .bold))
+          .foregroundColor(.oeText)
+          .lineLimit(1)
+
+        Text("\(activeProjectSessions.count)개 채팅")
+          .font(.system(size: 13, weight: .medium))
+          .foregroundColor(.oeMutedText)
+      }
+    }
+    .frame(maxWidth: .infinity, alignment: .leading)
+
+    NativeSessionsSection(title: "채팅") {
+      sessionList(activeProjectSessions, emptyText: "프로젝트에 채팅이 없습니다")
+    }
+  }
+
+  @ViewBuilder
+  private func sessionList(_ sessions: [NativeChatSession], emptyText: String) -> some View {
+    if sessions.isEmpty {
+      Text(emptyText)
+        .font(.system(size: 15, weight: .medium))
+        .foregroundColor(.oeMutedText)
+        .padding(.vertical, 6)
+    } else {
+      VStack(alignment: .leading, spacing: 2) {
+        ForEach(sessions) { session in
+          Button {
+            store.selectSession(session)
+            close()
+          } label: {
+            NativeSessionListRow(
+              title: session.title,
+              isWriting: store.activeWritingSessionId == session.id
+            )
+          }
+          .buttonStyle(.plain)
+          .contextMenu {
+            Button {
+              renameTarget = .session(id: session.id, title: session.title)
+            } label: {
+              Label("이름 변경", systemImage: "pencil")
+            }
+
+            Button(role: .destructive) {
+              store.deleteSession(session)
+            } label: {
+              Label("삭제", systemImage: "trash")
+            }
+          }
+        }
+      }
+    }
   }
 
   var body: some View {
@@ -2489,73 +2663,7 @@ private struct NativeSessionsView: View {
         .padding(.bottom, 28)
 
         ScrollView(showsIndicators: false) {
-          VStack(alignment: .leading, spacing: 26) {
-            NativeSessionsSection(title: "프로젝트") {
-              Button {
-                isProjectCreatorPresented = true
-              } label: {
-                NativeSessionsIconRow(systemImage: "folder.badge.plus", title: "새 프로젝트")
-              }
-              .buttonStyle(.plain)
-
-              ForEach(store.projects) { project in
-                NativeSessionsIconRow(systemImage: project.iconName, title: project.title)
-                  .contextMenu {
-                    Button {
-                      renameTarget = .project(id: project.id, title: project.title)
-                    } label: {
-                      Label("이름 변경", systemImage: "pencil")
-                    }
-
-                    Button(role: .destructive) {
-                      store.deleteProject(project)
-                    } label: {
-                      Label("삭제", systemImage: "trash")
-                    }
-                  }
-              }
-
-              NativeSessionsIconRow(systemImage: "terminal", title: "로컬 모델")
-              NativeSessionsIconRow(systemImage: "doc.text", title: "개인 메모리")
-            }
-
-            NativeSessionsSection(title: "최근") {
-              if recentSessions.isEmpty {
-                Text("검색 결과가 없습니다")
-                  .font(.system(size: 15, weight: .medium))
-                  .foregroundColor(.oeMutedText)
-                  .padding(.vertical, 6)
-              } else {
-                VStack(alignment: .leading, spacing: 2) {
-                  ForEach(recentSessions) { session in
-                    Button {
-                      store.selectSession(session)
-                      close()
-                    } label: {
-                      NativeSessionListRow(
-                        title: session.title,
-                        isWriting: store.activeWritingSessionId == session.id
-                      )
-                    }
-                    .buttonStyle(.plain)
-                    .contextMenu {
-                      Button {
-                        renameTarget = .session(id: session.id, title: session.title)
-                      } label: {
-                        Label("이름 변경", systemImage: "pencil")
-                      }
-
-                      Button(role: .destructive) {
-                        store.deleteSession(session)
-                      } label: {
-                        Label("삭제", systemImage: "trash")
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          }
+          sessionsContent
           .padding(.horizontal, 36)
           .padding(.bottom, 108)
         }
@@ -2564,7 +2672,7 @@ private struct NativeSessionsView: View {
       }
 
       Button {
-        store.createNewSession()
+        store.createNewSession(projectId: activeProject?.id)
         close()
       } label: {
         HStack(spacing: 6) {
@@ -2597,6 +2705,8 @@ private struct NativeSessionsView: View {
       NativeSearchView { session in
         store.selectSession(session)
         close()
+      } onSelectProject: { project in
+        activeProjectId = project.id
       }
       .environmentObject(store)
       .presentationDetents([.large])
@@ -2678,6 +2788,7 @@ private struct NativeSearchView: View {
   @Environment(\.dismiss) private var dismiss
   @EnvironmentObject private var store: NativeChatStore
   var onSelectSession: (NativeChatSession) -> Void
+  var onSelectProject: (NativeProject) -> Void
   @State private var query = ""
   @FocusState private var isSearchFocused: Bool
 
@@ -2797,8 +2908,11 @@ private struct NativeSearchView: View {
               NativeSearchSection(title: "검색 결과") {
                 ForEach(searchResults) { result in
                   NativeSearchResultRow(result: result) {
-                    if case .session(let session) = result.kind {
+                    switch result.kind {
+                    case .session(let session):
                       select(session)
+                    case .project(let project):
+                      select(project)
                     }
                   }
                 }
@@ -2833,6 +2947,11 @@ private struct NativeSearchView: View {
   private func select(_ session: NativeChatSession) {
     dismiss()
     onSelectSession(session)
+  }
+
+  private func select(_ project: NativeProject) {
+    dismiss()
+    onSelectProject(project)
   }
 
   private func clipped(_ text: String) -> String {
@@ -2898,12 +3017,15 @@ private struct NativeSearchResultRow: View {
       }
       .buttonStyle(.plain)
     case .project:
-      NativeSearchRowContent(
-        systemImage: result.systemImage,
-        title: result.title,
-        subtitle: result.subtitle,
-        showsChevron: false
-      )
+      Button(action: action) {
+        NativeSearchRowContent(
+          systemImage: result.systemImage,
+          title: result.title,
+          subtitle: result.subtitle,
+          showsChevron: true
+        )
+      }
+      .buttonStyle(.plain)
     }
   }
 }

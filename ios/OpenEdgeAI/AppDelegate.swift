@@ -1076,7 +1076,7 @@ private struct NativeSessionsView: View {
       VStack(alignment: .leading, spacing: 0) {
         HStack(alignment: .center, spacing: 16) {
           Text("Open Edge AI")
-            .font(.system(size: 26, weight: .bold))
+            .font(.system(size: 24, weight: .bold))
             .foregroundColor(.black)
             .lineLimit(1)
 
@@ -1089,8 +1089,8 @@ private struct NativeSessionsView: View {
         .padding(.bottom, 28)
 
         ScrollView(showsIndicators: false) {
-          VStack(alignment: .leading, spacing: 30) {
-            VStack(alignment: .leading, spacing: 24) {
+          VStack(alignment: .leading, spacing: 26) {
+            VStack(alignment: .leading, spacing: 20) {
               NativeSessionsIconRow(systemImage: "photo.on.rectangle.angled", title: "이미지")
               NativeSessionsIconRow(systemImage: "chevron.left.forwardslash.chevron.right", title: "코드 작성")
               NativeSessionsIconRow(systemImage: "ellipsis", title: "더 보기")
@@ -1105,7 +1105,7 @@ private struct NativeSessionsView: View {
             NativeSessionsSection(title: "최근") {
               if recentSessions.isEmpty {
                 Text("검색 결과가 없습니다")
-                  .font(.system(size: 17, weight: .medium))
+                  .font(.system(size: 15, weight: .medium))
                   .foregroundColor(.black.opacity(0.45))
                   .padding(.vertical, 6)
               } else {
@@ -1115,7 +1115,7 @@ private struct NativeSessionsView: View {
                     close()
                   } label: {
                     Text(session.title)
-                      .font(.system(size: 18, weight: .regular))
+                      .font(.system(size: 16, weight: .regular))
                       .foregroundColor(.black)
                       .lineLimit(1)
                       .frame(maxWidth: .infinity, alignment: .leading)
@@ -1146,13 +1146,13 @@ private struct NativeSessionsView: View {
       } label: {
         HStack(spacing: 10) {
           Image(systemName: "square.and.pencil")
-            .font(.system(size: 20, weight: .semibold))
+            .font(.system(size: 18, weight: .semibold))
           Text("채팅")
-            .font(.system(size: 18, weight: .bold))
+            .font(.system(size: 16, weight: .bold))
         }
         .foregroundColor(.white)
         .padding(.horizontal, 24)
-        .frame(height: 56)
+        .frame(height: 52)
         .background(Color.black)
         .clipShape(Capsule())
         .shadow(color: Color.black.opacity(0.24), radius: 18, x: 0, y: 10)
@@ -1188,27 +1188,27 @@ private struct NativeSessionsSearchPill: View {
   var body: some View {
     HStack(spacing: 10) {
       Image(systemName: "magnifyingglass")
-        .font(.system(size: 24, weight: .semibold))
+        .font(.system(size: 21, weight: .semibold))
         .foregroundColor(.black)
 
       if isFocused || !searchText.isEmpty {
         TextField("검색", text: $searchText)
           .focused($isFocused)
-          .font(.system(size: 15, weight: .medium))
+          .font(.system(size: 14, weight: .medium))
           .frame(width: 74)
           .textInputAutocapitalization(.never)
       }
 
       Text("OE")
-        .font(.system(size: 13, weight: .bold))
+        .font(.system(size: 12, weight: .bold))
         .foregroundColor(.white)
-        .frame(width: 34, height: 34)
+        .frame(width: 32, height: 32)
         .background(Color.black)
         .clipShape(Circle())
     }
     .padding(.leading, 16)
     .padding(.trailing, 8)
-    .frame(height: 56)
+    .frame(height: 52)
     .background(Color.white)
     .clipShape(Capsule())
     .shadow(color: Color.black.opacity(0.1), radius: 22, x: 0, y: 12)
@@ -1224,12 +1224,12 @@ private struct NativeSessionsSection<Content: View>: View {
   @ViewBuilder var content: Content
 
   var body: some View {
-    VStack(alignment: .leading, spacing: 22) {
+    VStack(alignment: .leading, spacing: 18) {
       Text(title)
-        .font(.system(size: 20, weight: .bold))
+        .font(.system(size: 17, weight: .bold))
         .foregroundColor(.black)
 
-      VStack(alignment: .leading, spacing: 24) {
+      VStack(alignment: .leading, spacing: 20) {
         content
       }
     }
@@ -1241,14 +1241,14 @@ private struct NativeSessionsIconRow: View {
   var title: String
 
   var body: some View {
-    HStack(spacing: 18) {
+    HStack(spacing: 16) {
       Image(systemName: systemImage)
-        .font(.system(size: 22, weight: .semibold))
+        .font(.system(size: 19, weight: .semibold))
         .foregroundColor(.black)
-        .frame(width: 34, height: 28)
+        .frame(width: 30, height: 24)
 
       Text(title)
-        .font(.system(size: 20, weight: .semibold))
+        .font(.system(size: 17, weight: .semibold))
         .foregroundColor(.black)
         .lineLimit(1)
     }

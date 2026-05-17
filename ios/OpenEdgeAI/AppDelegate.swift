@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 import UniformTypeIdentifiers
 
 @main
@@ -337,7 +338,7 @@ private enum NativeDynamicIslandPet: String, CaseIterable, Identifiable {
   }
 }
 
-private enum NativeDynamicIslandPetMotion {
+private enum NativeDynamicIslandPetMotion: String {
   case running
   case resting
   case sleeping
@@ -581,6 +582,7 @@ private final class NativeChatStore: ObservableObject {
   private let settingsKey = "OpenEdgeAI.NativeSettings.v1"
   private var activeAssistantMessageId: String?
   private var activeRequestSessionId: String?
+  private var generationBackgroundTaskIdentifier: UIBackgroundTaskIdentifier = .invalid
 
   init() {
     loadSettings()
@@ -760,6 +762,7 @@ private final class NativeChatStore: ObservableObject {
 
   func removeQueuedDraft(_ draft: NativeDraft) {
     queuedDrafts.removeAll { $0.id == draft.id }
+    syncDynamicIslandLiveActivity()
   }
 
   func updateQueuedDraft(_ draft: NativeDraft, text: String) {
@@ -767,6 +770,7 @@ private final class NativeChatStore: ObservableObject {
       return
     }
     queuedDrafts[index].text = text
+    syncDynamicIslandLiveActivity()
   }
 
   func runQueuedDraftIfReady() {
@@ -820,6 +824,8 @@ private final class NativeChatStore: ObservableObject {
     isGenerating = false
     activeAssistantMessageId = nil
     activeRequestSessionId = nil
+    endGenerationBackgroundTaskIfNeeded()
+    presentDynamicIslandActivity()
     statusMessage = appleCancelled || gemmaCancelled ? "응답을 중지했습니다." : nil
   }
 
@@ -928,6 +934,7 @@ private final class NativeChatStore: ObservableObject {
     activeAssistantMessageId = assistantMessage.id
     activeRequestSessionId = sessionId
     statusMessage = nil
+    beginGenerationBackgroundTaskIfNeeded()
     presentDynamicIslandActivity()
 
     let prompt = makePrompt(for: sessionId, draft: draft)
@@ -962,6 +969,7 @@ private final class NativeChatStore: ObservableObject {
     activeAssistantMessageId = assistantId
     activeRequestSessionId = sessionId
     statusMessage = nil
+    beginGenerationBackgroundTaskIfNeeded()
     presentDynamicIslandActivity()
 
     let prompt = makePrompt(for: sessionId, draft: draft, historyMessages: historyMessages)
@@ -1026,6 +1034,7 @@ private final class NativeChatStore: ObservableObject {
     isGenerating = false
     activeAssistantMessageId = nil
     activeRequestSessionId = nil
+    endGenerationBackgroundTaskIfNeeded()
 
     scheduleNextQueuedDraft()
     presentDynamicIslandActivity()
@@ -1235,6 +1244,7 @@ private final class NativeChatStore: ObservableObject {
 
   private func scheduleNextQueuedDraft() {
     guard !queuedDrafts.isEmpty else {
+      syncDynamicIslandLiveActivity()
       return
     }
 
@@ -1270,21 +1280,81 @@ private final class NativeChatStore: ObservableObject {
 
   func dismissDynamicIslandActivity() {
     dynamicIslandActivityHold = false
+    syncDynamicIslandLiveActivity()
+  }
+
+  func refreshDynamicIslandActivity() {
+    if showsDynamicIslandActivity {
+      presentDynamicIslandActivity()
+    } else {
+      syncDynamicIslandLiveActivity()
+    }
+  }
+
+  func refreshBackgroundExecutionState() {
+    if backgroundExecutionEnabled, isGenerating {
+      beginGenerationBackgroundTaskIfNeeded()
+    } else {
+      endGenerationBackgroundTaskIfNeeded()
+    }
   }
 
   private func presentDynamicIslandActivity() {
     guard backgroundDynamicIslandEnabled else {
       dynamicIslandActivityHold = false
+      syncDynamicIslandLiveActivity()
       return
     }
 
     dynamicIslandActivityHold = true
+    syncDynamicIslandLiveActivity()
     Task { @MainActor in
       try? await Task.sleep(nanoseconds: 3_800_000_000)
       if !self.isGenerating && self.queuedDrafts.isEmpty {
         self.dynamicIslandActivityHold = false
+        self.syncDynamicIslandLiveActivity()
       }
     }
+  }
+
+  private func syncDynamicIslandLiveActivity() {
+    NativeDynamicIslandLiveActivityController.shared.sync(
+      enabled: backgroundDynamicIslandEnabled,
+      isVisible: showsDynamicIslandActivity,
+      sessionId: selectedSessionId ?? "open-edge-ai",
+      title: dynamicIslandTitle,
+      subtitle: dynamicIslandSubtitle,
+      pet: selectedDynamicIslandPet.rawValue,
+      petEnabled: dynamicIslandPetEnabled,
+      motion: dynamicIslandPetMotion.rawValue,
+      queuedCount: queuedDrafts.count
+    )
+  }
+
+  private func beginGenerationBackgroundTaskIfNeeded() {
+    guard backgroundExecutionEnabled,
+          generationBackgroundTaskIdentifier == .invalid
+    else {
+      return
+    }
+
+    generationBackgroundTaskIdentifier = UIApplication.shared.beginBackgroundTask(
+      withName: "OpenEdgeAI.Generation"
+    ) { [weak self] in
+      Task { @MainActor in
+        self?.endGenerationBackgroundTaskIfNeeded()
+      }
+    }
+  }
+
+  private func endGenerationBackgroundTaskIfNeeded() {
+    guard generationBackgroundTaskIdentifier != .invalid else {
+      return
+    }
+
+    let identifier = generationBackgroundTaskIdentifier
+    generationBackgroundTaskIdentifier = .invalid
+    UIApplication.shared.endBackgroundTask(identifier)
   }
 }
 
@@ -2867,11 +2937,13 @@ private struct NativeGeneralSettingsView: View {
     .navigationBarTitleDisplayMode(.inline)
     .onChange(of: store.backgroundExecutionEnabled) { _, _ in
       store.saveSettings()
+      store.refreshBackgroundExecutionState()
     }
     .onChange(of: store.backgroundDynamicIslandEnabled) { _, _ in
       store.saveSettings()
       if store.backgroundDynamicIslandEnabled {
         store.runQueuedDraftIfReady()
+        store.refreshDynamicIslandActivity()
       } else {
         store.dismissDynamicIslandActivity()
       }
@@ -2881,9 +2953,11 @@ private struct NativeGeneralSettingsView: View {
         store.backgroundDynamicIslandEnabled = true
       }
       store.saveSettings()
+      store.refreshDynamicIslandActivity()
     }
     .onChange(of: store.selectedDynamicIslandPet) { _, _ in
       store.saveSettings()
+      store.refreshDynamicIslandActivity()
     }
     .onChange(of: store.selectedLanguage) { _, _ in
       store.saveSettings()

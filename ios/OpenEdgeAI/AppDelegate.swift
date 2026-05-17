@@ -1123,10 +1123,11 @@ private struct NativeSessionsView: View {
     ZStack(alignment: .bottomTrailing) {
       VStack(alignment: .leading, spacing: 0) {
         HStack(alignment: .center, spacing: 16) {
-          Text("Open Edge AI")
-            .font(.system(size: 24, weight: .bold))
-            .foregroundColor(.black)
-            .lineLimit(1)
+          Image("OpenEdgeLogo")
+            .resizable()
+            .scaledToFit()
+            .frame(width: 160, height: 40, alignment: .leading)
+            .accessibilityLabel("Open Edge AI")
 
           Spacer(minLength: 12)
 

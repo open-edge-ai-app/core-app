@@ -2715,11 +2715,44 @@ private struct NativeMarkdownText: View {
   let text: String
 
   var body: some View {
-    if let attributed = try? AttributedString(markdown: text) {
+    if let attributed = try? AttributedString(markdown: markdownWithPreservedLineBreaks) {
       Text(attributed)
     } else {
       Text(text)
     }
+  }
+
+  private var markdownWithPreservedLineBreaks: String {
+    let normalized = text.replacingOccurrences(of: "\r\n", with: "\n")
+    let lines = normalized.components(separatedBy: "\n")
+    var isInsideCodeFence = false
+    var renderedLines: [String] = []
+
+    for (index, line) in lines.enumerated() {
+      let trimmedLine = line.trimmingCharacters(in: .whitespaces)
+      let isFenceLine = trimmedLine.hasPrefix("```") || trimmedLine.hasPrefix("~~~")
+      var renderedLine = line
+
+      if !isInsideCodeFence,
+         !isFenceLine,
+         index < lines.count - 1,
+         !trimmedLine.isEmpty,
+         !line.hasSuffix("  "),
+         !line.hasSuffix("\\") {
+        let nextLine = lines[index + 1].trimmingCharacters(in: .whitespaces)
+        if !nextLine.isEmpty {
+          renderedLine += "  "
+        }
+      }
+
+      renderedLines.append(renderedLine)
+
+      if isFenceLine {
+        isInsideCodeFence.toggle()
+      }
+    }
+
+    return renderedLines.joined(separator: "\n")
   }
 }
 

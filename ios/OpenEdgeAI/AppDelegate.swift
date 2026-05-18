@@ -2692,6 +2692,26 @@ private struct NativeSlashCommandMenu: View {
   }
 }
 
+private struct NativeSearchModeChip: View {
+  @EnvironmentObject private var store: NativeChatStore
+
+  var body: some View {
+    HStack(spacing: 5) {
+      Image(systemName: "magnifyingglass")
+        .font(.system(size: 11, weight: .bold))
+
+      Text("검색 모드")
+        .font(.system(size: 12, weight: .semibold))
+    }
+    .foregroundColor(store.accentColor.color)
+    .padding(.horizontal, 9)
+    .frame(height: 28)
+    .background(store.accentColor.subtleColor)
+    .clipShape(Capsule())
+    .accessibilityLabel("검색 모드")
+  }
+}
+
 private struct NativeInputBar: View {
   @EnvironmentObject private var store: NativeChatStore
   @Binding var showingFileImporter: Bool
@@ -2708,6 +2728,10 @@ private struct NativeInputBar: View {
 
   private var showsSlashCommands: Bool {
     focused && !slashCommands.isEmpty
+  }
+
+  private var isSearchMode: Bool {
+    NativeSlashCommand.searchPayload(in: store.inputText) != nil
   }
 
   var body: some View {
@@ -2779,6 +2803,12 @@ private struct NativeInputBar: View {
           .buttonStyle(.plain)
           .accessibilityLabel("파일 첨부")
 
+          if isSearchMode {
+            NativeSearchModeChip()
+              .environmentObject(store)
+              .transition(.opacity.combined(with: .scale(scale: 0.96)))
+          }
+
           Spacer(minLength: 8)
 
           Button {
@@ -2814,6 +2844,7 @@ private struct NativeInputBar: View {
     .padding(.horizontal, 10)
     .padding(.bottom, 6)
     .animation(.easeOut(duration: 0.18), value: showsSlashCommands)
+    .animation(.easeOut(duration: 0.18), value: isSearchMode)
   }
 
   private func performSlashCommand(_ command: NativeSlashCommand) {
@@ -3382,6 +3413,10 @@ private struct NativeProjectComposerBar: View {
     focused && !slashCommands.isEmpty
   }
 
+  private var isSearchMode: Bool {
+    NativeSlashCommand.searchPayload(in: store.inputText) != nil
+  }
+
   var body: some View {
     VStack(spacing: 8) {
       if !store.queuedDrafts.isEmpty {
@@ -3451,6 +3486,12 @@ private struct NativeProjectComposerBar: View {
           .buttonStyle(.plain)
           .accessibilityLabel("파일 첨부")
 
+          if isSearchMode {
+            NativeSearchModeChip()
+              .environmentObject(store)
+              .transition(.opacity.combined(with: .scale(scale: 0.96)))
+          }
+
           Spacer(minLength: 8)
 
           Button(action: send) {
@@ -3480,6 +3521,7 @@ private struct NativeProjectComposerBar: View {
     .padding(.horizontal, 10)
     .padding(.bottom, 6)
     .animation(.easeOut(duration: 0.18), value: showsSlashCommands)
+    .animation(.easeOut(duration: 0.18), value: isSearchMode)
   }
 
   private func send() {

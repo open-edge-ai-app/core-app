@@ -628,21 +628,23 @@ private struct NativeProjectIcon: Identifiable, Equatable {
 
 private enum NativeRenameTarget: Identifiable, Equatable {
   case session(id: String, title: String)
-  case project(id: String, title: String)
+  case project(NativeProject)
 
   var id: String {
     switch self {
     case .session(let id, _):
       return "session-\(id)"
-    case .project(let id, _):
-      return "project-\(id)"
+    case .project(let project):
+      return "project-\(project.id)"
     }
   }
 
   var title: String {
     switch self {
-    case .session(_, let title), .project(_, let title):
+    case .session(_, let title):
       return title
+    case .project(let project):
+      return project.title
     }
   }
 
@@ -651,7 +653,7 @@ private enum NativeRenameTarget: Identifiable, Equatable {
     case .session:
       return "채팅 이름 변경"
     case .project:
-      return "프로젝트 이름 변경"
+      return "프로젝트 설정"
     }
   }
 
@@ -671,6 +673,13 @@ private enum NativeRenameTarget: Identifiable, Equatable {
     case .project:
       return "예: Atlas"
     }
+  }
+
+  var isProject: Bool {
+    if case .project = self {
+      return true
+    }
+    return false
   }
 }
 
@@ -1018,7 +1027,7 @@ private final class NativeChatStore: ObservableObject {
     saveProjects()
   }
 
-  func renameProject(id: String, title: String) {
+  func updateProject(id: String, title: String, iconName: String, systemPrompt: String) {
     let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !trimmedTitle.isEmpty,
           let index = projects.firstIndex(where: { $0.id == id })
@@ -1027,6 +1036,8 @@ private final class NativeChatStore: ObservableObject {
     }
 
     projects[index].title = trimmedTitle
+    projects[index].iconName = iconName.isEmpty ? NativeProjectIcon.defaultIcon.systemImage : iconName
+    projects[index].systemPrompt = systemPrompt.trimmingCharacters(in: .whitespacesAndNewlines)
     saveProjects()
   }
 
@@ -2518,9 +2529,9 @@ private struct NativeSessionsView: View {
         .buttonStyle(.plain)
         .contextMenu {
           Button {
-            renameTarget = .project(id: project.id, title: project.title)
+            renameTarget = .project(project)
           } label: {
-            Label("이름 변경", systemImage: "pencil")
+            Label("프로젝트 설정", systemImage: "slider.horizontal.3")
           }
 
           Button(role: .destructive) {
@@ -2667,7 +2678,7 @@ private struct NativeSessionsView: View {
     .sheet(item: $renameTarget) { target in
       NativeRenameSheet(target: target)
         .environmentObject(store)
-        .presentationDetents([.medium])
+        .presentationDetents(target.isProject ? [.large] : [.medium])
         .presentationDragIndicator(.visible)
     }
     .gesture(
@@ -3189,6 +3200,8 @@ private struct NativeRenameSheet: View {
   @EnvironmentObject private var store: NativeChatStore
   let target: NativeRenameTarget
   @State private var title: String
+  @State private var selectedIconName: String
+  @State private var systemPrompt: String
   @FocusState private var isFocused: Bool
 
   private var canSave: Bool {
@@ -3198,29 +3211,78 @@ private struct NativeRenameSheet: View {
   init(target: NativeRenameTarget) {
     self.target = target
     _title = State(initialValue: target.title)
+    if case .project(let project) = target {
+      _selectedIconName = State(initialValue: project.iconName)
+      _systemPrompt = State(initialValue: project.systemPrompt)
+    } else {
+      _selectedIconName = State(initialValue: NativeProjectIcon.defaultIcon.systemImage)
+      _systemPrompt = State(initialValue: "")
+    }
   }
 
   var body: some View {
     NavigationStack {
-      VStack(alignment: .leading, spacing: 14) {
-        Text(target.fieldTitle)
-          .font(.system(size: 15, weight: .semibold))
-          .foregroundColor(.oeSecondaryText)
+      ScrollView(showsIndicators: false) {
+        VStack(alignment: .leading, spacing: 24) {
+          NativeProjectCreatorSection(title: target.fieldTitle) {
+            TextField(target.placeholder, text: $title)
+              .focused($isFocused)
+              .font(.system(size: 17, weight: .semibold))
+              .foregroundColor(.oeText)
+              .textInputAutocapitalization(.sentences)
+              .padding(.horizontal, 16)
+              .frame(height: 54)
+              .background(Color.oeSubtleFill)
+              .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+          }
 
-        TextField(target.placeholder, text: $title)
-          .focused($isFocused)
-          .font(.system(size: 17, weight: .semibold))
-          .foregroundColor(.oeText)
-          .textInputAutocapitalization(.sentences)
-          .padding(.horizontal, 16)
-          .frame(height: 54)
-          .background(Color.oeSubtleFill)
-          .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+          if target.isProject {
+            NativeProjectCreatorSection(title: "아이콘") {
+              LazyVGrid(
+                columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: 3),
+                alignment: .leading,
+                spacing: 10
+              ) {
+                ForEach(NativeProjectIcon.all) { icon in
+                  NativeProjectIconOption(
+                    icon: icon,
+                    isSelected: selectedIconName == icon.systemImage,
+                    accentColor: store.accentColor
+                  ) {
+                    selectedIconName = icon.systemImage
+                  }
+                }
+              }
+            }
 
-        Spacer(minLength: 0)
+            NativeProjectCreatorSection(title: "시스템 프롬프트") {
+              ZStack(alignment: .topLeading) {
+                TextEditor(text: $systemPrompt)
+                  .font(.system(size: 16, weight: .regular))
+                  .foregroundColor(.oeText)
+                  .scrollContentBackground(.hidden)
+                  .padding(.horizontal, 12)
+                  .padding(.vertical, 10)
+                  .frame(minHeight: 168)
+
+                if systemPrompt.isEmpty {
+                  Text("이 프로젝트에서 항상 적용할 지침을 입력하세요.")
+                    .font(.system(size: 16, weight: .regular))
+                    .foregroundColor(.oeText.opacity(0.35))
+                    .padding(.horizontal, 17)
+                    .padding(.vertical, 18)
+                    .allowsHitTesting(false)
+                }
+              }
+              .background(Color.oeSubtleFill)
+              .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            }
+          }
+        }
+        .padding(.horizontal, 24)
+        .padding(.top, 24)
+        .padding(.bottom, 34)
       }
-      .padding(.horizontal, 24)
-      .padding(.top, 24)
       .background(Color.oeBackground)
       .navigationTitle(target.navigationTitle)
       .navigationBarTitleDisplayMode(.inline)
@@ -3255,8 +3317,13 @@ private struct NativeRenameSheet: View {
     switch target {
     case .session(let id, _):
       store.renameSession(id: id, title: title)
-    case .project(let id, _):
-      store.renameProject(id: id, title: title)
+    case .project(let project):
+      store.updateProject(
+        id: project.id,
+        title: title,
+        iconName: selectedIconName,
+        systemPrompt: systemPrompt
+      )
     }
     dismiss()
   }
@@ -3283,7 +3350,7 @@ private struct NativeProjectCreatorView: View {
     NavigationStack {
       ScrollView(showsIndicators: false) {
         VStack(alignment: .leading, spacing: 26) {
-          NativeProjectCreatorSection(title: "프로젝트 명") {
+          NativeProjectCreatorSection(title: "프로젝트 이름") {
             TextField("예: Atlas", text: $projectTitle)
               .focused($focusedField, equals: .title)
               .font(.system(size: 17, weight: .semibold))

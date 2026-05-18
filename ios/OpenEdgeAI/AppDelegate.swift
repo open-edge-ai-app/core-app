@@ -786,6 +786,7 @@ private final class NativeChatStore: ObservableObject {
   private let currentSettingsSchemaVersion = 2
   private var activeAssistantMessageId: String?
   @Published private var activeRequestSessionId: String?
+  private var lastDynamicIslandSessionId: String?
   private var generationBackgroundTaskIdentifier: UIBackgroundTaskIdentifier = .invalid
   private var dynamicIslandCompletionTask: Task<Void, Never>?
   private let deviceContextProvider = NativeDeviceContextProvider()
@@ -823,6 +824,28 @@ private final class NativeChatStore: ObservableObject {
 
   var activeWritingSessionId: String? {
     isGenerating ? activeRequestSessionId : nil
+  }
+
+  private var dynamicIslandSessionId: String? {
+    if let activeRequestSessionId {
+      return activeRequestSessionId
+    }
+    if dynamicIslandCompletionVisible, let lastDynamicIslandSessionId {
+      return lastDynamicIslandSessionId
+    }
+    if !queuedDrafts.isEmpty {
+      return lastDynamicIslandSessionId ?? selectedSessionId
+    }
+    return selectedSessionId ?? lastDynamicIslandSessionId
+  }
+
+  private var dynamicIslandSessionTitle: String {
+    guard let dynamicIslandSessionId,
+          let session = sessions.first(where: { $0.id == dynamicIslandSessionId })
+    else {
+      return "Open Edge AI"
+    }
+    return session.title
   }
 
   var canRunBackgroundDynamicIsland: Bool {
@@ -894,9 +917,9 @@ private final class NativeChatStore: ObservableObject {
 
     switch phase {
     case .completed:
-      return currentSession?.title ?? "Open Edge AI"
+      return dynamicIslandSessionTitle
     case .generating, .queued:
-      return currentSession?.title ?? selectedModel.title
+      return dynamicIslandSessionTitle
     case .hidden:
       return ""
     }
@@ -906,13 +929,13 @@ private final class NativeChatStore: ObservableObject {
     switch phase {
     case .generating:
       if queuedDrafts.isEmpty {
-        return "현재 대화에서 \(selectedModel.title) 응답을 생성하고 있습니다."
+        return "\(dynamicIslandSessionTitle)에서 \(selectedModel.title) 응답을 생성하고 있습니다."
       }
-      return "현재 응답 생성 후 후속 질문 \(queuedDrafts.count)개를 이어서 실행합니다."
+      return "\(dynamicIslandSessionTitle) 응답 후 후속 질문 \(queuedDrafts.count)개를 이어서 실행합니다."
     case .queued:
-      return "후속 질문 \(queuedDrafts.count)개가 대기열에 있습니다."
+      return "\(dynamicIslandSessionTitle)에 후속 질문 \(queuedDrafts.count)개가 대기 중입니다."
     case .completed:
-      return "마지막 응답이 완료되었습니다."
+      return "\(dynamicIslandSessionTitle) 응답이 완료되었습니다."
     case .hidden:
       return ""
     }
@@ -971,6 +994,12 @@ private final class NativeChatStore: ObservableObject {
 
   func deleteSession(_ session: NativeChatSession) {
     sessions.removeAll { $0.id == session.id }
+    if activeRequestSessionId == session.id {
+      activeRequestSessionId = nil
+    }
+    if lastDynamicIslandSessionId == session.id {
+      lastDynamicIslandSessionId = nil
+    }
     if selectedSessionId == session.id {
       selectedSessionId = sessions.first?.id
     }
@@ -1013,8 +1042,15 @@ private final class NativeChatStore: ObservableObject {
   }
 
   func deleteProject(_ project: NativeProject) {
+    let deletedSessionIds = Set(sessions.filter { $0.projectId == project.id }.map(\.id))
     projects.removeAll { $0.id == project.id }
     sessions.removeAll { $0.projectId == project.id }
+    if let activeRequestSessionId, deletedSessionIds.contains(activeRequestSessionId) {
+      self.activeRequestSessionId = nil
+    }
+    if let lastDynamicIslandSessionId, deletedSessionIds.contains(lastDynamicIslandSessionId) {
+      self.lastDynamicIslandSessionId = nil
+    }
     if let selectedSessionId,
        sessions.contains(where: { $0.id == selectedSessionId }) == false {
       self.selectedSessionId = sessions.sorted { $0.updatedAt > $1.updatedAt }.first?.id
@@ -1148,6 +1184,7 @@ private final class NativeChatStore: ObservableObject {
     let gemmaCancelled = AIEngineGemmaModelClient.shared.cancelActiveGeneration()
 
     if let activeRequestSessionId, let activeAssistantMessageId {
+      lastDynamicIslandSessionId = activeRequestSessionId
       mutateSession(activeRequestSessionId) { session in
         if let index = session.messages.firstIndex(where: { $0.id == activeAssistantMessageId }),
            session.messages[index].text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
@@ -1273,6 +1310,7 @@ private final class NativeChatStore: ObservableObject {
     isGenerating = true
     activeAssistantMessageId = assistantMessage.id
     activeRequestSessionId = sessionId
+    lastDynamicIslandSessionId = sessionId
     statusMessage = nil
     beginGenerationBackgroundTaskIfNeeded()
     showDynamicIslandWork()
@@ -1308,6 +1346,7 @@ private final class NativeChatStore: ObservableObject {
     isGenerating = true
     activeAssistantMessageId = assistantId
     activeRequestSessionId = sessionId
+    lastDynamicIslandSessionId = sessionId
     statusMessage = nil
     beginGenerationBackgroundTaskIfNeeded()
     showDynamicIslandWork()
@@ -1372,6 +1411,7 @@ private final class NativeChatStore: ObservableObject {
     }
 
     isGenerating = false
+    lastDynamicIslandSessionId = sessionId
     activeAssistantMessageId = nil
     activeRequestSessionId = nil
     endGenerationBackgroundTaskIfNeeded()
@@ -1738,6 +1778,7 @@ private final class NativeChatStore: ObservableObject {
       }
       if !self.isGenerating && self.queuedDrafts.isEmpty {
         self.dynamicIslandCompletionVisible = false
+        self.lastDynamicIslandSessionId = nil
         self.syncDynamicIslandLiveActivity()
       }
     }
@@ -1747,6 +1788,9 @@ private final class NativeChatStore: ObservableObject {
     dynamicIslandCompletionTask?.cancel()
     dynamicIslandCompletionTask = nil
     dynamicIslandCompletionVisible = false
+    if !isGenerating && queuedDrafts.isEmpty {
+      lastDynamicIslandSessionId = nil
+    }
   }
 
   private func syncDynamicIslandLiveActivity() {
@@ -1754,7 +1798,7 @@ private final class NativeChatStore: ObservableObject {
     NativeDynamicIslandLiveActivityController.shared.sync(
       enabled: canRunBackgroundDynamicIsland,
       isVisible: showsSystemDynamicIslandActivity,
-      sessionId: selectedSessionId ?? "open-edge-ai",
+      sessionId: dynamicIslandSessionId ?? "open-edge-ai",
       title: state.title,
       subtitle: state.subtitle,
       pet: state.pet.rawValue,

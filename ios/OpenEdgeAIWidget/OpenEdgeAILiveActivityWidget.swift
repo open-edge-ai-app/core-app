@@ -70,23 +70,43 @@ struct OpenEdgeAILiveActivityWidget: Widget {
         OpenEdgeAIIslandIdentity(state: context.state, size: 22)
           .frame(width: 24, height: 24)
       } compactTrailing: {
-        OpenEdgeAIIslandProgressRing(
-          progress: context.state.progress,
-          isActive: context.state.motion == "running",
-          size: 22,
-          lineWidth: 2.6
-        )
-        .frame(width: 24, height: 24)
+        if showsCompactStatusText(for: context.state) {
+          Text(statusText(for: context.state))
+            .font(.system(size: 10, weight: .bold))
+            .foregroundStyle(.white)
+            .lineLimit(1)
+            .minimumScaleFactor(0.7)
+            .frame(width: 34, height: 22)
+        } else {
+          OpenEdgeAIIslandProgressRing(
+            progress: context.state.progress,
+            isActive: context.state.motion == "running",
+            size: 22,
+            lineWidth: 2.6
+          )
+          .frame(width: 24, height: 24)
+        }
       } minimal: {
-        OpenEdgeAIIslandProgressRing(
-          progress: context.state.progress,
-          isActive: context.state.motion == "running",
-          size: 18,
-          lineWidth: 2.2
-        )
-        .frame(width: 18, height: 18)
+        if context.state.progress >= 1 {
+          Image(systemName: "checkmark.circle.fill")
+            .font(.system(size: 15, weight: .bold))
+            .foregroundStyle(.white)
+            .frame(width: 18, height: 18)
+        } else {
+          OpenEdgeAIIslandProgressRing(
+            progress: context.state.progress,
+            isActive: context.state.motion == "running",
+            size: 18,
+            lineWidth: 2.2
+          )
+          .frame(width: 18, height: 18)
+        }
       }
     }
+  }
+
+  private func showsCompactStatusText(for state: OpenEdgeAIDynamicIslandAttributes.ContentState) -> Bool {
+    state.motion != "running" && (state.progress >= 1 || state.queuedCount > 0)
   }
 
   private func statusText(for state: OpenEdgeAIDynamicIslandAttributes.ContentState) -> String {

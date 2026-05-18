@@ -570,7 +570,7 @@ private struct NativeChatSession: Identifiable, Codable, Equatable {
   var messages: [NativeMessage]
 }
 
-private struct NativeProject: Identifiable, Codable, Equatable {
+private struct NativeProject: Identifiable, Codable, Hashable {
   var id: String
   var title: String
   var iconName: String
@@ -2494,7 +2494,7 @@ private struct NativeSessionsView: View {
   @EnvironmentObject private var store: NativeChatStore
   @State private var isSearchPresented = false
   @State private var isProjectCreatorPresented = false
-  @State private var presentedProject: NativeProject?
+  @State private var projectPath: [NativeProject] = []
   @State private var renameTarget: NativeRenameTarget?
 
   private var recentSessions: [NativeChatSession] {
@@ -2522,7 +2522,7 @@ private struct NativeSessionsView: View {
 
       ForEach(store.projects) { project in
         Button {
-          presentedProject = project
+          navigateToProject(project)
         } label: {
           NativeSessionsIconRow(systemImage: project.iconName, title: project.title)
         }
@@ -2536,9 +2536,7 @@ private struct NativeSessionsView: View {
 
           Button(role: .destructive) {
             store.deleteProject(project)
-            if presentedProject?.id == project.id {
-              presentedProject = nil
-            }
+            projectPath.removeAll { $0.id == project.id }
           } label: {
             Label("삭제", systemImage: "trash")
           }
@@ -2590,61 +2588,74 @@ private struct NativeSessionsView: View {
   }
 
   var body: some View {
-    ZStack(alignment: .bottomTrailing) {
-      VStack(alignment: .leading, spacing: 0) {
-        HStack(alignment: .center, spacing: 16) {
-          Image("OpenEdgeLogo")
-            .renderingMode(.template)
-            .resizable()
-            .scaledToFit()
-            .foregroundStyle(Color.oeText)
-            .frame(width: 160, height: 40, alignment: .leading)
-            .accessibilityLabel("Open Edge AI")
+    NavigationStack(path: $projectPath) {
+      ZStack(alignment: .bottomTrailing) {
+        VStack(alignment: .leading, spacing: 0) {
+          HStack(alignment: .center, spacing: 16) {
+            Image("OpenEdgeLogo")
+              .renderingMode(.template)
+              .resizable()
+              .scaledToFit()
+              .foregroundStyle(Color.oeText)
+              .frame(width: 160, height: 40, alignment: .leading)
+              .accessibilityLabel("Open Edge AI")
 
-          Spacer(minLength: 12)
+            Spacer(minLength: 12)
 
-          NativeSessionsSearchPill(
-            onSearchPress: openSearch,
-            onSettingsPress: openSettings
-          )
+            NativeSessionsSearchPill(
+              onSearchPress: openSearch,
+              onSettingsPress: openSettings
+            )
+          }
+          .padding(.horizontal, 30)
+          .padding(.top, 22)
+          .padding(.bottom, 28)
+
+          ScrollView(showsIndicators: false) {
+            sessionsContent
+            .padding(.horizontal, 36)
+            .padding(.bottom, 108)
+          }
+
+          Spacer(minLength: 0)
         }
-        .padding(.horizontal, 30)
-        .padding(.top, 22)
-        .padding(.bottom, 28)
 
-        ScrollView(showsIndicators: false) {
-          sessionsContent
-          .padding(.horizontal, 36)
-          .padding(.bottom, 108)
+        Button {
+          store.createNewSession()
+          close()
+        } label: {
+          HStack(spacing: 6) {
+            Image(systemName: "square.and.pencil")
+              .font(.system(size: 17, weight: .semibold))
+            Text("채팅")
+              .font(.system(size: 15, weight: .bold))
+          }
+          .foregroundColor(store.accentColor.foregroundColor)
+          .padding(.horizontal, 18)
+          .frame(height: 48)
+          .background(store.accentColor.color)
+          .clipShape(Capsule())
+          .shadow(color: Color.black.opacity(0.16), radius: 14, x: 0, y: 8)
         }
-
-        Spacer(minLength: 0)
+        .buttonStyle(.plain)
+        .accessibilityLabel("새 채팅")
+        .padding(.trailing, 26)
+        .padding(.bottom, 26)
       }
-
-      Button {
-        store.createNewSession()
-        close()
-      } label: {
-        HStack(spacing: 6) {
-          Image(systemName: "square.and.pencil")
-            .font(.system(size: 17, weight: .semibold))
-          Text("채팅")
-            .font(.system(size: 15, weight: .bold))
+      .background(Color.oeBackground)
+      .frame(maxWidth: .infinity, maxHeight: .infinity)
+      .navigationDestination(for: NativeProject.self) { project in
+        NativeProjectSessionsPage(project: project) { session in
+          store.selectSession(session)
+          close()
+        } onCreateSession: { project in
+          store.createNewSession(projectId: project.id)
+          close()
         }
-        .foregroundColor(store.accentColor.foregroundColor)
-        .padding(.horizontal, 18)
-        .frame(height: 48)
-        .background(store.accentColor.color)
-        .clipShape(Capsule())
-        .shadow(color: Color.black.opacity(0.16), radius: 14, x: 0, y: 8)
+        .environmentObject(store)
       }
-      .buttonStyle(.plain)
-      .accessibilityLabel("새 채팅")
-      .padding(.trailing, 26)
-      .padding(.bottom, 26)
+      .toolbar(.hidden, for: .navigationBar)
     }
-    .background(Color.oeBackground)
-    .frame(maxWidth: .infinity, maxHeight: .infinity)
     .sheet(isPresented: $isProjectCreatorPresented) {
       NativeProjectCreatorView()
         .environmentObject(store)
@@ -2656,24 +2667,11 @@ private struct NativeSessionsView: View {
         store.selectSession(session)
         close()
       } onSelectProject: { project in
-        presentedProject = project
+        navigateToProject(project)
       }
       .environmentObject(store)
       .presentationDetents([.large])
       .presentationDragIndicator(.visible)
-    }
-    .sheet(item: $presentedProject) { project in
-      NativeProjectSessionsSheet(project: project) { session in
-        store.selectSession(session)
-        close()
-      } onCreateSession: { project in
-        store.createNewSession(projectId: project.id)
-        close()
-      }
-      .environmentObject(store)
-      .presentationDetents([.medium, .large])
-      .presentationDragIndicator(.visible)
-      .presentationCornerRadius(28)
     }
     .sheet(item: $renameTarget) { target in
       NativeRenameSheet(target: target)
@@ -2704,110 +2702,106 @@ private struct NativeSessionsView: View {
   private func openSearch() {
     isSearchPresented = true
   }
+
+  private func navigateToProject(_ project: NativeProject) {
+    projectPath = [project]
+  }
 }
 
-private struct NativeProjectSessionsSheet: View {
-  @Environment(\.dismiss) private var dismiss
+private struct NativeProjectSessionsPage: View {
   @EnvironmentObject private var store: NativeChatStore
   var project: NativeProject
   var onSelectSession: (NativeChatSession) -> Void
   var onCreateSession: (NativeProject) -> Void
   @State private var renameTarget: NativeRenameTarget?
 
+  private var currentProject: NativeProject {
+    store.projects.first { $0.id == project.id } ?? project
+  }
+
   private var projectSessions: [NativeChatSession] {
     store.sessions
-      .filter { $0.projectId == project.id }
+      .filter { $0.projectId == currentProject.id }
       .sorted { $0.updatedAt > $1.updatedAt }
   }
 
   var body: some View {
-    NavigationStack {
-      ZStack(alignment: .bottomTrailing) {
-        ScrollView(showsIndicators: false) {
-          VStack(alignment: .leading, spacing: 26) {
-            projectHeader
+    ZStack(alignment: .bottomTrailing) {
+      ScrollView(showsIndicators: false) {
+        VStack(alignment: .leading, spacing: 26) {
+          projectHeader
 
-            NativeSessionsSection(title: "채팅") {
-              if projectSessions.isEmpty {
-                Text("프로젝트에 채팅이 없습니다")
-                  .font(.system(size: 15, weight: .medium))
-                  .foregroundColor(.oeMutedText)
-                  .padding(.vertical, 6)
-              } else {
-                VStack(alignment: .leading, spacing: 2) {
-                  ForEach(projectSessions) { session in
+          NativeSessionsSection(title: "채팅") {
+            if projectSessions.isEmpty {
+              Text("프로젝트에 채팅이 없습니다")
+                .font(.system(size: 15, weight: .medium))
+                .foregroundColor(.oeMutedText)
+                .padding(.vertical, 6)
+            } else {
+              VStack(alignment: .leading, spacing: 2) {
+                ForEach(projectSessions) { session in
+                  Button {
+                    onSelectSession(session)
+                  } label: {
+                    NativeSessionListRow(
+                      title: session.title,
+                      isWriting: store.activeWritingSessionId == session.id
+                    )
+                  }
+                  .buttonStyle(.plain)
+                  .contextMenu {
                     Button {
-                      dismiss()
-                      onSelectSession(session)
+                      renameTarget = .session(id: session.id, title: session.title)
                     } label: {
-                      NativeSessionListRow(
-                        title: session.title,
-                        isWriting: store.activeWritingSessionId == session.id
-                      )
+                      Label("이름 변경", systemImage: "pencil")
                     }
-                    .buttonStyle(.plain)
-                    .contextMenu {
-                      Button {
-                        renameTarget = .session(id: session.id, title: session.title)
-                      } label: {
-                        Label("이름 변경", systemImage: "pencil")
-                      }
 
-                      Button(role: .destructive) {
-                        store.deleteSession(session)
-                      } label: {
-                        Label("삭제", systemImage: "trash")
-                      }
+                    Button(role: .destructive) {
+                      store.deleteSession(session)
+                    } label: {
+                      Label("삭제", systemImage: "trash")
                     }
                   }
                 }
               }
             }
           }
-          .padding(.horizontal, 28)
-          .padding(.top, 22)
-          .padding(.bottom, 112)
         }
+        .padding(.horizontal, 28)
+        .padding(.top, 22)
+        .padding(.bottom, 112)
+      }
 
-        Button {
-          dismiss()
-          onCreateSession(project)
-        } label: {
-          HStack(spacing: 6) {
-            Image(systemName: "square.and.pencil")
-              .font(.system(size: 17, weight: .semibold))
-            Text("채팅")
-              .font(.system(size: 15, weight: .bold))
-          }
-          .foregroundColor(store.accentColor.foregroundColor)
-          .padding(.horizontal, 18)
-          .frame(height: 48)
-          .background(store.accentColor.color)
-          .clipShape(Capsule())
-          .shadow(color: Color.black.opacity(0.16), radius: 14, x: 0, y: 8)
+      Button {
+        onCreateSession(currentProject)
+      } label: {
+        HStack(spacing: 6) {
+          Image(systemName: "square.and.pencil")
+            .font(.system(size: 17, weight: .semibold))
+          Text("채팅")
+            .font(.system(size: 15, weight: .bold))
         }
-        .buttonStyle(.plain)
-        .accessibilityLabel("프로젝트 새 채팅")
-        .padding(.trailing, 24)
-        .padding(.bottom, 24)
+        .foregroundColor(store.accentColor.foregroundColor)
+        .padding(.horizontal, 18)
+        .frame(height: 48)
+        .background(store.accentColor.color)
+        .clipShape(Capsule())
+        .shadow(color: Color.black.opacity(0.16), radius: 14, x: 0, y: 8)
       }
-      .background(Color.oeBackground)
-      .navigationTitle(project.title)
-      .navigationBarTitleDisplayMode(.inline)
-      .toolbar {
-        ToolbarItem(placement: .cancellationAction) {
-          Button("닫기") {
-            dismiss()
-          }
-          .foregroundColor(.oeText)
-        }
-      }
-      .sheet(item: $renameTarget) { target in
-        NativeRenameSheet(target: target)
-          .environmentObject(store)
-          .presentationDetents([.medium])
-          .presentationDragIndicator(.visible)
-      }
+      .buttonStyle(.plain)
+      .accessibilityLabel("프로젝트 새 채팅")
+      .padding(.trailing, 24)
+      .padding(.bottom, 24)
+    }
+    .background(Color.oeBackground)
+    .navigationTitle(currentProject.title)
+    .navigationBarTitleDisplayMode(.inline)
+    .toolbar(.visible, for: .navigationBar)
+    .sheet(item: $renameTarget) { target in
+      NativeRenameSheet(target: target)
+        .environmentObject(store)
+        .presentationDetents([.medium])
+        .presentationDragIndicator(.visible)
     }
   }
 
@@ -2824,13 +2818,13 @@ private struct NativeProjectSessionsSheet: View {
               .fill(Color.oeText)
               .frame(width: 62, height: 52)
 
-            Image(systemName: project.iconName)
+            Image(systemName: currentProject.iconName)
               .font(.system(size: 25, weight: .semibold))
               .foregroundColor(Color.oeBackground)
           }
 
           VStack(alignment: .leading, spacing: 5) {
-            Text(project.title)
+            Text(currentProject.title)
               .font(.system(size: 24, weight: .bold))
               .foregroundColor(.oeText)
               .lineLimit(1)
@@ -2844,8 +2838,8 @@ private struct NativeProjectSessionsSheet: View {
         .padding(.bottom, 18)
       }
 
-      if !project.systemPrompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-        Text(project.systemPrompt)
+      if !currentProject.systemPrompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+        Text(currentProject.systemPrompt)
           .font(.system(size: 13, weight: .regular))
           .foregroundColor(.oeMutedText)
           .lineLimit(2)

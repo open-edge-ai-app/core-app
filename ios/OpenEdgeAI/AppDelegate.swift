@@ -3503,23 +3503,6 @@ private struct NativeSettingsView: View {
     NavigationStack {
       List {
         Section {
-          VStack(alignment: .leading, spacing: 8) {
-            Image("OpenEdgeLogo")
-              .renderingMode(.template)
-              .resizable()
-              .scaledToFit()
-              .foregroundStyle(Color.oeText)
-              .frame(width: 164, height: 42, alignment: .leading)
-              .accessibilityLabel("Open Edge AI")
-
-            Text("iOS native")
-              .font(.system(size: 13))
-              .foregroundColor(.oeMutedText)
-          }
-          .padding(.vertical, 2)
-        }
-
-        Section("설정") {
           NavigationLink {
             NativeGeneralSettingsView()
           } label: {
@@ -3571,8 +3554,18 @@ private struct NativeSettingsView: View {
           }
         }
       }
-      .navigationTitle("설정")
+      .navigationBarTitleDisplayMode(.inline)
       .toolbar {
+        ToolbarItem(placement: .principal) {
+          Image("OpenEdgeLogo")
+            .renderingMode(.template)
+            .resizable()
+            .scaledToFit()
+            .foregroundStyle(Color.oeText)
+            .frame(width: 138, height: 34)
+            .accessibilityLabel("Open Edge AI")
+        }
+
         ToolbarItem(placement: .confirmationAction) {
           Button("완료") {
             store.saveSettings()

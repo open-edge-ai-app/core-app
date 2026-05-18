@@ -476,12 +476,59 @@ private struct NativeAttachment: Identifiable, Codable, Equatable {
   var url: String
 }
 
+private struct NativeSearchSourceReference: Identifiable, Codable, Equatable {
+  var id: String
+  var title: String
+  var url: String
+  var snippet: String
+
+  var host: String {
+    URL(string: url)?.host?.replacingOccurrences(of: "www.", with: "") ?? url
+  }
+}
+
 private struct NativeMessage: Identifiable, Codable, Equatable {
   var id: String
   var role: NativeRole
   var text: String
   var createdAt: Date
   var attachments: [NativeAttachment]
+  var sourceReferences: [NativeSearchSourceReference]
+
+  init(
+    id: String,
+    role: NativeRole,
+    text: String,
+    createdAt: Date,
+    attachments: [NativeAttachment],
+    sourceReferences: [NativeSearchSourceReference] = []
+  ) {
+    self.id = id
+    self.role = role
+    self.text = text
+    self.createdAt = createdAt
+    self.attachments = attachments
+    self.sourceReferences = sourceReferences
+  }
+
+  private enum CodingKeys: String, CodingKey {
+    case id
+    case role
+    case text
+    case createdAt
+    case attachments
+    case sourceReferences
+  }
+
+  init(from decoder: Decoder) throws {
+    let container = try decoder.container(keyedBy: CodingKeys.self)
+    id = try container.decode(String.self, forKey: .id)
+    role = try container.decode(NativeRole.self, forKey: .role)
+    text = try container.decode(String.self, forKey: .text)
+    createdAt = try container.decode(Date.self, forKey: .createdAt)
+    attachments = try container.decodeIfPresent([NativeAttachment].self, forKey: .attachments) ?? []
+    sourceReferences = try container.decodeIfPresent([NativeSearchSourceReference].self, forKey: .sourceReferences) ?? []
+  }
 }
 
 private enum NativeDraftMode: String, Codable, Equatable {
@@ -529,17 +576,33 @@ private struct NativeDraft: Identifiable, Codable, Equatable {
 }
 
 private struct NativeWebSearchSource: Identifiable, Equatable {
-  let id = UUID()
+  let id: String
   let title: String
   let snippet: String
   let url: String
   let pageText: String
+
+  init(title: String, snippet: String, url: String, pageText: String) {
+    self.id = url
+    self.title = title
+    self.snippet = snippet
+    self.url = url
+    self.pageText = pageText
+  }
+
+  var reference: NativeSearchSourceReference {
+    NativeSearchSourceReference(id: id, title: title, url: url, snippet: snippet)
+  }
 }
 
 private struct NativeWebSearchContext: Equatable {
   let query: String
   let sources: [NativeWebSearchSource]
   let errorMessage: String?
+
+  var sourceReferences: [NativeSearchSourceReference] {
+    sources.map(\.reference)
+  }
 
   var promptSection: String {
     var lines = ["Search query: \(query)"]
@@ -551,6 +614,7 @@ private struct NativeWebSearchContext: Equatable {
     if sources.isEmpty {
       lines.append("Search results: none")
     } else {
+      lines.append("Citation format: cite visited pages inline as [1], [2], matching the page numbers below.")
       lines.append("Visited web pages:")
       for (index, source) in sources.enumerated() {
         lines.append("""
@@ -1450,7 +1514,8 @@ private final class NativeChatStore: ObservableObject {
       id: UUID().uuidString,
       text: previousUser.text,
       attachments: previousUser.attachments,
-      createdAt: Date()
+      createdAt: Date(),
+      mode: message.sourceReferences.isEmpty ? .standard : .search
     )
     let historyMessages = Array(session.messages[..<assistantIndex])
 
@@ -1611,6 +1676,7 @@ private final class NativeChatStore: ObservableObject {
 
           self.statusMessage = nil
           self.stopSearchProgress(for: assistantMessage.id, in: sessionId, clearMessage: true)
+          self.applySearchSources(searchContext.sourceReferences, to: assistantMessage.id, in: sessionId)
           let prompt = self.makePrompt(for: sessionId, draft: draft, searchContext: searchContext)
           self.streamResponse(prompt: prompt, assistantId: assistantMessage.id, sessionId: sessionId)
         }
@@ -1637,6 +1703,7 @@ private final class NativeChatStore: ObservableObject {
 
       session.messages[index].text = ""
       session.messages[index].attachments = []
+      session.messages[index].sourceReferences = []
       session.messages[index].createdAt = now
       didResetMessage = true
     }
@@ -1668,6 +1735,7 @@ private final class NativeChatStore: ObservableObject {
 
           self.statusMessage = nil
           self.stopSearchProgress(for: assistantId, in: sessionId, clearMessage: true)
+          self.applySearchSources(searchContext.sourceReferences, to: assistantId, in: sessionId)
           let prompt = self.makePrompt(
             for: sessionId,
             draft: draft,
@@ -1821,6 +1889,16 @@ private final class NativeChatStore: ObservableObject {
     text.contains("동안 검색하는 중...")
   }
 
+  private func applySearchSources(_ sources: [NativeSearchSourceReference], to assistantId: String, in sessionId: String) {
+    mutateSession(sessionId) { session in
+      guard let index = session.messages.firstIndex(where: { $0.id == assistantId }) else {
+        return
+      }
+
+      session.messages[index].sourceReferences = sources
+    }
+  }
+
   private func makePrompt(
     for sessionId: String,
     draft: NativeDraft,
@@ -1866,9 +1944,12 @@ private final class NativeChatStore: ObservableObject {
     if draft.mode == .search {
       sections.append("""
       /search command:
-      The user asked you to improve the answer with search. Use the current request and conversation history to infer what should be searched.
-      Use the search context below as supplemental evidence. If the search results are thin or unavailable, say what could not be verified and still improve the answer using the conversation context.
-      When you use a search result, mention the source title or URL briefly.
+      The user enabled web search. Answer directly using the visited web pages and conversation context.
+      If visited web pages are present, do not apologize for lacking realtime access or say you cannot provide current information.
+      Never write phrases like "제가 현재 시점의 실시간 정보를 직접 제공해 드릴 수는 없지만" when search sources are available.
+      Do not describe the search context as information "provided by the user"; it was gathered by the app.
+      Cite search-backed claims inline with source numbers such as [1] or [2].
+      Keep caveats short and specific only when the visited pages do not contain enough evidence.
       """)
     }
 
@@ -2684,6 +2765,10 @@ private struct NativeMessageView: View {
           .frame(maxWidth: .infinity, alignment: .leading)
           .textSelection(.enabled)
 
+        if !message.sourceReferences.isEmpty {
+          NativeMessageSourcesView(sources: message.sourceReferences)
+        }
+
         HStack(spacing: 16) {
           Button {
             store.copy(message.text)
@@ -2708,6 +2793,85 @@ private struct NativeMessageView: View {
       }
     }
     .frame(maxWidth: .infinity, alignment: message.role == .user ? .trailing : .leading)
+  }
+}
+
+private struct NativeMessageSourcesView: View {
+  @EnvironmentObject private var store: NativeChatStore
+  let sources: [NativeSearchSourceReference]
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 8) {
+      Text("출처")
+        .font(.system(size: max(11, store.fontSizeSetting.bodySize - 4), weight: .semibold))
+        .foregroundColor(.oeSecondaryText)
+
+      VStack(alignment: .leading, spacing: 6) {
+        ForEach(sources.indices, id: \.self) { index in
+          NativeMessageSourceRow(index: index + 1, source: sources[index])
+        }
+      }
+    }
+    .padding(.top, 2)
+    .frame(maxWidth: .infinity, alignment: .leading)
+  }
+}
+
+private struct NativeMessageSourceRow: View {
+  @EnvironmentObject private var store: NativeChatStore
+  let index: Int
+  let source: NativeSearchSourceReference
+
+  var body: some View {
+    Group {
+      if let url = URL(string: source.url) {
+        Link(destination: url) {
+          content
+        }
+      } else {
+        content
+      }
+    }
+    .buttonStyle(.plain)
+  }
+
+  private var content: some View {
+    HStack(alignment: .top, spacing: 8) {
+      Text("[\(index)]")
+        .font(.system(size: 11, weight: .semibold))
+        .foregroundColor(store.accentColor.color)
+        .frame(width: 28, alignment: .leading)
+
+      VStack(alignment: .leading, spacing: 3) {
+        Text(source.title.isEmpty ? source.host : source.title)
+          .font(.system(size: max(12, store.fontSizeSetting.bodySize - 3), weight: .semibold))
+          .foregroundColor(.oeText)
+          .lineLimit(2)
+
+        Text(source.host)
+          .font(.system(size: 11, weight: .medium))
+          .foregroundColor(.oeMutedText)
+          .lineLimit(1)
+
+        if !source.snippet.isEmpty {
+          Text(source.snippet)
+            .font(.system(size: 11))
+            .foregroundColor(.oeSecondaryText)
+            .lineLimit(2)
+        }
+      }
+
+      Spacer(minLength: 6)
+
+      Image(systemName: "arrow.up.right")
+        .font(.system(size: 10, weight: .semibold))
+        .foregroundColor(.oeMutedText)
+        .padding(.top, 2)
+    }
+    .padding(.horizontal, 10)
+    .padding(.vertical, 8)
+    .background(Color.oeSubtleFill)
+    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
   }
 }
 

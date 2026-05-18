@@ -102,20 +102,54 @@ const navTargets = navLinks
   }))
   .filter(item => item.section);
 
-const setActiveNav = () => {
-  let current = navTargets[0];
-
-  navTargets.forEach(item => {
-    if (item.section.getBoundingClientRect().top <= 180) {
-      current = item;
-    }
-  });
-
+const setActiveLink = current => {
   navTargets.forEach(item => {
     item.link.classList.toggle('active', item === current);
   });
 };
 
-setActiveNav();
+const setActiveNav = () => {
+  const hashCurrent = navTargets.find(
+    item => item.link.getAttribute('href') === window.location.hash,
+  );
+
+  if (hashCurrent && window.scrollY < 4) {
+    setActiveLink(hashCurrent);
+    return;
+  }
+
+  let current = navTargets[0];
+  const activationLine = Math.min(window.innerHeight * 0.45, 380);
+
+  navTargets.forEach(item => {
+    if (item.section.getBoundingClientRect().top <= activationLine) {
+      current = item;
+    }
+  });
+
+  setActiveLink(current);
+};
+
+const setActiveHash = () => {
+  const current = navTargets.find(
+    item => item.link.getAttribute('href') === window.location.hash,
+  );
+
+  if (current) {
+    setActiveLink(current);
+    return;
+  }
+
+  setActiveNav();
+};
+
+if (window.location.hash) {
+  requestAnimationFrame(setActiveHash);
+} else {
+  setActiveNav();
+}
+
 window.addEventListener('scroll', setActiveNav, { passive: true });
-window.addEventListener('hashchange', setActiveNav);
+window.addEventListener('hashchange', () =>
+  requestAnimationFrame(setActiveHash),
+);

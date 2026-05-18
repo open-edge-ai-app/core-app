@@ -171,15 +171,33 @@ private struct OpenEdgeAIIslandProgressRing: View {
       Circle()
         .stroke(.white.opacity(0.18), lineWidth: lineWidth)
 
-      Circle()
-        .trim(from: 0, to: clampedProgress)
-        .stroke(
-          .white.opacity(isActive ? 1 : 0.78),
-          style: StrokeStyle(lineWidth: lineWidth, lineCap: .round)
-        )
-        .rotationEffect(.degrees(-90))
+      if isActive {
+        TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { timeline in
+          Circle()
+            .trim(from: 0.05, to: 0.34)
+            .stroke(
+              .white,
+              style: StrokeStyle(lineWidth: lineWidth, lineCap: .round)
+            )
+            .rotationEffect(spinnerRotation(at: timeline.date))
+        }
+      } else {
+        Circle()
+          .trim(from: 0, to: clampedProgress)
+          .stroke(
+            .white.opacity(0.78),
+            style: StrokeStyle(lineWidth: lineWidth, lineCap: .round)
+          )
+          .rotationEffect(.degrees(-90))
+      }
     }
     .frame(width: size, height: size)
+  }
+
+  private func spinnerRotation(at date: Date) -> Angle {
+    let duration = 0.82
+    let elapsed = date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: duration)
+    return .degrees((elapsed / duration) * 360 - 90)
   }
 }
 

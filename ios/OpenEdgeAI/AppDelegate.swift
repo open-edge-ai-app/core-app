@@ -533,6 +533,7 @@ private struct NativeWebSearchSource: Identifiable, Equatable {
   let title: String
   let snippet: String
   let url: String
+  let pageText: String
 }
 
 private struct NativeWebSearchContext: Equatable {
@@ -550,12 +551,14 @@ private struct NativeWebSearchContext: Equatable {
     if sources.isEmpty {
       lines.append("Search results: none")
     } else {
-      lines.append("Search results:")
+      lines.append("Visited web pages:")
       for (index, source) in sources.enumerated() {
         lines.append("""
         \(index + 1). \(source.title)
         URL: \(source.url)
         Snippet: \(source.snippet)
+        Page content:
+        \(source.pageText)
         """)
       }
     }
@@ -567,7 +570,17 @@ private struct NativeWebSearchContext: Equatable {
 private final class NativeWebSearchClient {
   static let shared = NativeWebSearchClient()
 
-  private init() {}
+  private let session: URLSession
+
+  private init() {
+    let configuration = URLSessionConfiguration.ephemeral
+    configuration.timeoutIntervalForRequest = 12
+    configuration.timeoutIntervalForResource = 24
+    configuration.httpAdditionalHeaders = [
+      "User-Agent": "OpenEdgeAI/1.0 iOS WebSearch"
+    ]
+    session = URLSession(configuration: configuration)
+  }
 
   func search(query: String) async -> NativeWebSearchContext {
     let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -579,12 +592,9 @@ private final class NativeWebSearchClient {
       )
     }
 
-    var components = URLComponents(string: "https://api.duckduckgo.com/")
+    var components = URLComponents(string: "https://duckduckgo.com/html/")
     components?.queryItems = [
-      URLQueryItem(name: "q", value: trimmedQuery),
-      URLQueryItem(name: "format", value: "json"),
-      URLQueryItem(name: "no_html", value: "1"),
-      URLQueryItem(name: "skip_disambig", value: "1")
+      URLQueryItem(name: "q", value: trimmedQuery)
     ]
 
     guard let url = components?.url else {
@@ -596,21 +606,13 @@ private final class NativeWebSearchClient {
     }
 
     do {
-      let (data, response) = try await URLSession.shared.data(from: url)
-      if let httpResponse = response as? HTTPURLResponse,
-         !(200..<300).contains(httpResponse.statusCode) {
-        return NativeWebSearchContext(
-          query: trimmedQuery,
-          sources: [],
-          errorMessage: "검색 요청이 실패했습니다. HTTP \(httpResponse.statusCode)"
-        )
-      }
-
-      let decoded = try JSONDecoder().decode(DuckDuckGoResponse.self, from: data)
+      let searchHTML = try await fetchString(from: url)
+      let results = parseSearchResults(from: searchHTML)
+      let sources = await visitPages(results: results, limit: 4)
       return NativeWebSearchContext(
         query: trimmedQuery,
-        sources: decoded.sources(limit: 5),
-        errorMessage: nil
+        sources: sources,
+        errorMessage: sources.isEmpty ? "검색 결과 페이지를 읽지 못했습니다." : nil
       )
     } catch {
       return NativeWebSearchContext(
@@ -621,79 +623,184 @@ private final class NativeWebSearchClient {
     }
   }
 
-  private struct DuckDuckGoResponse: Decodable {
-    let heading: String?
-    let abstractText: String?
-    let abstractURL: String?
-    let relatedTopics: [DuckDuckGoTopic]?
+  private struct SearchResult {
+    let title: String
+    let url: URL
+  }
 
-    private enum CodingKeys: String, CodingKey {
-      case heading = "Heading"
-      case abstractText = "AbstractText"
-      case abstractURL = "AbstractURL"
-      case relatedTopics = "RelatedTopics"
+  private func visitPages(results: [SearchResult], limit: Int) async -> [NativeWebSearchSource] {
+    var sources: [NativeWebSearchSource] = []
+
+    for result in results {
+      if sources.count >= limit {
+        break
+      }
+
+      guard let pageText = try? await fetchPageText(from: result.url),
+            !pageText.isEmpty
+      else {
+        continue
+      }
+
+      sources.append(
+        NativeWebSearchSource(
+          title: result.title,
+          snippet: clipped(pageText, maxLength: 360),
+          url: result.url.absoluteString,
+          pageText: clipped(pageText, maxLength: 2200)
+        )
+      )
     }
 
-    func sources(limit: Int) -> [NativeWebSearchSource] {
-      var results: [NativeWebSearchSource] = []
+    return sources
+  }
 
-      if let abstractText,
-         !abstractText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-        results.append(
-          NativeWebSearchSource(
-            title: heading?.isEmpty == false ? heading! : "DuckDuckGo",
-            snippet: abstractText,
-            url: abstractURL?.isEmpty == false ? abstractURL! : "https://duckduckgo.com/"
-          )
-        )
-      }
+  private func fetchString(from url: URL) async throws -> String {
+    var request = URLRequest(url: url)
+    request.setValue("text/html,application/xhtml+xml", forHTTPHeaderField: "Accept")
+    let (data, response) = try await session.data(for: request)
+    try validate(response: response)
+    return String(data: data, encoding: .utf8)
+      ?? String(data: data, encoding: .isoLatin1)
+      ?? ""
+  }
 
-      for topic in relatedTopics ?? [] {
-        topic.appendSources(to: &results, limit: limit)
-        if results.count >= limit {
-          break
-        }
-      }
+  private func fetchPageText(from url: URL) async throws -> String {
+    var request = URLRequest(url: url)
+    request.setValue("text/html,application/xhtml+xml,text/plain", forHTTPHeaderField: "Accept")
+    let (data, response) = try await session.data(for: request)
+    try validate(response: response)
 
-      return Array(results.prefix(limit))
+    if let httpResponse = response as? HTTPURLResponse,
+       let contentType = httpResponse.value(forHTTPHeaderField: "Content-Type")?.lowercased(),
+       !contentType.contains("text/html"),
+       !contentType.contains("text/plain") {
+      return ""
+    }
+
+    let limitedData = Data(data.prefix(1_500_000))
+    let html = String(data: limitedData, encoding: .utf8)
+      ?? String(data: limitedData, encoding: .isoLatin1)
+      ?? ""
+    return cleanHTML(html)
+  }
+
+  private func validate(response: URLResponse) throws {
+    guard let httpResponse = response as? HTTPURLResponse else {
+      return
+    }
+
+    guard (200..<300).contains(httpResponse.statusCode) else {
+      throw URLError(.badServerResponse)
     }
   }
 
-  private struct DuckDuckGoTopic: Decodable {
-    let text: String?
-    let firstURL: String?
-    let topics: [DuckDuckGoTopic]?
+  private func parseSearchResults(from html: String) -> [SearchResult] {
+    let pattern = #"<a[^>]+class="[^"]*result__a[^"]*"[^>]+href="([^"]+)"[^>]*>(.*?)</a>"#
+    let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive, .dotMatchesLineSeparators])
+    let range = NSRange(html.startIndex..<html.endIndex, in: html)
+    let matches = regex?.matches(in: html, range: range) ?? []
+    var seen = Set<String>()
+    var results: [SearchResult] = []
 
-    private enum CodingKeys: String, CodingKey {
-      case text = "Text"
-      case firstURL = "FirstURL"
-      case topics = "Topics"
-    }
-
-    func appendSources(to results: inout [NativeWebSearchSource], limit: Int) {
-      if results.count >= limit {
-        return
+    for match in matches {
+      guard match.numberOfRanges >= 3,
+            let hrefRange = Range(match.range(at: 1), in: html),
+            let titleRange = Range(match.range(at: 2), in: html),
+            let url = resolvedSearchURL(String(html[hrefRange]))
+      else {
+        continue
       }
 
-      if let text,
-         !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-        let title = text.components(separatedBy: " - ").first ?? "Search result"
-        results.append(
-          NativeWebSearchSource(
-            title: title,
-            snippet: text,
-            url: firstURL?.isEmpty == false ? firstURL! : "https://duckduckgo.com/"
+      let urlString = url.absoluteString
+      guard seen.insert(urlString).inserted else {
+        continue
+      }
+
+      let title = cleanHTML(String(html[titleRange]))
+      guard !title.isEmpty else {
+        continue
+      }
+
+      results.append(SearchResult(title: title, url: url))
+      if results.count >= 8 {
+        break
+      }
+    }
+
+    return results
+  }
+
+  private func resolvedSearchURL(_ href: String) -> URL? {
+    var raw = decodeHTMLEntities(href)
+
+    if raw.hasPrefix("//") {
+      raw = "https:\(raw)"
+    } else if raw.hasPrefix("/") {
+      raw = "https://duckduckgo.com\(raw)"
+    }
+
+    guard let url = URL(string: raw) else {
+      return nil
+    }
+
+    if url.host?.contains("duckduckgo.com") == true,
+       let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
+       let encodedURL = components.queryItems?.first(where: { $0.name == "uddg" })?.value,
+       let destination = URL(string: encodedURL) {
+      return destination
+    }
+
+    return url
+  }
+
+  private func cleanHTML(_ html: String) -> String {
+    var text = html
+    let removalPatterns = [
+      #"(?is)<script\b[^>]*>.*?</script>"#,
+      #"(?is)<style\b[^>]*>.*?</style>"#,
+      #"(?is)<noscript\b[^>]*>.*?</noscript>"#,
+      #"(?is)<svg\b[^>]*>.*?</svg>"#,
+      #"(?is)<!--.*?-->"#
+    ]
+
+    for pattern in removalPatterns {
+      text = text.replacingOccurrences(of: pattern, with: " ", options: .regularExpression)
+    }
+
+    text = text.replacingOccurrences(of: #"<[^>]+>"#, with: " ", options: .regularExpression)
+    text = decodeHTMLEntities(text)
+    return text
+      .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+      .trimmingCharacters(in: .whitespacesAndNewlines)
+  }
+
+  private func decodeHTMLEntities(_ text: String) -> String {
+    guard let data = text.data(using: .utf8),
+          let attributed = try? NSAttributedString(
+            data: data,
+            options: [
+              .documentType: NSAttributedString.DocumentType.html,
+              .characterEncoding: String.Encoding.utf8.rawValue
+            ],
+            documentAttributes: nil
           )
-        )
-      }
-
-      for topic in topics ?? [] {
-        topic.appendSources(to: &results, limit: limit)
-        if results.count >= limit {
-          break
-        }
-      }
+    else {
+      return text
     }
+
+    return attributed.string
+  }
+
+  private func clipped(_ text: String, maxLength: Int) -> String {
+    let cleaned = text
+      .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+      .trimmingCharacters(in: .whitespacesAndNewlines)
+    guard cleaned.count > maxLength else {
+      return cleaned
+    }
+
+    return "\(cleaned.prefix(maxLength))..."
   }
 }
 
@@ -992,6 +1099,7 @@ private final class NativeChatStore: ObservableObject {
   private var activeAssistantMessageId: String?
   @Published private var activeRequestSessionId: String?
   private var generationBackgroundTaskIdentifier: UIBackgroundTaskIdentifier = .invalid
+  private var searchProgressTasks: [String: Task<Void, Never>] = [:]
   private let deviceContextProvider = NativeDeviceContextProvider()
   private let searchFallbackRequestText = "현재 대화 내용을 기반으로 검색해서 내용을 개선해줘."
 
@@ -1354,10 +1462,14 @@ private final class NativeChatStore: ObservableObject {
     let gemmaCancelled = AIEngineGemmaModelClient.shared.cancelActiveGeneration()
 
     if let activeRequestSessionId, let activeAssistantMessageId {
+      stopSearchProgress(for: activeAssistantMessageId, in: activeRequestSessionId, clearMessage: false)
       mutateSession(activeRequestSessionId) { session in
         if let index = session.messages.firstIndex(where: { $0.id == activeAssistantMessageId }),
            session.messages[index].text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
           session.messages[index].text = "응답 생성이 중지되었습니다."
+        } else if let index = session.messages.firstIndex(where: { $0.id == activeAssistantMessageId }),
+                  isSearchProgressText(session.messages[index].text) {
+          session.messages[index].text = "검색이 중지되었습니다."
         }
       }
     }
@@ -1485,6 +1597,7 @@ private final class NativeChatStore: ObservableObject {
 
     if draft.mode == .search {
       statusMessage = "검색 중..."
+      startSearchProgress(assistantId: assistantMessage.id, sessionId: sessionId)
       let searchQuery = makeSearchQuery(for: sessionId, draft: draft)
       Task { [weak self] in
         let searchContext = await NativeWebSearchClient.shared.search(query: searchQuery)
@@ -1497,6 +1610,7 @@ private final class NativeChatStore: ObservableObject {
           }
 
           self.statusMessage = nil
+          self.stopSearchProgress(for: assistantMessage.id, in: sessionId, clearMessage: true)
           let prompt = self.makePrompt(for: sessionId, draft: draft, searchContext: searchContext)
           self.streamResponse(prompt: prompt, assistantId: assistantMessage.id, sessionId: sessionId)
         }
@@ -1540,6 +1654,7 @@ private final class NativeChatStore: ObservableObject {
 
     if draft.mode == .search {
       statusMessage = "검색 중..."
+      startSearchProgress(assistantId: assistantId, sessionId: sessionId)
       let searchQuery = makeSearchQuery(for: sessionId, draft: draft, historyMessages: historyMessages)
       Task { [weak self] in
         let searchContext = await NativeWebSearchClient.shared.search(query: searchQuery)
@@ -1552,6 +1667,7 @@ private final class NativeChatStore: ObservableObject {
           }
 
           self.statusMessage = nil
+          self.stopSearchProgress(for: assistantId, in: sessionId, clearMessage: true)
           let prompt = self.makePrompt(
             for: sessionId,
             draft: draft,
@@ -1601,6 +1717,9 @@ private final class NativeChatStore: ObservableObject {
       guard let index = session.messages.firstIndex(where: { $0.id == assistantId }) else {
         return
       }
+      if isSearchProgressText(session.messages[index].text) {
+        session.messages[index].text = ""
+      }
       session.messages[index].text += chunk
     }
   }
@@ -1609,6 +1728,8 @@ private final class NativeChatStore: ObservableObject {
     guard activeAssistantMessageId == assistantId else {
       return
     }
+
+    stopSearchProgress(for: assistantId, in: sessionId, clearMessage: false)
 
     mutateSession(sessionId) { session in
       guard let index = session.messages.firstIndex(where: { $0.id == assistantId }) else {
@@ -1632,6 +1753,72 @@ private final class NativeChatStore: ObservableObject {
     } else {
       scheduleNextQueuedDraft()
     }
+  }
+
+  private func startSearchProgress(assistantId: String, sessionId: String) {
+    stopSearchProgress(for: assistantId, in: sessionId, clearMessage: false)
+    let startedAt = Date()
+    updateSearchProgress(startedAt: startedAt, assistantId: assistantId, sessionId: sessionId)
+
+    searchProgressTasks[assistantId] = Task { [weak self] in
+      while !Task.isCancelled {
+        try? await Task.sleep(nanoseconds: 1_000_000_000)
+        guard !Task.isCancelled else {
+          break
+        }
+        await MainActor.run { [weak self] in
+          self?.updateSearchProgress(startedAt: startedAt, assistantId: assistantId, sessionId: sessionId)
+        }
+      }
+    }
+  }
+
+  private func stopSearchProgress(for assistantId: String, in sessionId: String, clearMessage: Bool) {
+    searchProgressTasks[assistantId]?.cancel()
+    searchProgressTasks[assistantId] = nil
+
+    guard clearMessage else {
+      return
+    }
+
+    mutateSession(sessionId) { session in
+      guard let index = session.messages.firstIndex(where: { $0.id == assistantId }),
+            isSearchProgressText(session.messages[index].text)
+      else {
+        return
+      }
+
+      session.messages[index].text = ""
+    }
+  }
+
+  private func updateSearchProgress(startedAt: Date, assistantId: String, sessionId: String) {
+    guard activeAssistantMessageId == assistantId,
+          activeRequestSessionId == sessionId,
+          isGenerating
+    else {
+      stopSearchProgress(for: assistantId, in: sessionId, clearMessage: false)
+      return
+    }
+
+    let elapsed = max(0, Int(Date().timeIntervalSince(startedAt)))
+    let minutes = elapsed / 60
+    let seconds = elapsed % 60
+    let progressText = String(format: "%dm %02ds 동안 검색하는 중...", minutes, seconds)
+
+    mutateSession(sessionId) { session in
+      guard let index = session.messages.firstIndex(where: { $0.id == assistantId }),
+            session.messages[index].text.isEmpty || isSearchProgressText(session.messages[index].text)
+      else {
+        return
+      }
+
+      session.messages[index].text = progressText
+    }
+  }
+
+  private func isSearchProgressText(_ text: String) -> Bool {
+    text.contains("동안 검색하는 중...")
   }
 
   private func makePrompt(

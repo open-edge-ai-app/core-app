@@ -781,6 +781,10 @@ private enum NativePromptCompressor {
 private final class NativeWebSearchClient {
   static let shared = NativeWebSearchClient()
 
+  private let defaultSourceLimit = 4
+  private let expandedSourceLimit = 6
+  private let deepSourceLimit = 8
+  private let maxSearchResultCandidates = 14
   private let session: URLSession
 
   private init() {
@@ -819,7 +823,8 @@ private final class NativeWebSearchClient {
     do {
       let searchHTML = try await fetchString(from: url)
       let results = parseSearchResults(from: searchHTML)
-      let sources = await visitPages(results: results, limit: 4)
+      let sourceLimit = sourceLimit(for: trimmedQuery)
+      let sources = await visitPages(results: results, limit: sourceLimit)
       return NativeWebSearchContext(
         query: trimmedQuery,
         sources: sources,
@@ -835,35 +840,49 @@ private final class NativeWebSearchClient {
   }
 
   private struct SearchResult {
+    let rank: Int
     let title: String
     let url: URL
   }
 
   private func visitPages(results: [SearchResult], limit: Int) async -> [NativeWebSearchSource] {
-    var sources: [NativeWebSearchSource] = []
+    let candidateResults = Array(results.prefix(min(results.count, max(limit + 4, limit * 2))))
 
-    for result in results {
-      if sources.count >= limit {
-        break
+    return await withTaskGroup(of: (rank: Int, source: NativeWebSearchSource)?.self) { group in
+      for result in candidateResults {
+        group.addTask { [weak self] in
+          guard let self,
+                let pageText = try? await self.fetchPageText(from: result.url),
+                !pageText.isEmpty
+          else {
+            return nil
+          }
+
+          return (
+            rank: result.rank,
+            source: NativeWebSearchSource(
+              title: result.title,
+              snippet: self.clipped(pageText, maxLength: 360),
+              url: result.url.absoluteString,
+              pageText: self.clipped(pageText, maxLength: 2_000)
+            )
+          )
+        }
       }
 
-      guard let pageText = try? await fetchPageText(from: result.url),
-            !pageText.isEmpty
-      else {
-        continue
+      var rankedSources: [(rank: Int, source: NativeWebSearchSource)] = []
+      for await result in group {
+        guard let result else {
+          continue
+        }
+        rankedSources.append(result)
       }
 
-      sources.append(
-        NativeWebSearchSource(
-          title: result.title,
-          snippet: clipped(pageText, maxLength: 360),
-          url: result.url.absoluteString,
-          pageText: clipped(pageText, maxLength: 2_000)
-        )
-      )
+      return rankedSources
+        .sorted { $0.rank < $1.rank }
+        .prefix(limit)
+        .map(\.source)
     }
-
-    return sources
   }
 
   private func fetchString(from url: URL) async throws -> String {
@@ -933,13 +952,35 @@ private final class NativeWebSearchClient {
         continue
       }
 
-      results.append(SearchResult(title: title, url: url))
-      if results.count >= 8 {
+      results.append(SearchResult(rank: results.count, title: title, url: url))
+      if results.count >= maxSearchResultCandidates {
         break
       }
     }
 
     return results
+  }
+
+  private func sourceLimit(for query: String) -> Int {
+    let normalized = query.lowercased()
+    let deepSignals = [
+      "비교", "비교해", "여러", "다양한", "종합", "리서치", "연구", "논문", "근거",
+      "출처", "sources", "compare", "research", "papers", "evidence"
+    ]
+    let expandedSignals = [
+      "최신", "최근", "오늘", "현재", "뉴스", "가격", "주가", "일정", "법", "규정",
+      "latest", "recent", "today", "current", "news", "price", "stock", "schedule"
+    ]
+
+    if deepSignals.contains(where: { normalized.contains($0) }) {
+      return deepSourceLimit
+    }
+
+    if expandedSignals.contains(where: { normalized.contains($0) }) {
+      return expandedSourceLimit
+    }
+
+    return defaultSourceLimit
   }
 
   private func resolvedSearchURL(_ href: String) -> URL? {

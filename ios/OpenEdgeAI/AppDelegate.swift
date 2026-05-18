@@ -2859,17 +2859,17 @@ private struct NativeProjectSessionsPage: View {
   }
 
   private var titleHeader: some View {
-    HStack(alignment: .center, spacing: 16) {
+    HStack(alignment: .center, spacing: 12) {
       Image(systemName: currentProject.iconName)
-        .font(.system(size: 27, weight: .semibold))
+        .font(.system(size: 21, weight: .semibold))
         .foregroundColor(store.accentColor.color)
-        .frame(width: 42, height: 42)
+        .frame(width: 30, height: 30)
 
       Text(currentProject.title)
-        .font(.system(size: 34, weight: .regular))
+        .font(.system(size: 26, weight: .regular))
         .foregroundColor(.oeText)
         .lineLimit(2)
-        .minimumScaleFactor(0.78)
+        .minimumScaleFactor(0.82)
     }
   }
 

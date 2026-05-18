@@ -6,11 +6,11 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/open-edge-ai-app/open-edge-ai.git"
+    "url": "https://github.com/open-edge-ai-app/core-app.git"
   },
-  "homepage": "https://github.com/open-edge-ai-app/open-edge-ai#readme",
+  "homepage": "https://github.com/open-edge-ai-app/core-app#readme",
   "bugs": {
-    "url": "https://github.com/open-edge-ai-app/open-edge-ai/issues"
+    "url": "https://github.com/open-edge-ai-app/core-app/issues"
   },
   "keywords": [
     "ai",

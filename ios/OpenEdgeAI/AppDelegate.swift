@@ -2089,13 +2089,9 @@ private struct NativeEmptyChatView: View {
   @EnvironmentObject private var store: NativeChatStore
 
   var body: some View {
-    VStack(alignment: .leading, spacing: 12) {
-      Text("Open Edge AI")
-        .font(.system(size: store.fontSizeSetting.bodySize + 12, weight: .bold))
-      Text("기기 안에서 실행되는 AI와 대화를 시작하세요.")
-        .font(.system(size: store.fontSizeSetting.bodySize))
-        .foregroundColor(.oeSecondaryText)
-    }
+    Text("안녕하세요, 무엇을 도와드릴까요?")
+      .font(.system(size: store.fontSizeSetting.bodySize + 5, weight: .semibold))
+      .foregroundColor(.oeText)
     .frame(maxWidth: .infinity, alignment: .leading)
   }
 }

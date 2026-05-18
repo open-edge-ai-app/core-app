@@ -11,6 +11,25 @@ data class VectorRecord(
     val metadata: String? = null,
 )
 
+data class VectorSearchResult(
+    val record: VectorRecord,
+    val score: Float,
+)
+
+data class DocumentCatalogRecord(
+    val documentId: String,
+    val uri: String,
+    val name: String,
+    val mimeType: String?,
+    val size: Long,
+    val modifiedAt: Long,
+    val relativePath: String?,
+    val accessMode: String,
+    val fingerprint: String,
+    val preview: String,
+    val indexedAt: Long,
+)
+
 data class ChatRecord(
     val id: String,
     val title: String,
@@ -53,8 +72,45 @@ class VectorDao(
         return dbHelper.search(queryEmbedding, limit)
     }
 
+    fun searchWithScores(queryEmbedding: FloatArray, limit: Int): List<VectorSearchResult> {
+        return dbHelper.searchWithScores(queryEmbedding, limit)
+    }
+
     fun deleteBySource(source: String): Int {
         return dbHelper.deleteBySource(source)
+    }
+
+    fun upsertDocument(record: DocumentCatalogRecord): Long {
+        return dbHelper.upsertDocument(record)
+    }
+
+    fun getDocument(documentId: String): DocumentCatalogRecord? {
+        return dbHelper.getDocument(documentId)
+    }
+
+    fun getDocumentFingerprint(documentId: String): String? {
+        return dbHelper.getDocumentFingerprint(documentId)
+    }
+
+    fun getCachedDocumentExcerpt(
+        documentId: String,
+        fingerprint: String,
+        querySignature: String,
+    ): String? {
+        return dbHelper.getCachedDocumentExcerpt(documentId, fingerprint, querySignature)
+    }
+
+    fun upsertDocumentExcerptCache(
+        documentId: String,
+        fingerprint: String,
+        querySignature: String,
+        excerpt: String,
+    ): Long {
+        return dbHelper.upsertDocumentExcerptCache(documentId, fingerprint, querySignature, excerpt)
+    }
+
+    fun pruneDocumentExcerptCache(olderThanMillis: Long): Int {
+        return dbHelper.pruneDocumentExcerptCache(olderThanMillis)
     }
 
     fun upsertChatSession(

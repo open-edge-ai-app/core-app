@@ -197,6 +197,7 @@ type AIEngineNativeModule = {
     enabled: boolean,
   ) => Promise<IndexingResult>;
   deleteIndexingSource?: (source: IndexingSource) => Promise<IndexingResult>;
+  addDocumentFolder?: () => Promise<IndexingResult>;
   saveChatSession?: (
     sessionId: string,
     title: string,
@@ -1000,6 +1001,14 @@ export const AIEngine = {
   async deleteIndexingSource(source: IndexingSource): Promise<IndexingResult> {
     if (nativeModule?.deleteIndexingSource) {
       return nativeModule.deleteIndexingSource(source);
+    }
+
+    throw new Error(`AIEngine native module is not linked on ${Platform.OS}.`);
+  },
+
+  async addDocumentFolder(): Promise<IndexingResult> {
+    if (nativeModule?.addDocumentFolder) {
+      return nativeModule.addDocumentFolder();
     }
 
     throw new Error(`AIEngine native module is not linked on ${Platform.OS}.`);

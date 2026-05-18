@@ -22,6 +22,12 @@ data class WebSearchContext(
     val maskedTypes: List<String>,
     val resultsText: String,
     val configured: Boolean,
+    val sources: List<WebSource> = emptyList(),
+)
+
+data class WebSource(
+    val title: String,
+    val url: String,
 )
 
 private data class WebSearchResult(
@@ -29,6 +35,11 @@ private data class WebSearchResult(
     val url: String,
     val description: String,
     val date: String? = null,
+)
+
+private data class WebSearchAggregate(
+    val text: String,
+    val sources: List<WebSource>,
 )
 
 private data class WebPageDetail(
@@ -71,8 +82,8 @@ class WebSearchManager(
         val usedLlmSanitized = useLocalLlmSanitizer &&
             sanitizedQueries.any { candidate -> candidate != fallbackQuery }
 
-        val results = if (queryRemoved) {
-            WEB_SEARCH_QUERY_REDACTED_MESSAGE
+        val aggregate = if (queryRemoved) {
+            WebSearchAggregate(text = WEB_SEARCH_QUERY_REDACTED_MESSAGE, sources = emptyList())
         } else {
             runCatching {
                 searchAllQueries(
@@ -81,7 +92,10 @@ class WebSearchManager(
                 )
             }
                 .getOrElse { error ->
-                    "Web search request failed: ${error.message ?: error.javaClass.simpleName}"
+                    WebSearchAggregate(
+                        text = "Web search request failed: ${error.message ?: error.javaClass.simpleName}",
+                        sources = emptyList(),
+                    )
                 }
         }
 
@@ -90,8 +104,9 @@ class WebSearchManager(
             privacyMasked = firstPass.changed || finalPasses.any { pass -> pass.changed } || queryRemoved,
             llmSanitized = usedLlmSanitized,
             maskedTypes = maskedTypes,
-            resultsText = results,
+            resultsText = aggregate.text,
             configured = !queryRemoved,
+            sources = aggregate.sources,
         )
     }
 
@@ -179,7 +194,7 @@ class WebSearchManager(
     private fun searchAllQueries(
         originalQuestion: String,
         queries: List<String>,
-    ): String {
+    ): WebSearchAggregate {
         val results = searchQueriesInParallel(queries)
             .distinctBy { result -> result.url.normalizeUrlForDedupe() }
             .take(WEB_SEARCH_CANDIDATE_LIMIT)
@@ -187,12 +202,25 @@ class WebSearchManager(
             question = originalQuestion,
             results = results,
         )
-        return listOf(
+        val text = listOf(
             formatSearchResults(results, fallbackDate = null),
             formatPageDetails(pageDetails),
         )
             .filter { section -> section.isNotBlank() }
             .joinToString(separator = "\n\n")
+
+        val openedUrls = pageDetails.map { detail -> detail.url.normalizeUrlForDedupe() }.toSet()
+        val sources = buildList {
+            pageDetails.forEach { detail ->
+                add(WebSource(title = detail.title.ifBlank { detail.url }, url = detail.url))
+            }
+            results.forEach { result ->
+                if (result.url.normalizeUrlForDedupe() !in openedUrls) {
+                    add(WebSource(title = result.title.ifBlank { result.url }, url = result.url))
+                }
+            }
+        }
+        return WebSearchAggregate(text = text, sources = sources)
     }
 
     private fun fetchSelectedPageDetails(

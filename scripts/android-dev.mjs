@@ -5,12 +5,13 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const appId = 'com.openedgeai';
-const activity = 'com.openedgeai/.MainActivity';
+const activity = `${appId}/.MainActivity`;
 const defaultMetroPort = process.env.OPEN_EDGE_METRO_PORT ?? '8082';
 const deviceMetroPort = defaultMetroPort;
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 const projectRoot = resolve(scriptDir, '..');
 const androidRoot = resolve(projectRoot, 'android');
+const gradleWrapper = process.platform === 'win32' ? 'gradlew.bat' : './gradlew';
 
 const command = process.argv[2] ?? 'install';
 
@@ -77,7 +78,7 @@ const startActivity = serial => {
 
 const installDebug = () => {
   run(
-    './gradlew',
+    gradleWrapper,
     [
       ':app:installDebug',
       `-PreactNativeDevServerPort=${defaultMetroPort}`,

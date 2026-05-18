@@ -2788,8 +2788,6 @@ private struct NativeProjectSessionsPage: View {
         project: currentProject,
         showingFileImporter: $showingFileImporter
       )
-      .padding(.horizontal, 26)
-      .padding(.bottom, 22)
     }
     .background(Color.oeBackground.ignoresSafeArea())
     .toolbar(.hidden, for: .navigationBar)
@@ -2802,60 +2800,53 @@ private struct NativeProjectSessionsPage: View {
   }
 
   private var topBar: some View {
-    HStack(spacing: 14) {
+    HStack(spacing: 12) {
       Button {
         dismiss()
       } label: {
         Image(systemName: "line.3.horizontal")
-          .font(.system(size: 22, weight: .semibold))
-          .foregroundColor(.oeText)
-          .frame(width: 56, height: 56)
-          .background(Color.oeSurface)
-          .clipShape(Circle())
-          .shadow(color: Color.black.opacity(0.08), radius: 18, x: 0, y: 10)
+          .font(.system(size: 18, weight: .semibold))
+          .frame(width: 36, height: 36)
       }
       .buttonStyle(.plain)
       .accessibilityLabel("프로젝트 목록")
 
-      Text(currentProject.title)
-        .font(.system(size: 19, weight: .semibold))
-        .foregroundColor(.oeText)
-        .lineLimit(1)
-        .padding(.horizontal, 22)
-        .frame(height: 56)
-        .background(Color.oeSurface)
-        .clipShape(Capsule())
-        .shadow(color: Color.black.opacity(0.08), radius: 18, x: 0, y: 10)
-
-      Spacer(minLength: 6)
-
-      HStack(spacing: 18) {
-        Button {
-          store.copy(currentProject.title)
-        } label: {
-          Image(systemName: "square.and.arrow.up")
-            .font(.system(size: 22, weight: .semibold))
-            .foregroundColor(.oeText)
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel("프로젝트 공유")
-
-        Button {
-          renameTarget = .project(currentProject)
-        } label: {
-          Image(systemName: "ellipsis")
-            .font(.system(size: 24, weight: .bold))
-            .foregroundColor(.oeText)
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel("프로젝트 설정")
+      Button {
+        renameTarget = .project(currentProject)
+      } label: {
+        Text(currentProject.title)
+          .font(.system(size: 15, weight: .semibold))
+          .lineLimit(1)
       }
-      .padding(.horizontal, 20)
-      .frame(height: 56)
-      .background(Color.oeSurface)
-      .clipShape(Capsule())
-      .shadow(color: Color.black.opacity(0.08), radius: 18, x: 0, y: 10)
+      .buttonStyle(.plain)
+
+      Spacer(minLength: 8)
+
+      Button {
+        store.copy(currentProject.title)
+      } label: {
+        Image(systemName: "square.and.arrow.up")
+          .font(.system(size: 18, weight: .semibold))
+          .frame(width: 36, height: 36)
+      }
+      .buttonStyle(.plain)
+      .accessibilityLabel("프로젝트 공유")
+
+      Button {
+        renameTarget = .project(currentProject)
+      } label: {
+        Image(systemName: "ellipsis")
+          .font(.system(size: 22, weight: .bold))
+          .frame(width: 36, height: 36)
+      }
+      .buttonStyle(.plain)
+      .accessibilityLabel("프로젝트 설정")
     }
+    .foregroundColor(.oeText)
+    .padding(.horizontal, 16)
+    .padding(.top, 6)
+    .padding(.bottom, 8)
+    .background(Color.oeBackground)
   }
 
   private var titleHeader: some View {
@@ -3012,56 +3003,102 @@ private struct NativeProjectComposerBar: View {
   @Binding var showingFileImporter: Bool
   @FocusState private var focused: Bool
 
-  private var trailingImageName: String {
-    if store.isGenerating && !store.canSend {
-      return "stop.fill"
-    }
-    return store.canSend ? "arrow.up" : "waveform"
+  private var editorHeight: CGFloat {
+    let lineCount = max(1, store.inputText.components(separatedBy: .newlines).count)
+    return min(CGFloat(lineCount) * 20 + 22, 82)
   }
 
   var body: some View {
-    HStack(spacing: 12) {
-      Button {
-        showingFileImporter = true
-      } label: {
-        Image(systemName: "plus")
-          .font(.system(size: 24, weight: .regular))
-          .foregroundColor(.oeText)
-          .frame(width: 32, height: 32)
+    VStack(spacing: 8) {
+      if !store.queuedDrafts.isEmpty {
+        NativeQueueView()
       }
-      .buttonStyle(.plain)
-      .accessibilityLabel("파일 첨부")
 
-      TextField("\(project.title)에 메시지...", text: $store.inputText)
-        .focused($focused)
-        .font(.system(size: 16, weight: .regular))
-        .foregroundColor(.oeText)
-        .textInputAutocapitalization(.sentences)
-        .submitLabel(.send)
-        .onSubmit(send)
-
-      Image(systemName: "mic")
-        .font(.system(size: 22, weight: .semibold))
-        .foregroundColor(.oeMutedText)
-        .accessibilityHidden(true)
-
-      Button(action: send) {
-        Image(systemName: trailingImageName)
-          .font(.system(size: 19, weight: .bold))
-          .foregroundColor(.oeControlText)
-          .frame(width: 44, height: 44)
-          .background(Color.oeControlFill)
-          .clipShape(Circle())
+      if !store.pendingAttachments.isEmpty {
+        ScrollView(.horizontal, showsIndicators: false) {
+          HStack(spacing: 8) {
+            ForEach(store.pendingAttachments) { attachment in
+              HStack(spacing: 6) {
+                Text(attachment.name)
+                  .lineLimit(1)
+                Button {
+                  store.removePendingAttachment(attachment)
+                } label: {
+                  Image(systemName: "xmark")
+                }
+              }
+              .font(.system(size: 12, weight: .medium))
+              .foregroundColor(store.accentColor.color)
+              .padding(.horizontal, 10)
+              .padding(.vertical, 7)
+              .background(store.accentColor.subtleColor)
+              .clipShape(Capsule())
+            }
+          }
+        }
       }
-      .buttonStyle(.plain)
-      .accessibilityLabel(store.isGenerating && !store.canSend ? "응답 중지" : "메시지 보내기")
+
+      VStack(spacing: 6) {
+        ZStack(alignment: .topLeading) {
+          TextEditor(text: $store.inputText)
+            .font(.system(size: store.fontSizeSetting.inputSize))
+            .foregroundColor(.oeText)
+            .tint(store.accentColor.color)
+            .focused($focused)
+            .scrollContentBackground(.hidden)
+            .background(Color.clear)
+            .frame(height: editorHeight)
+
+          if store.inputText.isEmpty {
+            Text("\(project.title)에 메시지...")
+              .font(.system(size: store.fontSizeSetting.inputSize))
+              .foregroundColor(.oeText.opacity(0.35))
+              .padding(.top, 8)
+              .padding(.leading, 5)
+              .allowsHitTesting(false)
+          }
+        }
+
+        HStack(spacing: 6) {
+          Button {
+            showingFileImporter = true
+          } label: {
+            Image(systemName: "paperclip")
+              .font(.system(size: 17, weight: .semibold))
+              .foregroundColor(store.accentColor.color)
+              .frame(width: 34, height: 30)
+          }
+          .buttonStyle(.plain)
+          .accessibilityLabel("파일 첨부")
+
+          Spacer(minLength: 8)
+
+          Button(action: send) {
+            Image(systemName: store.isGenerating && !store.canSend ? "stop.fill" : "arrow.up")
+              .font(.system(size: 15, weight: .bold))
+              .foregroundColor(store.accentColor.foregroundColor)
+              .frame(width: 32, height: 32)
+              .background(store.accentColor.color)
+              .clipShape(Circle())
+          }
+          .buttonStyle(.plain)
+          .disabled(!store.isGenerating && !store.canSend)
+          .opacity(!store.isGenerating && !store.canSend ? 0.35 : 1)
+          .accessibilityLabel(store.isGenerating && !store.canSend ? "응답 중지" : "메시지 보내기")
+        }
+      }
+      .padding(.horizontal, 10)
+      .padding(.top, 6)
+      .padding(.bottom, 6)
+      .background(Color.oeSurface)
+      .overlay(
+        RoundedRectangle(cornerRadius: 22, style: .continuous)
+          .stroke(store.accentColor.color.opacity(focused ? 0.42 : 0.18), lineWidth: focused ? 1.4 : 1)
+      )
+      .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
     }
-    .padding(.leading, 16)
-    .padding(.trailing, 8)
-    .frame(height: 62)
-    .background(Color.oeSurface)
-    .clipShape(Capsule())
-    .shadow(color: Color.black.opacity(0.10), radius: 24, x: 0, y: 12)
+    .padding(.horizontal, 10)
+    .padding(.bottom, 6)
   }
 
   private func send() {

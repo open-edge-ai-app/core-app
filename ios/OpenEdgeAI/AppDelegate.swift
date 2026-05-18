@@ -1066,6 +1066,11 @@ private final class NativeChatStore: ObservableObject {
     send(draft)
   }
 
+  func sendCurrentInput(projectId: String) {
+    selectProjectSessionForInput(projectId: projectId)
+    sendCurrentInput()
+  }
+
   func removeQueuedDraft(_ draft: NativeDraft) {
     queuedDrafts.removeAll { $0.id == draft.id }
     if queuedDrafts.isEmpty && !isGenerating {
@@ -1088,6 +1093,27 @@ private final class NativeChatStore: ObservableObject {
     }
     let next = queuedDrafts.removeFirst()
     send(next)
+  }
+
+  private func selectProjectSessionForInput(projectId: String) {
+    if let selectedSessionId,
+       sessions.first(where: { $0.id == selectedSessionId })?.projectId == projectId {
+      return
+    }
+
+    if let existingSession = sessions
+      .filter({ $0.projectId == projectId })
+      .sorted(by: { $0.updatedAt > $1.updatedAt })
+      .first {
+      selectedSessionId = existingSession.id
+      return
+    }
+
+    let currentInput = inputText
+    let currentAttachments = pendingAttachments
+    createNewSession(projectId: projectId)
+    inputText = currentInput
+    pendingAttachments = currentAttachments
   }
 
   func retry(message: NativeMessage) {
@@ -1799,11 +1825,12 @@ private struct NativeRootView: View {
       if showingSessions {
         NativeSessionsView(
           isPresented: $showingSessions,
-          showingSettings: $showingSettings
+          showingSettings: $showingSettings,
+          showingFileImporter: $showingFileImporter
         )
           .environmentObject(store)
           .transition(.move(edge: .leading))
-          .zIndex(1)
+          .zIndex(4)
       }
     }
     .animation(.easeOut(duration: 0.24), value: showingSessions)
@@ -2491,6 +2518,7 @@ private struct NativeQueueView: View {
 private struct NativeSessionsView: View {
   @Binding var isPresented: Bool
   @Binding var showingSettings: Bool
+  @Binding var showingFileImporter: Bool
   @EnvironmentObject private var store: NativeChatStore
   @State private var isSearchPresented = false
   @State private var isProjectCreatorPresented = false
@@ -2645,11 +2673,11 @@ private struct NativeSessionsView: View {
       .background(Color.oeBackground)
       .frame(maxWidth: .infinity, maxHeight: .infinity)
       .navigationDestination(for: NativeProject.self) { project in
-        NativeProjectSessionsPage(project: project) { session in
+        NativeProjectSessionsPage(
+          project: project,
+          showingFileImporter: $showingFileImporter
+        ) { session in
           store.selectSession(session)
-          close()
-        } onCreateSession: { project in
-          store.createNewSession(projectId: project.id)
           close()
         }
         .environmentObject(store)
@@ -2708,11 +2736,18 @@ private struct NativeSessionsView: View {
   }
 }
 
+private enum NativeProjectPageTab {
+  case chats
+  case sources
+}
+
 private struct NativeProjectSessionsPage: View {
+  @Environment(\.dismiss) private var dismiss
   @EnvironmentObject private var store: NativeChatStore
   var project: NativeProject
+  @Binding var showingFileImporter: Bool
   var onSelectSession: (NativeChatSession) -> Void
-  var onCreateSession: (NativeProject) -> Void
+  @State private var selectedTab: NativeProjectPageTab = .chats
   @State private var renameTarget: NativeRenameTarget?
 
   private var currentProject: NativeProject {
@@ -2726,125 +2761,318 @@ private struct NativeProjectSessionsPage: View {
   }
 
   var body: some View {
-    ZStack(alignment: .bottomTrailing) {
+    ZStack(alignment: .bottom) {
       ScrollView(showsIndicators: false) {
-        VStack(alignment: .leading, spacing: 26) {
-          projectHeader
+        VStack(alignment: .leading, spacing: 0) {
+          topBar
+            .padding(.bottom, 36)
 
-          NativeSessionsSection(title: "채팅") {
-            if projectSessions.isEmpty {
-              Text("프로젝트에 채팅이 없습니다")
-                .font(.system(size: 15, weight: .medium))
-                .foregroundColor(.oeMutedText)
-                .padding(.vertical, 6)
-            } else {
-              VStack(alignment: .leading, spacing: 2) {
-                ForEach(projectSessions) { session in
-                  Button {
-                    onSelectSession(session)
-                  } label: {
-                    NativeSessionListRow(
-                      title: session.title,
-                      isWriting: store.activeWritingSessionId == session.id
-                    )
-                  }
-                  .buttonStyle(.plain)
-                  .contextMenu {
-                    Button {
-                      renameTarget = .session(id: session.id, title: session.title)
-                    } label: {
-                      Label("이름 변경", systemImage: "pencil")
-                    }
+          titleHeader
+            .padding(.bottom, 34)
 
-                    Button(role: .destructive) {
-                      store.deleteSession(session)
-                    } label: {
-                      Label("삭제", systemImage: "trash")
-                    }
-                  }
-                }
-              }
-            }
+          tabBar
+            .padding(.bottom, 34)
+
+          if selectedTab == .chats {
+            chatList
+          } else {
+            sourcesPlaceholder
           }
         }
         .padding(.horizontal, 28)
-        .padding(.top, 22)
-        .padding(.bottom, 112)
+        .padding(.top, 26)
+        .padding(.bottom, 132)
       }
 
-      Button {
-        onCreateSession(currentProject)
-      } label: {
-        HStack(spacing: 6) {
-          Image(systemName: "square.and.pencil")
-            .font(.system(size: 17, weight: .semibold))
-          Text("채팅")
-            .font(.system(size: 15, weight: .bold))
-        }
-        .foregroundColor(store.accentColor.foregroundColor)
-        .padding(.horizontal, 18)
-        .frame(height: 48)
-        .background(store.accentColor.color)
-        .clipShape(Capsule())
-        .shadow(color: Color.black.opacity(0.16), radius: 14, x: 0, y: 8)
-      }
-      .buttonStyle(.plain)
-      .accessibilityLabel("프로젝트 새 채팅")
-      .padding(.trailing, 24)
-      .padding(.bottom, 24)
+      NativeProjectComposerBar(
+        project: currentProject,
+        showingFileImporter: $showingFileImporter
+      )
+      .padding(.horizontal, 26)
+      .padding(.bottom, 22)
     }
-    .background(Color.oeBackground)
-    .navigationTitle(currentProject.title)
-    .navigationBarTitleDisplayMode(.inline)
-    .toolbar(.visible, for: .navigationBar)
+    .background(Color.oeBackground.ignoresSafeArea())
+    .toolbar(.hidden, for: .navigationBar)
     .sheet(item: $renameTarget) { target in
       NativeRenameSheet(target: target)
         .environmentObject(store)
-        .presentationDetents([.medium])
+        .presentationDetents(target.isProject ? [.large] : [.medium])
         .presentationDragIndicator(.visible)
     }
   }
 
-  private var projectHeader: some View {
-    VStack(alignment: .leading, spacing: 16) {
-      ZStack(alignment: .bottomLeading) {
-        RoundedRectangle(cornerRadius: 22, style: .continuous)
-          .fill(Color.oeSubtleFill)
-          .frame(height: 112)
+  private var topBar: some View {
+    HStack(spacing: 14) {
+      Button {
+        dismiss()
+      } label: {
+        Image(systemName: "line.3.horizontal")
+          .font(.system(size: 22, weight: .semibold))
+          .foregroundColor(.oeText)
+          .frame(width: 56, height: 56)
+          .background(Color.oeSurface)
+          .clipShape(Circle())
+          .shadow(color: Color.black.opacity(0.08), radius: 18, x: 0, y: 10)
+      }
+      .buttonStyle(.plain)
+      .accessibilityLabel("프로젝트 목록")
 
-        HStack(alignment: .center, spacing: 14) {
-          ZStack {
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-              .fill(Color.oeText)
-              .frame(width: 62, height: 52)
+      Text(currentProject.title)
+        .font(.system(size: 19, weight: .semibold))
+        .foregroundColor(.oeText)
+        .lineLimit(1)
+        .padding(.horizontal, 22)
+        .frame(height: 56)
+        .background(Color.oeSurface)
+        .clipShape(Capsule())
+        .shadow(color: Color.black.opacity(0.08), radius: 18, x: 0, y: 10)
 
-            Image(systemName: currentProject.iconName)
-              .font(.system(size: 25, weight: .semibold))
-              .foregroundColor(Color.oeBackground)
-          }
+      Spacer(minLength: 6)
 
-          VStack(alignment: .leading, spacing: 5) {
-            Text(currentProject.title)
-              .font(.system(size: 24, weight: .bold))
-              .foregroundColor(.oeText)
-              .lineLimit(1)
+      HStack(spacing: 18) {
+        Button {
+          store.copy(currentProject.title)
+        } label: {
+          Image(systemName: "square.and.arrow.up")
+            .font(.system(size: 22, weight: .semibold))
+            .foregroundColor(.oeText)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("프로젝트 공유")
 
-            Text("\(projectSessions.count)개 채팅")
-              .font(.system(size: 14, weight: .medium))
-              .foregroundColor(.oeMutedText)
+        Button {
+          renameTarget = .project(currentProject)
+        } label: {
+          Image(systemName: "ellipsis")
+            .font(.system(size: 24, weight: .bold))
+            .foregroundColor(.oeText)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("프로젝트 설정")
+      }
+      .padding(.horizontal, 20)
+      .frame(height: 56)
+      .background(Color.oeSurface)
+      .clipShape(Capsule())
+      .shadow(color: Color.black.opacity(0.08), radius: 18, x: 0, y: 10)
+    }
+  }
+
+  private var titleHeader: some View {
+    HStack(alignment: .center, spacing: 16) {
+      Image(systemName: currentProject.iconName)
+        .font(.system(size: 27, weight: .semibold))
+        .foregroundColor(store.accentColor.color)
+        .frame(width: 42, height: 42)
+
+      Text(currentProject.title)
+        .font(.system(size: 34, weight: .regular))
+        .foregroundColor(.oeText)
+        .lineLimit(2)
+        .minimumScaleFactor(0.78)
+    }
+  }
+
+  private var tabBar: some View {
+    HStack(spacing: 12) {
+      projectTabButton("채팅", tab: .chats)
+      projectTabButton("출처", tab: .sources)
+      Spacer()
+    }
+  }
+
+  private func projectTabButton(_ title: String, tab: NativeProjectPageTab) -> some View {
+    Button {
+      selectedTab = tab
+    } label: {
+      Text(title)
+        .font(.system(size: 16, weight: selectedTab == tab ? .semibold : .medium))
+        .foregroundColor(selectedTab == tab ? .oeText : .oeMutedText)
+        .padding(.horizontal, 20)
+        .frame(height: 44)
+        .background(selectedTab == tab ? Color.oeSubtleFill : Color.clear)
+        .clipShape(Capsule())
+    }
+    .buttonStyle(.plain)
+  }
+
+  private var chatList: some View {
+    VStack(alignment: .leading, spacing: 26) {
+      if projectSessions.isEmpty {
+        Text("프로젝트에 채팅이 없습니다")
+          .font(.system(size: 16, weight: .medium))
+          .foregroundColor(.oeMutedText)
+          .frame(maxWidth: .infinity, alignment: .leading)
+          .padding(.top, 8)
+      } else {
+        ForEach(projectSessions) { session in
+          NativeProjectSessionRow(
+            session: session,
+            subtitle: sessionSubtitle(for: session),
+            isWriting: store.activeWritingSessionId == session.id
+          ) {
+            onSelectSession(session)
+          } onRename: {
+            renameTarget = .session(id: session.id, title: session.title)
+          } onDelete: {
+            store.deleteSession(session)
           }
         }
-        .padding(.horizontal, 18)
-        .padding(.bottom, 18)
-      }
-
-      if !currentProject.systemPrompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-        Text(currentProject.systemPrompt)
-          .font(.system(size: 13, weight: .regular))
-          .foregroundColor(.oeMutedText)
-          .lineLimit(2)
       }
     }
+  }
+
+  private var sourcesPlaceholder: some View {
+    VStack(alignment: .leading, spacing: 8) {
+      Text("출처가 없습니다")
+        .font(.system(size: 17, weight: .semibold))
+        .foregroundColor(.oeText)
+
+      Text("첨부 파일이나 참조 자료를 추가하면 여기에 표시됩니다.")
+        .font(.system(size: 15, weight: .regular))
+        .foregroundColor(.oeMutedText)
+    }
+    .padding(.top, 6)
+  }
+
+  private func sessionSubtitle(for session: NativeChatSession) -> String {
+    let text = session.messages.reversed().first { message in
+      !message.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }?.text ?? session.updatedAt.formatted(date: .abbreviated, time: .shortened)
+    return clipped(text)
+  }
+
+  private func clipped(_ text: String) -> String {
+    let cleaned = text
+      .replacingOccurrences(of: "\n", with: " ")
+      .trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !cleaned.isEmpty else {
+      return "새 대화"
+    }
+    return cleaned.count > 48 ? "\(cleaned.prefix(48))..." : cleaned
+  }
+}
+
+private struct NativeProjectSessionRow: View {
+  var session: NativeChatSession
+  var subtitle: String
+  var isWriting: Bool
+  var action: () -> Void
+  var onRename: () -> Void
+  var onDelete: () -> Void
+
+  var body: some View {
+    Button(action: action) {
+      HStack(alignment: .center, spacing: 12) {
+        VStack(alignment: .leading, spacing: 6) {
+          Text(session.title)
+            .font(.system(size: 18, weight: .semibold))
+            .foregroundColor(.oeText)
+            .lineLimit(1)
+
+          Text(subtitle)
+            .font(.system(size: 16, weight: .regular))
+            .foregroundColor(.oeMutedText)
+            .lineLimit(1)
+        }
+
+        Spacer(minLength: 10)
+
+        if isWriting {
+          ProgressView()
+            .controlSize(.small)
+            .tint(.oeMutedText)
+            .frame(width: 18, height: 18)
+            .accessibilityLabel("응답 생성 중")
+        }
+      }
+      .frame(maxWidth: .infinity, alignment: .leading)
+      .contentShape(Rectangle())
+    }
+    .buttonStyle(.plain)
+    .contextMenu {
+      Button {
+        onRename()
+      } label: {
+        Label("이름 변경", systemImage: "pencil")
+      }
+
+      Button(role: .destructive) {
+        onDelete()
+      } label: {
+        Label("삭제", systemImage: "trash")
+      }
+    }
+  }
+}
+
+private struct NativeProjectComposerBar: View {
+  @EnvironmentObject private var store: NativeChatStore
+  var project: NativeProject
+  @Binding var showingFileImporter: Bool
+  @FocusState private var focused: Bool
+
+  private var trailingImageName: String {
+    if store.isGenerating && !store.canSend {
+      return "stop.fill"
+    }
+    return store.canSend ? "arrow.up" : "waveform"
+  }
+
+  var body: some View {
+    HStack(spacing: 12) {
+      Button {
+        showingFileImporter = true
+      } label: {
+        Image(systemName: "plus")
+          .font(.system(size: 24, weight: .regular))
+          .foregroundColor(.oeText)
+          .frame(width: 32, height: 32)
+      }
+      .buttonStyle(.plain)
+      .accessibilityLabel("파일 첨부")
+
+      TextField("\(project.title)에 메시지...", text: $store.inputText)
+        .focused($focused)
+        .font(.system(size: 16, weight: .regular))
+        .foregroundColor(.oeText)
+        .textInputAutocapitalization(.sentences)
+        .submitLabel(.send)
+        .onSubmit(send)
+
+      Image(systemName: "mic")
+        .font(.system(size: 22, weight: .semibold))
+        .foregroundColor(.oeMutedText)
+        .accessibilityHidden(true)
+
+      Button(action: send) {
+        Image(systemName: trailingImageName)
+          .font(.system(size: 19, weight: .bold))
+          .foregroundColor(.oeControlText)
+          .frame(width: 44, height: 44)
+          .background(Color.oeControlFill)
+          .clipShape(Circle())
+      }
+      .buttonStyle(.plain)
+      .accessibilityLabel(store.isGenerating && !store.canSend ? "응답 중지" : "메시지 보내기")
+    }
+    .padding(.leading, 16)
+    .padding(.trailing, 8)
+    .frame(height: 62)
+    .background(Color.oeSurface)
+    .clipShape(Capsule())
+    .shadow(color: Color.black.opacity(0.10), radius: 24, x: 0, y: 12)
+  }
+
+  private func send() {
+    if store.isGenerating && !store.canSend {
+      store.cancelGeneration()
+      return
+    }
+    guard store.canSend else {
+      return
+    }
+    store.sendCurrentInput(projectId: project.id)
   }
 }
 

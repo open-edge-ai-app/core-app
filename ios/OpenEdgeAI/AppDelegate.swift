@@ -3679,7 +3679,7 @@ private struct NativeInlineMarkdownText: View {
   }
 
   private func citationAttributedString(_ number: Int) -> AttributedString {
-    var tag = AttributedString("[\(number)]")
+    var tag = AttributedString(citationDisplayURL(for: number))
     tag.link = URL(string: "openedgeai-source://\(number)")
     tag.foregroundColor = store.accentColor.color
     tag.backgroundColor = store.accentColor.color.opacity(0.12)
@@ -3736,7 +3736,7 @@ private struct NativeInlineMarkdownText: View {
   private func citationNSAttributedString(_ number: Int) -> NSAttributedString {
     let accentColor = UIColor(store.accentColor.color)
     return NSAttributedString(
-      string: "[\(number)]",
+      string: citationDisplayURL(for: number),
       attributes: [
         .font: UIFont.systemFont(ofSize: max(11, fontSize - 3), weight: .semibold),
         .foregroundColor: accentColor,
@@ -3744,6 +3744,23 @@ private struct NativeInlineMarkdownText: View {
         .link: URL(string: "openedgeai-source://\(number)")!
       ]
     )
+  }
+
+  private func citationDisplayURL(for number: Int) -> String {
+    guard (1...sources.count).contains(number) else {
+      return "[\(number)]"
+    }
+
+    let source = sources[number - 1]
+    guard let url = URL(string: source.url),
+          let host = url.host?.replacingOccurrences(of: "www.", with: ""),
+          !host.isEmpty
+    else {
+      return source.url.isEmpty ? "[\(number)]" : source.url
+    }
+
+    let path = url.path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+    return path.isEmpty ? host : "\(host)/\(path)"
   }
 
   private var uiFontWeight: UIFont.Weight {

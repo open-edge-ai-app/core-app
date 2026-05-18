@@ -484,11 +484,217 @@ private struct NativeMessage: Identifiable, Codable, Equatable {
   var attachments: [NativeAttachment]
 }
 
+private enum NativeDraftMode: String, Codable, Equatable {
+  case standard
+  case search
+}
+
 private struct NativeDraft: Identifiable, Codable, Equatable {
   var id: String
   var text: String
   var attachments: [NativeAttachment]
   var createdAt: Date
+  var mode: NativeDraftMode
+
+  init(
+    id: String,
+    text: String,
+    attachments: [NativeAttachment],
+    createdAt: Date,
+    mode: NativeDraftMode = .standard
+  ) {
+    self.id = id
+    self.text = text
+    self.attachments = attachments
+    self.createdAt = createdAt
+    self.mode = mode
+  }
+
+  private enum CodingKeys: String, CodingKey {
+    case id
+    case text
+    case attachments
+    case createdAt
+    case mode
+  }
+
+  init(from decoder: Decoder) throws {
+    let container = try decoder.container(keyedBy: CodingKeys.self)
+    id = try container.decode(String.self, forKey: .id)
+    text = try container.decode(String.self, forKey: .text)
+    attachments = try container.decode([NativeAttachment].self, forKey: .attachments)
+    createdAt = try container.decode(Date.self, forKey: .createdAt)
+    mode = try container.decodeIfPresent(NativeDraftMode.self, forKey: .mode) ?? .standard
+  }
+}
+
+private struct NativeWebSearchSource: Identifiable, Equatable {
+  let id = UUID()
+  let title: String
+  let snippet: String
+  let url: String
+}
+
+private struct NativeWebSearchContext: Equatable {
+  let query: String
+  let sources: [NativeWebSearchSource]
+  let errorMessage: String?
+
+  var promptSection: String {
+    var lines = ["Search query: \(query)"]
+
+    if let errorMessage {
+      lines.append("Search status: \(errorMessage)")
+    }
+
+    if sources.isEmpty {
+      lines.append("Search results: none")
+    } else {
+      lines.append("Search results:")
+      for (index, source) in sources.enumerated() {
+        lines.append("""
+        \(index + 1). \(source.title)
+        URL: \(source.url)
+        Snippet: \(source.snippet)
+        """)
+      }
+    }
+
+    return lines.joined(separator: "\n")
+  }
+}
+
+private final class NativeWebSearchClient {
+  static let shared = NativeWebSearchClient()
+
+  private init() {}
+
+  func search(query: String) async -> NativeWebSearchContext {
+    let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !trimmedQuery.isEmpty else {
+      return NativeWebSearchContext(
+        query: query,
+        sources: [],
+        errorMessage: "검색할 내용이 충분하지 않습니다."
+      )
+    }
+
+    var components = URLComponents(string: "https://api.duckduckgo.com/")
+    components?.queryItems = [
+      URLQueryItem(name: "q", value: trimmedQuery),
+      URLQueryItem(name: "format", value: "json"),
+      URLQueryItem(name: "no_html", value: "1"),
+      URLQueryItem(name: "skip_disambig", value: "1")
+    ]
+
+    guard let url = components?.url else {
+      return NativeWebSearchContext(
+        query: trimmedQuery,
+        sources: [],
+        errorMessage: "검색 URL을 만들 수 없습니다."
+      )
+    }
+
+    do {
+      let (data, response) = try await URLSession.shared.data(from: url)
+      if let httpResponse = response as? HTTPURLResponse,
+         !(200..<300).contains(httpResponse.statusCode) {
+        return NativeWebSearchContext(
+          query: trimmedQuery,
+          sources: [],
+          errorMessage: "검색 요청이 실패했습니다. HTTP \(httpResponse.statusCode)"
+        )
+      }
+
+      let decoded = try JSONDecoder().decode(DuckDuckGoResponse.self, from: data)
+      return NativeWebSearchContext(
+        query: trimmedQuery,
+        sources: decoded.sources(limit: 5),
+        errorMessage: nil
+      )
+    } catch {
+      return NativeWebSearchContext(
+        query: trimmedQuery,
+        sources: [],
+        errorMessage: "검색 중 오류가 발생했습니다: \(error.localizedDescription)"
+      )
+    }
+  }
+
+  private struct DuckDuckGoResponse: Decodable {
+    let heading: String?
+    let abstractText: String?
+    let abstractURL: String?
+    let relatedTopics: [DuckDuckGoTopic]?
+
+    private enum CodingKeys: String, CodingKey {
+      case heading = "Heading"
+      case abstractText = "AbstractText"
+      case abstractURL = "AbstractURL"
+      case relatedTopics = "RelatedTopics"
+    }
+
+    func sources(limit: Int) -> [NativeWebSearchSource] {
+      var results: [NativeWebSearchSource] = []
+
+      if let abstractText,
+         !abstractText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+        results.append(
+          NativeWebSearchSource(
+            title: heading?.isEmpty == false ? heading! : "DuckDuckGo",
+            snippet: abstractText,
+            url: abstractURL?.isEmpty == false ? abstractURL! : "https://duckduckgo.com/"
+          )
+        )
+      }
+
+      for topic in relatedTopics ?? [] {
+        topic.appendSources(to: &results, limit: limit)
+        if results.count >= limit {
+          break
+        }
+      }
+
+      return Array(results.prefix(limit))
+    }
+  }
+
+  private struct DuckDuckGoTopic: Decodable {
+    let text: String?
+    let firstURL: String?
+    let topics: [DuckDuckGoTopic]?
+
+    private enum CodingKeys: String, CodingKey {
+      case text = "Text"
+      case firstURL = "FirstURL"
+      case topics = "Topics"
+    }
+
+    func appendSources(to results: inout [NativeWebSearchSource], limit: Int) {
+      if results.count >= limit {
+        return
+      }
+
+      if let text,
+         !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+        let title = text.components(separatedBy: " - ").first ?? "Search result"
+        results.append(
+          NativeWebSearchSource(
+            title: title,
+            snippet: text,
+            url: firstURL?.isEmpty == false ? firstURL! : "https://duckduckgo.com/"
+          )
+        )
+      }
+
+      for topic in topics ?? [] {
+        topic.appendSources(to: &results, limit: limit)
+        if results.count >= limit {
+          break
+        }
+      }
+    }
+  }
 }
 
 private final class NativeDeviceContextProvider: NSObject, CLLocationManagerDelegate {
@@ -787,6 +993,7 @@ private final class NativeChatStore: ObservableObject {
   @Published private var activeRequestSessionId: String?
   private var generationBackgroundTaskIdentifier: UIBackgroundTaskIdentifier = .invalid
   private let deviceContextProvider = NativeDeviceContextProvider()
+  private let searchFallbackRequestText = "현재 대화 내용을 기반으로 검색해서 내용을 개선해줘."
 
   init() {
     loadSettings()
@@ -1043,16 +1250,17 @@ private final class NativeChatStore: ObservableObject {
   }
 
   func sendCurrentInput() {
-    let text = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
-    guard !text.isEmpty || !pendingAttachments.isEmpty else {
+    let draftInput = makeDraftInput(from: inputText)
+    guard !draftInput.text.isEmpty || !pendingAttachments.isEmpty else {
       return
     }
 
     let draft = NativeDraft(
       id: UUID().uuidString,
-      text: text,
+      text: draftInput.text,
       attachments: pendingAttachments,
-      createdAt: Date()
+      createdAt: Date(),
+      mode: draftInput.mode
     )
 
     inputText = ""
@@ -1275,8 +1483,28 @@ private final class NativeChatStore: ObservableObject {
     beginGenerationBackgroundTaskIfNeeded()
     showDynamicIslandWork()
 
-    let prompt = makePrompt(for: sessionId, draft: draft)
-    streamResponse(prompt: prompt, assistantId: assistantMessage.id, sessionId: sessionId)
+    if draft.mode == .search {
+      statusMessage = "검색 중..."
+      let searchQuery = makeSearchQuery(for: sessionId, draft: draft)
+      Task { [weak self] in
+        let searchContext = await NativeWebSearchClient.shared.search(query: searchQuery)
+        await MainActor.run { [weak self] in
+          guard let self,
+                self.activeAssistantMessageId == assistantMessage.id,
+                self.activeRequestSessionId == sessionId
+          else {
+            return
+          }
+
+          self.statusMessage = nil
+          let prompt = self.makePrompt(for: sessionId, draft: draft, searchContext: searchContext)
+          self.streamResponse(prompt: prompt, assistantId: assistantMessage.id, sessionId: sessionId)
+        }
+      }
+    } else {
+      let prompt = makePrompt(for: sessionId, draft: draft)
+      streamResponse(prompt: prompt, assistantId: assistantMessage.id, sessionId: sessionId)
+    }
   }
 
   private func rewrite(
@@ -1310,8 +1538,33 @@ private final class NativeChatStore: ObservableObject {
     beginGenerationBackgroundTaskIfNeeded()
     showDynamicIslandWork()
 
-    let prompt = makePrompt(for: sessionId, draft: draft, historyMessages: historyMessages)
-    streamResponse(prompt: prompt, assistantId: assistantId, sessionId: sessionId)
+    if draft.mode == .search {
+      statusMessage = "검색 중..."
+      let searchQuery = makeSearchQuery(for: sessionId, draft: draft, historyMessages: historyMessages)
+      Task { [weak self] in
+        let searchContext = await NativeWebSearchClient.shared.search(query: searchQuery)
+        await MainActor.run { [weak self] in
+          guard let self,
+                self.activeAssistantMessageId == assistantId,
+                self.activeRequestSessionId == sessionId
+          else {
+            return
+          }
+
+          self.statusMessage = nil
+          let prompt = self.makePrompt(
+            for: sessionId,
+            draft: draft,
+            historyMessages: historyMessages,
+            searchContext: searchContext
+          )
+          self.streamResponse(prompt: prompt, assistantId: assistantId, sessionId: sessionId)
+        }
+      }
+    } else {
+      let prompt = makePrompt(for: sessionId, draft: draft, historyMessages: historyMessages)
+      streamResponse(prompt: prompt, assistantId: assistantId, sessionId: sessionId)
+    }
   }
 
   private func streamResponse(prompt: String, assistantId: String, sessionId: String) {
@@ -1381,7 +1634,12 @@ private final class NativeChatStore: ObservableObject {
     }
   }
 
-  private func makePrompt(for sessionId: String, draft: NativeDraft, historyMessages: [NativeMessage]? = nil) -> String {
+  private func makePrompt(
+    for sessionId: String,
+    draft: NativeDraft,
+    historyMessages: [NativeMessage]? = nil,
+    searchContext: NativeWebSearchContext? = nil
+  ) -> String {
     let session = sessions.first { $0.id == sessionId }
     let sourceHistory: [NativeMessage]
     if let historyMessages {
@@ -1418,11 +1676,24 @@ private final class NativeChatStore: ObservableObject {
       sections.append("Project instructions for \(project.title):\n\(project.systemPrompt)")
     }
 
+    if draft.mode == .search {
+      sections.append("""
+      /search command:
+      The user asked you to improve the answer with search. Use the current request and conversation history to infer what should be searched.
+      Use the search context below as supplemental evidence. If the search results are thin or unavailable, say what could not be verified and still improve the answer using the conversation context.
+      When you use a search result, mention the source title or URL briefly.
+      """)
+    }
+
     if !history.isEmpty {
       let historyText = history.map { message in
         "\(message.role == .assistant ? "assistant" : "user"): \(message.text)"
       }.joined(separator: "\n")
       sections.append("Conversation history:\n\(historyText)")
+    }
+
+    if let searchContext {
+      sections.append(searchContext.promptSection)
     }
 
     if !draft.attachments.isEmpty {
@@ -1444,6 +1715,52 @@ private final class NativeChatStore: ObservableObject {
 
     sections.append("Current user request:\n\(draft.text)")
     return sections.joined(separator: "\n\n")
+  }
+
+  private func makeDraftInput(from rawText: String) -> (text: String, mode: NativeDraftMode) {
+    let trimmed = rawText.trimmingCharacters(in: .whitespacesAndNewlines)
+
+    if let searchPayload = NativeSlashCommand.searchPayload(in: trimmed) {
+      let requestText = searchPayload.trimmingCharacters(in: .whitespacesAndNewlines)
+      return (requestText.isEmpty ? searchFallbackRequestText : requestText, .search)
+    }
+
+    return (trimmed, .standard)
+  }
+
+  private func makeSearchQuery(
+    for sessionId: String,
+    draft: NativeDraft,
+    historyMessages: [NativeMessage]? = nil
+  ) -> String {
+    let session = sessions.first { $0.id == sessionId }
+    let sourceHistory: [NativeMessage]
+    if let historyMessages {
+      sourceHistory = historyMessages
+    } else if let session {
+      sourceHistory = Array(session.messages.dropLast(2))
+    } else {
+      sourceHistory = []
+    }
+
+    let explicitRequest = draft.text == searchFallbackRequestText ? "" : draft.text
+    let historyText = sourceHistory
+      .suffix(8)
+      .map(\.text)
+      .map { $0.replacingOccurrences(of: "\n", with: " ") }
+      .filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+      .joined(separator: " ")
+
+    let rawQuery = explicitRequest.isEmpty ? historyText : "\(historyText) \(explicitRequest)"
+    let cleaned = rawQuery
+      .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+      .trimmingCharacters(in: .whitespacesAndNewlines)
+
+    if cleaned.isEmpty {
+      return draft.text
+    }
+
+    return cleaned.count > 260 ? String(cleaned.prefix(260)) : cleaned
   }
 
   private func project(for session: NativeChatSession?) -> NativeProject? {
@@ -1759,8 +2076,6 @@ private struct NativeRootView: View {
   @State private var showingSessions = false
   @State private var showingSettings = false
   @State private var showingFileImporter = false
-  @State private var showingSearch = false
-  @State private var searchProject: NativeProject?
 
   var body: some View {
     ZStack(alignment: .leading) {
@@ -1772,10 +2087,7 @@ private struct NativeRootView: View {
 
         Divider()
         NativeChatTranscript()
-        NativeInputBar(
-          showingFileImporter: $showingFileImporter,
-          onSearchCommand: openSearch
-        )
+        NativeInputBar(showingFileImporter: $showingFileImporter)
       }
       .background(Color.oeBackground)
 
@@ -1795,28 +2107,6 @@ private struct NativeRootView: View {
       NativeSettingsView()
         .environmentObject(store)
     }
-    .sheet(isPresented: $showingSearch) {
-      NativeSearchView { session in
-        store.selectSession(session)
-      } onSelectProject: { project in
-        searchProject = project
-      }
-      .environmentObject(store)
-      .presentationDetents([.large])
-      .presentationDragIndicator(.visible)
-    }
-    .sheet(item: $searchProject) { project in
-      NativeProjectSessionsPage(
-        project: project,
-        showingFileImporter: $showingFileImporter
-      ) { session in
-        store.selectSession(session)
-        searchProject = nil
-      }
-      .environmentObject(store)
-      .presentationDetents([.large])
-      .presentationDragIndicator(.visible)
-    }
     .fileImporter(
       isPresented: $showingFileImporter,
       allowedContentTypes: [.item],
@@ -1829,10 +2119,6 @@ private struct NativeRootView: View {
     .task {
       await store.pollModelStatuses()
     }
-  }
-
-  private func openSearch() {
-    showingSearch = true
   }
 }
 
@@ -2296,21 +2582,21 @@ private struct NativeSlashCommand: Identifiable, Equatable {
   static let search = NativeSlashCommand(
     id: "search",
     trigger: "/search",
-    title: "검색",
-    subtitle: "대화와 프로젝트를 검색",
+    title: "검색 강화",
+    subtitle: "현재 대화 기반으로 검색해서 답변 개선",
     systemImage: "magnifyingglass"
   )
 
   static let all = [search]
 
   static func query(in inputText: String) -> String? {
-    let trimmed = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
-    guard trimmed.hasPrefix("/") else {
+    let leadingTrimmed = inputText.drop { $0.isWhitespace }
+    guard leadingTrimmed.hasPrefix("/") else {
       return nil
     }
 
-    let query = String(trimmed.dropFirst())
-    guard query.rangeOfCharacter(from: .whitespacesAndNewlines) == nil else {
+    let query = String(leadingTrimmed.dropFirst())
+    guard !query.contains(where: \.isWhitespace) else {
       return nil
     }
 
@@ -2332,9 +2618,20 @@ private struct NativeSlashCommand: Identifiable, Equatable {
     }
   }
 
-  static func exactMatch(in inputText: String) -> NativeSlashCommand? {
-    let normalized = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
-    return all.first { $0.trigger == normalized }
+  static func searchPayload(in inputText: String) -> String? {
+    let trimmed = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
+    let lowercased = trimmed.lowercased()
+    let trigger = search.trigger
+
+    if lowercased == trigger {
+      return ""
+    }
+
+    guard lowercased.hasPrefix("\(trigger) ") else {
+      return nil
+    }
+
+    return String(trimmed.dropFirst(trigger.count))
   }
 }
 
@@ -2398,7 +2695,6 @@ private struct NativeSlashCommandMenu: View {
 private struct NativeInputBar: View {
   @EnvironmentObject private var store: NativeChatStore
   @Binding var showingFileImporter: Bool
-  var onSearchCommand: () -> Void
   @FocusState private var focused: Bool
 
   private var editorHeight: CGFloat {
@@ -2489,7 +2785,7 @@ private struct NativeInputBar: View {
             if store.isGenerating && !store.canSend {
               store.cancelGeneration()
             } else {
-              sendOrRunCommand()
+              store.sendCurrentInput()
             }
           } label: {
             Image(systemName: store.isGenerating && !store.canSend ? "stop.fill" : "arrow.up")
@@ -2520,20 +2816,10 @@ private struct NativeInputBar: View {
     .animation(.easeOut(duration: 0.18), value: showsSlashCommands)
   }
 
-  private func sendOrRunCommand() {
-    if let command = NativeSlashCommand.exactMatch(in: store.inputText) {
-      performSlashCommand(command)
-      return
-    }
-
-    store.sendCurrentInput()
-  }
-
   private func performSlashCommand(_ command: NativeSlashCommand) {
     if command == .search {
-      store.inputText = ""
-      focused = false
-      onSearchCommand()
+      store.inputText = "\(command.trigger) "
+      focused = true
     }
   }
 }
@@ -2822,7 +3108,6 @@ private struct NativeProjectSessionsPage: View {
   var onSelectSession: (NativeChatSession) -> Void
   @State private var selectedTab: NativeProjectPageTab = .chats
   @State private var renameTarget: NativeRenameTarget?
-  @State private var isSearchPresented = false
 
   private var currentProject: NativeProject {
     store.projects.first { $0.id == project.id } ?? project
@@ -2860,10 +3145,7 @@ private struct NativeProjectSessionsPage: View {
 
         NativeProjectComposerBar(
           project: currentProject,
-          showingFileImporter: $showingFileImporter,
-          onSearchCommand: {
-            isSearchPresented = true
-          }
+          showingFileImporter: $showingFileImporter
         )
       }
     }
@@ -2874,19 +3156,6 @@ private struct NativeProjectSessionsPage: View {
         .environmentObject(store)
         .presentationDetents(target.isProject ? [.large] : [.medium])
         .presentationDragIndicator(.visible)
-    }
-    .sheet(isPresented: $isSearchPresented) {
-      NativeSearchView { session in
-        onSelectSession(session)
-      } onSelectProject: { project in
-        store.createNewSession(projectId: project.id)
-        if let session = store.currentSession {
-          onSelectSession(session)
-        }
-      }
-      .environmentObject(store)
-      .presentationDetents([.large])
-      .presentationDragIndicator(.visible)
     }
   }
 
@@ -3098,7 +3367,6 @@ private struct NativeProjectComposerBar: View {
   @EnvironmentObject private var store: NativeChatStore
   var project: NativeProject
   @Binding var showingFileImporter: Bool
-  var onSearchCommand: () -> Void
   @FocusState private var focused: Bool
 
   private var editorHeight: CGFloat {
@@ -3219,10 +3487,6 @@ private struct NativeProjectComposerBar: View {
       store.cancelGeneration()
       return
     }
-    if let command = NativeSlashCommand.exactMatch(in: store.inputText) {
-      performSlashCommand(command)
-      return
-    }
     guard store.canSend else {
       return
     }
@@ -3231,9 +3495,8 @@ private struct NativeProjectComposerBar: View {
 
   private func performSlashCommand(_ command: NativeSlashCommand) {
     if command == .search {
-      store.inputText = ""
-      focused = false
-      onSearchCommand()
+      store.inputText = "\(command.trigger) "
+      focused = true
     }
   }
 }

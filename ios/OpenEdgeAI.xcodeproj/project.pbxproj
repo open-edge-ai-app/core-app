@@ -12,6 +12,23 @@
 		2D47E8EF76AE2445613FD9E7 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 13B07FB81A68108700A75B9A /* PrivacyInfo.xcprivacy */; };
 		761780ED2CA45674006654EE /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 761780EC2CA45674006654EE /* AppDelegate.swift */; };
 		81AB9BB82411601600AC10FF /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 81AB9BB72411601600AC10FF /* LaunchScreen.storyboard */; };
+		A2B000000000000000000101 /* NativeModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2B000000000000000000001 /* NativeModels.swift */; };
+		A2B000000000000000000102 /* NativeWebSearchService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2B000000000000000000002 /* NativeWebSearchService.swift */; };
+		A2B000000000000000000103 /* NativeKnowledgeServices.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2B000000000000000000003 /* NativeKnowledgeServices.swift */; };
+		A2B000000000000000000104 /* NativeProjectModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2B000000000000000000004 /* NativeProjectModels.swift */; };
+		A2B000000000000000000105 /* NativeChatStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2B000000000000000000005 /* NativeChatStore.swift */; };
+		A2D000000000000000000101 /* NativeChatStoreDynamicIsland.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2D000000000000000000001 /* NativeChatStoreDynamicIsland.swift */; };
+		A2B000000000000000000108 /* NativeSettingsViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2B000000000000000000008 /* NativeSettingsViews.swift */; };
+		A2C000000000000000000101 /* NativeRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2C000000000000000000001 /* NativeRootView.swift */; };
+		A2C000000000000000000102 /* NativeDynamicIslandPetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2C000000000000000000002 /* NativeDynamicIslandPetView.swift */; };
+		A2C000000000000000000103 /* NativeTopBarViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2C000000000000000000003 /* NativeTopBarViews.swift */; };
+		A2C000000000000000000104 /* NativeChatTranscriptViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2C000000000000000000004 /* NativeChatTranscriptViews.swift */; };
+		A2C000000000000000000105 /* NativeMarkdownViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2C000000000000000000005 /* NativeMarkdownViews.swift */; };
+		A2C000000000000000000106 /* NativeInputViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2C000000000000000000006 /* NativeInputViews.swift */; };
+		A2C000000000000000000107 /* NativeSessionsListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2C000000000000000000007 /* NativeSessionsListView.swift */; };
+		A2C000000000000000000108 /* NativeProjectSessionsViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2C000000000000000000008 /* NativeProjectSessionsViews.swift */; };
+		A2C000000000000000000109 /* NativeSearchViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2C000000000000000000009 /* NativeSearchViews.swift */; };
+		A2C000000000000000000110 /* NativeProjectEditingViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2C000000000000000000010 /* NativeProjectEditingViews.swift */; };
 		A1F4C9A12D0B4E8591F00001 /* AIEngineFoundationModelClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1F4C9A12D0B4E8591F00000 /* AIEngineFoundationModelClient.swift */; };
 		A1F4C9A12D0B4E8591F00005 /* AIEngineGemmaModelClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1F4C9A12D0B4E8591F00004 /* AIEngineGemmaModelClient.swift */; };
 		A1F4C9A12D0B4E8591F00007 /* AIEngineLiteRtLmRuntime.mm in Sources */ = {isa = PBXBuildFile; fileRef = A1F4C9A12D0B4E8591F00006 /* AIEngineLiteRtLmRuntime.mm */; };
@@ -57,6 +74,23 @@
 		5DCACB8F33CDC322A6C60F78 /* libPods-OpenEdgeAI.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-OpenEdgeAI.a"; sourceTree = BUILT_PRODUCTS_DIR; };
 		761780EC2CA45674006654EE /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AppDelegate.swift; path = OpenEdgeAI/AppDelegate.swift; sourceTree = "<group>"; };
 		81AB9BB72411601600AC10FF /* LaunchScreen.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; name = LaunchScreen.storyboard; path = OpenEdgeAI/LaunchScreen.storyboard; sourceTree = "<group>"; };
+		A2B000000000000000000001 /* NativeModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = NativeModels.swift; path = OpenEdgeAI/NativeModels.swift; sourceTree = "<group>"; };
+		A2B000000000000000000002 /* NativeWebSearchService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = NativeWebSearchService.swift; path = OpenEdgeAI/NativeWebSearchService.swift; sourceTree = "<group>"; };
+		A2B000000000000000000003 /* NativeKnowledgeServices.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = NativeKnowledgeServices.swift; path = OpenEdgeAI/NativeKnowledgeServices.swift; sourceTree = "<group>"; };
+		A2B000000000000000000004 /* NativeProjectModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = NativeProjectModels.swift; path = OpenEdgeAI/NativeProjectModels.swift; sourceTree = "<group>"; };
+		A2B000000000000000000005 /* NativeChatStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = NativeChatStore.swift; path = OpenEdgeAI/NativeChatStore.swift; sourceTree = "<group>"; };
+		A2D000000000000000000001 /* NativeChatStoreDynamicIsland.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = NativeChatStoreDynamicIsland.swift; path = OpenEdgeAI/NativeChatStoreDynamicIsland.swift; sourceTree = "<group>"; };
+		A2B000000000000000000008 /* NativeSettingsViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = NativeSettingsViews.swift; path = OpenEdgeAI/NativeSettingsViews.swift; sourceTree = "<group>"; };
+		A2C000000000000000000001 /* NativeRootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = NativeRootView.swift; path = OpenEdgeAI/NativeRootView.swift; sourceTree = "<group>"; };
+		A2C000000000000000000002 /* NativeDynamicIslandPetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = NativeDynamicIslandPetView.swift; path = OpenEdgeAI/NativeDynamicIslandPetView.swift; sourceTree = "<group>"; };
+		A2C000000000000000000003 /* NativeTopBarViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = NativeTopBarViews.swift; path = OpenEdgeAI/NativeTopBarViews.swift; sourceTree = "<group>"; };
+		A2C000000000000000000004 /* NativeChatTranscriptViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = NativeChatTranscriptViews.swift; path = OpenEdgeAI/NativeChatTranscriptViews.swift; sourceTree = "<group>"; };
+		A2C000000000000000000005 /* NativeMarkdownViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = NativeMarkdownViews.swift; path = OpenEdgeAI/NativeMarkdownViews.swift; sourceTree = "<group>"; };
+		A2C000000000000000000006 /* NativeInputViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = NativeInputViews.swift; path = OpenEdgeAI/NativeInputViews.swift; sourceTree = "<group>"; };
+		A2C000000000000000000007 /* NativeSessionsListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = NativeSessionsListView.swift; path = OpenEdgeAI/NativeSessionsListView.swift; sourceTree = "<group>"; };
+		A2C000000000000000000008 /* NativeProjectSessionsViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = NativeProjectSessionsViews.swift; path = OpenEdgeAI/NativeProjectSessionsViews.swift; sourceTree = "<group>"; };
+		A2C000000000000000000009 /* NativeSearchViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = NativeSearchViews.swift; path = OpenEdgeAI/NativeSearchViews.swift; sourceTree = "<group>"; };
+		A2C000000000000000000010 /* NativeProjectEditingViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = NativeProjectEditingViews.swift; path = OpenEdgeAI/NativeProjectEditingViews.swift; sourceTree = "<group>"; };
 		A1F4C9A12D0B4E8591F00000 /* AIEngineFoundationModelClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AIEngineFoundationModelClient.swift; path = OpenEdgeAI/AIEngineFoundationModelClient.swift; sourceTree = "<group>"; };
 		A1F4C9A12D0B4E8591F00004 /* AIEngineGemmaModelClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AIEngineGemmaModelClient.swift; path = OpenEdgeAI/AIEngineGemmaModelClient.swift; sourceTree = "<group>"; };
 		A1F4C9A12D0B4E8591F00006 /* AIEngineLiteRtLmRuntime.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; name = AIEngineLiteRtLmRuntime.mm; path = OpenEdgeAI/AIEngineLiteRtLmRuntime.mm; sourceTree = "<group>"; };
@@ -95,6 +129,23 @@
 			children = (
 				13B07FB51A68108700A75B9A /* Images.xcassets */,
 				761780EC2CA45674006654EE /* AppDelegate.swift */,
+				A2B000000000000000000001 /* NativeModels.swift */,
+				A2B000000000000000000002 /* NativeWebSearchService.swift */,
+				A2B000000000000000000003 /* NativeKnowledgeServices.swift */,
+				A2B000000000000000000004 /* NativeProjectModels.swift */,
+				A2B000000000000000000005 /* NativeChatStore.swift */,
+				A2D000000000000000000001 /* NativeChatStoreDynamicIsland.swift */,
+				A2C000000000000000000001 /* NativeRootView.swift */,
+				A2C000000000000000000002 /* NativeDynamicIslandPetView.swift */,
+				A2C000000000000000000003 /* NativeTopBarViews.swift */,
+				A2C000000000000000000004 /* NativeChatTranscriptViews.swift */,
+				A2C000000000000000000005 /* NativeMarkdownViews.swift */,
+				A2C000000000000000000006 /* NativeInputViews.swift */,
+				A2C000000000000000000007 /* NativeSessionsListView.swift */,
+				A2C000000000000000000008 /* NativeProjectSessionsViews.swift */,
+				A2C000000000000000000009 /* NativeSearchViews.swift */,
+				A2C000000000000000000010 /* NativeProjectEditingViews.swift */,
+				A2B000000000000000000008 /* NativeSettingsViews.swift */,
 				D1A000000000000000000001 /* DynamicIslandActivityAttributes.swift */,
 				D1A000000000000000000004 /* NativeDynamicIslandLiveActivityController.swift */,
 				A1F4C9A12D0B4E8591F00000 /* AIEngineFoundationModelClient.swift */,
@@ -312,6 +363,23 @@
 			buildActionMask = 2147483647;
 			files = (
 				761780ED2CA45674006654EE /* AppDelegate.swift in Sources */,
+				A2B000000000000000000101 /* NativeModels.swift in Sources */,
+				A2B000000000000000000102 /* NativeWebSearchService.swift in Sources */,
+				A2B000000000000000000103 /* NativeKnowledgeServices.swift in Sources */,
+				A2B000000000000000000104 /* NativeProjectModels.swift in Sources */,
+				A2B000000000000000000105 /* NativeChatStore.swift in Sources */,
+				A2D000000000000000000101 /* NativeChatStoreDynamicIsland.swift in Sources */,
+				A2C000000000000000000101 /* NativeRootView.swift in Sources */,
+				A2C000000000000000000102 /* NativeDynamicIslandPetView.swift in Sources */,
+				A2C000000000000000000103 /* NativeTopBarViews.swift in Sources */,
+				A2C000000000000000000104 /* NativeChatTranscriptViews.swift in Sources */,
+				A2C000000000000000000105 /* NativeMarkdownViews.swift in Sources */,
+				A2C000000000000000000106 /* NativeInputViews.swift in Sources */,
+				A2C000000000000000000107 /* NativeSessionsListView.swift in Sources */,
+				A2C000000000000000000108 /* NativeProjectSessionsViews.swift in Sources */,
+				A2C000000000000000000109 /* NativeSearchViews.swift in Sources */,
+				A2C000000000000000000110 /* NativeProjectEditingViews.swift in Sources */,
+				A2B000000000000000000108 /* NativeSettingsViews.swift in Sources */,
 				D1A000000000000000000002 /* DynamicIslandActivityAttributes.swift in Sources */,
 				D1A000000000000000000005 /* NativeDynamicIslandLiveActivityController.swift in Sources */,
 				A1F4C9A12D0B4E8591F00001 /* AIEngineFoundationModelClient.swift in Sources */,

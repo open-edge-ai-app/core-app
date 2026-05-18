@@ -35,6 +35,8 @@
 	</dict>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Open Edge AI uses your location only when you choose to include local context.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Open Edge AI needs photo library access when you choose images or videos to attach to a chat.</string>
 	<key>NSSupportsLiveActivities</key>
 	<true/>
 	<key>UILaunchStoryboardName</key>

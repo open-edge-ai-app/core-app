@@ -42,6 +42,13 @@ private data class WebSearchAggregate(
     val sources: List<WebSource>,
 )
 
+private data class WebSearchPlan(
+    val candidateLimit: Int,
+    val resultLimit: Int,
+    val detailPageLimit: Int,
+    val useLocalModelSelection: Boolean,
+)
+
 private data class WebPageDetail(
     val sourceIndex: Int,
     val title: String,
@@ -195,15 +202,17 @@ class WebSearchManager(
         originalQuestion: String,
         queries: List<String>,
     ): WebSearchAggregate {
+        val plan = searchPlanFor(originalQuestion)
         val results = searchQueriesInParallel(queries)
             .distinctBy { result -> result.url.normalizeUrlForDedupe() }
-            .take(WEB_SEARCH_CANDIDATE_LIMIT)
+            .take(plan.candidateLimit)
         val pageDetails = fetchSelectedPageDetails(
             question = originalQuestion,
             results = results,
+            plan = plan,
         )
         val text = listOf(
-            formatSearchResults(results, fallbackDate = null),
+            formatSearchResults(results, fallbackDate = null, resultLimit = plan.resultLimit),
             formatPageDetails(pageDetails),
         )
             .filter { section -> section.isNotBlank() }
@@ -226,27 +235,35 @@ class WebSearchManager(
     private fun fetchSelectedPageDetails(
         question: String,
         results: List<WebSearchResult>,
+        plan: WebSearchPlan,
     ): List<WebPageDetail> {
         if (results.isEmpty()) {
             return emptyList()
         }
 
-        val selectedUrls = selectDetailUrlsWithLocalModel(
-            question = question,
-            results = results,
-        ).ifEmpty {
-            results.take(WEB_PAGE_DETAIL_LIMIT).map { result -> result.url }
-        }
-        val selectedResults = selectedUrls
-            .mapNotNull { selectedUrl ->
-                results.firstOrNull { result ->
-                    result.url.normalizeUrlForDedupe() == selectedUrl.normalizeUrlForDedupe()
+        val selectedResults = if (plan.useLocalModelSelection) {
+            selectDetailUrlsWithLocalModel(
+                question = question,
+                results = results,
+                detailPageLimit = plan.detailPageLimit,
+                candidateLimit = plan.candidateLimit,
+            )
+                .mapNotNull { selectedUrl ->
+                    results.firstOrNull { result ->
+                        result.url.normalizeUrlForDedupe() == selectedUrl.normalizeUrlForDedupe()
+                    }
                 }
-            }
-            .ifEmpty { results.take(WEB_PAGE_DETAIL_LIMIT) }
-            .take(WEB_PAGE_DETAIL_LIMIT)
+        } else {
+            emptyList()
+        }.ifEmpty {
+            selectDetailResultsHeuristically(
+                question = question,
+                results = results,
+                detailPageLimit = plan.detailPageLimit,
+            )
+        }.take(plan.detailPageLimit)
 
-        val executor = Executors.newFixedThreadPool(minOf(selectedResults.size, WEB_PAGE_DETAIL_LIMIT))
+        val executor = Executors.newFixedThreadPool(minOf(selectedResults.size, plan.detailPageLimit))
         return try {
             val tasks = selectedResults.mapIndexed { index, result ->
                 Callable {
@@ -272,9 +289,11 @@ class WebSearchManager(
     private fun selectDetailUrlsWithLocalModel(
         question: String,
         results: List<WebSearchResult>,
+        detailPageLimit: Int,
+        candidateLimit: Int,
     ): List<String> {
         val candidates = results
-            .take(WEB_SEARCH_CANDIDATE_LIMIT)
+            .take(candidateLimit)
             .mapIndexed { index, result ->
                 """
                 [${index + 1}] ${result.title}
@@ -284,7 +303,7 @@ class WebSearchManager(
             }
             .joinToString(separator = "\n\n")
         val prompt = """
-        Select up to 3 URLs that should be opened for detailed reading before answering the user.
+        Select up to $detailPageLimit URLs that should be opened for detailed reading before answering the user.
 
         Rules:
         - Prefer authoritative, specific, recent, primary, or technically detailed sources.
@@ -306,9 +325,64 @@ class WebSearchManager(
                 .mapNotNull { line -> Regex("""https?://\S+""").find(line)?.value }
                 .map { url -> url.trimEnd('.', ',', ')', ']', '"', '\'') }
                 .distinctBy { url -> url.normalizeUrlForDedupe() }
-                .take(WEB_PAGE_DETAIL_LIMIT)
+                .take(detailPageLimit)
                 .toList()
         }.getOrDefault(emptyList())
+    }
+
+    private fun selectDetailResultsHeuristically(
+        question: String,
+        results: List<WebSearchResult>,
+        detailPageLimit: Int,
+    ): List<WebSearchResult> {
+        val terms = searchTerms(question)
+        return results
+            .mapIndexed { index, result ->
+                Triple(scoreResultForQuestion(result, terms, index), index, result)
+            }
+            .sortedWith(
+                compareByDescending<Triple<Int, Int, WebSearchResult>> { it.first }
+                    .thenBy { it.second },
+            )
+            .map { scored -> scored.third }
+            .take(detailPageLimit)
+    }
+
+    private fun scoreResultForQuestion(
+        result: WebSearchResult,
+        terms: List<String>,
+        index: Int,
+    ): Int {
+        val searchable = "${result.title} ${result.description} ${result.url}".lowercase()
+        val termScore = terms.count { term -> searchable.contains(term) } * 8
+        val authorityScore = authoritativeHostScore(result.url)
+        val homepagePenalty = runCatching {
+            val path = URL(result.url).path.orEmpty()
+            if (path.isBlank() || path == "/") 4 else 0
+        }.getOrDefault(0)
+        return termScore + authorityScore - homepagePenalty - index.coerceAtMost(6)
+    }
+
+    private fun authoritativeHostScore(url: String): Int {
+        val host = runCatching { URL(url).host.orEmpty().lowercase() }.getOrDefault("")
+        if (host.endsWith(".gov") || host.endsWith(".edu")) {
+            return 8
+        }
+        val signals = listOf(
+            "docs.",
+            "developer.",
+            "support.",
+            "github.com",
+            "arxiv.org",
+            "nature.com",
+            "science.org",
+            "who.int",
+            "oecd.org",
+            "apple.com",
+            "google",
+            "microsoft.com",
+        )
+        return if (signals.any { signal -> host.contains(signal) }) 5 else 0
     }
 
     private fun fetchPageDetail(
@@ -614,13 +688,14 @@ class WebSearchManager(
     private fun formatSearchResults(
         results: List<WebSearchResult>,
         fallbackDate: String?,
+        resultLimit: Int = WEB_SEARCH_RESULT_LIMIT,
     ): String {
         if (results.isEmpty()) {
             return "No web search results were found."
         }
 
         return results
-            .take(WEB_SEARCH_RESULT_LIMIT)
+            .take(resultLimit)
             .mapIndexed { index, result ->
                 val date = result.date ?: fallbackDate
                 """
@@ -769,6 +844,77 @@ class WebSearchManager(
             .trim()
             .ifBlank { normalizedText.take(WEB_PAGE_EXCERPT_CHARS) }
     }
+
+    private fun searchPlanFor(question: String): WebSearchPlan {
+        val normalized = question.lowercase()
+        val deepSignals = listOf(
+            "비교",
+            "여러",
+            "다양한",
+            "종합",
+            "리서치",
+            "연구",
+            "논문",
+            "근거",
+            "출처",
+            "sources",
+            "compare",
+            "research",
+            "papers",
+            "evidence",
+        )
+        val expandedSignals = listOf(
+            "최신",
+            "최근",
+            "오늘",
+            "현재",
+            "뉴스",
+            "가격",
+            "주가",
+            "일정",
+            "법",
+            "규정",
+            "latest",
+            "recent",
+            "today",
+            "current",
+            "news",
+            "price",
+            "stock",
+            "schedule",
+        )
+
+        return when {
+            deepSignals.any { signal -> normalized.contains(signal) } -> WebSearchPlan(
+                candidateLimit = 12,
+                resultLimit = 8,
+                detailPageLimit = 5,
+                useLocalModelSelection = true,
+            )
+            expandedSignals.any { signal -> normalized.contains(signal) } -> WebSearchPlan(
+                candidateLimit = 10,
+                resultLimit = 6,
+                detailPageLimit = 4,
+                useLocalModelSelection = false,
+            )
+            else -> WebSearchPlan(
+                candidateLimit = 6,
+                resultLimit = 4,
+                detailPageLimit = 3,
+                useLocalModelSelection = false,
+            )
+        }
+    }
+
+    private fun searchTerms(query: String): List<String> =
+        query
+            .lowercase()
+            .split(Regex("""[^0-9A-Za-z\uAC00-\uD7A3]+"""))
+            .map { term -> term.trim() }
+            .filter { term -> term.length >= 3 }
+            .filterNot { term -> term in pageSearchStopWords }
+            .distinct()
+            .take(12)
 
     private fun isInvalidSanitizedQuery(query: String): Boolean {
         val normalized = query.trim()

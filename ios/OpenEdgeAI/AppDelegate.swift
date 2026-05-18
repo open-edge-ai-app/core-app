@@ -485,6 +485,13 @@ private struct NativeSearchSourceReference: Identifiable, Codable, Equatable {
   var host: String {
     URL(string: url)?.host?.replacingOccurrences(of: "www.", with: "") ?? url
   }
+
+  var faviconURL: URL? {
+    guard !host.isEmpty else {
+      return nil
+    }
+    return URL(string: "https://www.google.com/s2/favicons?sz=64&domain=\(host)")
+  }
 }
 
 private struct NativeMessage: Identifiable, Codable, Equatable {
@@ -2903,6 +2910,7 @@ private struct NativeEmptyChatView: View {
 
 private struct NativeMessageView: View {
   @EnvironmentObject private var store: NativeChatStore
+  @State private var showingSources = false
   let message: NativeMessage
 
   var body: some View {
@@ -2928,10 +2936,6 @@ private struct NativeMessageView: View {
           .frame(maxWidth: .infinity, alignment: .leading)
           .textSelection(.enabled)
 
-        if !message.sourceReferences.isEmpty {
-          NativeMessageSourcesView(sources: message.sourceReferences)
-        }
-
         HStack(spacing: 16) {
           Button {
             store.copy(message.text)
@@ -2946,6 +2950,15 @@ private struct NativeMessageView: View {
           }
           .disabled(store.isGenerating)
 
+          if !message.sourceReferences.isEmpty {
+            Button {
+              showingSources = true
+            } label: {
+              NativeMessageSourcesButton(sources: message.sourceReferences)
+            }
+            .accessibilityLabel("출처 \(message.sourceReferences.count)개")
+          }
+
           Text(message.createdAt.formatted(date: .omitted, time: .shortened))
             .font(.system(size: 12))
             .foregroundColor(.oeMutedText)
@@ -2956,27 +2969,130 @@ private struct NativeMessageView: View {
       }
     }
     .frame(maxWidth: .infinity, alignment: message.role == .user ? .trailing : .leading)
+    .sheet(isPresented: $showingSources) {
+      NativeMessageSourcesSheet(sources: message.sourceReferences)
+        .environmentObject(store)
+        .presentationDetents([.medium, .large])
+        .presentationDragIndicator(.visible)
+    }
   }
 }
 
-private struct NativeMessageSourcesView: View {
+private struct NativeMessageSourcesButton: View {
+  @EnvironmentObject private var store: NativeChatStore
+  let sources: [NativeSearchSourceReference]
+
+  private var overflowCount: Int {
+    max(0, sources.count - 3)
+  }
+
+  var body: some View {
+    HStack(spacing: 6) {
+      NativeSourceFaviconStack(sources: sources)
+      Text("출처")
+        .font(.system(size: 13, weight: .semibold))
+      if overflowCount > 0 {
+        Text("+\(overflowCount)")
+          .font(.system(size: 11, weight: .semibold))
+      }
+    }
+    .foregroundColor(store.accentColor.color)
+  }
+}
+
+private struct NativeSourceFaviconStack: View {
+  let sources: [NativeSearchSourceReference]
+
+  private var visibleSources: [NativeSearchSourceReference] {
+    Array(sources.prefix(3))
+  }
+
+  private var width: CGFloat {
+    guard !visibleSources.isEmpty else {
+      return 0
+    }
+    return CGFloat(visibleSources.count - 1) * 11 + 18
+  }
+
+  var body: some View {
+    ZStack(alignment: .leading) {
+      ForEach(Array(visibleSources.enumerated()), id: \.element.id) { index, source in
+        NativeSourceFavicon(source: source, size: 18)
+          .offset(x: CGFloat(index) * 11)
+          .zIndex(Double(visibleSources.count - index))
+      }
+    }
+    .frame(width: width, height: 18, alignment: .leading)
+  }
+}
+
+private struct NativeSourceFavicon: View {
+  let source: NativeSearchSourceReference
+  let size: CGFloat
+
+  var body: some View {
+    AsyncImage(url: source.faviconURL) { phase in
+      if let image = phase.image {
+        image
+          .resizable()
+          .scaledToFit()
+      } else {
+        fallback
+      }
+    }
+    .frame(width: size, height: size)
+    .background(Color.oeBackground)
+    .clipShape(Circle())
+    .overlay(
+      Circle()
+        .stroke(Color.oeBackground, lineWidth: 1.5)
+    )
+  }
+
+  private var fallback: some View {
+    Circle()
+      .fill(Color.oeSubtleFill)
+      .overlay(
+        Text(String(source.host.prefix(1)).uppercased())
+          .font(.system(size: max(8, size * 0.44), weight: .bold))
+          .foregroundColor(.oeSecondaryText)
+      )
+  }
+}
+
+private struct NativeMessageSourcesSheet: View {
+  @Environment(\.dismiss) private var dismiss
   @EnvironmentObject private var store: NativeChatStore
   let sources: [NativeSearchSourceReference]
 
   var body: some View {
-    VStack(alignment: .leading, spacing: 8) {
-      Text("출처")
-        .font(.system(size: max(11, store.fontSizeSetting.bodySize - 4), weight: .semibold))
-        .foregroundColor(.oeSecondaryText)
-
-      VStack(alignment: .leading, spacing: 6) {
-        ForEach(sources.indices, id: \.self) { index in
-          NativeMessageSourceRow(index: index + 1, source: sources[index])
+    NavigationStack {
+      ScrollView {
+        LazyVStack(alignment: .leading, spacing: 10) {
+          ForEach(Array(sources.enumerated()), id: \.element.id) { index, source in
+            NativeMessageSourceRow(index: index + 1, source: source)
+          }
+        }
+        .padding(.horizontal, 18)
+        .padding(.top, 12)
+        .padding(.bottom, 28)
+      }
+      .background(Color.oeGroupedBackground)
+      .navigationTitle("출처")
+      .navigationBarTitleDisplayMode(.inline)
+      .toolbar {
+        ToolbarItem(placement: .topBarTrailing) {
+          Button {
+            dismiss()
+          } label: {
+            Image(systemName: "xmark")
+              .font(.system(size: 14, weight: .semibold))
+          }
+          .buttonStyle(.plain)
+          .accessibilityLabel("닫기")
         }
       }
     }
-    .padding(.top, 2)
-    .frame(maxWidth: .infinity, alignment: .leading)
   }
 }
 
@@ -2986,35 +3102,19 @@ private struct NativeMessageSourceRow: View {
   let source: NativeSearchSourceReference
 
   var body: some View {
-    Group {
-      if let url = URL(string: source.url) {
-        Link(destination: url) {
-          content
-        }
-      } else {
-        content
-      }
-    }
-    .buttonStyle(.plain)
-  }
-
-  private var content: some View {
     HStack(alignment: .top, spacing: 8) {
-      Text("[\(index)]")
-        .font(.system(size: 11, weight: .semibold))
-        .foregroundColor(store.accentColor.color)
-        .frame(width: 28, alignment: .leading)
+      NativeSourceFavicon(source: source, size: 24)
 
       VStack(alignment: .leading, spacing: 3) {
+        Text("[\(index)] \(source.host)")
+          .font(.system(size: 11, weight: .semibold))
+          .foregroundColor(store.accentColor.color)
+          .lineLimit(1)
+
         Text(source.title.isEmpty ? source.host : source.title)
           .font(.system(size: max(12, store.fontSizeSetting.bodySize - 3), weight: .semibold))
           .foregroundColor(.oeText)
           .lineLimit(2)
-
-        Text(source.host)
-          .font(.system(size: 11, weight: .medium))
-          .foregroundColor(.oeMutedText)
-          .lineLimit(1)
 
         if !source.snippet.isEmpty {
           Text(source.snippet)
@@ -3022,19 +3122,19 @@ private struct NativeMessageSourceRow: View {
             .foregroundColor(.oeSecondaryText)
             .lineLimit(2)
         }
+
+        Text(source.url)
+          .font(.system(size: 11))
+          .foregroundColor(.oeMutedText)
+          .lineLimit(1)
       }
 
       Spacer(minLength: 6)
-
-      Image(systemName: "arrow.up.right")
-        .font(.system(size: 10, weight: .semibold))
-        .foregroundColor(.oeMutedText)
-        .padding(.top, 2)
     }
     .padding(.horizontal, 10)
-    .padding(.vertical, 8)
-    .background(Color.oeSubtleFill)
-    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+    .padding(.vertical, 10)
+    .background(Color.oeBackground)
+    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
   }
 }
 

@@ -1759,6 +1759,8 @@ private struct NativeRootView: View {
   @State private var showingSessions = false
   @State private var showingSettings = false
   @State private var showingFileImporter = false
+  @State private var showingSearch = false
+  @State private var searchProject: NativeProject?
 
   var body: some View {
     ZStack(alignment: .leading) {
@@ -1770,7 +1772,10 @@ private struct NativeRootView: View {
 
         Divider()
         NativeChatTranscript()
-        NativeInputBar(showingFileImporter: $showingFileImporter)
+        NativeInputBar(
+          showingFileImporter: $showingFileImporter,
+          onSearchCommand: openSearch
+        )
       }
       .background(Color.oeBackground)
 
@@ -1790,6 +1795,28 @@ private struct NativeRootView: View {
       NativeSettingsView()
         .environmentObject(store)
     }
+    .sheet(isPresented: $showingSearch) {
+      NativeSearchView { session in
+        store.selectSession(session)
+      } onSelectProject: { project in
+        searchProject = project
+      }
+      .environmentObject(store)
+      .presentationDetents([.large])
+      .presentationDragIndicator(.visible)
+    }
+    .sheet(item: $searchProject) { project in
+      NativeProjectSessionsPage(
+        project: project,
+        showingFileImporter: $showingFileImporter
+      ) { session in
+        store.selectSession(session)
+        searchProject = nil
+      }
+      .environmentObject(store)
+      .presentationDetents([.large])
+      .presentationDragIndicator(.visible)
+    }
     .fileImporter(
       isPresented: $showingFileImporter,
       allowedContentTypes: [.item],
@@ -1802,6 +1829,10 @@ private struct NativeRootView: View {
     .task {
       await store.pollModelStatuses()
     }
+  }
+
+  private func openSearch() {
+    showingSearch = true
   }
 }
 
@@ -2255,14 +2286,132 @@ private struct NativeAttachmentRow: View {
   }
 }
 
+private struct NativeSlashCommand: Identifiable, Equatable {
+  let id: String
+  let trigger: String
+  let title: String
+  let subtitle: String
+  let systemImage: String
+
+  static let search = NativeSlashCommand(
+    id: "search",
+    trigger: "/search",
+    title: "검색",
+    subtitle: "대화와 프로젝트를 검색",
+    systemImage: "magnifyingglass"
+  )
+
+  static let all = [search]
+
+  static func query(in inputText: String) -> String? {
+    let trimmed = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard trimmed.hasPrefix("/") else {
+      return nil
+    }
+
+    let query = String(trimmed.dropFirst())
+    guard query.rangeOfCharacter(from: .whitespacesAndNewlines) == nil else {
+      return nil
+    }
+
+    return query
+  }
+
+  static func matching(in inputText: String) -> [NativeSlashCommand] {
+    guard let query = query(in: inputText) else {
+      return []
+    }
+
+    guard !query.isEmpty else {
+      return all
+    }
+
+    return all.filter { command in
+      String(command.trigger.dropFirst()).localizedCaseInsensitiveContains(query)
+        || command.title.localizedCaseInsensitiveContains(query)
+    }
+  }
+
+  static func exactMatch(in inputText: String) -> NativeSlashCommand? {
+    let normalized = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
+    return all.first { $0.trigger == normalized }
+  }
+}
+
+private struct NativeSlashCommandMenu: View {
+  @EnvironmentObject private var store: NativeChatStore
+  let commands: [NativeSlashCommand]
+  var onSelect: (NativeSlashCommand) -> Void
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 4) {
+      ForEach(commands) { command in
+        Button {
+          onSelect(command)
+        } label: {
+          HStack(spacing: 12) {
+            Image(systemName: command.systemImage)
+              .font(.system(size: 15, weight: .semibold))
+              .foregroundColor(store.accentColor.color)
+              .frame(width: 28, height: 28)
+              .background(store.accentColor.subtleColor)
+              .clipShape(Circle())
+
+            VStack(alignment: .leading, spacing: 2) {
+              HStack(spacing: 8) {
+                Text(command.trigger)
+                  .font(.system(size: store.fontSizeSetting.bodySize - 1, weight: .semibold))
+                  .foregroundColor(.oeText)
+
+                Text(command.title)
+                  .font(.system(size: store.fontSizeSetting.bodySize - 2, weight: .medium))
+                  .foregroundColor(.oeSecondaryText)
+              }
+
+              Text(command.subtitle)
+                .font(.system(size: store.fontSizeSetting.bodySize - 4, weight: .regular))
+                .foregroundColor(.oeMutedText)
+                .lineLimit(1)
+            }
+
+            Spacer(minLength: 8)
+          }
+          .padding(.horizontal, 10)
+          .padding(.vertical, 8)
+          .frame(maxWidth: .infinity, alignment: .leading)
+          .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("\(command.trigger) \(command.title)")
+      }
+    }
+    .padding(6)
+    .background(Color.oeSurface)
+    .overlay(
+      RoundedRectangle(cornerRadius: 16, style: .continuous)
+        .stroke(Color.oeBorder, lineWidth: 1)
+    )
+    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+  }
+}
+
 private struct NativeInputBar: View {
   @EnvironmentObject private var store: NativeChatStore
   @Binding var showingFileImporter: Bool
+  var onSearchCommand: () -> Void
   @FocusState private var focused: Bool
 
   private var editorHeight: CGFloat {
     let lineCount = max(1, store.inputText.components(separatedBy: .newlines).count)
     return min(CGFloat(lineCount) * 20 + 22, 82)
+  }
+
+  private var slashCommands: [NativeSlashCommand] {
+    NativeSlashCommand.matching(in: store.inputText)
+  }
+
+  private var showsSlashCommands: Bool {
+    focused && !slashCommands.isEmpty
   }
 
   var body: some View {
@@ -2293,6 +2442,12 @@ private struct NativeInputBar: View {
             }
           }
         }
+      }
+
+      if showsSlashCommands {
+        NativeSlashCommandMenu(commands: slashCommands, onSelect: performSlashCommand)
+          .environmentObject(store)
+          .transition(.move(edge: .bottom).combined(with: .opacity))
       }
 
       VStack(spacing: 6) {
@@ -2334,7 +2489,7 @@ private struct NativeInputBar: View {
             if store.isGenerating && !store.canSend {
               store.cancelGeneration()
             } else {
-              store.sendCurrentInput()
+              sendOrRunCommand()
             }
           } label: {
             Image(systemName: store.isGenerating && !store.canSend ? "stop.fill" : "arrow.up")
@@ -2362,6 +2517,24 @@ private struct NativeInputBar: View {
     }
     .padding(.horizontal, 10)
     .padding(.bottom, 6)
+    .animation(.easeOut(duration: 0.18), value: showsSlashCommands)
+  }
+
+  private func sendOrRunCommand() {
+    if let command = NativeSlashCommand.exactMatch(in: store.inputText) {
+      performSlashCommand(command)
+      return
+    }
+
+    store.sendCurrentInput()
+  }
+
+  private func performSlashCommand(_ command: NativeSlashCommand) {
+    if command == .search {
+      store.inputText = ""
+      focused = false
+      onSearchCommand()
+    }
   }
 }
 
@@ -2649,6 +2822,7 @@ private struct NativeProjectSessionsPage: View {
   var onSelectSession: (NativeChatSession) -> Void
   @State private var selectedTab: NativeProjectPageTab = .chats
   @State private var renameTarget: NativeRenameTarget?
+  @State private var isSearchPresented = false
 
   private var currentProject: NativeProject {
     store.projects.first { $0.id == project.id } ?? project
@@ -2686,7 +2860,10 @@ private struct NativeProjectSessionsPage: View {
 
         NativeProjectComposerBar(
           project: currentProject,
-          showingFileImporter: $showingFileImporter
+          showingFileImporter: $showingFileImporter,
+          onSearchCommand: {
+            isSearchPresented = true
+          }
         )
       }
     }
@@ -2697,6 +2874,19 @@ private struct NativeProjectSessionsPage: View {
         .environmentObject(store)
         .presentationDetents(target.isProject ? [.large] : [.medium])
         .presentationDragIndicator(.visible)
+    }
+    .sheet(isPresented: $isSearchPresented) {
+      NativeSearchView { session in
+        onSelectSession(session)
+      } onSelectProject: { project in
+        store.createNewSession(projectId: project.id)
+        if let session = store.currentSession {
+          onSelectSession(session)
+        }
+      }
+      .environmentObject(store)
+      .presentationDetents([.large])
+      .presentationDragIndicator(.visible)
     }
   }
 
@@ -2908,11 +3098,20 @@ private struct NativeProjectComposerBar: View {
   @EnvironmentObject private var store: NativeChatStore
   var project: NativeProject
   @Binding var showingFileImporter: Bool
+  var onSearchCommand: () -> Void
   @FocusState private var focused: Bool
 
   private var editorHeight: CGFloat {
     let lineCount = max(1, store.inputText.components(separatedBy: .newlines).count)
     return min(CGFloat(lineCount) * 20 + 22, 82)
+  }
+
+  private var slashCommands: [NativeSlashCommand] {
+    NativeSlashCommand.matching(in: store.inputText)
+  }
+
+  private var showsSlashCommands: Bool {
+    focused && !slashCommands.isEmpty
   }
 
   var body: some View {
@@ -2943,6 +3142,12 @@ private struct NativeProjectComposerBar: View {
             }
           }
         }
+      }
+
+      if showsSlashCommands {
+        NativeSlashCommandMenu(commands: slashCommands, onSelect: performSlashCommand)
+          .environmentObject(store)
+          .transition(.move(edge: .bottom).combined(with: .opacity))
       }
 
       VStack(spacing: 6) {
@@ -3006,6 +3211,7 @@ private struct NativeProjectComposerBar: View {
     }
     .padding(.horizontal, 10)
     .padding(.bottom, 6)
+    .animation(.easeOut(duration: 0.18), value: showsSlashCommands)
   }
 
   private func send() {
@@ -3013,10 +3219,22 @@ private struct NativeProjectComposerBar: View {
       store.cancelGeneration()
       return
     }
+    if let command = NativeSlashCommand.exactMatch(in: store.inputText) {
+      performSlashCommand(command)
+      return
+    }
     guard store.canSend else {
       return
     }
     store.sendCurrentInput(projectId: project.id)
+  }
+
+  private func performSlashCommand(_ command: NativeSlashCommand) {
+    if command == .search {
+      store.inputText = ""
+      focused = false
+      onSearchCommand()
+    }
   }
 }
 

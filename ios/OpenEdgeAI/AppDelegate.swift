@@ -2088,10 +2088,67 @@ private struct NativeChatTranscript: View {
 private struct NativeEmptyChatView: View {
   @EnvironmentObject private var store: NativeChatStore
 
+  private let subtitles = [
+    "필요한 내용을 편하게 물어보세요.",
+    "생각 정리부터 글쓰기, 코드까지 이어서 도와드릴게요."
+  ]
+
+  private let suggestedPrompts = [
+    "오늘 할 일 우선순위 정리해줘",
+    "이 아이디어를 더 구체화해줘",
+    "긴 글을 핵심만 요약해줘",
+    "코드 오류 원인을 같이 찾아줘"
+  ]
+
   var body: some View {
-    Text("안녕하세요, 무엇을 도와드릴까요?")
-      .font(.system(size: store.fontSizeSetting.bodySize + 5, weight: .semibold))
-      .foregroundColor(.oeText)
+    VStack(alignment: .leading, spacing: 22) {
+      VStack(alignment: .leading, spacing: 8) {
+        Text("안녕하세요, 무엇을 도와드릴까요?")
+          .font(.system(size: store.fontSizeSetting.bodySize + 5, weight: .semibold))
+          .foregroundColor(.oeText)
+
+        ForEach(subtitles, id: \.self) { subtitle in
+          Text(subtitle)
+            .font(.system(size: store.fontSizeSetting.bodySize - 1))
+            .foregroundColor(.oeSecondaryText)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+      }
+
+      VStack(alignment: .leading, spacing: 10) {
+        Text("추천 질문")
+          .font(.system(size: store.fontSizeSetting.bodySize - 2, weight: .semibold))
+          .foregroundColor(.oeSecondaryText)
+
+        VStack(spacing: 8) {
+          ForEach(suggestedPrompts, id: \.self) { prompt in
+            Button {
+              store.inputText = prompt
+            } label: {
+              HStack(spacing: 10) {
+                Text(prompt)
+                  .font(.system(size: store.fontSizeSetting.bodySize - 1, weight: .medium))
+                  .foregroundColor(.oeText)
+                  .lineLimit(2)
+                  .multilineTextAlignment(.leading)
+
+                Spacer(minLength: 8)
+
+                Image(systemName: "arrow.up.right")
+                  .font(.system(size: 12, weight: .semibold))
+                  .foregroundColor(.oeSecondaryText)
+              }
+              .padding(.horizontal, 14)
+              .padding(.vertical, 12)
+              .frame(maxWidth: .infinity, alignment: .leading)
+              .background(Color.oeSubtleFill)
+              .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            }
+            .buttonStyle(.plain)
+          }
+        }
+      }
+    }
     .frame(maxWidth: .infinity, alignment: .leading)
   }
 }

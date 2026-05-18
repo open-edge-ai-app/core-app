@@ -476,12 +476,76 @@ private struct NativeAttachment: Identifiable, Codable, Equatable {
   var url: String
 }
 
+private struct NativeSearchSourceReference: Identifiable, Codable, Equatable {
+  var id: String
+  var title: String
+  var url: String
+  var snippet: String
+
+  var host: String {
+    URL(string: url)?.host?.replacingOccurrences(of: "www.", with: "") ?? url
+  }
+
+  var faviconURL: URL? {
+    guard !host.isEmpty else {
+      return nil
+    }
+    return URL(string: "https://www.google.com/s2/favicons?sz=64&domain=\(host)")
+  }
+}
+
 private struct NativeMessage: Identifiable, Codable, Equatable {
   var id: String
   var role: NativeRole
   var text: String
   var createdAt: Date
   var attachments: [NativeAttachment]
+  var sourceReferences: [NativeSearchSourceReference]
+  var contextCompressed: Bool
+
+  init(
+    id: String,
+    role: NativeRole,
+    text: String,
+    createdAt: Date,
+    attachments: [NativeAttachment],
+    sourceReferences: [NativeSearchSourceReference] = [],
+    contextCompressed: Bool = false
+  ) {
+    self.id = id
+    self.role = role
+    self.text = text
+    self.createdAt = createdAt
+    self.attachments = attachments
+    self.sourceReferences = sourceReferences
+    self.contextCompressed = contextCompressed
+  }
+
+  private enum CodingKeys: String, CodingKey {
+    case id
+    case role
+    case text
+    case createdAt
+    case attachments
+    case sourceReferences
+    case contextCompressed
+  }
+
+  init(from decoder: Decoder) throws {
+    let container = try decoder.container(keyedBy: CodingKeys.self)
+    id = try container.decode(String.self, forKey: .id)
+    role = try container.decode(NativeRole.self, forKey: .role)
+    text = try container.decode(String.self, forKey: .text)
+    createdAt = try container.decode(Date.self, forKey: .createdAt)
+    attachments = try container.decodeIfPresent([NativeAttachment].self, forKey: .attachments) ?? []
+    sourceReferences = try container.decodeIfPresent([NativeSearchSourceReference].self, forKey: .sourceReferences) ?? []
+    contextCompressed = try container.decodeIfPresent(Bool.self, forKey: .contextCompressed) ?? false
+  }
+}
+
+private enum NativeDraftMode: String, Codable, Equatable {
+  case standard
+  case search
 }
 
 private struct NativeDraft: Identifiable, Codable, Equatable {
@@ -489,6 +553,507 @@ private struct NativeDraft: Identifiable, Codable, Equatable {
   var text: String
   var attachments: [NativeAttachment]
   var createdAt: Date
+  var mode: NativeDraftMode
+
+  init(
+    id: String,
+    text: String,
+    attachments: [NativeAttachment],
+    createdAt: Date,
+    mode: NativeDraftMode = .standard
+  ) {
+    self.id = id
+    self.text = text
+    self.attachments = attachments
+    self.createdAt = createdAt
+    self.mode = mode
+  }
+
+  private enum CodingKeys: String, CodingKey {
+    case id
+    case text
+    case attachments
+    case createdAt
+    case mode
+  }
+
+  init(from decoder: Decoder) throws {
+    let container = try decoder.container(keyedBy: CodingKeys.self)
+    id = try container.decode(String.self, forKey: .id)
+    text = try container.decode(String.self, forKey: .text)
+    attachments = try container.decode([NativeAttachment].self, forKey: .attachments)
+    createdAt = try container.decode(Date.self, forKey: .createdAt)
+    mode = try container.decodeIfPresent(NativeDraftMode.self, forKey: .mode) ?? .standard
+  }
+}
+
+private struct NativeWebSearchSource: Identifiable, Equatable {
+  let id: String
+  let title: String
+  let snippet: String
+  let url: String
+  let pageText: String
+
+  init(title: String, snippet: String, url: String, pageText: String) {
+    self.id = url
+    self.title = title
+    self.snippet = snippet
+    self.url = url
+    self.pageText = pageText
+  }
+
+  var reference: NativeSearchSourceReference {
+    NativeSearchSourceReference(id: id, title: title, url: url, snippet: snippet)
+  }
+}
+
+private struct NativeWebSearchContext: Equatable {
+  let query: String
+  let sources: [NativeWebSearchSource]
+  let errorMessage: String?
+
+  var sourceReferences: [NativeSearchSourceReference] {
+    sources.map(\.reference)
+  }
+
+  func promptSection(maxEstimatedTokens: Int) -> String {
+    var lines = ["Search query: \(query)"]
+
+    if let errorMessage {
+      lines.append("Search status: \(errorMessage)")
+    }
+
+    if sources.isEmpty {
+      lines.append("Search results: none")
+    } else {
+      lines.append("Citation format: cite visited pages inline as [1], [2], matching the page numbers below. Compare multiple sources when possible.")
+      lines.append("Visited web pages:")
+      let headerBudget = NativePromptCompressor.estimatedTokens(lines.joined(separator: "\n"))
+      let perSourceBudget = max(160, (maxEstimatedTokens - headerBudget) / max(1, sources.count))
+      for (index, source) in sources.enumerated() {
+        let clippedSnippet = NativePromptCompressor.clipped(source.snippet, maxEstimatedTokens: 90)
+        let fixedSourceText = """
+        \(index + 1). \(source.title)
+        URL: \(source.url)
+        Snippet: \(clippedSnippet)
+        Page content:
+        """
+        let pageBudget = max(80, perSourceBudget - NativePromptCompressor.estimatedTokens(fixedSourceText))
+        let pageText = NativePromptCompressor.clipped(source.pageText, maxEstimatedTokens: pageBudget)
+        lines.append("""
+        \(fixedSourceText)
+        \(pageText)
+        """)
+      }
+    }
+
+    return lines.joined(separator: "\n")
+  }
+}
+
+private enum NativePromptCompressor {
+  static let maxModelTokens = 4_096
+  static let responseReserveTokens = 820
+  static let maxInputTokens = maxModelTokens - responseReserveTokens
+  static let historyTokens = 920
+  static let searchTokens = 1_180
+  static let instructionTokens = 240
+  static let currentRequestTokens = 1_180
+
+  static func estimatedTokens(_ text: String) -> Int {
+    var tokens = 0
+    var asciiRun = 0
+
+    func flushAsciiRun() {
+      if asciiRun > 0 {
+        tokens += max(1, (asciiRun + 3) / 4)
+        asciiRun = 0
+      }
+    }
+
+    for scalar in text.unicodeScalars {
+      if CharacterSet.whitespacesAndNewlines.contains(scalar) {
+        flushAsciiRun()
+        continue
+      }
+
+      if scalar.value < 128, CharacterSet.alphanumerics.contains(scalar) {
+        asciiRun += 1
+        continue
+      }
+
+      flushAsciiRun()
+      tokens += 1
+    }
+
+    flushAsciiRun()
+    return tokens
+  }
+
+  static func clipped(_ text: String, maxEstimatedTokens: Int, keepTail: Bool = false) -> String {
+    guard maxEstimatedTokens > 0,
+          estimatedTokens(text) > maxEstimatedTokens
+    else {
+      return text
+    }
+
+    let marker = keepTail ? "... [앞부분 압축]\n" : "\n... [이후 내용 압축]"
+    let markerTokens = estimatedTokens(marker)
+    let targetTokens = max(1, maxEstimatedTokens - markerTokens)
+    var selected = ""
+    var usedTokens = 0
+    let characters = keepTail ? Array(text.reversed()) : Array(text)
+
+    for character in characters {
+      let cost = max(0, estimatedTokens(String(character)))
+      if usedTokens + cost > targetTokens {
+        break
+      }
+
+      if keepTail {
+        selected.insert(character, at: selected.startIndex)
+      } else {
+        selected.append(character)
+      }
+      usedTokens += cost
+    }
+
+    let trimmed = selected.trimmingCharacters(in: .whitespacesAndNewlines)
+    return keepTail ? marker + trimmed : trimmed + marker
+  }
+
+  static func clippedPreservingEdges(_ text: String, maxEstimatedTokens: Int) -> String {
+    guard estimatedTokens(text) > maxEstimatedTokens else {
+      return text
+    }
+
+    let marker = "\n\n[중간 컨텍스트 압축]\n\n"
+    let markerTokens = estimatedTokens(marker)
+    let edgeBudget = max(1, (maxEstimatedTokens - markerTokens) / 2)
+    return clipped(text, maxEstimatedTokens: edgeBudget)
+      + marker
+      + clipped(text, maxEstimatedTokens: edgeBudget, keepTail: true)
+  }
+
+  static func containsCompressionMarker(_ text: String) -> Bool {
+    text.contains("[중간 컨텍스트 압축]")
+      || text.contains("[앞부분 압축]")
+      || text.contains("[이후 내용 압축]")
+      || (
+        text.contains("Earlier ")
+          && text.contains(" messages were omitted.")
+      )
+  }
+
+  static func clippedCurrentRequest(_ text: String, maxEstimatedTokens: Int) -> String {
+    if shouldPreserveStructure(text) {
+      return clippedPreservingEdges(text, maxEstimatedTokens: maxEstimatedTokens)
+    }
+    return clipped(text, maxEstimatedTokens: maxEstimatedTokens, keepTail: true)
+  }
+
+  static func clippedMessageBody(_ text: String, maxEstimatedTokens: Int) -> String {
+    if shouldPreserveStructure(text) {
+      return clippedPreservingEdges(text, maxEstimatedTokens: maxEstimatedTokens)
+    }
+    return clipped(text, maxEstimatedTokens: maxEstimatedTokens, keepTail: true)
+  }
+
+  static func shouldPreserveStructure(_ text: String) -> Bool {
+    let lower = text.lowercased()
+    let lineCount = text.filter { $0 == "\n" }.count
+    return lineCount >= 8
+      || text.contains("```")
+      || lower.contains("func ")
+      || lower.contains("class ")
+      || lower.contains("struct ")
+      || lower.contains("import ")
+      || lower.contains("const ")
+      || lower.contains("let ")
+      || lower.contains("var ")
+      || lower.contains("return ")
+      || lower.contains("error:")
+      || lower.contains("exception")
+      || lower.contains("stack trace")
+  }
+}
+
+private final class NativeWebSearchClient {
+  static let shared = NativeWebSearchClient()
+
+  private let defaultSourceLimit = 4
+  private let expandedSourceLimit = 6
+  private let deepSourceLimit = 8
+  private let maxSearchResultCandidates = 14
+  private let session: URLSession
+
+  private init() {
+    let configuration = URLSessionConfiguration.ephemeral
+    configuration.timeoutIntervalForRequest = 12
+    configuration.timeoutIntervalForResource = 24
+    configuration.httpAdditionalHeaders = [
+      "User-Agent": "OpenEdgeAI/1.0 iOS WebSearch"
+    ]
+    session = URLSession(configuration: configuration)
+  }
+
+  func search(query: String) async -> NativeWebSearchContext {
+    let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !trimmedQuery.isEmpty else {
+      return NativeWebSearchContext(
+        query: query,
+        sources: [],
+        errorMessage: "검색할 내용이 충분하지 않습니다."
+      )
+    }
+
+    var components = URLComponents(string: "https://duckduckgo.com/html/")
+    components?.queryItems = [
+      URLQueryItem(name: "q", value: trimmedQuery)
+    ]
+
+    guard let url = components?.url else {
+      return NativeWebSearchContext(
+        query: trimmedQuery,
+        sources: [],
+        errorMessage: "검색 URL을 만들 수 없습니다."
+      )
+    }
+
+    do {
+      let searchHTML = try await fetchString(from: url)
+      let results = parseSearchResults(from: searchHTML)
+      let sourceLimit = sourceLimit(for: trimmedQuery)
+      let sources = await visitPages(results: results, limit: sourceLimit)
+      return NativeWebSearchContext(
+        query: trimmedQuery,
+        sources: sources,
+        errorMessage: sources.isEmpty ? "검색 결과 페이지를 읽지 못했습니다." : nil
+      )
+    } catch {
+      return NativeWebSearchContext(
+        query: trimmedQuery,
+        sources: [],
+        errorMessage: "검색 중 오류가 발생했습니다: \(error.localizedDescription)"
+      )
+    }
+  }
+
+  private struct SearchResult {
+    let rank: Int
+    let title: String
+    let url: URL
+  }
+
+  private func visitPages(results: [SearchResult], limit: Int) async -> [NativeWebSearchSource] {
+    let candidateResults = Array(results.prefix(min(results.count, max(limit + 4, limit * 2))))
+
+    return await withTaskGroup(of: (rank: Int, source: NativeWebSearchSource)?.self) { group in
+      for result in candidateResults {
+        group.addTask { [weak self] in
+          guard let self,
+                let pageText = try? await self.fetchPageText(from: result.url),
+                !pageText.isEmpty
+          else {
+            return nil
+          }
+
+          return (
+            rank: result.rank,
+            source: NativeWebSearchSource(
+              title: result.title,
+              snippet: self.clipped(pageText, maxLength: 360),
+              url: result.url.absoluteString,
+              pageText: self.clipped(pageText, maxLength: 2_000)
+            )
+          )
+        }
+      }
+
+      var rankedSources: [(rank: Int, source: NativeWebSearchSource)] = []
+      for await result in group {
+        guard let result else {
+          continue
+        }
+        rankedSources.append(result)
+      }
+
+      return rankedSources
+        .sorted { $0.rank < $1.rank }
+        .prefix(limit)
+        .map(\.source)
+    }
+  }
+
+  private func fetchString(from url: URL) async throws -> String {
+    var request = URLRequest(url: url)
+    request.setValue("text/html,application/xhtml+xml", forHTTPHeaderField: "Accept")
+    let (data, response) = try await session.data(for: request)
+    try validate(response: response)
+    return String(data: data, encoding: .utf8)
+      ?? String(data: data, encoding: .isoLatin1)
+      ?? ""
+  }
+
+  private func fetchPageText(from url: URL) async throws -> String {
+    var request = URLRequest(url: url)
+    request.setValue("text/html,application/xhtml+xml,text/plain", forHTTPHeaderField: "Accept")
+    let (data, response) = try await session.data(for: request)
+    try validate(response: response)
+
+    if let httpResponse = response as? HTTPURLResponse,
+       let contentType = httpResponse.value(forHTTPHeaderField: "Content-Type")?.lowercased(),
+       !contentType.contains("text/html"),
+       !contentType.contains("text/plain") {
+      return ""
+    }
+
+    let limitedData = Data(data.prefix(1_500_000))
+    let html = String(data: limitedData, encoding: .utf8)
+      ?? String(data: limitedData, encoding: .isoLatin1)
+      ?? ""
+    return cleanHTML(html)
+  }
+
+  private func validate(response: URLResponse) throws {
+    guard let httpResponse = response as? HTTPURLResponse else {
+      return
+    }
+
+    guard (200..<300).contains(httpResponse.statusCode) else {
+      throw URLError(.badServerResponse)
+    }
+  }
+
+  private func parseSearchResults(from html: String) -> [SearchResult] {
+    let pattern = #"<a[^>]+class="[^"]*result__a[^"]*"[^>]+href="([^"]+)"[^>]*>(.*?)</a>"#
+    let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive, .dotMatchesLineSeparators])
+    let range = NSRange(html.startIndex..<html.endIndex, in: html)
+    let matches = regex?.matches(in: html, range: range) ?? []
+    var seen = Set<String>()
+    var results: [SearchResult] = []
+
+    for match in matches {
+      guard match.numberOfRanges >= 3,
+            let hrefRange = Range(match.range(at: 1), in: html),
+            let titleRange = Range(match.range(at: 2), in: html),
+            let url = resolvedSearchURL(String(html[hrefRange]))
+      else {
+        continue
+      }
+
+      let urlString = url.absoluteString
+      guard seen.insert(urlString).inserted else {
+        continue
+      }
+
+      let title = cleanHTML(String(html[titleRange]))
+      guard !title.isEmpty else {
+        continue
+      }
+
+      results.append(SearchResult(rank: results.count, title: title, url: url))
+      if results.count >= maxSearchResultCandidates {
+        break
+      }
+    }
+
+    return results
+  }
+
+  private func sourceLimit(for query: String) -> Int {
+    let normalized = query.lowercased()
+    let deepSignals = [
+      "비교", "비교해", "여러", "다양한", "종합", "리서치", "연구", "논문", "근거",
+      "출처", "sources", "compare", "research", "papers", "evidence"
+    ]
+    let expandedSignals = [
+      "최신", "최근", "오늘", "현재", "뉴스", "가격", "주가", "일정", "법", "규정",
+      "latest", "recent", "today", "current", "news", "price", "stock", "schedule"
+    ]
+
+    if deepSignals.contains(where: { normalized.contains($0) }) {
+      return deepSourceLimit
+    }
+
+    if expandedSignals.contains(where: { normalized.contains($0) }) {
+      return expandedSourceLimit
+    }
+
+    return defaultSourceLimit
+  }
+
+  private func resolvedSearchURL(_ href: String) -> URL? {
+    var raw = decodeHTMLEntities(href)
+
+    if raw.hasPrefix("//") {
+      raw = "https:\(raw)"
+    } else if raw.hasPrefix("/") {
+      raw = "https://duckduckgo.com\(raw)"
+    }
+
+    guard let url = URL(string: raw) else {
+      return nil
+    }
+
+    if url.host?.contains("duckduckgo.com") == true,
+       let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
+       let encodedURL = components.queryItems?.first(where: { $0.name == "uddg" })?.value,
+       let destination = URL(string: encodedURL) {
+      return destination
+    }
+
+    return url
+  }
+
+  private func cleanHTML(_ html: String) -> String {
+    var text = html
+    let removalPatterns = [
+      #"(?is)<script\b[^>]*>.*?</script>"#,
+      #"(?is)<style\b[^>]*>.*?</style>"#,
+      #"(?is)<noscript\b[^>]*>.*?</noscript>"#,
+      #"(?is)<svg\b[^>]*>.*?</svg>"#,
+      #"(?is)<!--.*?-->"#
+    ]
+
+    for pattern in removalPatterns {
+      text = text.replacingOccurrences(of: pattern, with: " ", options: .regularExpression)
+    }
+
+    text = text.replacingOccurrences(of: #"<[^>]+>"#, with: " ", options: .regularExpression)
+    text = decodeHTMLEntities(text)
+    return text
+      .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+      .trimmingCharacters(in: .whitespacesAndNewlines)
+  }
+
+  private func decodeHTMLEntities(_ text: String) -> String {
+    guard let data = text.data(using: .utf8),
+          let attributed = try? NSAttributedString(
+            data: data,
+            options: [
+              .documentType: NSAttributedString.DocumentType.html,
+              .characterEncoding: String.Encoding.utf8.rawValue
+            ],
+            documentAttributes: nil
+          )
+    else {
+      return text
+    }
+
+    return attributed.string
+  }
+
+  private func clipped(_ text: String, maxLength: Int) -> String {
+    let cleaned = text
+      .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+      .trimmingCharacters(in: .whitespacesAndNewlines)
+    guard cleaned.count > maxLength else {
+      return cleaned
+    }
+
+    return "\(cleaned.prefix(maxLength))..."
+  }
 }
 
 private final class NativeDeviceContextProvider: NSObject, CLLocationManagerDelegate {
@@ -786,7 +1351,9 @@ private final class NativeChatStore: ObservableObject {
   private var activeAssistantMessageId: String?
   @Published private var activeRequestSessionId: String?
   private var generationBackgroundTaskIdentifier: UIBackgroundTaskIdentifier = .invalid
+  private var searchProgressTasks: [String: Task<Void, Never>] = [:]
   private let deviceContextProvider = NativeDeviceContextProvider()
+  private let searchFallbackRequestText = "현재 대화 내용을 기반으로 검색해서 내용을 개선해줘."
 
   init() {
     loadSettings()
@@ -979,6 +1546,17 @@ private final class NativeChatStore: ObservableObject {
     saveSessions()
   }
 
+  func addSession(_ session: NativeChatSession, to project: NativeProject) {
+    guard let index = sessions.firstIndex(where: { $0.id == session.id }) else {
+      return
+    }
+
+    sessions[index].projectId = project.id
+    sessions[index].updatedAt = Date()
+    sessions.sort { $0.updatedAt > $1.updatedAt }
+    saveSessions()
+  }
+
   func createProject(title: String, iconName: String, systemPrompt: String) {
     let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !trimmedTitle.isEmpty else {
@@ -1032,16 +1610,17 @@ private final class NativeChatStore: ObservableObject {
   }
 
   func sendCurrentInput() {
-    let text = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
-    guard !text.isEmpty || !pendingAttachments.isEmpty else {
+    let draftInput = makeDraftInput(from: inputText)
+    guard !draftInput.text.isEmpty || !pendingAttachments.isEmpty else {
       return
     }
 
     let draft = NativeDraft(
       id: UUID().uuidString,
-      text: text,
+      text: draftInput.text,
       attachments: pendingAttachments,
-      createdAt: Date()
+      createdAt: Date(),
+      mode: draftInput.mode
     )
 
     inputText = ""
@@ -1123,7 +1702,8 @@ private final class NativeChatStore: ObservableObject {
       id: UUID().uuidString,
       text: previousUser.text,
       attachments: previousUser.attachments,
-      createdAt: Date()
+      createdAt: Date(),
+      mode: message.sourceReferences.isEmpty ? .standard : .search
     )
     let historyMessages = Array(session.messages[..<assistantIndex])
 
@@ -1135,10 +1715,14 @@ private final class NativeChatStore: ObservableObject {
     let gemmaCancelled = AIEngineGemmaModelClient.shared.cancelActiveGeneration()
 
     if let activeRequestSessionId, let activeAssistantMessageId {
+      stopSearchProgress(for: activeAssistantMessageId, in: activeRequestSessionId, clearMessage: false)
       mutateSession(activeRequestSessionId) { session in
         if let index = session.messages.firstIndex(where: { $0.id == activeAssistantMessageId }),
            session.messages[index].text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
           session.messages[index].text = "응답 생성이 중지되었습니다."
+        } else if let index = session.messages.firstIndex(where: { $0.id == activeAssistantMessageId }),
+                  isSearchProgressText(session.messages[index].text) {
+          session.messages[index].text = "검색이 중지되었습니다."
         }
       }
     }
@@ -1264,8 +1848,31 @@ private final class NativeChatStore: ObservableObject {
     beginGenerationBackgroundTaskIfNeeded()
     showDynamicIslandWork()
 
-    let prompt = makePrompt(for: sessionId, draft: draft)
-    streamResponse(prompt: prompt, assistantId: assistantMessage.id, sessionId: sessionId)
+    if draft.mode == .search {
+      statusMessage = "검색 중..."
+      startSearchProgress(assistantId: assistantMessage.id, sessionId: sessionId)
+      let searchQuery = makeSearchQuery(for: sessionId, draft: draft)
+      Task { [weak self] in
+        let searchContext = await NativeWebSearchClient.shared.search(query: searchQuery)
+        await MainActor.run { [weak self] in
+          guard let self,
+                self.activeAssistantMessageId == assistantMessage.id,
+                self.activeRequestSessionId == sessionId
+          else {
+            return
+          }
+
+          self.statusMessage = nil
+          self.stopSearchProgress(for: assistantMessage.id, in: sessionId, clearMessage: true)
+          self.applySearchSources(searchContext.sourceReferences, to: assistantMessage.id, in: sessionId)
+          let prompt = self.makePrompt(for: sessionId, draft: draft, searchContext: searchContext)
+          self.streamResponse(prompt: prompt, assistantId: assistantMessage.id, sessionId: sessionId)
+        }
+      }
+    } else {
+      let prompt = makePrompt(for: sessionId, draft: draft)
+      streamResponse(prompt: prompt, assistantId: assistantMessage.id, sessionId: sessionId)
+    }
   }
 
   private func rewrite(
@@ -1284,6 +1891,8 @@ private final class NativeChatStore: ObservableObject {
 
       session.messages[index].text = ""
       session.messages[index].attachments = []
+      session.messages[index].sourceReferences = []
+      session.messages[index].contextCompressed = false
       session.messages[index].createdAt = now
       didResetMessage = true
     }
@@ -1299,15 +1908,50 @@ private final class NativeChatStore: ObservableObject {
     beginGenerationBackgroundTaskIfNeeded()
     showDynamicIslandWork()
 
-    let prompt = makePrompt(for: sessionId, draft: draft, historyMessages: historyMessages)
-    streamResponse(prompt: prompt, assistantId: assistantId, sessionId: sessionId)
+    if draft.mode == .search {
+      statusMessage = "검색 중..."
+      startSearchProgress(assistantId: assistantId, sessionId: sessionId)
+      let searchQuery = makeSearchQuery(for: sessionId, draft: draft, historyMessages: historyMessages)
+      Task { [weak self] in
+        let searchContext = await NativeWebSearchClient.shared.search(query: searchQuery)
+        await MainActor.run { [weak self] in
+          guard let self,
+                self.activeAssistantMessageId == assistantId,
+                self.activeRequestSessionId == sessionId
+          else {
+            return
+          }
+
+          self.statusMessage = nil
+          self.stopSearchProgress(for: assistantId, in: sessionId, clearMessage: true)
+          self.applySearchSources(searchContext.sourceReferences, to: assistantId, in: sessionId)
+          let prompt = self.makePrompt(
+            for: sessionId,
+            draft: draft,
+            historyMessages: historyMessages,
+            searchContext: searchContext
+          )
+          self.streamResponse(prompt: prompt, assistantId: assistantId, sessionId: sessionId)
+        }
+      }
+    } else {
+      let prompt = makePrompt(for: sessionId, draft: draft, historyMessages: historyMessages)
+      streamResponse(prompt: prompt, assistantId: assistantId, sessionId: sessionId)
+    }
   }
 
   private func streamResponse(prompt: String, assistantId: String, sessionId: String) {
     let model = selectedModel
+    let didCompressContext = NativePromptCompressor.estimatedTokens(prompt) > NativePromptCompressor.maxInputTokens
+      || NativePromptCompressor.containsCompressionMarker(prompt)
+    let compactedPrompt = NativePromptCompressor.clippedPreservingEdges(
+      prompt,
+      maxEstimatedTokens: NativePromptCompressor.maxInputTokens
+    )
+    setContextCompressionNotice(didCompressContext, to: assistantId, in: sessionId)
 
     if model == .gemma {
-      AIEngineGemmaModelClient.shared.streamResponse(prompt: prompt) { [weak self] chunk in
+      AIEngineGemmaModelClient.shared.streamResponse(prompt: compactedPrompt) { [weak self] chunk in
         Task { @MainActor in
           self?.appendChunk(chunk as String, to: assistantId, in: sessionId)
         }
@@ -1317,7 +1961,7 @@ private final class NativeChatStore: ObservableObject {
         }
       }
     } else {
-      AIEngineFoundationModelClient.shared.streamResponse(prompt: prompt) { [weak self] chunk in
+      AIEngineFoundationModelClient.shared.streamResponse(prompt: compactedPrompt) { [weak self] chunk in
         Task { @MainActor in
           self?.appendChunk(chunk as String, to: assistantId, in: sessionId)
         }
@@ -1326,6 +1970,16 @@ private final class NativeChatStore: ObservableObject {
           self?.finishGeneration(message: message as String?, error: error as String?, assistantId: assistantId, sessionId: sessionId)
         }
       }
+    }
+  }
+
+  private func setContextCompressionNotice(_ isCompressed: Bool, to assistantId: String, in sessionId: String) {
+    mutateSession(sessionId) { session in
+      guard let index = session.messages.firstIndex(where: { $0.id == assistantId }) else {
+        return
+      }
+
+      session.messages[index].contextCompressed = isCompressed
     }
   }
 
@@ -1337,6 +1991,9 @@ private final class NativeChatStore: ObservableObject {
       guard let index = session.messages.firstIndex(where: { $0.id == assistantId }) else {
         return
       }
+      if isSearchProgressText(session.messages[index].text) {
+        session.messages[index].text = ""
+      }
       session.messages[index].text += chunk
     }
   }
@@ -1345,6 +2002,8 @@ private final class NativeChatStore: ObservableObject {
     guard activeAssistantMessageId == assistantId else {
       return
     }
+
+    stopSearchProgress(for: assistantId, in: sessionId, clearMessage: false)
 
     mutateSession(sessionId) { session in
       guard let index = session.messages.firstIndex(where: { $0.id == assistantId }) else {
@@ -1370,7 +2029,88 @@ private final class NativeChatStore: ObservableObject {
     }
   }
 
-  private func makePrompt(for sessionId: String, draft: NativeDraft, historyMessages: [NativeMessage]? = nil) -> String {
+  private func startSearchProgress(assistantId: String, sessionId: String) {
+    stopSearchProgress(for: assistantId, in: sessionId, clearMessage: false)
+    let startedAt = Date()
+    updateSearchProgress(startedAt: startedAt, assistantId: assistantId, sessionId: sessionId)
+
+    searchProgressTasks[assistantId] = Task { [weak self] in
+      while !Task.isCancelled {
+        try? await Task.sleep(nanoseconds: 1_000_000_000)
+        guard !Task.isCancelled else {
+          break
+        }
+        await MainActor.run { [weak self] in
+          self?.updateSearchProgress(startedAt: startedAt, assistantId: assistantId, sessionId: sessionId)
+        }
+      }
+    }
+  }
+
+  private func stopSearchProgress(for assistantId: String, in sessionId: String, clearMessage: Bool) {
+    searchProgressTasks[assistantId]?.cancel()
+    searchProgressTasks[assistantId] = nil
+
+    guard clearMessage else {
+      return
+    }
+
+    mutateSession(sessionId) { session in
+      guard let index = session.messages.firstIndex(where: { $0.id == assistantId }),
+            isSearchProgressText(session.messages[index].text)
+      else {
+        return
+      }
+
+      session.messages[index].text = ""
+    }
+  }
+
+  private func updateSearchProgress(startedAt: Date, assistantId: String, sessionId: String) {
+    guard activeAssistantMessageId == assistantId,
+          activeRequestSessionId == sessionId,
+          isGenerating
+    else {
+      stopSearchProgress(for: assistantId, in: sessionId, clearMessage: false)
+      return
+    }
+
+    let elapsed = max(0, Int(Date().timeIntervalSince(startedAt)))
+    let minutes = elapsed / 60
+    let seconds = elapsed % 60
+    let progressText = String(format: "%dm %02ds 동안 검색하는 중...", minutes, seconds)
+
+    mutateSession(sessionId) { session in
+      guard let index = session.messages.firstIndex(where: { $0.id == assistantId }),
+            session.messages[index].text.isEmpty || isSearchProgressText(session.messages[index].text)
+      else {
+        return
+      }
+
+      session.messages[index].text = progressText
+    }
+  }
+
+  private func isSearchProgressText(_ text: String) -> Bool {
+    text.contains("동안 검색하는 중...")
+  }
+
+  private func applySearchSources(_ sources: [NativeSearchSourceReference], to assistantId: String, in sessionId: String) {
+    mutateSession(sessionId) { session in
+      guard let index = session.messages.firstIndex(where: { $0.id == assistantId }) else {
+        return
+      }
+
+      session.messages[index].sourceReferences = sources
+    }
+  }
+
+  private func makePrompt(
+    for sessionId: String,
+    draft: NativeDraft,
+    historyMessages: [NativeMessage]? = nil,
+    searchContext: NativeWebSearchContext? = nil
+  ) -> String {
     let session = sessions.first { $0.id == sessionId }
     let sourceHistory: [NativeMessage]
     if let historyMessages {
@@ -1380,7 +2120,7 @@ private final class NativeChatStore: ObservableObject {
     } else {
       sourceHistory = []
     }
-    let history = sourceHistory.suffix(16)
+    let history = messagesForPromptHistory(sourceHistory, currentRequest: draft.text)
 
     var sections: [String] = [
       """
@@ -1393,25 +2133,41 @@ private final class NativeChatStore: ObservableObject {
     ]
 
     if !userName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-      sections.append("User name: \(userName)")
+      sections.append("User name: \(NativePromptCompressor.clipped(userName, maxEstimatedTokens: 40))")
     }
 
-    sections.append("Personality: \(personality)")
+    sections.append("Personality: \(NativePromptCompressor.clipped(personality, maxEstimatedTokens: 60))")
 
     if !systemPrompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-      sections.append("Custom instructions:\n\(systemPrompt)")
+      sections.append("Custom instructions:\n\(NativePromptCompressor.clipped(systemPrompt, maxEstimatedTokens: NativePromptCompressor.instructionTokens))")
     }
 
     if let project = project(for: session),
        !project.systemPrompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-      sections.append("Project instructions for \(project.title):\n\(project.systemPrompt)")
+      sections.append("Project instructions for \(project.title):\n\(NativePromptCompressor.clipped(project.systemPrompt, maxEstimatedTokens: NativePromptCompressor.instructionTokens))")
     }
 
-    if !history.isEmpty {
-      let historyText = history.map { message in
-        "\(message.role == .assistant ? "assistant" : "user"): \(message.text)"
-      }.joined(separator: "\n")
-      sections.append("Conversation history:\n\(historyText)")
+    if draft.mode == .search {
+      sections.append("""
+      /search command:
+      The user enabled web search. Answer directly using the visited web pages and conversation context.
+      If visited web pages are present, do not apologize for lacking realtime access or say you cannot provide current information.
+      Never write phrases like "제가 현재 시점의 실시간 정보를 직접 제공해 드릴 수는 없지만" when search sources are available.
+      Do not describe the search context as information "provided by the user"; it was gathered by the app.
+      Cite search-backed claims inline with source numbers such as [1] or [2].
+      Keep caveats short and specific only when the visited pages do not contain enough evidence.
+      """)
+    }
+
+    if let historySection = makeCompressedHistorySection(
+      from: history,
+      maxEstimatedTokens: NativePromptCompressor.historyTokens
+    ) {
+      sections.append(historySection)
+    }
+
+    if let searchContext {
+      sections.append(searchContext.promptSection(maxEstimatedTokens: NativePromptCompressor.searchTokens))
     }
 
     if !draft.attachments.isEmpty {
@@ -1431,8 +2187,127 @@ private final class NativeChatStore: ObservableObject {
       sections.append("Attached file metadata:\n\(files)")
     }
 
-    sections.append("Current user request:\n\(draft.text)")
-    return sections.joined(separator: "\n\n")
+    sections.append("Current user request:\n\(NativePromptCompressor.clippedCurrentRequest(draft.text, maxEstimatedTokens: NativePromptCompressor.currentRequestTokens))")
+    return NativePromptCompressor.clippedPreservingEdges(
+      sections.joined(separator: "\n\n"),
+      maxEstimatedTokens: NativePromptCompressor.maxInputTokens
+    )
+  }
+
+  private func messagesForPromptHistory(_ messages: [NativeMessage], currentRequest: String) -> [NativeMessage] {
+    var history = messages
+    if let last = history.last,
+       last.role == .user,
+       normalizedPromptText(last.text) == normalizedPromptText(currentRequest) {
+      history.removeLast()
+    }
+    return history
+  }
+
+  private func makeCompressedHistorySection(from messages: [NativeMessage], maxEstimatedTokens: Int) -> String? {
+    let meaningfulMessages = messages.filter { message in
+      !message.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !message.attachments.isEmpty
+    }
+
+    guard !meaningfulMessages.isEmpty else {
+      return nil
+    }
+
+    var reversedEntries: [String] = []
+    var usedTokens = NativePromptCompressor.estimatedTokens("Conversation history")
+
+    for message in meaningfulMessages.reversed() {
+      let role = message.role == .assistant ? "assistant" : "user"
+      let perMessageLimit = message.role == .assistant ? 150 : 130
+      let sourceText = NativePromptCompressor.shouldPreserveStructure(message.text)
+        ? message.text.trimmingCharacters(in: .whitespacesAndNewlines)
+        : normalizedPromptText(message.text)
+      var body = NativePromptCompressor.clippedMessageBody(
+        sourceText,
+        maxEstimatedTokens: perMessageLimit,
+      )
+
+      if body.isEmpty, !message.attachments.isEmpty {
+        body = "첨부 파일: " + message.attachments.map(\.name).joined(separator: ", ")
+      } else if !message.attachments.isEmpty {
+        body += "\n첨부 파일: " + message.attachments.map(\.name).joined(separator: ", ")
+      }
+
+      let entry = "\(role): \(body)"
+      let entryTokens = NativePromptCompressor.estimatedTokens(entry)
+      if usedTokens + entryTokens > maxEstimatedTokens {
+        break
+      }
+
+      reversedEntries.append(entry)
+      usedTokens += entryTokens
+    }
+
+    guard !reversedEntries.isEmpty else {
+      return nil
+    }
+
+    let omittedCount = max(0, meaningfulMessages.count - reversedEntries.count)
+    var lines = ["Conversation history (compressed to fit the on-device model context):"]
+    if omittedCount > 0 {
+      lines.append("Earlier \(omittedCount) messages were omitted. Prioritize the recent turns below.")
+    }
+    lines.append(contentsOf: reversedEntries.reversed())
+    return lines.joined(separator: "\n")
+  }
+
+  private func normalizedPromptText(_ text: String) -> String {
+    text
+      .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+      .trimmingCharacters(in: .whitespacesAndNewlines)
+  }
+
+  private func makeDraftInput(from rawText: String) -> (text: String, mode: NativeDraftMode) {
+    let trimmed = rawText.trimmingCharacters(in: .whitespacesAndNewlines)
+
+    if let searchPayload = NativeSlashCommand.searchPayload(in: trimmed) {
+      let requestText = searchPayload.trimmingCharacters(in: .whitespacesAndNewlines)
+      return (requestText.isEmpty ? searchFallbackRequestText : requestText, .search)
+    }
+
+    return (trimmed, .standard)
+  }
+
+  private func makeSearchQuery(
+    for sessionId: String,
+    draft: NativeDraft,
+    historyMessages: [NativeMessage]? = nil
+  ) -> String {
+    let session = sessions.first { $0.id == sessionId }
+    let sourceHistory: [NativeMessage]
+    if let historyMessages {
+      sourceHistory = historyMessages
+    } else if let session {
+      sourceHistory = Array(session.messages.dropLast(2))
+    } else {
+      sourceHistory = []
+    }
+
+    let promptHistory = messagesForPromptHistory(sourceHistory, currentRequest: draft.text)
+    let explicitRequest = draft.text == searchFallbackRequestText ? "" : draft.text
+    let historyText = promptHistory
+      .suffix(8)
+      .map(\.text)
+      .map { $0.replacingOccurrences(of: "\n", with: " ") }
+      .filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+      .joined(separator: " ")
+
+    let rawQuery = explicitRequest.isEmpty ? historyText : "\(historyText) \(explicitRequest)"
+    let cleaned = NativePromptCompressor.clipped(rawQuery, maxEstimatedTokens: 120, keepTail: true)
+      .replacingOccurrences(of: "... [앞부분 압축]\n", with: "")
+      .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+      .trimmingCharacters(in: .whitespacesAndNewlines)
+
+    if cleaned.isEmpty {
+      return draft.text
+    }
+
+    return cleaned.count > 260 ? String(cleaned.prefix(260)) : cleaned
   }
 
   private func project(for session: NativeChatSession?) -> NativeProject? {
@@ -2077,13 +2952,66 @@ private struct NativeChatTranscript: View {
 private struct NativeEmptyChatView: View {
   @EnvironmentObject private var store: NativeChatStore
 
+  private let subtitles = [
+    "필요한 내용을 편하게 물어보세요.",
+    "생각 정리부터 글쓰기, 코드까지 이어서 도와드릴게요."
+  ]
+
+  private let suggestedPrompts = [
+    "오늘 할 일 우선순위 정리해줘",
+    "이 아이디어를 더 구체화해줘",
+    "긴 글을 핵심만 요약해줘",
+    "코드 오류 원인을 같이 찾아줘"
+  ]
+
   var body: some View {
-    VStack(alignment: .leading, spacing: 12) {
-      Text("Open Edge AI")
-        .font(.system(size: store.fontSizeSetting.bodySize + 12, weight: .bold))
-      Text("기기 안에서 실행되는 AI와 대화를 시작하세요.")
-        .font(.system(size: store.fontSizeSetting.bodySize))
-        .foregroundColor(.oeSecondaryText)
+    VStack(alignment: .leading, spacing: 22) {
+      VStack(alignment: .leading, spacing: 8) {
+        Text("안녕하세요, 무엇을 도와드릴까요?")
+          .font(.system(size: store.fontSizeSetting.bodySize + 5, weight: .semibold))
+          .foregroundColor(.oeText)
+
+        ForEach(subtitles, id: \.self) { subtitle in
+          Text(subtitle)
+            .font(.system(size: store.fontSizeSetting.bodySize - 1))
+            .foregroundColor(.oeSecondaryText)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+      }
+
+      VStack(alignment: .leading, spacing: 10) {
+        Text("추천 질문")
+          .font(.system(size: store.fontSizeSetting.bodySize - 2, weight: .semibold))
+          .foregroundColor(.oeSecondaryText)
+
+        VStack(spacing: 8) {
+          ForEach(suggestedPrompts, id: \.self) { prompt in
+            Button {
+              store.inputText = prompt
+            } label: {
+              HStack(spacing: 10) {
+                Text(prompt)
+                  .font(.system(size: store.fontSizeSetting.bodySize - 1, weight: .medium))
+                  .foregroundColor(.oeText)
+                  .lineLimit(2)
+                  .multilineTextAlignment(.leading)
+
+                Spacer(minLength: 8)
+
+                Image(systemName: "arrow.up.right")
+                  .font(.system(size: 12, weight: .semibold))
+                  .foregroundColor(.oeSecondaryText)
+              }
+              .padding(.horizontal, 14)
+              .padding(.vertical, 12)
+              .frame(maxWidth: .infinity, alignment: .leading)
+              .background(Color.oeSubtleFill)
+              .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            }
+            .buttonStyle(.plain)
+          }
+        }
+      }
     }
     .frame(maxWidth: .infinity, alignment: .leading)
   }
@@ -2091,6 +3019,7 @@ private struct NativeEmptyChatView: View {
 
 private struct NativeMessageView: View {
   @EnvironmentObject private var store: NativeChatStore
+  @State private var showingSources = false
   let message: NativeMessage
 
   var body: some View {
@@ -2110,11 +3039,20 @@ private struct NativeMessageView: View {
           .frame(maxWidth: .infinity, alignment: .trailing)
           .textSelection(.enabled)
       } else {
-        NativeMarkdownText(text: message.text.isEmpty ? "응답 준비 중..." : message.text)
+        if message.contextCompressed {
+          NativeContextCompressedNotice()
+        }
+
+        NativeMarkdownText(
+          text: message.text.isEmpty ? "응답 준비 중..." : message.text,
+          sources: message.sourceReferences,
+          onOpenSource: { _ in
+            showingSources = true
+          }
+        )
           .font(.system(size: store.fontSizeSetting.bodySize))
           .foregroundColor(.oeText)
           .frame(maxWidth: .infinity, alignment: .leading)
-          .textSelection(.enabled)
 
         HStack(spacing: 16) {
           Button {
@@ -2130,6 +3068,15 @@ private struct NativeMessageView: View {
           }
           .disabled(store.isGenerating)
 
+          if !message.sourceReferences.isEmpty {
+            Button {
+              showingSources = true
+            } label: {
+              NativeMessageSourcesButton(sources: message.sourceReferences)
+            }
+            .accessibilityLabel("출처 \(message.sourceReferences.count)개")
+          }
+
           Text(message.createdAt.formatted(date: .omitted, time: .shortened))
             .font(.system(size: 12))
             .foregroundColor(.oeMutedText)
@@ -2140,18 +3087,911 @@ private struct NativeMessageView: View {
       }
     }
     .frame(maxWidth: .infinity, alignment: message.role == .user ? .trailing : .leading)
+    .sheet(isPresented: $showingSources) {
+      NativeMessageSourcesSheet(sources: message.sourceReferences)
+        .environmentObject(store)
+        .presentationDetents([.medium, .large])
+        .presentationDragIndicator(.visible)
+    }
+  }
+}
+
+private struct NativeContextCompressedNotice: View {
+  @EnvironmentObject private var store: NativeChatStore
+
+  var body: some View {
+    HStack(spacing: 6) {
+      Image(systemName: "arrow.down.right.and.arrow.up.left")
+        .font(.system(size: 10, weight: .bold))
+
+      Text("컨텍스트 압축됨")
+        .font(.system(size: 12, weight: .semibold))
+    }
+    .foregroundColor(store.accentColor.color)
+    .padding(.horizontal, 10)
+    .padding(.vertical, 6)
+    .background(store.accentColor.color.opacity(0.08))
+    .clipShape(Capsule())
+    .accessibilityLabel("컨텍스트 압축됨")
+  }
+}
+
+private struct NativeMessageSourcesButton: View {
+  @EnvironmentObject private var store: NativeChatStore
+  let sources: [NativeSearchSourceReference]
+
+  var body: some View {
+    HStack(spacing: 6) {
+      NativeSourceFaviconStack(sources: sources)
+      Text("출처")
+        .font(.system(size: 13, weight: .semibold))
+    }
+    .foregroundColor(store.accentColor.color)
+  }
+}
+
+private struct NativeSourceFaviconStack: View {
+  let sources: [NativeSearchSourceReference]
+
+  private var visibleSources: [NativeSearchSourceReference] {
+    Array(sources.prefix(3))
+  }
+
+  private var width: CGFloat {
+    guard !visibleSources.isEmpty else {
+      return 0
+    }
+    return CGFloat(visibleSources.count - 1) * 11 + 18
+  }
+
+  var body: some View {
+    ZStack(alignment: .leading) {
+      ForEach(Array(visibleSources.enumerated()), id: \.element.id) { index, source in
+        NativeSourceFavicon(source: source, size: 18)
+          .offset(x: CGFloat(index) * 11)
+          .zIndex(Double(visibleSources.count - index))
+      }
+    }
+    .frame(width: width, height: 18, alignment: .leading)
+  }
+}
+
+private struct NativeSourceFavicon: View {
+  let source: NativeSearchSourceReference
+  let size: CGFloat
+
+  var body: some View {
+    AsyncImage(url: source.faviconURL) { phase in
+      if let image = phase.image {
+        image
+          .resizable()
+          .scaledToFit()
+      } else {
+        fallback
+      }
+    }
+    .frame(width: size, height: size)
+    .background(Color.oeBackground)
+    .clipShape(Circle())
+    .overlay(
+      Circle()
+        .stroke(Color.oeBackground, lineWidth: 1.5)
+    )
+  }
+
+  private var fallback: some View {
+    Circle()
+      .fill(Color.oeSubtleFill)
+      .overlay(
+        Text(String(source.host.prefix(1)).uppercased())
+          .font(.system(size: max(8, size * 0.44), weight: .bold))
+          .foregroundColor(.oeSecondaryText)
+      )
+  }
+}
+
+private struct NativeMessageSourcesSheet: View {
+  @Environment(\.dismiss) private var dismiss
+  @EnvironmentObject private var store: NativeChatStore
+  let sources: [NativeSearchSourceReference]
+
+  var body: some View {
+    NavigationStack {
+      ScrollView {
+        LazyVStack(alignment: .leading, spacing: 10) {
+          ForEach(Array(sources.enumerated()), id: \.element.id) { index, source in
+            NativeMessageSourceRow(index: index + 1, source: source)
+          }
+        }
+        .padding(.horizontal, 18)
+        .padding(.top, 12)
+        .padding(.bottom, 28)
+      }
+      .background(Color.oeGroupedBackground)
+      .navigationTitle("출처")
+      .navigationBarTitleDisplayMode(.inline)
+      .toolbar {
+        ToolbarItem(placement: .topBarTrailing) {
+          Button {
+            dismiss()
+          } label: {
+            Image(systemName: "xmark")
+              .font(.system(size: 14, weight: .semibold))
+          }
+          .buttonStyle(.plain)
+          .accessibilityLabel("닫기")
+        }
+      }
+    }
+  }
+}
+
+private struct NativeMessageSourceRow: View {
+  @EnvironmentObject private var store: NativeChatStore
+  let index: Int
+  let source: NativeSearchSourceReference
+
+  var body: some View {
+    HStack(alignment: .top, spacing: 8) {
+      NativeSourceFavicon(source: source, size: 24)
+
+      VStack(alignment: .leading, spacing: 3) {
+        Text("[\(index)] \(source.host)")
+          .font(.system(size: 11, weight: .semibold))
+          .foregroundColor(store.accentColor.color)
+          .lineLimit(1)
+
+        Text(source.title.isEmpty ? source.host : source.title)
+          .font(.system(size: max(12, store.fontSizeSetting.bodySize - 3), weight: .semibold))
+          .foregroundColor(.oeText)
+          .lineLimit(2)
+
+        if !source.snippet.isEmpty {
+          Text(source.snippet)
+            .font(.system(size: 11))
+            .foregroundColor(.oeSecondaryText)
+            .lineLimit(2)
+        }
+
+        Text(source.url)
+          .font(.system(size: 11))
+          .foregroundColor(.oeMutedText)
+          .lineLimit(1)
+      }
+
+      Spacer(minLength: 6)
+    }
+    .padding(.horizontal, 10)
+    .padding(.vertical, 10)
+    .background(Color.oeBackground)
+    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
   }
 }
 
 private struct NativeMarkdownText: View {
   let text: String
+  let sources: [NativeSearchSourceReference]
+  let onOpenSource: (Int) -> Void
 
   var body: some View {
-    if let attributed = try? AttributedString(markdown: text) {
-      Text(attributed)
-    } else {
-      Text(text)
+    VStack(alignment: .leading, spacing: 10) {
+      ForEach(markdownBlocks) { block in
+        NativeMarkdownBlockView(block: block, sources: sources, onOpenSource: onOpenSource)
+      }
     }
+    .frame(maxWidth: .infinity, alignment: .leading)
+  }
+
+  private var markdownBlocks: [NativeMarkdownBlock] {
+    NativeMarkdownParser.parse(text)
+  }
+}
+
+private struct NativeMarkdownBlock: Identifiable {
+  enum Kind {
+    case paragraph(String)
+    case heading(level: Int, text: String)
+    case unorderedList([String])
+    case orderedList([String])
+    case quote(String)
+    case code(language: String?, text: String)
+    case divider
+  }
+
+  let id = UUID()
+  let kind: Kind
+}
+
+private enum NativeMarkdownParser {
+  static func parse(_ markdown: String) -> [NativeMarkdownBlock] {
+    let normalized = markdown.replacingOccurrences(of: "\r\n", with: "\n")
+    let lines = normalized.components(separatedBy: "\n")
+    var blocks: [NativeMarkdownBlock] = []
+    var paragraphLines: [String] = []
+    var index = 0
+
+    func flushParagraph() {
+      guard !paragraphLines.isEmpty else {
+        return
+      }
+      blocks.append(.init(kind: .paragraph(paragraphLines.joined(separator: "\n"))))
+      paragraphLines.removeAll()
+    }
+
+    while index < lines.count {
+      let line = lines[index]
+      let trimmed = line.trimmingCharacters(in: .whitespaces)
+
+      if trimmed.isEmpty {
+        flushParagraph()
+        index += 1
+        continue
+      }
+
+      if let fence = codeFence(in: trimmed) {
+        flushParagraph()
+        let language = fence.language
+        var codeLines: [String] = []
+        index += 1
+        while index < lines.count {
+          let candidate = lines[index].trimmingCharacters(in: .whitespaces)
+          if candidate.hasPrefix(fence.marker) {
+            index += 1
+            break
+          }
+          codeLines.append(lines[index])
+          index += 1
+        }
+        blocks.append(.init(kind: .code(language: language, text: codeLines.joined(separator: "\n"))))
+        continue
+      }
+
+      if let heading = heading(in: trimmed) {
+        flushParagraph()
+        blocks.append(.init(kind: .heading(level: heading.level, text: heading.text)))
+        index += 1
+        continue
+      }
+
+      if isDivider(trimmed) {
+        flushParagraph()
+        blocks.append(.init(kind: .divider))
+        index += 1
+        continue
+      }
+
+      if let firstItem = unorderedListItem(in: line) {
+        flushParagraph()
+        var items = [firstItem]
+        index += 1
+        while index < lines.count, let item = unorderedListItem(in: lines[index]) {
+          items.append(item)
+          index += 1
+        }
+        blocks.append(.init(kind: .unorderedList(items)))
+        continue
+      }
+
+      if let firstItem = orderedListItem(in: line) {
+        flushParagraph()
+        var items = [firstItem]
+        index += 1
+        while index < lines.count, let item = orderedListItem(in: lines[index]) {
+          items.append(item)
+          index += 1
+        }
+        blocks.append(.init(kind: .orderedList(items)))
+        continue
+      }
+
+      if let firstQuote = quoteLine(in: line) {
+        flushParagraph()
+        var quoteLines = [firstQuote]
+        index += 1
+        while index < lines.count, let quote = quoteLine(in: lines[index]) {
+          quoteLines.append(quote)
+          index += 1
+        }
+        blocks.append(.init(kind: .quote(quoteLines.joined(separator: "\n"))))
+        continue
+      }
+
+      paragraphLines.append(line)
+      index += 1
+    }
+
+    flushParagraph()
+    return blocks.isEmpty ? [.init(kind: .paragraph(markdown))] : blocks
+  }
+
+  private static func codeFence(in line: String) -> (marker: String, language: String?)? {
+    let marker: String
+    if line.hasPrefix("```") {
+      marker = "```"
+    } else if line.hasPrefix("~~~") {
+      marker = "~~~"
+    } else {
+      return nil
+    }
+
+    let language = line
+      .dropFirst(marker.count)
+      .trimmingCharacters(in: .whitespacesAndNewlines)
+    return (marker, language.isEmpty ? nil : language)
+  }
+
+  private static func heading(in line: String) -> (level: Int, text: String)? {
+    let level = line.prefix { $0 == "#" }.count
+    guard (1...6).contains(level),
+          line.dropFirst(level).first?.isWhitespace == true
+    else {
+      return nil
+    }
+
+    let text = line.dropFirst(level)
+      .trimmingCharacters(in: .whitespacesAndNewlines)
+    return text.isEmpty ? nil : (level, text)
+  }
+
+  private static func isDivider(_ line: String) -> Bool {
+    let compact = line.replacingOccurrences(of: " ", with: "")
+    return compact.count >= 3 && Set(compact).isSubset(of: ["-"])
+      || compact.count >= 3 && Set(compact).isSubset(of: ["*"])
+      || compact.count >= 3 && Set(compact).isSubset(of: ["_"])
+  }
+
+  private static func unorderedListItem(in line: String) -> String? {
+    let trimmed = line.trimmingCharacters(in: .whitespaces)
+    for marker in ["- ", "* ", "+ ", "• "] {
+      if trimmed.hasPrefix(marker) {
+        let item = trimmed.dropFirst(marker.count).trimmingCharacters(in: .whitespaces)
+        return item.isEmpty ? nil : item
+      }
+    }
+    return nil
+  }
+
+  private static func orderedListItem(in line: String) -> String? {
+    let trimmed = line.trimmingCharacters(in: .whitespaces)
+    var digitCount = 0
+    for character in trimmed {
+      if character.wholeNumberValue == nil {
+        break
+      }
+      digitCount += 1
+    }
+
+    guard digitCount > 0 else {
+      return nil
+    }
+
+    let markerStart = trimmed.dropFirst(digitCount)
+    guard markerStart.hasPrefix(". ") || markerStart.hasPrefix(") ") else {
+      return nil
+    }
+
+    let item = markerStart.dropFirst(2).trimmingCharacters(in: .whitespaces)
+    return item.isEmpty ? nil : item
+  }
+
+  private static func quoteLine(in line: String) -> String? {
+    let trimmed = line.trimmingCharacters(in: .whitespaces)
+    guard trimmed.hasPrefix(">") else {
+      return nil
+    }
+
+    return trimmed.dropFirst().trimmingCharacters(in: .whitespaces)
+  }
+}
+
+private struct NativeMarkdownBlockView: View {
+  @EnvironmentObject private var store: NativeChatStore
+  let block: NativeMarkdownBlock
+  let sources: [NativeSearchSourceReference]
+  let onOpenSource: (Int) -> Void
+
+  var body: some View {
+    switch block.kind {
+    case .paragraph(let text):
+      NativeInlineMarkdownText(
+        text: text,
+        sources: sources,
+        fontSize: store.fontSizeSetting.bodySize,
+        fontWeight: .regular,
+        textColor: .oeText,
+        onOpenSource: onOpenSource
+      )
+        .fixedSize(horizontal: false, vertical: true)
+
+    case .heading(let level, let text):
+      NativeInlineMarkdownText(
+        text: text,
+        sources: sources,
+        fontSize: headingFontSize(for: level),
+        fontWeight: .semibold,
+        textColor: .oeText,
+        onOpenSource: onOpenSource
+      )
+        .fixedSize(horizontal: false, vertical: true)
+        .padding(.top, level <= 2 ? 4 : 2)
+
+    case .unorderedList(let items):
+      VStack(alignment: .leading, spacing: 7) {
+        ForEach(Array(items.enumerated()), id: \.offset) { _, item in
+          listRow(marker: "•", text: item)
+        }
+      }
+
+    case .orderedList(let items):
+      VStack(alignment: .leading, spacing: 7) {
+        ForEach(Array(items.enumerated()), id: \.offset) { index, item in
+          listRow(marker: "\(index + 1).", text: item)
+        }
+      }
+
+    case .quote(let text):
+      HStack(alignment: .top, spacing: 10) {
+        RoundedRectangle(cornerRadius: 1)
+          .fill(Color.oeBorder)
+          .frame(width: 3)
+
+        NativeInlineMarkdownText(
+          text: text,
+          sources: sources,
+          fontSize: store.fontSizeSetting.bodySize,
+          fontWeight: .regular,
+          textColor: .oeSecondaryText,
+          onOpenSource: onOpenSource
+        )
+          .fixedSize(horizontal: false, vertical: true)
+      }
+
+    case .code(let language, let text):
+      NativeMarkdownCodeBlock(language: language, code: text)
+
+    case .divider:
+      Divider()
+        .padding(.vertical, 4)
+    }
+  }
+
+  private func listRow(marker: String, text: String) -> some View {
+    HStack(alignment: .firstTextBaseline, spacing: 9) {
+      Text(marker)
+        .font(.system(size: store.fontSizeSetting.bodySize, weight: .semibold))
+        .foregroundColor(.oeSecondaryText)
+        .frame(width: 24, alignment: .trailing)
+
+      NativeInlineMarkdownText(
+        text: text,
+        sources: sources,
+        fontSize: store.fontSizeSetting.bodySize,
+        fontWeight: .regular,
+        textColor: .oeText,
+        onOpenSource: onOpenSource
+      )
+        .fixedSize(horizontal: false, vertical: true)
+    }
+  }
+
+  private func headingFontSize(for level: Int) -> CGFloat {
+    let base = store.fontSizeSetting.bodySize
+    switch level {
+    case 1:
+      return base + 7
+    case 2:
+      return base + 5
+    case 3:
+      return base + 3
+    default:
+      return base + 1
+    }
+  }
+}
+
+private struct NativeInlineMarkdownText: View {
+  private struct CitationGroup {
+    let range: Range<String.Index>
+    let numbers: [Int]
+  }
+
+  @EnvironmentObject private var store: NativeChatStore
+  let text: String
+  let sources: [NativeSearchSourceReference]
+  let fontSize: CGFloat
+  let fontWeight: Font.Weight
+  let textColor: Color
+  let onOpenSource: (Int) -> Void
+
+  var body: some View {
+    if containsValidCitations {
+      NativeInteractiveAttributedText(
+        attributedText: interactiveAttributedText,
+        onOpenSource: onOpenSource
+      )
+    } else {
+      Text(attributedText)
+        .font(.system(size: fontSize, weight: fontWeight))
+        .foregroundColor(textColor)
+    }
+  }
+
+  private var attributedText: AttributedString {
+    attributedStringWithCitationTags()
+  }
+
+  private var interactiveAttributedText: NSAttributedString {
+    let groups = citationGroups
+    let result = NSMutableAttributedString()
+
+    guard !groups.isEmpty else {
+      return styledMarkdownAttributedString(from: text)
+    }
+
+    var cursor = text.startIndex
+
+    for group in groups {
+      if group.range.lowerBound > cursor {
+        result.append(styledMarkdownAttributedString(from: String(text[cursor..<group.range.lowerBound])))
+      }
+
+      result.append(citationNSAttributedString(for: group.numbers))
+      cursor = group.range.upperBound
+    }
+
+    if cursor < text.endIndex {
+      result.append(styledMarkdownAttributedString(from: String(text[cursor..<text.endIndex])))
+    }
+
+    return result
+  }
+
+  private var containsValidCitations: Bool {
+    !citationGroups.isEmpty
+  }
+
+  private func attributedStringWithCitationTags() -> AttributedString {
+    let groups = citationGroups
+
+    guard !groups.isEmpty else {
+      return markdownAttributedString(from: text)
+    }
+
+    var result = AttributedString()
+    var cursor = text.startIndex
+
+    for group in groups {
+      if group.range.lowerBound > cursor {
+        result += markdownAttributedString(from: String(text[cursor..<group.range.lowerBound]))
+      }
+
+      result += citationAttributedString(for: group.numbers)
+      cursor = group.range.upperBound
+    }
+
+    if cursor < text.endIndex {
+      result += markdownAttributedString(from: String(text[cursor..<text.endIndex]))
+    }
+
+    return result
+  }
+
+  private func markdownAttributedString(from text: String) -> AttributedString {
+    let options = AttributedString.MarkdownParsingOptions(
+      interpretedSyntax: .inlineOnlyPreservingWhitespace
+    )
+    return (try? AttributedString(markdown: text, options: options)) ?? AttributedString(text)
+  }
+
+  private var citationGroups: [CitationGroup] {
+    guard !sources.isEmpty else {
+      return []
+    }
+
+    let citationPattern = #"\[((?:\s*\d{1,2}\s*,)*\s*\d{1,2}\s*)\]"#
+    let regex = try? NSRegularExpression(pattern: citationPattern)
+    let nsRange = NSRange(text.startIndex..<text.endIndex, in: text)
+    let matches = regex?.matches(in: text, range: nsRange) ?? []
+
+    return matches.compactMap { match in
+      guard match.numberOfRanges >= 2,
+            let fullRange = Range(match.range(at: 0), in: text),
+            let numbersRange = Range(match.range(at: 1), in: text)
+      else {
+        return nil
+      }
+
+      let numbers = citationNumbers(from: text[numbersRange])
+      return numbers.isEmpty ? nil : CitationGroup(range: fullRange, numbers: numbers)
+    }
+  }
+
+  private func citationNumbers(from text: Substring) -> [Int] {
+    var seen = Set<Int>()
+    return text
+      .split(separator: ",")
+      .compactMap { value in
+        Int(String(value).trimmingCharacters(in: .whitespacesAndNewlines))
+      }
+      .filter { number in
+        guard (1...sources.count).contains(number),
+              !seen.contains(number)
+        else {
+          return false
+        }
+        seen.insert(number)
+        return true
+      }
+  }
+
+  private func citationAttributedString(for numbers: [Int]) -> AttributedString {
+    var result = AttributedString()
+
+    for (index, number) in numbers.enumerated() {
+      if index > 0 {
+        result += AttributedString(" ")
+      }
+      result += citationAttributedString(number)
+    }
+
+    return result
+  }
+
+  private func citationAttributedString(_ number: Int) -> AttributedString {
+    var tag = AttributedString("\(number)")
+    tag.link = URL(string: "openedgeai-source://\(number)")
+    tag.foregroundColor = store.accentColor.color
+    tag.backgroundColor = store.accentColor.color.opacity(0.12)
+    tag.font = .system(size: max(11, store.fontSizeSetting.bodySize - 3), weight: .semibold)
+    return tag
+  }
+
+  private func styledMarkdownAttributedString(from text: String) -> NSAttributedString {
+    let markdown = markdownAttributedString(from: text)
+    let attributed = NSMutableAttributedString(attributedString: NSAttributedString(markdown))
+    let fullRange = NSRange(location: 0, length: attributed.length)
+    guard fullRange.length > 0 else {
+      return attributed
+    }
+
+    attributed.addAttributes([
+      .font: UIFont.systemFont(ofSize: fontSize, weight: uiFontWeight),
+      .foregroundColor: UIColor(textColor)
+    ], range: fullRange)
+
+    let intentKey = NSAttributedString.Key("NSInlinePresentationIntent")
+    attributed.enumerateAttribute(intentKey, in: fullRange) { value, range, _ in
+      guard let rawValue = (value as? NSNumber)?.intValue else {
+        return
+      }
+
+      var font = UIFont.systemFont(ofSize: fontSize, weight: uiFontWeight)
+      if rawValue & 4 != 0 {
+        font = UIFont.monospacedSystemFont(ofSize: max(12, fontSize - 1), weight: .regular)
+        attributed.addAttribute(
+          .backgroundColor,
+          value: UIColor.secondarySystemFill,
+          range: range
+        )
+      } else if rawValue & 2 != 0 {
+        font = UIFont.systemFont(ofSize: fontSize, weight: .semibold)
+      }
+
+      if rawValue & 1 != 0,
+         let descriptor = font.fontDescriptor.withSymbolicTraits(.traitItalic) {
+        font = UIFont(descriptor: descriptor, size: fontSize)
+      }
+
+      if rawValue & 32 != 0 {
+        attributed.addAttribute(.strikethroughStyle, value: NSUnderlineStyle.single.rawValue, range: range)
+      }
+
+      attributed.addAttribute(.font, value: font, range: range)
+    }
+
+    return attributed
+  }
+
+  private func citationNSAttributedString(for numbers: [Int]) -> NSAttributedString {
+    let result = NSMutableAttributedString()
+
+    for (index, number) in numbers.enumerated() {
+      if index > 0 {
+        result.append(NSAttributedString(string: " "))
+      }
+      result.append(citationNSAttributedString(number))
+    }
+
+    return result
+  }
+
+  private func citationNSAttributedString(_ number: Int) -> NSAttributedString {
+    let accentColor = UIColor(store.accentColor.color)
+    return NSAttributedString(
+      string: "\(number)",
+      attributes: [
+        .font: UIFont.systemFont(ofSize: max(11, fontSize - 3), weight: .semibold),
+        .foregroundColor: accentColor,
+        .backgroundColor: accentColor.withAlphaComponent(0.12),
+        .link: URL(string: "openedgeai-source://\(number)")!
+      ]
+    )
+  }
+
+  private var uiFontWeight: UIFont.Weight {
+    switch fontWeight {
+    case .bold:
+      return .bold
+    case .semibold:
+      return .semibold
+    case .medium:
+      return .medium
+    default:
+      return .regular
+    }
+  }
+}
+
+private struct NativeInteractiveAttributedText: UIViewRepresentable {
+  let attributedText: NSAttributedString
+  let onOpenSource: (Int) -> Void
+
+  func makeUIView(context: Context) -> UITextView {
+    let textView = UITextView()
+    textView.backgroundColor = .clear
+    textView.delegate = context.coordinator
+    textView.isEditable = false
+    textView.isScrollEnabled = false
+    textView.isSelectable = true
+    textView.textContainerInset = .zero
+    textView.textContainer.lineFragmentPadding = 0
+    textView.textContainer.lineBreakMode = .byWordWrapping
+    textView.adjustsFontForContentSizeCategory = false
+    textView.linkTextAttributes = [:]
+    textView.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+
+    let tapGesture = UITapGestureRecognizer(
+      target: context.coordinator,
+      action: #selector(Coordinator.handleTap(_:))
+    )
+    tapGesture.cancelsTouchesInView = false
+    textView.addGestureRecognizer(tapGesture)
+    return textView
+  }
+
+  func updateUIView(_ textView: UITextView, context: Context) {
+    context.coordinator.onOpenSource = onOpenSource
+    if textView.attributedText != attributedText {
+      textView.attributedText = attributedText
+    }
+  }
+
+  func sizeThatFits(_ proposal: ProposedViewSize, uiView: UITextView, context: Context) -> CGSize? {
+    guard let width = proposal.width else {
+      return nil
+    }
+
+    let size = uiView.sizeThatFits(CGSize(width: width, height: .greatestFiniteMagnitude))
+    return CGSize(width: width, height: ceil(size.height))
+  }
+
+  func makeCoordinator() -> Coordinator {
+    Coordinator(onOpenSource: onOpenSource)
+  }
+
+  final class Coordinator: NSObject, UITextViewDelegate {
+    var onOpenSource: (Int) -> Void
+
+    init(onOpenSource: @escaping (Int) -> Void) {
+      self.onOpenSource = onOpenSource
+    }
+
+    @objc func handleTap(_ gesture: UITapGestureRecognizer) {
+      guard gesture.state == .ended,
+            let textView = gesture.view as? UITextView,
+            let attributedText = textView.attributedText,
+            attributedText.length > 0
+      else {
+        return
+      }
+
+      var location = gesture.location(in: textView)
+      location.x -= textView.textContainerInset.left
+      location.y -= textView.textContainerInset.top
+
+      let layoutManager = textView.layoutManager
+      let textContainer = textView.textContainer
+      let glyphIndex = layoutManager.glyphIndex(for: location, in: textContainer)
+      guard glyphIndex < layoutManager.numberOfGlyphs else {
+        return
+      }
+
+      let glyphRect = layoutManager.boundingRect(
+        forGlyphRange: NSRange(location: glyphIndex, length: 1),
+        in: textContainer
+      )
+      guard glyphRect.insetBy(dx: -10, dy: -8).contains(location) else {
+        return
+      }
+
+      let characterIndex = layoutManager.characterIndexForGlyph(at: glyphIndex)
+      let lowerBound = max(0, characterIndex - 3)
+      let upperBound = min(attributedText.length - 1, characterIndex + 3)
+
+      for index in lowerBound...upperBound {
+        if let url = attributedText.attribute(.link, at: index, effectiveRange: nil) as? URL,
+           handle(url: url) == false {
+          return
+        }
+      }
+    }
+
+    func textView(
+      _ textView: UITextView,
+      shouldInteractWith URL: URL,
+      in characterRange: NSRange
+    ) -> Bool {
+      handle(url: URL)
+    }
+
+    private func handle(url: URL) -> Bool {
+      guard url.scheme == "openedgeai-source" else {
+        return true
+      }
+
+      let sourceNumber = Int(url.host ?? "") ?? Int(url.lastPathComponent) ?? 1
+      DispatchQueue.main.async {
+        self.onOpenSource(sourceNumber)
+      }
+      return false
+    }
+  }
+}
+
+private struct NativeMarkdownCodeBlock: View {
+  @EnvironmentObject private var store: NativeChatStore
+  let language: String?
+  let code: String
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 8) {
+      HStack(spacing: 8) {
+        if let language, !language.isEmpty {
+          Text(language.uppercased())
+            .font(.system(size: 11, weight: .semibold))
+            .foregroundColor(.oeMutedText)
+        }
+
+        Spacer(minLength: 8)
+
+        Button {
+          store.copy(code)
+        } label: {
+          Image(systemName: "doc.on.doc")
+            .font(.system(size: 12, weight: .semibold))
+        }
+        .buttonStyle(.plain)
+        .foregroundColor(store.accentColor.color)
+        .accessibilityLabel("코드 복사")
+      }
+
+      ScrollView(.horizontal, showsIndicators: false) {
+        Text(code)
+          .font(.system(size: max(12, store.fontSizeSetting.bodySize - 1), design: .monospaced))
+          .foregroundColor(.oeText)
+          .textSelection(.enabled)
+          .fixedSize(horizontal: true, vertical: false)
+          .padding(.bottom, 2)
+      }
+    }
+    .padding(12)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(Color.oeSubtleFill)
+    .overlay(
+      RoundedRectangle(cornerRadius: 12, style: .continuous)
+        .stroke(Color.oeBorder, lineWidth: 1)
+    )
+    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
   }
 }
 
@@ -2191,6 +4031,146 @@ private struct NativeAttachmentRow: View {
   }
 }
 
+private struct NativeSlashCommand: Identifiable, Equatable {
+  let id: String
+  let trigger: String
+  let title: String
+  let subtitle: String
+  let systemImage: String
+
+  static let search = NativeSlashCommand(
+    id: "search",
+    trigger: "/search",
+    title: "검색 강화",
+    subtitle: "현재 대화 기반으로 검색해서 답변 개선",
+    systemImage: "magnifyingglass"
+  )
+
+  static let all = [search]
+
+  static func query(in inputText: String) -> String? {
+    let leadingTrimmed = inputText.drop { $0.isWhitespace }
+    guard leadingTrimmed.hasPrefix("/") else {
+      return nil
+    }
+
+    let query = String(leadingTrimmed.dropFirst())
+    guard !query.contains(where: \.isWhitespace) else {
+      return nil
+    }
+
+    return query
+  }
+
+  static func matching(in inputText: String) -> [NativeSlashCommand] {
+    guard let query = query(in: inputText) else {
+      return []
+    }
+
+    guard !query.isEmpty else {
+      return all
+    }
+
+    return all.filter { command in
+      String(command.trigger.dropFirst()).localizedCaseInsensitiveContains(query)
+        || command.title.localizedCaseInsensitiveContains(query)
+    }
+  }
+
+  static func searchPayload(in inputText: String) -> String? {
+    let trimmed = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
+    let lowercased = trimmed.lowercased()
+    let trigger = search.trigger
+
+    if lowercased == trigger {
+      return ""
+    }
+
+    guard lowercased.hasPrefix("\(trigger) ") else {
+      return nil
+    }
+
+    return String(trimmed.dropFirst(trigger.count))
+  }
+}
+
+private struct NativeSlashCommandMenu: View {
+  @EnvironmentObject private var store: NativeChatStore
+  let commands: [NativeSlashCommand]
+  var onSelect: (NativeSlashCommand) -> Void
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 4) {
+      ForEach(commands) { command in
+        Button {
+          onSelect(command)
+        } label: {
+          HStack(spacing: 12) {
+            Image(systemName: command.systemImage)
+              .font(.system(size: 15, weight: .semibold))
+              .foregroundColor(store.accentColor.color)
+              .frame(width: 28, height: 28)
+              .background(store.accentColor.subtleColor)
+              .clipShape(Circle())
+
+            VStack(alignment: .leading, spacing: 2) {
+              HStack(spacing: 8) {
+                Text(command.trigger)
+                  .font(.system(size: store.fontSizeSetting.bodySize - 1, weight: .semibold))
+                  .foregroundColor(.oeText)
+
+                Text(command.title)
+                  .font(.system(size: store.fontSizeSetting.bodySize - 2, weight: .medium))
+                  .foregroundColor(.oeSecondaryText)
+              }
+
+              Text(command.subtitle)
+                .font(.system(size: store.fontSizeSetting.bodySize - 4, weight: .regular))
+                .foregroundColor(.oeMutedText)
+                .lineLimit(1)
+            }
+
+            Spacer(minLength: 8)
+          }
+          .padding(.horizontal, 10)
+          .padding(.vertical, 8)
+          .frame(maxWidth: .infinity, alignment: .leading)
+          .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("\(command.trigger) \(command.title)")
+      }
+    }
+    .padding(6)
+    .background(Color.oeSurface)
+    .overlay(
+      RoundedRectangle(cornerRadius: 16, style: .continuous)
+        .stroke(Color.oeBorder, lineWidth: 1)
+    )
+    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+  }
+}
+
+private struct NativeSearchModeChip: View {
+  @EnvironmentObject private var store: NativeChatStore
+
+  var body: some View {
+    HStack(spacing: 5) {
+      Image(systemName: "magnifyingglass")
+        .font(.system(size: 11, weight: .bold))
+
+      Text("검색 모드")
+        .font(.system(size: 12, weight: .semibold))
+    }
+    .foregroundColor(store.accentColor.color)
+    .padding(.horizontal, 9)
+    .frame(height: 28)
+    .background(store.accentColor.subtleColor)
+    .clipShape(Capsule())
+    .accessibilityLabel("검색 모드")
+  }
+}
+
 private struct NativeInputBar: View {
   @EnvironmentObject private var store: NativeChatStore
   @Binding var showingFileImporter: Bool
@@ -2199,6 +4179,18 @@ private struct NativeInputBar: View {
   private var editorHeight: CGFloat {
     let lineCount = max(1, store.inputText.components(separatedBy: .newlines).count)
     return min(CGFloat(lineCount) * 20 + 22, 82)
+  }
+
+  private var slashCommands: [NativeSlashCommand] {
+    NativeSlashCommand.matching(in: store.inputText)
+  }
+
+  private var showsSlashCommands: Bool {
+    focused && !slashCommands.isEmpty
+  }
+
+  private var isSearchMode: Bool {
+    NativeSlashCommand.searchPayload(in: store.inputText) != nil
   }
 
   var body: some View {
@@ -2229,6 +4221,12 @@ private struct NativeInputBar: View {
             }
           }
         }
+      }
+
+      if showsSlashCommands {
+        NativeSlashCommandMenu(commands: slashCommands, onSelect: performSlashCommand)
+          .environmentObject(store)
+          .transition(.move(edge: .bottom).combined(with: .opacity))
       }
 
       VStack(spacing: 6) {
@@ -2264,6 +4262,12 @@ private struct NativeInputBar: View {
           .buttonStyle(.plain)
           .accessibilityLabel("파일 첨부")
 
+          if isSearchMode {
+            NativeSearchModeChip()
+              .environmentObject(store)
+              .transition(.opacity.combined(with: .scale(scale: 0.96)))
+          }
+
           Spacer(minLength: 8)
 
           Button {
@@ -2298,6 +4302,15 @@ private struct NativeInputBar: View {
     }
     .padding(.horizontal, 10)
     .padding(.bottom, 6)
+    .animation(.easeOut(duration: 0.18), value: showsSlashCommands)
+    .animation(.easeOut(duration: 0.18), value: isSearchMode)
+  }
+
+  private func performSlashCommand(_ command: NativeSlashCommand) {
+    if command == .search {
+      store.inputText = "\(command.trigger) "
+      focused = true
+    }
   }
 }
 
@@ -2412,20 +4425,42 @@ private struct NativeSessionsView: View {
           }
           .buttonStyle(.plain)
           .contextMenu {
-            Button {
-              renameTarget = .session(id: session.id, title: session.title)
-            } label: {
-              Label("이름 변경", systemImage: "pencil")
-            }
-
-            Button(role: .destructive) {
-              store.deleteSession(session)
-            } label: {
-              Label("삭제", systemImage: "trash")
-            }
+            sessionMenuItems(for: session)
           }
         }
       }
+    }
+  }
+
+  @ViewBuilder
+  private func sessionMenuItems(for session: NativeChatSession) -> some View {
+    Button {
+      renameTarget = .session(id: session.id, title: session.title)
+    } label: {
+      Label("이름 변경", systemImage: "pencil")
+    }
+
+    Menu {
+      let availableProjects = store.projects.filter { $0.id != session.projectId }
+      if availableProjects.isEmpty {
+        Text("추가할 프로젝트 없음")
+      } else {
+        ForEach(availableProjects) { project in
+          Button {
+            store.addSession(session, to: project)
+          } label: {
+            Label(project.title, systemImage: project.iconName)
+          }
+        }
+      }
+    } label: {
+      Label("프로젝트에 추가", systemImage: "folder.badge.plus")
+    }
+
+    Button(role: .destructive) {
+      store.deleteSession(session)
+    } label: {
+      Label("삭제", systemImage: "trash")
     }
   }
 
@@ -2700,11 +4735,14 @@ private struct NativeProjectSessionsPage: View {
           NativeProjectSessionRow(
             session: session,
             subtitle: sessionSubtitle(for: session),
-            isWriting: store.activeWritingSessionId == session.id
+            isWriting: store.activeWritingSessionId == session.id,
+            availableProjects: store.projects.filter { $0.id != session.projectId }
           ) {
             onSelectSession(session)
           } onRename: {
             renameTarget = .session(id: session.id, title: session.title)
+          } onAddToProject: { project in
+            store.addSession(session, to: project)
           } onDelete: {
             store.deleteSession(session)
           }
@@ -2748,8 +4786,10 @@ private struct NativeProjectSessionRow: View {
   var session: NativeChatSession
   var subtitle: String
   var isWriting: Bool
+  var availableProjects: [NativeProject]
   var action: () -> Void
   var onRename: () -> Void
+  var onAddToProject: (NativeProject) -> Void
   var onDelete: () -> Void
 
   var body: some View {
@@ -2788,6 +4828,22 @@ private struct NativeProjectSessionRow: View {
         Label("이름 변경", systemImage: "pencil")
       }
 
+      Menu {
+        if availableProjects.isEmpty {
+          Text("추가할 프로젝트 없음")
+        } else {
+          ForEach(availableProjects) { project in
+            Button {
+              onAddToProject(project)
+            } label: {
+              Label(project.title, systemImage: project.iconName)
+            }
+          }
+        }
+      } label: {
+        Label("프로젝트에 추가", systemImage: "folder.badge.plus")
+      }
+
       Button(role: .destructive) {
         onDelete()
       } label: {
@@ -2806,6 +4862,18 @@ private struct NativeProjectComposerBar: View {
   private var editorHeight: CGFloat {
     let lineCount = max(1, store.inputText.components(separatedBy: .newlines).count)
     return min(CGFloat(lineCount) * 20 + 22, 82)
+  }
+
+  private var slashCommands: [NativeSlashCommand] {
+    NativeSlashCommand.matching(in: store.inputText)
+  }
+
+  private var showsSlashCommands: Bool {
+    focused && !slashCommands.isEmpty
+  }
+
+  private var isSearchMode: Bool {
+    NativeSlashCommand.searchPayload(in: store.inputText) != nil
   }
 
   var body: some View {
@@ -2836,6 +4904,12 @@ private struct NativeProjectComposerBar: View {
             }
           }
         }
+      }
+
+      if showsSlashCommands {
+        NativeSlashCommandMenu(commands: slashCommands, onSelect: performSlashCommand)
+          .environmentObject(store)
+          .transition(.move(edge: .bottom).combined(with: .opacity))
       }
 
       VStack(spacing: 6) {
@@ -2871,6 +4945,12 @@ private struct NativeProjectComposerBar: View {
           .buttonStyle(.plain)
           .accessibilityLabel("파일 첨부")
 
+          if isSearchMode {
+            NativeSearchModeChip()
+              .environmentObject(store)
+              .transition(.opacity.combined(with: .scale(scale: 0.96)))
+          }
+
           Spacer(minLength: 8)
 
           Button(action: send) {
@@ -2899,6 +4979,8 @@ private struct NativeProjectComposerBar: View {
     }
     .padding(.horizontal, 10)
     .padding(.bottom, 6)
+    .animation(.easeOut(duration: 0.18), value: showsSlashCommands)
+    .animation(.easeOut(duration: 0.18), value: isSearchMode)
   }
 
   private func send() {
@@ -2910,6 +4992,13 @@ private struct NativeProjectComposerBar: View {
       return
     }
     store.sendCurrentInput(projectId: project.id)
+  }
+
+  private func performSlashCommand(_ command: NativeSlashCommand) {
+    if command == .search {
+      store.inputText = "\(command.trigger) "
+      focused = true
+    }
   }
 }
 

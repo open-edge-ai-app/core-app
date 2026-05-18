@@ -233,7 +233,7 @@ final class AIEngineFoundationModelClient: NSObject {
   @available(iOS 26.0, *)
   private func generateWithFoundationModels(prompt: String) async throws -> String {
     let session = LanguageModelSession(model: .default, instructions: baseInstructions)
-    let options = GenerationOptions(temperature: 0.2, maximumResponseTokens: 900)
+    let options = GenerationOptions(temperature: 0.2, maximumResponseTokens: maximumResponseTokens(for: prompt))
     let response = try await session.respond(to: prompt, options: options)
     return cleanResponse(response.content)
   }
@@ -244,7 +244,7 @@ final class AIEngineFoundationModelClient: NSObject {
     onChunk: @escaping (NSString) -> Void
   ) async throws -> String {
     let session = LanguageModelSession(model: .default, instructions: baseInstructions)
-    let options = GenerationOptions(temperature: 0.2, maximumResponseTokens: 900)
+    let options = GenerationOptions(temperature: 0.2, maximumResponseTokens: maximumResponseTokens(for: prompt))
     let stream = session.streamResponse(to: prompt, options: options)
     var previous = ""
 
@@ -265,6 +265,40 @@ final class AIEngineFoundationModelClient: NSObject {
     return cleanResponse(previous)
   }
   #endif
+
+  private func maximumResponseTokens(for prompt: String) -> Int {
+    estimatedTokens(prompt) > 3_000 ? 760 : 900
+  }
+
+  private func estimatedTokens(_ text: String) -> Int {
+    var tokens = 0
+    var asciiRun = 0
+
+    func flushAsciiRun() {
+      if asciiRun > 0 {
+        tokens += max(1, (asciiRun + 3) / 4)
+        asciiRun = 0
+      }
+    }
+
+    for scalar in text.unicodeScalars {
+      if CharacterSet.whitespacesAndNewlines.contains(scalar) {
+        flushAsciiRun()
+        continue
+      }
+
+      if scalar.value < 128, CharacterSet.alphanumerics.contains(scalar) {
+        asciiRun += 1
+        continue
+      }
+
+      flushAsciiRun()
+      tokens += 1
+    }
+
+    flushAsciiRun()
+    return tokens
+  }
 
   private func splitForStreaming(_ text: String) -> [String] {
     let chunks = text.split(whereSeparator: { $0 == " " || $0 == "\n" }).map(String.init)

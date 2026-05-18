@@ -3549,6 +3549,11 @@ private struct NativeMarkdownBlockView: View {
 }
 
 private struct NativeInlineMarkdownText: View {
+  private struct CitationGroup {
+    let range: Range<String.Index>
+    let numbers: [Int]
+  }
+
   @EnvironmentObject private var store: NativeChatStore
   let text: String
   let sources: [NativeSearchSourceReference]
@@ -3575,34 +3580,22 @@ private struct NativeInlineMarkdownText: View {
   }
 
   private var interactiveAttributedText: NSAttributedString {
-    let citationPattern = #"\[(\d{1,2})\]"#
-    let regex = try? NSRegularExpression(pattern: citationPattern)
-    let nsRange = NSRange(text.startIndex..<text.endIndex, in: text)
-    let matches = regex?.matches(in: text, range: nsRange) ?? []
+    let groups = citationGroups
     let result = NSMutableAttributedString()
 
-    guard !sources.isEmpty, !matches.isEmpty else {
+    guard !groups.isEmpty else {
       return styledMarkdownAttributedString(from: text)
     }
 
     var cursor = text.startIndex
 
-    for match in matches {
-      guard match.numberOfRanges >= 2,
-            let fullRange = Range(match.range(at: 0), in: text),
-            let numberRange = Range(match.range(at: 1), in: text),
-            let sourceNumber = Int(text[numberRange]),
-            (1...sources.count).contains(sourceNumber)
-      else {
-        continue
+    for group in groups {
+      if group.range.lowerBound > cursor {
+        result.append(styledMarkdownAttributedString(from: String(text[cursor..<group.range.lowerBound])))
       }
 
-      if fullRange.lowerBound > cursor {
-        result.append(styledMarkdownAttributedString(from: String(text[cursor..<fullRange.lowerBound])))
-      }
-
-      result.append(citationNSAttributedString(sourceNumber))
-      cursor = fullRange.upperBound
+      result.append(citationNSAttributedString(for: group.numbers))
+      cursor = group.range.upperBound
     }
 
     if cursor < text.endIndex {
@@ -3613,55 +3606,26 @@ private struct NativeInlineMarkdownText: View {
   }
 
   private var containsValidCitations: Bool {
-    guard !sources.isEmpty else {
-      return false
-    }
-
-    let citationPattern = #"\[(\d{1,2})\]"#
-    let regex = try? NSRegularExpression(pattern: citationPattern)
-    let nsRange = NSRange(text.startIndex..<text.endIndex, in: text)
-    let matches = regex?.matches(in: text, range: nsRange) ?? []
-
-    return matches.contains { match in
-      guard match.numberOfRanges >= 2,
-            let numberRange = Range(match.range(at: 1), in: text),
-            let sourceNumber = Int(text[numberRange])
-      else {
-        return false
-      }
-      return (1...sources.count).contains(sourceNumber)
-    }
+    !citationGroups.isEmpty
   }
 
   private func attributedStringWithCitationTags() -> AttributedString {
-    let citationPattern = #"\[(\d{1,2})\]"#
-    let regex = try? NSRegularExpression(pattern: citationPattern)
-    let nsRange = NSRange(text.startIndex..<text.endIndex, in: text)
-    let matches = regex?.matches(in: text, range: nsRange) ?? []
+    let groups = citationGroups
 
-    guard !sources.isEmpty, !matches.isEmpty else {
+    guard !groups.isEmpty else {
       return markdownAttributedString(from: text)
     }
 
     var result = AttributedString()
     var cursor = text.startIndex
 
-    for match in matches {
-      guard match.numberOfRanges >= 2,
-            let fullRange = Range(match.range(at: 0), in: text),
-            let numberRange = Range(match.range(at: 1), in: text),
-            let sourceNumber = Int(text[numberRange]),
-            (1...sources.count).contains(sourceNumber)
-      else {
-        continue
+    for group in groups {
+      if group.range.lowerBound > cursor {
+        result += markdownAttributedString(from: String(text[cursor..<group.range.lowerBound]))
       }
 
-      if fullRange.lowerBound > cursor {
-        result += markdownAttributedString(from: String(text[cursor..<fullRange.lowerBound]))
-      }
-
-      result += citationAttributedString(sourceNumber)
-      cursor = fullRange.upperBound
+      result += citationAttributedString(for: group.numbers)
+      cursor = group.range.upperBound
     }
 
     if cursor < text.endIndex {
@@ -3678,8 +3642,62 @@ private struct NativeInlineMarkdownText: View {
     return (try? AttributedString(markdown: text, options: options)) ?? AttributedString(text)
   }
 
+  private var citationGroups: [CitationGroup] {
+    guard !sources.isEmpty else {
+      return []
+    }
+
+    let citationPattern = #"\[((?:\s*\d{1,2}\s*,)*\s*\d{1,2}\s*)\]"#
+    let regex = try? NSRegularExpression(pattern: citationPattern)
+    let nsRange = NSRange(text.startIndex..<text.endIndex, in: text)
+    let matches = regex?.matches(in: text, range: nsRange) ?? []
+
+    return matches.compactMap { match in
+      guard match.numberOfRanges >= 2,
+            let fullRange = Range(match.range(at: 0), in: text),
+            let numbersRange = Range(match.range(at: 1), in: text)
+      else {
+        return nil
+      }
+
+      let numbers = citationNumbers(from: text[numbersRange])
+      return numbers.isEmpty ? nil : CitationGroup(range: fullRange, numbers: numbers)
+    }
+  }
+
+  private func citationNumbers(from text: Substring) -> [Int] {
+    var seen = Set<Int>()
+    return text
+      .split(separator: ",")
+      .compactMap { value in
+        Int(String(value).trimmingCharacters(in: .whitespacesAndNewlines))
+      }
+      .filter { number in
+        guard (1...sources.count).contains(number),
+              !seen.contains(number)
+        else {
+          return false
+        }
+        seen.insert(number)
+        return true
+      }
+  }
+
+  private func citationAttributedString(for numbers: [Int]) -> AttributedString {
+    var result = AttributedString()
+
+    for (index, number) in numbers.enumerated() {
+      if index > 0 {
+        result += AttributedString(" ")
+      }
+      result += citationAttributedString(number)
+    }
+
+    return result
+  }
+
   private func citationAttributedString(_ number: Int) -> AttributedString {
-    var tag = AttributedString(citationDisplayURL(for: number))
+    var tag = AttributedString("\(number)")
     tag.link = URL(string: "openedgeai-source://\(number)")
     tag.foregroundColor = store.accentColor.color
     tag.backgroundColor = store.accentColor.color.opacity(0.12)
@@ -3733,10 +3751,23 @@ private struct NativeInlineMarkdownText: View {
     return attributed
   }
 
+  private func citationNSAttributedString(for numbers: [Int]) -> NSAttributedString {
+    let result = NSMutableAttributedString()
+
+    for (index, number) in numbers.enumerated() {
+      if index > 0 {
+        result.append(NSAttributedString(string: " "))
+      }
+      result.append(citationNSAttributedString(number))
+    }
+
+    return result
+  }
+
   private func citationNSAttributedString(_ number: Int) -> NSAttributedString {
     let accentColor = UIColor(store.accentColor.color)
     return NSAttributedString(
-      string: citationDisplayURL(for: number),
+      string: "\(number)",
       attributes: [
         .font: UIFont.systemFont(ofSize: max(11, fontSize - 3), weight: .semibold),
         .foregroundColor: accentColor,
@@ -3744,23 +3775,6 @@ private struct NativeInlineMarkdownText: View {
         .link: URL(string: "openedgeai-source://\(number)")!
       ]
     )
-  }
-
-  private func citationDisplayURL(for number: Int) -> String {
-    guard (1...sources.count).contains(number) else {
-      return "[\(number)]"
-    }
-
-    let source = sources[number - 1]
-    guard let url = URL(string: source.url),
-          let host = url.host?.replacingOccurrences(of: "www.", with: ""),
-          !host.isEmpty
-    else {
-      return source.url.isEmpty ? "[\(number)]" : source.url
-    }
-
-    let path = url.path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
-    return path.isEmpty ? host : "\(host)/\(path)"
   }
 
   private var uiFontWeight: UIFont.Weight {

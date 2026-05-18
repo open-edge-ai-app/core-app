@@ -18,34 +18,35 @@
     <title>Open Edge AI - Local AI that stays on device</title>
     <link rel="icon" href="./assets/open-edge-ai-wordmark.png" />
     <link rel="stylesheet" href="./styles.css" />
+    <script src="./pets.js" defer></script>
   </head>
   <body>
     <main class="page-shell">
-      <section class="stage" id="overview" aria-label="Open Edge AI overview">
-        <header class="site-header">
-          <a class="brand" href="#overview" aria-label="Open Edge AI home">
-            <span class="brand-mark" aria-hidden="true"></span>
-            <span>OPEN EDGE AI</span>
-          </a>
-          <nav class="site-nav" aria-label="Primary navigation">
-            <a class="active" href="#overview">Overview</a>
-            <a href="#features">Features</a>
-            <a href="#architecture">Architecture</a>
-            <a href="#docs">Docs</a>
-          </nav>
-          <a
-            class="header-action"
-            href="https://github.com/open-edge-ai-app/core-app"
-          >
-            <svg aria-hidden="true" viewBox="0 0 24 24">
-              <path
-                d="M12 .8A11.2 11.2 0 0 0 8.5 22.6c.56.1.77-.24.77-.54v-2.1c-3.13.68-3.79-1.34-3.79-1.34-.51-1.3-1.25-1.65-1.25-1.65-1.02-.7.08-.69.08-.69 1.13.08 1.73 1.17 1.73 1.17 1 .1.9 2.64 3.2 1.9.1-.73.4-1.23.72-1.51-2.5-.29-5.13-1.25-5.13-5.56 0-1.23.44-2.24 1.16-3.02-.12-.29-.5-1.43.11-2.99 0 0 .95-.3 3.1 1.16A10.74 10.74 0 0 1 12 7.05c.96 0 1.92.13 2.82.38 2.14-1.45 3.09-1.16 3.09-1.16.62 1.56.24 2.7.12 2.99.72.78 1.15 1.79 1.15 3.02 0 4.32-2.63 5.27-5.14 5.55.41.36.78 1.06.78 2.14v3.09c0 .3.2.65.78.54A11.2 11.2 0 0 0 12 .8Z"
-              />
-            </svg>
-            GitHub
-          </a>
-        </header>
+      <header class="site-header">
+        <a class="brand" href="#overview" aria-label="Open Edge AI home">
+          <span class="brand-mark" aria-hidden="true"></span>
+          <span>OPEN EDGE AI</span>
+        </a>
+        <nav class="site-nav" aria-label="Primary navigation">
+          <a class="active" href="#overview">Overview</a>
+          <a href="#features">Features</a>
+          <a href="#architecture">Architecture</a>
+          <a href="#docs">Docs</a>
+        </nav>
+        <a
+          class="header-action"
+          href="https://github.com/open-edge-ai-app/core-app"
+        >
+          <svg aria-hidden="true" viewBox="0 0 24 24">
+            <path
+              d="M12 .8A11.2 11.2 0 0 0 8.5 22.6c.56.1.77-.24.77-.54v-2.1c-3.13.68-3.79-1.34-3.79-1.34-.51-1.3-1.25-1.65-1.25-1.65-1.02-.7.08-.69.08-.69 1.13.08 1.73 1.17 1.73 1.17 1 .1.9 2.64 3.2 1.9.1-.73.4-1.23.72-1.51-2.5-.29-5.13-1.25-5.13-5.56 0-1.23.44-2.24 1.16-3.02-.12-.29-.5-1.43.11-2.99 0 0 .95-.3 3.1 1.16A10.74 10.74 0 0 1 12 7.05c.96 0 1.92.13 2.82.38 2.14-1.45 3.09-1.16 3.09-1.16.62 1.56.24 2.7.12 2.99.72.78 1.15 1.79 1.15 3.02 0 4.32-2.63 5.27-5.14 5.55.41.36.78 1.06.78 2.14v3.09c0 .3.2.65.78.54A11.2 11.2 0 0 0 12 .8Z"
+            />
+          </svg>
+          GitHub
+        </a>
+      </header>
 
+      <section class="stage" id="overview" aria-label="Open Edge AI overview">
         <div class="hero-panel">
           <div class="grid-plane" aria-hidden="true"></div>
           <div class="hero-glow" aria-hidden="true"></div>
@@ -124,11 +125,7 @@
           </div>
         </div>
 
-        <div
-          class="capability-grid"
-          id="features"
-          aria-label="Open Edge AI capabilities"
-        >
+        <div class="capability-grid" aria-label="Open Edge AI capabilities">
           <article class="capability-card">
             <svg aria-hidden="true" viewBox="0 0 48 48">
               <path
@@ -194,6 +191,184 @@
               attachments.
             </p>
           </article>
+        </div>
+      </section>
+
+      <section
+        class="feature-definition"
+        id="features"
+        aria-label="Feature definitions"
+      >
+        <div class="feature-definition-header">
+          <div>
+            <p class="section-label">Feature definitions</p>
+            <h2>What the project means by local-first AI.</h2>
+          </div>
+          <p>
+            These are not marketing buckets. Each feature maps to a visible app
+            surface and a native implementation area in the repository.
+          </p>
+        </div>
+
+        <div class="feature-layout">
+          <div class="feature-definition-grid">
+            <article class="definition-card">
+              <div class="definition-index">01</div>
+              <h3>Local-first chat workspace</h3>
+              <p>
+                A React Native chat shell for private sessions, model selection,
+                work folders, saved display settings, and conversation state.
+              </p>
+              <dl>
+                <dt>Surface</dt>
+                <dd>Chat, settings, sessions, folders</dd>
+                <dt>Code anchors</dt>
+                <dd>src/screens, src/state, src/native/AIEngine.ts</dd>
+              </dl>
+            </article>
+
+            <article class="definition-card">
+              <div class="definition-index">02</div>
+              <h3>Native model runtime</h3>
+              <p>
+                Device runtimes are handled by platform modules instead of a
+                remote-only chat API, so model loading and status stay close to
+                the user.
+              </p>
+              <dl>
+                <dt>Surface</dt>
+                <dd>Runtime status, model lifecycle, generated responses</dd>
+                <dt>Code anchors</dt>
+                <dd>ModelRuntimeManager, GemmaManager, iOS model clients</dd>
+              </dl>
+            </article>
+
+            <article class="definition-card">
+              <div class="definition-index">03</div>
+              <h3>Device-side retrieval</h3>
+              <p>
+                Context indexing, embeddings, vector storage, and query routing
+                are designed to work on user data without making cloud storage a
+                requirement.
+              </p>
+              <dl>
+                <dt>Surface</dt>
+                <dd>Private context, semantic search, background indexing</dd>
+                <dt>Code anchors</dt>
+                <dd>MemoryIndexer, EmbedManager, VectorDBHelper</dd>
+              </dl>
+            </article>
+
+            <article class="definition-card">
+              <div class="definition-index">04</div>
+              <h3>Multimodal inputs</h3>
+              <p>
+                Text, files, images, and richer attachments share one typed
+                request path so the app can grow without replacing the bridge.
+              </p>
+              <dl>
+                <dt>Surface</dt>
+                <dd>Attachment-aware prompts and vision request scaffolding</dd>
+                <dt>Code anchors</dt>
+                <dd>MultimodalRequest, VisionManager, FilePicker</dd>
+              </dl>
+            </article>
+
+            <article class="definition-card">
+              <div class="definition-index">05</div>
+              <h3>Web preview target</h3>
+              <p>
+                The Vite and React Native Web target keeps UI iteration fast
+                while preserving the cross-platform component model.
+              </p>
+              <dl>
+                <dt>Surface</dt>
+                <dd>Browser preview for frontend-only development</dd>
+                <dt>Code anchors</dt>
+                <dd>index.web.tsx, vite.config.ts, src/web</dd>
+              </dl>
+            </article>
+
+            <article class="definition-card pet-definition">
+              <div class="definition-index">06</div>
+              <h3>Dynamic Island pets</h3>
+              <p>
+                Five tiny pixel companions represent background activity in the
+                iOS island UI: Orbit, Stacky, Signal, Luma, and Flux.
+              </p>
+              <div class="pet-row" aria-label="Dynamic Island pet lineup">
+                <span
+                  class="pixel-pet pet-orbit"
+                  data-pet="orbit"
+                  role="img"
+                  aria-label="Orbit"
+                ></span>
+                <span
+                  class="pixel-pet pet-stacky"
+                  data-pet="stacky"
+                  role="img"
+                  aria-label="Stacky"
+                ></span>
+                <span
+                  class="pixel-pet pet-signal"
+                  data-pet="nullSignal"
+                  role="img"
+                  aria-label="Signal"
+                ></span>
+                <span
+                  class="pixel-pet pet-luma"
+                  data-pet="luma"
+                  role="img"
+                  aria-label="Luma"
+                ></span>
+                <span
+                  class="pixel-pet pet-flux"
+                  data-pet="flux"
+                  role="img"
+                  aria-label="Flux"
+                ></span>
+              </div>
+            </article>
+          </div>
+
+          <aside class="pet-showcase" aria-label="Dynamic Island pet preview">
+            <div class="pet-island">
+              <span
+                class="pixel-pet pet-orbit pet-large"
+                data-pet="orbit"
+                role="img"
+                aria-label="Orbit running"
+              ></span>
+              <div>
+                <strong>Generating locally</strong>
+                <span>Dynamic Island status with pet motion</span>
+              </div>
+              <span class="island-pulse" aria-hidden="true"></span>
+            </div>
+            <div class="pet-orbit-field" aria-hidden="true">
+              <span
+                class="pixel-pet pet-stacky pet-medium"
+                data-pet="stacky"
+              ></span>
+              <span
+                class="pixel-pet pet-signal pet-medium"
+                data-pet="nullSignal"
+              ></span>
+              <span
+                class="pixel-pet pet-luma pet-medium"
+                data-pet="luma"
+              ></span>
+              <span
+                class="pixel-pet pet-flux pet-medium"
+                data-pet="flux"
+              ></span>
+            </div>
+            <p>
+              The site uses the same 7-by-7 pixel matrices and color families as
+              the iOS feature, tuned into the dark grid visual system instead of
+              dropping in unrelated illustration.
+            </p>
+          </aside>
         </div>
       </section>
 

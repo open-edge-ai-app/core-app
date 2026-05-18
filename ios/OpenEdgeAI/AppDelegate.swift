@@ -435,7 +435,6 @@ private enum NativeDynamicIslandPhase {
   case hidden
   case generating
   case queued
-  case completed
 }
 
 private struct NativeDynamicIslandState {
@@ -778,17 +777,15 @@ private final class NativeChatStore: ObservableObject {
   @Published var backgroundDynamicIslandEnabled = true
   @Published var dynamicIslandPetEnabled = false
   @Published var selectedDynamicIslandPet: NativeDynamicIslandPet = .orbit
-  @Published var dynamicIslandCompletionVisible = false
 
   private let storageKey = "OpenEdgeAI.NativeChatSessions.v1"
   private let projectsStorageKey = "OpenEdgeAI.NativeProjects.v1"
   private let settingsKey = "OpenEdgeAI.NativeSettings.v1"
   private let currentSettingsSchemaVersion = 2
+  private let dynamicIslandActivityId = "open-edge-ai.live-generation"
   private var activeAssistantMessageId: String?
   @Published private var activeRequestSessionId: String?
-  private var lastDynamicIslandSessionId: String?
   private var generationBackgroundTaskIdentifier: UIBackgroundTaskIdentifier = .invalid
-  private var dynamicIslandCompletionTask: Task<Void, Never>?
   private let deviceContextProvider = NativeDeviceContextProvider()
 
   init() {
@@ -828,19 +825,6 @@ private final class NativeChatStore: ObservableObject {
     isGenerating ? activeRequestSessionId : nil
   }
 
-  private var dynamicIslandSessionId: String? {
-    if let activeRequestSessionId {
-      return activeRequestSessionId
-    }
-    if dynamicIslandCompletionVisible, let lastDynamicIslandSessionId {
-      return lastDynamicIslandSessionId
-    }
-    if !queuedDrafts.isEmpty {
-      return lastDynamicIslandSessionId ?? selectedSessionId
-    }
-    return selectedSessionId ?? lastDynamicIslandSessionId
-  }
-
   var canRunBackgroundDynamicIsland: Bool {
     backgroundExecutionEnabled && backgroundDynamicIslandEnabled
   }
@@ -869,10 +853,6 @@ private final class NativeChatStore: ObservableObject {
     )
   }
 
-  var showsInAppDynamicIslandActivity: Bool {
-    dynamicIslandState.isVisible
-  }
-
   var showsSystemDynamicIslandActivity: Bool {
     canRunBackgroundDynamicIsland && dynamicIslandState.isVisible
   }
@@ -884,9 +864,6 @@ private final class NativeChatStore: ObservableObject {
     if !queuedDrafts.isEmpty {
       return .queued
     }
-    if dynamicIslandCompletionVisible {
-      return .hidden
-    }
     return .hidden
   }
 
@@ -896,8 +873,6 @@ private final class NativeChatStore: ObservableObject {
       return queuedDrafts.isEmpty ? "응답 생성 중" : "후속 질문 실행 중"
     case .queued:
       return "후속 질문 대기 중"
-    case .completed:
-      return ""
     case .hidden:
       return ""
     }
@@ -909,8 +884,6 @@ private final class NativeChatStore: ObservableObject {
     }
 
     switch phase {
-    case .completed:
-      return ""
     case .generating, .queued:
       return selectedModel.title
     case .hidden:
@@ -927,8 +900,6 @@ private final class NativeChatStore: ObservableObject {
       return "현재 응답 후 후속 질문 \(queuedDrafts.count)개를 이어서 실행합니다."
     case .queued:
       return "후속 질문 \(queuedDrafts.count)개가 대기 중입니다."
-    case .completed:
-      return ""
     case .hidden:
       return ""
     }
@@ -940,8 +911,6 @@ private final class NativeChatStore: ObservableObject {
       return queuedDrafts.isEmpty ? 0.64 : 0.72
     case .queued:
       return 0.28
-    case .completed:
-      return 1
     case .hidden:
       return 0
     }
@@ -951,8 +920,6 @@ private final class NativeChatStore: ObservableObject {
     switch phase {
     case .generating:
       return .running
-    case .completed:
-      return .sleeping
     case .queued, .hidden:
       return .resting
     }
@@ -989,9 +956,6 @@ private final class NativeChatStore: ObservableObject {
     sessions.removeAll { $0.id == session.id }
     if activeRequestSessionId == session.id {
       activeRequestSessionId = nil
-    }
-    if lastDynamicIslandSessionId == session.id {
-      lastDynamicIslandSessionId = nil
     }
     if selectedSessionId == session.id {
       selectedSessionId = sessions.first?.id
@@ -1040,9 +1004,6 @@ private final class NativeChatStore: ObservableObject {
     sessions.removeAll { $0.projectId == project.id }
     if let activeRequestSessionId, deletedSessionIds.contains(activeRequestSessionId) {
       self.activeRequestSessionId = nil
-    }
-    if let lastDynamicIslandSessionId, deletedSessionIds.contains(lastDynamicIslandSessionId) {
-      self.lastDynamicIslandSessionId = nil
     }
     if let selectedSessionId,
        sessions.contains(where: { $0.id == selectedSessionId }) == false {
@@ -1102,9 +1063,6 @@ private final class NativeChatStore: ObservableObject {
 
   func removeQueuedDraft(_ draft: NativeDraft) {
     queuedDrafts.removeAll { $0.id == draft.id }
-    if queuedDrafts.isEmpty && !isGenerating {
-      hideDynamicIslandCompletion()
-    }
     syncDynamicIslandLiveActivity()
   }
 
@@ -1177,7 +1135,6 @@ private final class NativeChatStore: ObservableObject {
     let gemmaCancelled = AIEngineGemmaModelClient.shared.cancelActiveGeneration()
 
     if let activeRequestSessionId, let activeAssistantMessageId {
-      lastDynamicIslandSessionId = activeRequestSessionId
       mutateSession(activeRequestSessionId) { session in
         if let index = session.messages.firstIndex(where: { $0.id == activeAssistantMessageId }),
            session.messages[index].text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
@@ -1191,7 +1148,6 @@ private final class NativeChatStore: ObservableObject {
     activeRequestSessionId = nil
     endGenerationBackgroundTaskIfNeeded()
     if queuedDrafts.isEmpty {
-      hideDynamicIslandCompletion()
       syncDynamicIslandLiveActivity()
     } else {
       showDynamicIslandWork()
@@ -1304,7 +1260,6 @@ private final class NativeChatStore: ObservableObject {
     isGenerating = true
     activeAssistantMessageId = assistantMessage.id
     activeRequestSessionId = sessionId
-    lastDynamicIslandSessionId = sessionId
     statusMessage = nil
     beginGenerationBackgroundTaskIfNeeded()
     showDynamicIslandWork()
@@ -1340,7 +1295,6 @@ private final class NativeChatStore: ObservableObject {
     isGenerating = true
     activeAssistantMessageId = assistantId
     activeRequestSessionId = sessionId
-    lastDynamicIslandSessionId = sessionId
     statusMessage = nil
     beginGenerationBackgroundTaskIfNeeded()
     showDynamicIslandWork()
@@ -1405,13 +1359,11 @@ private final class NativeChatStore: ObservableObject {
     }
 
     isGenerating = false
-    lastDynamicIslandSessionId = sessionId
     activeAssistantMessageId = nil
     activeRequestSessionId = nil
     endGenerationBackgroundTaskIfNeeded()
 
     if queuedDrafts.isEmpty {
-      hideDynamicIslandCompletion()
       syncDynamicIslandLiveActivity()
     } else {
       scheduleNextQueuedDraft()
@@ -1711,16 +1663,6 @@ private final class NativeChatStore: ObservableObject {
     }
   }
 
-  private func clippedDynamicIslandText(_ text: String) -> String {
-    let cleaned = text
-      .replacingOccurrences(of: "\n", with: " ")
-      .trimmingCharacters(in: .whitespacesAndNewlines)
-    guard !cleaned.isEmpty else {
-      return "첨부 파일"
-    }
-    return cleaned.count > 24 ? "\(cleaned.prefix(24))..." : cleaned
-  }
-
   private func boolSetting(_ value: Any?, default defaultValue: Bool) -> Bool {
     if let value = value as? Bool {
       return value
@@ -1732,7 +1674,6 @@ private final class NativeChatStore: ObservableObject {
   }
 
   func dismissDynamicIslandActivity() {
-    hideDynamicIslandCompletion()
     syncDynamicIslandLiveActivity()
   }
 
@@ -1755,37 +1696,7 @@ private final class NativeChatStore: ObservableObject {
   }
 
   private func showDynamicIslandWork() {
-    dynamicIslandCompletionTask?.cancel()
-    dynamicIslandCompletionTask = nil
-    dynamicIslandCompletionVisible = false
     syncDynamicIslandLiveActivity()
-  }
-
-  private func showDynamicIslandCompletion() {
-    dynamicIslandCompletionTask?.cancel()
-    dynamicIslandCompletionVisible = true
-    syncDynamicIslandLiveActivity()
-
-    dynamicIslandCompletionTask = Task { @MainActor in
-      try? await Task.sleep(nanoseconds: 12_000_000_000)
-      guard !Task.isCancelled else {
-        return
-      }
-      if !self.isGenerating && self.queuedDrafts.isEmpty {
-        self.dynamicIslandCompletionVisible = false
-        self.lastDynamicIslandSessionId = nil
-        self.syncDynamicIslandLiveActivity()
-      }
-    }
-  }
-
-  private func hideDynamicIslandCompletion() {
-    dynamicIslandCompletionTask?.cancel()
-    dynamicIslandCompletionTask = nil
-    dynamicIslandCompletionVisible = false
-    if !isGenerating && queuedDrafts.isEmpty {
-      lastDynamicIslandSessionId = nil
-    }
   }
 
   private func syncDynamicIslandLiveActivity() {
@@ -1793,7 +1704,7 @@ private final class NativeChatStore: ObservableObject {
     NativeDynamicIslandLiveActivityController.shared.sync(
       enabled: canRunBackgroundDynamicIsland,
       isVisible: showsSystemDynamicIslandActivity,
-      sessionId: dynamicIslandSessionId ?? "open-edge-ai",
+      sessionId: dynamicIslandActivityId,
       title: state.title,
       subtitle: state.subtitle,
       pet: state.pet.rawValue,
@@ -1851,15 +1762,6 @@ private struct NativeRootView: View {
         NativeInputBar(showingFileImporter: $showingFileImporter)
       }
       .background(Color.oeBackground)
-      .overlay(alignment: .top) {
-        if store.showsInAppDynamicIslandActivity {
-          NativeDynamicIslandActivityView()
-            .environmentObject(store)
-            .padding(.top, 4)
-            .transition(.scale(scale: 0.92, anchor: .top).combined(with: .opacity))
-            .zIndex(3)
-        }
-      }
 
       if showingSessions {
         NativeSessionsView(
@@ -1873,7 +1775,6 @@ private struct NativeRootView: View {
       }
     }
     .animation(.easeOut(duration: 0.24), value: showingSessions)
-    .animation(.spring(response: 0.28, dampingFraction: 0.82), value: store.showsInAppDynamicIslandActivity)
     .sheet(isPresented: $showingSettings) {
       NativeSettingsView()
         .environmentObject(store)
@@ -1890,102 +1791,6 @@ private struct NativeRootView: View {
     .task {
       await store.pollModelStatuses()
     }
-  }
-}
-
-private struct NativeDynamicIslandActivityView: View {
-  @EnvironmentObject private var store: NativeChatStore
-
-  private var state: NativeDynamicIslandState {
-    store.dynamicIslandState
-  }
-
-  var body: some View {
-    HStack(spacing: 10) {
-      if state.isPetEnabled {
-        NativeDynamicIslandPetView(
-          pet: state.pet,
-          motion: state.motion,
-          size: 34
-        )
-      } else {
-        NativeDynamicIslandLogoView(size: 30)
-      }
-
-      VStack(alignment: .leading, spacing: 2) {
-        Text(state.title)
-          .font(.system(size: 12, weight: .semibold))
-          .foregroundColor(.white)
-          .lineLimit(1)
-
-        Text(state.subtitle)
-          .font(.system(size: 11, weight: .medium))
-          .foregroundColor(.white.opacity(0.66))
-          .lineLimit(1)
-      }
-
-      Spacer(minLength: 6)
-
-      NativeDynamicIslandProgressRing(
-        progress: state.progress,
-        isActive: state.isGenerating,
-        size: 25,
-        lineWidth: 3
-      )
-    }
-    .padding(.horizontal, 13)
-    .frame(width: state.isPetEnabled ? 286 : 262, height: 54)
-    .background(Color.black)
-    .clipShape(Capsule())
-    .shadow(color: Color.black.opacity(0.22), radius: 16, x: 0, y: 9)
-    .accessibilityLabel("\(state.title), \(state.subtitle)")
-    .allowsHitTesting(false)
-  }
-}
-
-private struct NativeDynamicIslandLogoView: View {
-  var size: CGFloat
-
-  var body: some View {
-    ZStack {
-      RoundedRectangle(cornerRadius: size * 0.28, style: .continuous)
-        .stroke(Color.white.opacity(0.86), lineWidth: max(1.2, size * 0.07))
-        .rotationEffect(.degrees(-14))
-
-      Text("OE")
-        .font(.system(size: size * 0.34, weight: .black, design: .rounded))
-        .foregroundColor(.white)
-    }
-    .frame(width: size, height: size)
-    .accessibilityHidden(true)
-  }
-}
-
-private struct NativeDynamicIslandProgressRing: View {
-  var progress: Double
-  var isActive: Bool
-  var size: CGFloat
-  var lineWidth: CGFloat
-
-  private var clampedProgress: Double {
-    min(max(progress, 0.08), 1)
-  }
-
-  var body: some View {
-    ZStack {
-      Circle()
-        .stroke(Color.white.opacity(0.18), lineWidth: lineWidth)
-
-      Circle()
-        .trim(from: 0, to: clampedProgress)
-        .stroke(
-          Color.white.opacity(isActive ? 1 : 0.78),
-          style: StrokeStyle(lineWidth: lineWidth, lineCap: .round)
-        )
-        .rotationEffect(.degrees(-90))
-    }
-    .frame(width: size, height: size)
-    .accessibilityHidden(true)
   }
 }
 
@@ -2147,36 +1952,6 @@ private struct NativeDynamicIslandPetView: View {
       return pet.eyeColor
     default:
       return Color.clear
-    }
-  }
-}
-
-private struct NativeDynamicIslandPulseView: View {
-  var isActive: Bool
-  @State private var isAnimating = false
-
-  var body: some View {
-    ZStack {
-      Circle()
-        .stroke(Color.white.opacity(0.18), lineWidth: 1)
-        .frame(width: 24, height: 24)
-
-      Circle()
-        .fill(Color.white.opacity(isActive ? 0.28 : 0.18))
-        .frame(width: 24, height: 24)
-        .scaleEffect(isActive && isAnimating ? 1.18 : 0.76)
-        .opacity(isActive && isAnimating ? 0.1 : 0.24)
-
-      Circle()
-        .fill(Color.white)
-        .frame(width: isActive ? 8 : 6, height: isActive ? 8 : 6)
-        .scaleEffect(isActive && isAnimating ? 0.72 : 1)
-    }
-    .frame(width: 28, height: 28)
-    .onAppear {
-      withAnimation(.easeInOut(duration: 0.92).repeatForever(autoreverses: true)) {
-        isAnimating = true
-      }
     }
   }
 }

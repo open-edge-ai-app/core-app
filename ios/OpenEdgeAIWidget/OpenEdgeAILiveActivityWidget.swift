@@ -16,21 +16,13 @@ struct OpenEdgeAILiveActivityWidget: Widget {
         }
 
         DynamicIslandExpandedRegion(.trailing) {
-          VStack(spacing: 5) {
-            OpenEdgeAIIslandProgressRing(
-              progress: context.state.progress,
-              isActive: context.state.motion == "running",
-              size: 42,
-              lineWidth: 4
-            )
-
-            Text(statusText(for: context.state))
-              .font(.system(size: 10, weight: .bold))
-              .foregroundStyle(.white.opacity(0.72))
-              .lineLimit(1)
-              .minimumScaleFactor(0.72)
-          }
-          .frame(width: 58)
+          OpenEdgeAIIslandProgressRing(
+            progress: context.state.progress,
+            isActive: context.state.motion == "running",
+            size: 42,
+            lineWidth: 4
+          )
+          .frame(width: 58, height: 54)
         }
 
         DynamicIslandExpandedRegion(.center) {
@@ -70,53 +62,23 @@ struct OpenEdgeAILiveActivityWidget: Widget {
         OpenEdgeAIIslandIdentity(state: context.state, size: 22)
           .frame(width: 24, height: 24)
       } compactTrailing: {
-        if showsCompactStatusText(for: context.state) {
-          Text(statusText(for: context.state))
-            .font(.system(size: 10, weight: .bold))
-            .foregroundStyle(.white)
-            .lineLimit(1)
-            .minimumScaleFactor(0.7)
-            .frame(width: 34, height: 22)
-        } else {
-          OpenEdgeAIIslandProgressRing(
-            progress: context.state.progress,
-            isActive: context.state.motion == "running",
-            size: 22,
-            lineWidth: 2.6
-          )
-          .frame(width: 24, height: 24)
-        }
+        OpenEdgeAIIslandProgressRing(
+          progress: context.state.progress,
+          isActive: context.state.motion == "running",
+          size: 22,
+          lineWidth: 2.6
+        )
+        .frame(width: 24, height: 24)
       } minimal: {
-        if context.state.progress >= 1 {
-          Image(systemName: "checkmark.circle.fill")
-            .font(.system(size: 15, weight: .bold))
-            .foregroundStyle(.white)
-            .frame(width: 18, height: 18)
-        } else {
-          OpenEdgeAIIslandProgressRing(
-            progress: context.state.progress,
-            isActive: context.state.motion == "running",
-            size: 18,
-            lineWidth: 2.2
-          )
-          .frame(width: 18, height: 18)
-        }
+        OpenEdgeAIIslandProgressRing(
+          progress: context.state.progress,
+          isActive: context.state.motion == "running",
+          size: 18,
+          lineWidth: 2.2
+        )
+        .frame(width: 18, height: 18)
       }
     }
-  }
-
-  private func showsCompactStatusText(for state: OpenEdgeAIDynamicIslandAttributes.ContentState) -> Bool {
-    state.motion != "running" && state.queuedCount > 0
-  }
-
-  private func statusText(for state: OpenEdgeAIDynamicIslandAttributes.ContentState) -> String {
-    if state.motion == "running" {
-      return "진행 중"
-    }
-    if state.queuedCount > 0 {
-      return "대기 \(state.queuedCount)"
-    }
-    return "대기"
   }
 }
 

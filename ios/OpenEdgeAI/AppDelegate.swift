@@ -2761,33 +2761,34 @@ private struct NativeProjectSessionsPage: View {
   }
 
   var body: some View {
-    ZStack(alignment: .bottom) {
-      ScrollView(showsIndicators: false) {
-        VStack(alignment: .leading, spacing: 0) {
-          topBar
-            .padding(.bottom, 36)
+    VStack(spacing: 0) {
+      topBar
+        .zIndex(2)
 
-          titleHeader
-            .padding(.bottom, 34)
+      Divider()
 
-          tabBar
-            .padding(.bottom, 34)
+      ZStack(alignment: .bottom) {
+        ScrollView(showsIndicators: false) {
+          VStack(alignment: .leading, spacing: 0) {
+            tabBar
+              .padding(.bottom, 28)
 
-          if selectedTab == .chats {
-            chatList
-          } else {
-            sourcesPlaceholder
+            if selectedTab == .chats {
+              chatList
+            } else {
+              sourcesPlaceholder
+            }
           }
+          .padding(.horizontal, 28)
+          .padding(.top, 22)
+          .padding(.bottom, 132)
         }
-        .padding(.horizontal, 28)
-        .padding(.top, 26)
-        .padding(.bottom, 132)
-      }
 
-      NativeProjectComposerBar(
-        project: currentProject,
-        showingFileImporter: $showingFileImporter
-      )
+        NativeProjectComposerBar(
+          project: currentProject,
+          showingFileImporter: $showingFileImporter
+        )
+      }
     }
     .background(Color.oeBackground.ignoresSafeArea())
     .toolbar(.hidden, for: .navigationBar)
@@ -2847,21 +2848,6 @@ private struct NativeProjectSessionsPage: View {
     .padding(.top, 6)
     .padding(.bottom, 8)
     .background(Color.oeBackground)
-  }
-
-  private var titleHeader: some View {
-    HStack(alignment: .center, spacing: 12) {
-      Image(systemName: currentProject.iconName)
-        .font(.system(size: 21, weight: .semibold))
-        .foregroundColor(store.accentColor.color)
-        .frame(width: 30, height: 30)
-
-      Text(currentProject.title)
-        .font(.system(size: 26, weight: .regular))
-        .foregroundColor(.oeText)
-        .lineLimit(2)
-        .minimumScaleFactor(0.82)
-    }
   }
 
   private var tabBar: some View {

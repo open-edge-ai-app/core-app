@@ -11,7 +11,7 @@
 
   <p>
     <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-111111.svg" /></a>
-    <a href="https://github.com/open-edge-ai-app/open-edge-ai/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/open-edge-ai-app/open-edge-ai/actions/workflows/ci.yml/badge.svg" /></a>
+    <a href="https://github.com/open-edge-ai-app/core-app/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/open-edge-ai-app/core-app/actions/workflows/ci.yml/badge.svg" /></a>
     <img alt="React Native" src="https://img.shields.io/badge/React%20Native-0.85-61dafb.svg" />
     <img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-ready-3178c6.svg" />
   </p>

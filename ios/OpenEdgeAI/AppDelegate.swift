@@ -621,34 +621,39 @@ private struct NativeWebSearchContext: Equatable {
     if sources.isEmpty {
       lines.append("Search results: none")
     } else {
-      lines.append("Citation format: cite visited pages inline as [1], [2], matching the page numbers below.")
+      lines.append("Citation format: cite visited pages inline as [1], [2], matching the page numbers below. Compare multiple sources when possible.")
       lines.append("Visited web pages:")
-      let perSourceBudget = max(120, maxEstimatedTokens / max(1, sources.count) - 36)
+      let headerBudget = NativePromptCompressor.estimatedTokens(lines.joined(separator: "\n"))
+      let perSourceBudget = max(160, (maxEstimatedTokens - headerBudget) / max(1, sources.count))
       for (index, source) in sources.enumerated() {
-        let pageText = NativePromptCompressor.clipped(source.pageText, maxEstimatedTokens: perSourceBudget)
-        lines.append("""
+        let clippedSnippet = NativePromptCompressor.clipped(source.snippet, maxEstimatedTokens: 90)
+        let fixedSourceText = """
         \(index + 1). \(source.title)
         URL: \(source.url)
-        Snippet: \(source.snippet)
+        Snippet: \(clippedSnippet)
         Page content:
+        """
+        let pageBudget = max(80, perSourceBudget - NativePromptCompressor.estimatedTokens(fixedSourceText))
+        let pageText = NativePromptCompressor.clipped(source.pageText, maxEstimatedTokens: pageBudget)
+        lines.append("""
+        \(fixedSourceText)
         \(pageText)
         """)
       }
     }
 
-    return NativePromptCompressor.clipped(
-      lines.joined(separator: "\n"),
-      maxEstimatedTokens: maxEstimatedTokens
-    )
+    return lines.joined(separator: "\n")
   }
 }
 
 private enum NativePromptCompressor {
-  static let maxInputTokens = 2_900
-  static let historyTokens = 820
-  static let searchTokens = 950
+  static let maxModelTokens = 4_096
+  static let responseReserveTokens = 820
+  static let maxInputTokens = maxModelTokens - responseReserveTokens
+  static let historyTokens = 920
+  static let searchTokens = 1_180
   static let instructionTokens = 240
-  static let currentRequestTokens = 520
+  static let currentRequestTokens = 1_180
 
   static func estimatedTokens(_ text: String) -> Int {
     var tokens = 0
@@ -723,6 +728,38 @@ private enum NativePromptCompressor {
     return clipped(text, maxEstimatedTokens: edgeBudget)
       + marker
       + clipped(text, maxEstimatedTokens: edgeBudget, keepTail: true)
+  }
+
+  static func clippedCurrentRequest(_ text: String, maxEstimatedTokens: Int) -> String {
+    if shouldPreserveStructure(text) {
+      return clippedPreservingEdges(text, maxEstimatedTokens: maxEstimatedTokens)
+    }
+    return clipped(text, maxEstimatedTokens: maxEstimatedTokens, keepTail: true)
+  }
+
+  static func clippedMessageBody(_ text: String, maxEstimatedTokens: Int) -> String {
+    if shouldPreserveStructure(text) {
+      return clippedPreservingEdges(text, maxEstimatedTokens: maxEstimatedTokens)
+    }
+    return clipped(text, maxEstimatedTokens: maxEstimatedTokens, keepTail: true)
+  }
+
+  static func shouldPreserveStructure(_ text: String) -> Bool {
+    let lower = text.lowercased()
+    let lineCount = text.filter { $0 == "\n" }.count
+    return lineCount >= 8
+      || text.contains("```")
+      || lower.contains("func ")
+      || lower.contains("class ")
+      || lower.contains("struct ")
+      || lower.contains("import ")
+      || lower.contains("const ")
+      || lower.contains("let ")
+      || lower.contains("var ")
+      || lower.contains("return ")
+      || lower.contains("error:")
+      || lower.contains("exception")
+      || lower.contains("stack trace")
   }
 }
 
@@ -806,7 +843,7 @@ private final class NativeWebSearchClient {
           title: result.title,
           snippet: clipped(pageText, maxLength: 360),
           url: result.url.absoluteString,
-          pageText: clipped(pageText, maxLength: 1_200)
+          pageText: clipped(pageText, maxLength: 2_000)
         )
       )
     }
@@ -2080,7 +2117,7 @@ private final class NativeChatStore: ObservableObject {
       sections.append("Attached file metadata:\n\(files)")
     }
 
-    sections.append("Current user request:\n\(NativePromptCompressor.clipped(draft.text, maxEstimatedTokens: NativePromptCompressor.currentRequestTokens, keepTail: true))")
+    sections.append("Current user request:\n\(NativePromptCompressor.clippedCurrentRequest(draft.text, maxEstimatedTokens: NativePromptCompressor.currentRequestTokens))")
     return NativePromptCompressor.clippedPreservingEdges(
       sections.joined(separator: "\n\n"),
       maxEstimatedTokens: NativePromptCompressor.maxInputTokens
@@ -2111,11 +2148,13 @@ private final class NativeChatStore: ObservableObject {
 
     for message in meaningfulMessages.reversed() {
       let role = message.role == .assistant ? "assistant" : "user"
-      let perMessageLimit = message.role == .assistant ? 130 : 105
-      var body = NativePromptCompressor.clipped(
-        normalizedPromptText(message.text),
+      let perMessageLimit = message.role == .assistant ? 150 : 130
+      let sourceText = NativePromptCompressor.shouldPreserveStructure(message.text)
+        ? message.text.trimmingCharacters(in: .whitespacesAndNewlines)
+        : normalizedPromptText(message.text)
+      var body = NativePromptCompressor.clippedMessageBody(
+        sourceText,
         maxEstimatedTokens: perMessageLimit,
-        keepTail: true
       )
 
       if body.isEmpty, !message.attachments.isEmpty {

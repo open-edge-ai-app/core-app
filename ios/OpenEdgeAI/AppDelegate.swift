@@ -3079,19 +3079,11 @@ private struct NativeMessageSourcesButton: View {
   @EnvironmentObject private var store: NativeChatStore
   let sources: [NativeSearchSourceReference]
 
-  private var overflowCount: Int {
-    max(0, sources.count - 3)
-  }
-
   var body: some View {
     HStack(spacing: 6) {
       NativeSourceFaviconStack(sources: sources)
       Text("출처")
         .font(.system(size: 13, weight: .semibold))
-      if overflowCount > 0 {
-        Text("+\(overflowCount)")
-          .font(.system(size: 11, weight: .semibold))
-      }
     }
     .foregroundColor(store.accentColor.color)
   }

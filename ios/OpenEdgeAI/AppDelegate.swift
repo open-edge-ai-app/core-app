@@ -3508,8 +3508,7 @@ private struct NativeSettingsView: View {
           } label: {
             NativeSettingsNavigationRow(
               icon: "gearshape",
-              title: "일반",
-              detail: store.selectedLanguage.nativeName
+              title: "일반"
             )
           }
 
@@ -3518,8 +3517,7 @@ private struct NativeSettingsView: View {
           } label: {
             NativeSettingsNavigationRow(
               icon: "cpu",
-              title: "모델",
-              detail: store.selectedModel.title
+              title: "모델"
             )
           }
 
@@ -3528,8 +3526,7 @@ private struct NativeSettingsView: View {
           } label: {
             NativeSettingsNavigationRow(
               icon: "person.crop.circle",
-              title: "개인 맞춤 설정",
-              detail: "이름, 성격, 메모리"
+              title: "개인 맞춤 설정"
             )
           }
 
@@ -3538,8 +3535,7 @@ private struct NativeSettingsView: View {
           } label: {
             NativeSettingsNavigationRow(
               icon: "circle.lefthalf.filled",
-              title: "모양",
-              detail: "\(store.fontSizeSetting.title), \(store.appearanceMode.title)"
+              title: "모양"
             )
           }
 
@@ -3548,8 +3544,7 @@ private struct NativeSettingsView: View {
           } label: {
             NativeSettingsNavigationRow(
               icon: "info.circle",
-              title: "정보",
-              detail: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.0.1"
+              title: "정보"
             )
           }
         }
@@ -3581,7 +3576,6 @@ private struct NativeSettingsView: View {
 private struct NativeSettingsNavigationRow: View {
   var icon: String
   var title: String
-  var detail: String
 
   var body: some View {
     HStack(spacing: 12) {
@@ -3594,11 +3588,6 @@ private struct NativeSettingsNavigationRow: View {
         .foregroundColor(.oeText)
 
       Spacer()
-
-      Text(detail)
-        .font(.system(size: 13))
-        .foregroundColor(.oeMutedText)
-        .lineLimit(1)
     }
   }
 }

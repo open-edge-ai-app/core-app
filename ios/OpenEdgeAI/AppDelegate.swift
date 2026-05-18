@@ -809,6 +809,8 @@ private final class NativeChatStore: ObservableObject {
     Task {
       await refreshModelStatuses()
     }
+
+    syncDynamicIslandLiveActivity()
   }
 
   var currentSession: NativeChatSession? {
@@ -837,15 +839,6 @@ private final class NativeChatStore: ObservableObject {
       return lastDynamicIslandSessionId ?? selectedSessionId
     }
     return selectedSessionId ?? lastDynamicIslandSessionId
-  }
-
-  private var dynamicIslandSessionTitle: String {
-    guard let dynamicIslandSessionId,
-          let session = sessions.first(where: { $0.id == dynamicIslandSessionId })
-    else {
-      return "Open Edge AI"
-    }
-    return session.title
   }
 
   var canRunBackgroundDynamicIsland: Bool {
@@ -892,7 +885,7 @@ private final class NativeChatStore: ObservableObject {
       return .queued
     }
     if dynamicIslandCompletionVisible {
-      return .completed
+      return .hidden
     }
     return .hidden
   }
@@ -900,26 +893,26 @@ private final class NativeChatStore: ObservableObject {
   private func dynamicIslandTitle(for phase: NativeDynamicIslandPhase) -> String {
     switch phase {
     case .generating:
-      return queuedDrafts.isEmpty ? "\(selectedModel.title) 응답 중" : "후속 질문 자동 실행 중"
+      return queuedDrafts.isEmpty ? "응답 생성 중" : "후속 질문 실행 중"
     case .queued:
       return "후속 질문 대기 중"
     case .completed:
-      return "응답 완료"
+      return ""
     case .hidden:
       return ""
     }
   }
 
   private func dynamicIslandSubtitle(for phase: NativeDynamicIslandPhase) -> String {
-    if let nextDraft = queuedDrafts.first {
-      return "다음: \(clippedDynamicIslandText(nextDraft.text))"
+    if queuedDrafts.first != nil {
+      return "다음 작업 준비 중"
     }
 
     switch phase {
     case .completed:
-      return dynamicIslandSessionTitle
+      return ""
     case .generating, .queued:
-      return dynamicIslandSessionTitle
+      return selectedModel.title
     case .hidden:
       return ""
     }
@@ -929,13 +922,13 @@ private final class NativeChatStore: ObservableObject {
     switch phase {
     case .generating:
       if queuedDrafts.isEmpty {
-        return "\(dynamicIslandSessionTitle)에서 \(selectedModel.title) 응답을 생성하고 있습니다."
+        return "\(selectedModel.title)로 응답을 생성하고 있습니다."
       }
-      return "\(dynamicIslandSessionTitle) 응답 후 후속 질문 \(queuedDrafts.count)개를 이어서 실행합니다."
+      return "현재 응답 후 후속 질문 \(queuedDrafts.count)개를 이어서 실행합니다."
     case .queued:
-      return "\(dynamicIslandSessionTitle)에 후속 질문 \(queuedDrafts.count)개가 대기 중입니다."
+      return "후속 질문 \(queuedDrafts.count)개가 대기 중입니다."
     case .completed:
-      return "\(dynamicIslandSessionTitle) 응답이 완료되었습니다."
+      return ""
     case .hidden:
       return ""
     }
@@ -1198,7 +1191,8 @@ private final class NativeChatStore: ObservableObject {
     activeRequestSessionId = nil
     endGenerationBackgroundTaskIfNeeded()
     if queuedDrafts.isEmpty {
-      showDynamicIslandCompletion()
+      hideDynamicIslandCompletion()
+      syncDynamicIslandLiveActivity()
     } else {
       showDynamicIslandWork()
     }
@@ -1417,7 +1411,8 @@ private final class NativeChatStore: ObservableObject {
     endGenerationBackgroundTaskIfNeeded()
 
     if queuedDrafts.isEmpty {
-      showDynamicIslandCompletion()
+      hideDynamicIslandCompletion()
+      syncDynamicIslandLiveActivity()
     } else {
       scheduleNextQueuedDraft()
     }

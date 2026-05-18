@@ -106,7 +106,7 @@ struct OpenEdgeAILiveActivityWidget: Widget {
   }
 
   private func showsCompactStatusText(for state: OpenEdgeAIDynamicIslandAttributes.ContentState) -> Bool {
-    state.motion != "running" && (state.progress >= 1 || state.queuedCount > 0)
+    state.motion != "running" && state.queuedCount > 0
   }
 
   private func statusText(for state: OpenEdgeAIDynamicIslandAttributes.ContentState) -> String {
@@ -115,9 +115,6 @@ struct OpenEdgeAILiveActivityWidget: Widget {
     }
     if state.queuedCount > 0 {
       return "대기 \(state.queuedCount)"
-    }
-    if state.progress >= 1 {
-      return "완료"
     }
     return "대기"
   }

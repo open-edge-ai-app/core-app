@@ -979,6 +979,17 @@ private final class NativeChatStore: ObservableObject {
     saveSessions()
   }
 
+  func addSession(_ session: NativeChatSession, to project: NativeProject) {
+    guard let index = sessions.firstIndex(where: { $0.id == session.id }) else {
+      return
+    }
+
+    sessions[index].projectId = project.id
+    sessions[index].updatedAt = Date()
+    sessions.sort { $0.updatedAt > $1.updatedAt }
+    saveSessions()
+  }
+
   func createProject(title: String, iconName: String, systemPrompt: String) {
     let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !trimmedTitle.isEmpty else {
@@ -2412,20 +2423,42 @@ private struct NativeSessionsView: View {
           }
           .buttonStyle(.plain)
           .contextMenu {
-            Button {
-              renameTarget = .session(id: session.id, title: session.title)
-            } label: {
-              Label("이름 변경", systemImage: "pencil")
-            }
-
-            Button(role: .destructive) {
-              store.deleteSession(session)
-            } label: {
-              Label("삭제", systemImage: "trash")
-            }
+            sessionMenuItems(for: session)
           }
         }
       }
+    }
+  }
+
+  @ViewBuilder
+  private func sessionMenuItems(for session: NativeChatSession) -> some View {
+    Button {
+      renameTarget = .session(id: session.id, title: session.title)
+    } label: {
+      Label("이름 변경", systemImage: "pencil")
+    }
+
+    Menu {
+      let availableProjects = store.projects.filter { $0.id != session.projectId }
+      if availableProjects.isEmpty {
+        Text("추가할 프로젝트 없음")
+      } else {
+        ForEach(availableProjects) { project in
+          Button {
+            store.addSession(session, to: project)
+          } label: {
+            Label(project.title, systemImage: project.iconName)
+          }
+        }
+      }
+    } label: {
+      Label("프로젝트에 추가", systemImage: "folder.badge.plus")
+    }
+
+    Button(role: .destructive) {
+      store.deleteSession(session)
+    } label: {
+      Label("삭제", systemImage: "trash")
     }
   }
 
@@ -2700,11 +2733,14 @@ private struct NativeProjectSessionsPage: View {
           NativeProjectSessionRow(
             session: session,
             subtitle: sessionSubtitle(for: session),
-            isWriting: store.activeWritingSessionId == session.id
+            isWriting: store.activeWritingSessionId == session.id,
+            availableProjects: store.projects.filter { $0.id != session.projectId }
           ) {
             onSelectSession(session)
           } onRename: {
             renameTarget = .session(id: session.id, title: session.title)
+          } onAddToProject: { project in
+            store.addSession(session, to: project)
           } onDelete: {
             store.deleteSession(session)
           }
@@ -2748,8 +2784,10 @@ private struct NativeProjectSessionRow: View {
   var session: NativeChatSession
   var subtitle: String
   var isWriting: Bool
+  var availableProjects: [NativeProject]
   var action: () -> Void
   var onRename: () -> Void
+  var onAddToProject: (NativeProject) -> Void
   var onDelete: () -> Void
 
   var body: some View {
@@ -2786,6 +2824,22 @@ private struct NativeProjectSessionRow: View {
         onRename()
       } label: {
         Label("이름 변경", systemImage: "pencil")
+      }
+
+      Menu {
+        if availableProjects.isEmpty {
+          Text("추가할 프로젝트 없음")
+        } else {
+          ForEach(availableProjects) { project in
+            Button {
+              onAddToProject(project)
+            } label: {
+              Label(project.title, systemImage: project.iconName)
+            }
+          }
+        }
+      } label: {
+        Label("프로젝트에 추가", systemImage: "folder.badge.plus")
       }
 
       Button(role: .destructive) {

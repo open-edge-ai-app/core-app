@@ -604,7 +604,7 @@ private struct NativeWebSearchContext: Equatable {
     sources.map(\.reference)
   }
 
-  var promptSection: String {
+  func promptSection(maxEstimatedTokens: Int) -> String {
     var lines = ["Search query: \(query)"]
 
     if let errorMessage {
@@ -616,18 +616,106 @@ private struct NativeWebSearchContext: Equatable {
     } else {
       lines.append("Citation format: cite visited pages inline as [1], [2], matching the page numbers below.")
       lines.append("Visited web pages:")
+      let perSourceBudget = max(120, maxEstimatedTokens / max(1, sources.count) - 36)
       for (index, source) in sources.enumerated() {
+        let pageText = NativePromptCompressor.clipped(source.pageText, maxEstimatedTokens: perSourceBudget)
         lines.append("""
         \(index + 1). \(source.title)
         URL: \(source.url)
         Snippet: \(source.snippet)
         Page content:
-        \(source.pageText)
+        \(pageText)
         """)
       }
     }
 
-    return lines.joined(separator: "\n")
+    return NativePromptCompressor.clipped(
+      lines.joined(separator: "\n"),
+      maxEstimatedTokens: maxEstimatedTokens
+    )
+  }
+}
+
+private enum NativePromptCompressor {
+  static let maxInputTokens = 2_900
+  static let historyTokens = 820
+  static let searchTokens = 950
+  static let instructionTokens = 240
+  static let currentRequestTokens = 520
+
+  static func estimatedTokens(_ text: String) -> Int {
+    var tokens = 0
+    var asciiRun = 0
+
+    func flushAsciiRun() {
+      if asciiRun > 0 {
+        tokens += max(1, (asciiRun + 3) / 4)
+        asciiRun = 0
+      }
+    }
+
+    for scalar in text.unicodeScalars {
+      if CharacterSet.whitespacesAndNewlines.contains(scalar) {
+        flushAsciiRun()
+        continue
+      }
+
+      if scalar.value < 128, CharacterSet.alphanumerics.contains(scalar) {
+        asciiRun += 1
+        continue
+      }
+
+      flushAsciiRun()
+      tokens += 1
+    }
+
+    flushAsciiRun()
+    return tokens
+  }
+
+  static func clipped(_ text: String, maxEstimatedTokens: Int, keepTail: Bool = false) -> String {
+    guard maxEstimatedTokens > 0,
+          estimatedTokens(text) > maxEstimatedTokens
+    else {
+      return text
+    }
+
+    let marker = keepTail ? "... [앞부분 압축]\n" : "\n... [이후 내용 압축]"
+    let markerTokens = estimatedTokens(marker)
+    let targetTokens = max(1, maxEstimatedTokens - markerTokens)
+    var selected = ""
+    var usedTokens = 0
+    let characters = keepTail ? Array(text.reversed()) : Array(text)
+
+    for character in characters {
+      let cost = max(0, estimatedTokens(String(character)))
+      if usedTokens + cost > targetTokens {
+        break
+      }
+
+      if keepTail {
+        selected.insert(character, at: selected.startIndex)
+      } else {
+        selected.append(character)
+      }
+      usedTokens += cost
+    }
+
+    let trimmed = selected.trimmingCharacters(in: .whitespacesAndNewlines)
+    return keepTail ? marker + trimmed : trimmed + marker
+  }
+
+  static func clippedPreservingEdges(_ text: String, maxEstimatedTokens: Int) -> String {
+    guard estimatedTokens(text) > maxEstimatedTokens else {
+      return text
+    }
+
+    let marker = "\n\n[중간 컨텍스트 압축]\n\n"
+    let markerTokens = estimatedTokens(marker)
+    let edgeBudget = max(1, (maxEstimatedTokens - markerTokens) / 2)
+    return clipped(text, maxEstimatedTokens: edgeBudget)
+      + marker
+      + clipped(text, maxEstimatedTokens: edgeBudget, keepTail: true)
   }
 }
 
@@ -711,7 +799,7 @@ private final class NativeWebSearchClient {
           title: result.title,
           snippet: clipped(pageText, maxLength: 360),
           url: result.url.absoluteString,
-          pageText: clipped(pageText, maxLength: 2200)
+          pageText: clipped(pageText, maxLength: 1_200)
         )
       )
     }
@@ -1753,9 +1841,13 @@ private final class NativeChatStore: ObservableObject {
 
   private func streamResponse(prompt: String, assistantId: String, sessionId: String) {
     let model = selectedModel
+    let compactedPrompt = NativePromptCompressor.clippedPreservingEdges(
+      prompt,
+      maxEstimatedTokens: NativePromptCompressor.maxInputTokens
+    )
 
     if model == .gemma {
-      AIEngineGemmaModelClient.shared.streamResponse(prompt: prompt) { [weak self] chunk in
+      AIEngineGemmaModelClient.shared.streamResponse(prompt: compactedPrompt) { [weak self] chunk in
         Task { @MainActor in
           self?.appendChunk(chunk as String, to: assistantId, in: sessionId)
         }
@@ -1765,7 +1857,7 @@ private final class NativeChatStore: ObservableObject {
         }
       }
     } else {
-      AIEngineFoundationModelClient.shared.streamResponse(prompt: prompt) { [weak self] chunk in
+      AIEngineFoundationModelClient.shared.streamResponse(prompt: compactedPrompt) { [weak self] chunk in
         Task { @MainActor in
           self?.appendChunk(chunk as String, to: assistantId, in: sessionId)
         }
@@ -1914,7 +2006,7 @@ private final class NativeChatStore: ObservableObject {
     } else {
       sourceHistory = []
     }
-    let history = sourceHistory.suffix(16)
+    let history = messagesForPromptHistory(sourceHistory, currentRequest: draft.text)
 
     var sections: [String] = [
       """
@@ -1927,18 +2019,18 @@ private final class NativeChatStore: ObservableObject {
     ]
 
     if !userName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-      sections.append("User name: \(userName)")
+      sections.append("User name: \(NativePromptCompressor.clipped(userName, maxEstimatedTokens: 40))")
     }
 
-    sections.append("Personality: \(personality)")
+    sections.append("Personality: \(NativePromptCompressor.clipped(personality, maxEstimatedTokens: 60))")
 
     if !systemPrompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-      sections.append("Custom instructions:\n\(systemPrompt)")
+      sections.append("Custom instructions:\n\(NativePromptCompressor.clipped(systemPrompt, maxEstimatedTokens: NativePromptCompressor.instructionTokens))")
     }
 
     if let project = project(for: session),
        !project.systemPrompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-      sections.append("Project instructions for \(project.title):\n\(project.systemPrompt)")
+      sections.append("Project instructions for \(project.title):\n\(NativePromptCompressor.clipped(project.systemPrompt, maxEstimatedTokens: NativePromptCompressor.instructionTokens))")
     }
 
     if draft.mode == .search {
@@ -1953,15 +2045,15 @@ private final class NativeChatStore: ObservableObject {
       """)
     }
 
-    if !history.isEmpty {
-      let historyText = history.map { message in
-        "\(message.role == .assistant ? "assistant" : "user"): \(message.text)"
-      }.joined(separator: "\n")
-      sections.append("Conversation history:\n\(historyText)")
+    if let historySection = makeCompressedHistorySection(
+      from: history,
+      maxEstimatedTokens: NativePromptCompressor.historyTokens
+    ) {
+      sections.append(historySection)
     }
 
     if let searchContext {
-      sections.append(searchContext.promptSection)
+      sections.append(searchContext.promptSection(maxEstimatedTokens: NativePromptCompressor.searchTokens))
     }
 
     if !draft.attachments.isEmpty {
@@ -1981,8 +2073,77 @@ private final class NativeChatStore: ObservableObject {
       sections.append("Attached file metadata:\n\(files)")
     }
 
-    sections.append("Current user request:\n\(draft.text)")
-    return sections.joined(separator: "\n\n")
+    sections.append("Current user request:\n\(NativePromptCompressor.clipped(draft.text, maxEstimatedTokens: NativePromptCompressor.currentRequestTokens, keepTail: true))")
+    return NativePromptCompressor.clippedPreservingEdges(
+      sections.joined(separator: "\n\n"),
+      maxEstimatedTokens: NativePromptCompressor.maxInputTokens
+    )
+  }
+
+  private func messagesForPromptHistory(_ messages: [NativeMessage], currentRequest: String) -> [NativeMessage] {
+    var history = messages
+    if let last = history.last,
+       last.role == .user,
+       normalizedPromptText(last.text) == normalizedPromptText(currentRequest) {
+      history.removeLast()
+    }
+    return history
+  }
+
+  private func makeCompressedHistorySection(from messages: [NativeMessage], maxEstimatedTokens: Int) -> String? {
+    let meaningfulMessages = messages.filter { message in
+      !message.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !message.attachments.isEmpty
+    }
+
+    guard !meaningfulMessages.isEmpty else {
+      return nil
+    }
+
+    var reversedEntries: [String] = []
+    var usedTokens = NativePromptCompressor.estimatedTokens("Conversation history")
+
+    for message in meaningfulMessages.reversed() {
+      let role = message.role == .assistant ? "assistant" : "user"
+      let perMessageLimit = message.role == .assistant ? 130 : 105
+      var body = NativePromptCompressor.clipped(
+        normalizedPromptText(message.text),
+        maxEstimatedTokens: perMessageLimit,
+        keepTail: true
+      )
+
+      if body.isEmpty, !message.attachments.isEmpty {
+        body = "첨부 파일: " + message.attachments.map(\.name).joined(separator: ", ")
+      } else if !message.attachments.isEmpty {
+        body += "\n첨부 파일: " + message.attachments.map(\.name).joined(separator: ", ")
+      }
+
+      let entry = "\(role): \(body)"
+      let entryTokens = NativePromptCompressor.estimatedTokens(entry)
+      if usedTokens + entryTokens > maxEstimatedTokens {
+        break
+      }
+
+      reversedEntries.append(entry)
+      usedTokens += entryTokens
+    }
+
+    guard !reversedEntries.isEmpty else {
+      return nil
+    }
+
+    let omittedCount = max(0, meaningfulMessages.count - reversedEntries.count)
+    var lines = ["Conversation history (compressed to fit the on-device model context):"]
+    if omittedCount > 0 {
+      lines.append("Earlier \(omittedCount) messages were omitted. Prioritize the recent turns below.")
+    }
+    lines.append(contentsOf: reversedEntries.reversed())
+    return lines.joined(separator: "\n")
+  }
+
+  private func normalizedPromptText(_ text: String) -> String {
+    text
+      .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+      .trimmingCharacters(in: .whitespacesAndNewlines)
   }
 
   private func makeDraftInput(from rawText: String) -> (text: String, mode: NativeDraftMode) {
@@ -2011,8 +2172,9 @@ private final class NativeChatStore: ObservableObject {
       sourceHistory = []
     }
 
+    let promptHistory = messagesForPromptHistory(sourceHistory, currentRequest: draft.text)
     let explicitRequest = draft.text == searchFallbackRequestText ? "" : draft.text
-    let historyText = sourceHistory
+    let historyText = promptHistory
       .suffix(8)
       .map(\.text)
       .map { $0.replacingOccurrences(of: "\n", with: " ") }
@@ -2020,7 +2182,8 @@ private final class NativeChatStore: ObservableObject {
       .joined(separator: " ")
 
     let rawQuery = explicitRequest.isEmpty ? historyText : "\(historyText) \(explicitRequest)"
-    let cleaned = rawQuery
+    let cleaned = NativePromptCompressor.clipped(rawQuery, maxEstimatedTokens: 120, keepTail: true)
+      .replacingOccurrences(of: "... [앞부분 압축]\n", with: "")
       .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
       .trimmingCharacters(in: .whitespacesAndNewlines)
 

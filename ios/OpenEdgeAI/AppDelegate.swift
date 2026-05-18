@@ -2863,10 +2863,10 @@ private struct NativeProjectSessionsPage: View {
       selectedTab = tab
     } label: {
       Text(title)
-        .font(.system(size: 16, weight: selectedTab == tab ? .semibold : .medium))
+        .font(.system(size: 14, weight: selectedTab == tab ? .semibold : .medium))
         .foregroundColor(selectedTab == tab ? .oeText : .oeMutedText)
-        .padding(.horizontal, 20)
-        .frame(height: 44)
+        .padding(.horizontal, 16)
+        .frame(height: 38)
         .background(selectedTab == tab ? Color.oeSubtleFill : Color.clear)
         .clipShape(Capsule())
     }
@@ -2874,10 +2874,10 @@ private struct NativeProjectSessionsPage: View {
   }
 
   private var chatList: some View {
-    VStack(alignment: .leading, spacing: 26) {
+    VStack(alignment: .leading, spacing: 20) {
       if projectSessions.isEmpty {
         Text("프로젝트에 채팅이 없습니다")
-          .font(.system(size: 16, weight: .medium))
+          .font(.system(size: 14, weight: .medium))
           .foregroundColor(.oeMutedText)
           .frame(maxWidth: .infinity, alignment: .leading)
           .padding(.top, 8)
@@ -2902,11 +2902,11 @@ private struct NativeProjectSessionsPage: View {
   private var sourcesPlaceholder: some View {
     VStack(alignment: .leading, spacing: 8) {
       Text("출처가 없습니다")
-        .font(.system(size: 17, weight: .semibold))
+        .font(.system(size: 15, weight: .semibold))
         .foregroundColor(.oeText)
 
       Text("첨부 파일이나 참조 자료를 추가하면 여기에 표시됩니다.")
-        .font(.system(size: 15, weight: .regular))
+        .font(.system(size: 13, weight: .regular))
         .foregroundColor(.oeMutedText)
     }
     .padding(.top, 6)
@@ -2940,15 +2940,15 @@ private struct NativeProjectSessionRow: View {
 
   var body: some View {
     Button(action: action) {
-      HStack(alignment: .center, spacing: 12) {
-        VStack(alignment: .leading, spacing: 6) {
+      HStack(alignment: .center, spacing: 10) {
+        VStack(alignment: .leading, spacing: 4) {
           Text(session.title)
-            .font(.system(size: 18, weight: .semibold))
+            .font(.system(size: 15, weight: .semibold))
             .foregroundColor(.oeText)
             .lineLimit(1)
 
           Text(subtitle)
-            .font(.system(size: 16, weight: .regular))
+            .font(.system(size: 13, weight: .regular))
             .foregroundColor(.oeMutedText)
             .lineLimit(1)
         }
@@ -3791,14 +3791,14 @@ private struct NativeSessionsIconRow: View {
   var title: String
 
   var body: some View {
-    HStack(spacing: 16) {
+    HStack(spacing: 12) {
       Image(systemName: systemImage)
-        .font(.system(size: 19, weight: .semibold))
+        .font(.system(size: 17, weight: .semibold))
         .foregroundColor(.oeText)
-        .frame(width: 30, height: 24)
+        .frame(width: 26, height: 22)
 
       Text(title)
-        .font(.system(size: 17, weight: .semibold))
+        .font(.system(size: 15, weight: .medium))
         .foregroundColor(.oeText)
         .lineLimit(1)
     }

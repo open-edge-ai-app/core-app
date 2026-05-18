@@ -501,6 +501,7 @@ private struct NativeMessage: Identifiable, Codable, Equatable {
   var createdAt: Date
   var attachments: [NativeAttachment]
   var sourceReferences: [NativeSearchSourceReference]
+  var contextCompressed: Bool
 
   init(
     id: String,
@@ -508,7 +509,8 @@ private struct NativeMessage: Identifiable, Codable, Equatable {
     text: String,
     createdAt: Date,
     attachments: [NativeAttachment],
-    sourceReferences: [NativeSearchSourceReference] = []
+    sourceReferences: [NativeSearchSourceReference] = [],
+    contextCompressed: Bool = false
   ) {
     self.id = id
     self.role = role
@@ -516,6 +518,7 @@ private struct NativeMessage: Identifiable, Codable, Equatable {
     self.createdAt = createdAt
     self.attachments = attachments
     self.sourceReferences = sourceReferences
+    self.contextCompressed = contextCompressed
   }
 
   private enum CodingKeys: String, CodingKey {
@@ -525,6 +528,7 @@ private struct NativeMessage: Identifiable, Codable, Equatable {
     case createdAt
     case attachments
     case sourceReferences
+    case contextCompressed
   }
 
   init(from decoder: Decoder) throws {
@@ -535,6 +539,7 @@ private struct NativeMessage: Identifiable, Codable, Equatable {
     createdAt = try container.decode(Date.self, forKey: .createdAt)
     attachments = try container.decodeIfPresent([NativeAttachment].self, forKey: .attachments) ?? []
     sourceReferences = try container.decodeIfPresent([NativeSearchSourceReference].self, forKey: .sourceReferences) ?? []
+    contextCompressed = try container.decodeIfPresent(Bool.self, forKey: .contextCompressed) ?? false
   }
 }
 
@@ -728,6 +733,16 @@ private enum NativePromptCompressor {
     return clipped(text, maxEstimatedTokens: edgeBudget)
       + marker
       + clipped(text, maxEstimatedTokens: edgeBudget, keepTail: true)
+  }
+
+  static func containsCompressionMarker(_ text: String) -> Bool {
+    text.contains("[중간 컨텍스트 압축]")
+      || text.contains("[앞부분 압축]")
+      || text.contains("[이후 내용 압축]")
+      || (
+        text.contains("Earlier ")
+          && text.contains(" messages were omitted.")
+      )
   }
 
   static func clippedCurrentRequest(_ text: String, maxEstimatedTokens: Int) -> String {
@@ -1836,6 +1851,7 @@ private final class NativeChatStore: ObservableObject {
       session.messages[index].text = ""
       session.messages[index].attachments = []
       session.messages[index].sourceReferences = []
+      session.messages[index].contextCompressed = false
       session.messages[index].createdAt = now
       didResetMessage = true
     }
@@ -1885,10 +1901,13 @@ private final class NativeChatStore: ObservableObject {
 
   private func streamResponse(prompt: String, assistantId: String, sessionId: String) {
     let model = selectedModel
+    let didCompressContext = NativePromptCompressor.estimatedTokens(prompt) > NativePromptCompressor.maxInputTokens
+      || NativePromptCompressor.containsCompressionMarker(prompt)
     let compactedPrompt = NativePromptCompressor.clippedPreservingEdges(
       prompt,
       maxEstimatedTokens: NativePromptCompressor.maxInputTokens
     )
+    setContextCompressionNotice(didCompressContext, to: assistantId, in: sessionId)
 
     if model == .gemma {
       AIEngineGemmaModelClient.shared.streamResponse(prompt: compactedPrompt) { [weak self] chunk in
@@ -1910,6 +1929,16 @@ private final class NativeChatStore: ObservableObject {
           self?.finishGeneration(message: message as String?, error: error as String?, assistantId: assistantId, sessionId: sessionId)
         }
       }
+    }
+  }
+
+  private func setContextCompressionNotice(_ isCompressed: Bool, to assistantId: String, in sessionId: String) {
+    mutateSession(sessionId) { session in
+      guard let index = session.messages.firstIndex(where: { $0.id == assistantId }) else {
+        return
+      }
+
+      session.messages[index].contextCompressed = isCompressed
     }
   }
 
@@ -2969,6 +2998,10 @@ private struct NativeMessageView: View {
           .frame(maxWidth: .infinity, alignment: .trailing)
           .textSelection(.enabled)
       } else {
+        if message.contextCompressed {
+          NativeContextCompressedNotice()
+        }
+
         NativeMarkdownText(
           text: message.text.isEmpty ? "응답 준비 중..." : message.text,
           sources: message.sourceReferences,
@@ -3019,6 +3052,26 @@ private struct NativeMessageView: View {
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
     }
+  }
+}
+
+private struct NativeContextCompressedNotice: View {
+  @EnvironmentObject private var store: NativeChatStore
+
+  var body: some View {
+    HStack(spacing: 6) {
+      Image(systemName: "arrow.down.right.and.arrow.up.left")
+        .font(.system(size: 10, weight: .bold))
+
+      Text("컨텍스트 압축됨")
+        .font(.system(size: 12, weight: .semibold))
+    }
+    .foregroundColor(store.accentColor.color)
+    .padding(.horizontal, 10)
+    .padding(.vertical, 6)
+    .background(store.accentColor.color.opacity(0.08))
+    .clipShape(Capsule())
+    .accessibilityLabel("컨텍스트 압축됨")
   }
 }
 

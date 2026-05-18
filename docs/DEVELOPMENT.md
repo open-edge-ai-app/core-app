@@ -7,6 +7,7 @@
 - OpenJDK 17
 - Android Studio with Android SDK
 - Xcode and CocoaPods for iOS work on macOS
+- iOS 26.2 or newer for native Apple Foundation Models and Gemma runtime testing
 
 ## Install
 
@@ -18,13 +19,13 @@ npm install
 
 | Command                   | Purpose                                             |
 | ------------------------- | --------------------------------------------------- |
-| `npm start`               | Start Metro on the default port.                    |
+| `npm start`               | Start Metro on the Android React Native port `8082`.|
 | `npm run start:android`   | Start Metro on port `8082`.                         |
-| `npm run android`         | Install debug, map device `8081` to Metro `8082`, and launch Android. |
+| `npm run android`         | Install debug with Metro port `8082`, apply reverse, and launch Android. |
 | `npm run android:8082`    | Same as `npm run android`; kept for explicit Android 8082 workflows. |
 | `npm run android:activate`| Re-apply the Android port reverse and foreground the app.             |
-| `npm run android:reverse` | Re-apply only `adb reverse tcp:8081 tcp:8082`.                         |
-| `npm run ios`             | Build and run the iOS app.                          |
+| `npm run android:reverse` | Re-apply only `adb reverse tcp:8082 tcp:8082`.                         |
+| `npm run ios`             | Build, install, and launch the native iOS app.      |
 | `npm run web`             | Start the Vite web preview.                         |
 | `npm run lint`            | Run ESLint.                                         |
 | `npx tsc --noEmit`        | Run TypeScript type checking.                       |
@@ -39,7 +40,8 @@ npm run start:android
 npm run android
 ```
 
-The Android script maps the device's React Native default port to Metro `8082`:
+The Android script builds the debug APK with React Native's dev server port set
+to `8082` and maps device `8082` to host `8082`:
 
 ```sh
 adb devices
@@ -54,14 +56,16 @@ and returns HTML instead of the React Native bundle.
 Install CocoaPods dependencies when needed:
 
 ```sh
-cd ios
-bundle install
-bundle exec pod install
-cd ..
+npm run ios:pods
 npm run ios
 ```
 
-The iOS app shell exists, but the native AI bridge is planned future work.
+The iOS helper checks that full Xcode is selected, installs Pods when they are
+missing, builds the `OpenEdgeAI` workspace with `xcodebuild`, installs the app
+on the simulator, and launches it. You can set `OPEN_EDGE_AI_IOS_SIMULATOR` to
+target a specific simulator name.
+
+The iOS app boots from a native SwiftUI shell and does not require Metro.
 
 ## Web Preview
 

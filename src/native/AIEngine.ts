@@ -7,6 +7,10 @@ export type AIChatMessage = {
   content: string;
 };
 
+export const RUNTIME_CONTEXT_MARKER = '[open-edge-ai-runtime-context]';
+
+const LEGACY_RUNTIME_CONTEXT_PREFIX = '현재 날짜/시간 컨텍스트입니다.';
+
 export type StoredChatMessage = {
   id: string;
   role: AIChatRole;
@@ -70,7 +74,10 @@ export type IndexingResult = {
   status: IndexingStatus;
 };
 
+export type ModelId = 'apple-foundation' | 'gemma-4' | 'gemma-lite' | 'gemma-deep';
+
 export type ModelStatus = {
+  modelId?: ModelId | string;
   modelName: string;
   installed: boolean;
   isDownloading: boolean;
@@ -79,7 +86,10 @@ export type ModelStatus = {
   localPath: string;
   downloadUrl: string;
   error?: string | null;
+  provider?: string | null;
+  runnable?: boolean;
   started?: boolean;
+  systemManaged?: boolean;
 };
 
 export type StartupState = {
@@ -117,6 +127,7 @@ export type MultimodalMessage = {
   history?: AIChatMessage[];
   options?: {
     chatSessionId?: string;
+    modelId?: ModelId | string;
     useRag?: boolean;
     stream?: boolean;
   };
@@ -130,6 +141,7 @@ export type AIResponseStreamCallbacks = {
 export type AIResponseStreamOptions = {
   attachments?: MultimodalAttachment[];
   chatSessionId?: string;
+  modelId?: ModelId | string;
 };
 
 export type AIResponse = {
@@ -167,13 +179,17 @@ type AIEngineNativeModule = {
   getIndexingStatus?: () => Promise<NativeIndexingStatus>;
   getStartupState?: () => Promise<StartupState>;
   getModelStatus?: () => Promise<ModelStatus>;
+  getModelStatusForModel?: (modelId?: string) => Promise<ModelStatus>;
+  getModelStatuses?: () => Promise<ModelStatus[]>;
   getRuntimeStatus?: () => Promise<RuntimeStatus>;
+  getRuntimeStatusForModel?: (modelId?: string) => Promise<RuntimeStatus>;
   loadModel?: () => Promise<RuntimeStatus>;
+  loadModelById?: (modelId?: string) => Promise<RuntimeStatus>;
   unloadModel?: () => Promise<RuntimeStatus>;
   cancelActiveGeneration?: () => Promise<boolean>;
-  downloadModel?: () => Promise<ModelStatus>;
-  ensureModelDownloaded?: () => Promise<ModelStatus>;
-  cancelModelDownload?: () => Promise<ModelStatus>;
+  downloadModel?: (modelId?: string) => Promise<ModelStatus>;
+  ensureModelDownloaded?: (modelId?: string) => Promise<ModelStatus>;
+  cancelModelDownload?: (modelId?: string) => Promise<ModelStatus>;
   startIndexing?: () => Promise<IndexingResult>;
   startIndexingSource?: (source: IndexingSource) => Promise<IndexingResult>;
   setIndexingSourceEnabled?: (
@@ -231,6 +247,7 @@ const modelDownloadUrl =
   'https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm/resolve/main/gemma-4-E2B-it.litertlm?download=true';
 
 const fallbackModelStatus: ModelStatus = {
+  modelId: 'gemma-4',
   modelName: 'gemma-4-E2B-it',
   installed: false,
   isDownloading: false,
@@ -238,6 +255,9 @@ const fallbackModelStatus: ModelStatus = {
   totalBytes: 2588147712,
   localPath: '',
   downloadUrl: modelDownloadUrl,
+  provider: 'google',
+  runnable: Platform.OS === 'android',
+  systemManaged: false,
 };
 
 const fallbackRuntimeStatus: RuntimeStatus = {
@@ -258,15 +278,83 @@ const isNativeAvailable = () =>
 const sleep = (durationMs: number) =>
   new Promise<void>(resolve => setTimeout(() => resolve(), durationMs));
 
-async function ensureRuntimeReadyForGeneration() {
+const normalizeModelStatus = (
+  status: ModelStatus,
+  requestedModelId?: ModelId | string,
+): ModelStatus => {
+  const normalizedName = status.modelName.toLowerCase();
+  const inferredModelId =
+    requestedModelId ??
+    status.modelId ??
+    (normalizedName.includes('apple') || normalizedName.includes('foundation')
+      ? 'apple-foundation'
+      : 'gemma-4');
+
+  return {
+    ...status,
+    modelId: inferredModelId,
+    runnable: status.runnable ?? (inferredModelId === 'apple-foundation'),
+    systemManaged:
+      status.systemManaged ?? (inferredModelId === 'apple-foundation'),
+  };
+};
+
+const getNativeModelStatus = async (
+  modelId?: ModelId | string,
+): Promise<ModelStatus> => {
+  if (Platform.OS === 'ios' && nativeModule?.getModelStatusForModel) {
+    return normalizeModelStatus(
+      await nativeModule.getModelStatusForModel(modelId),
+      modelId,
+    );
+  }
+
+  return normalizeModelStatus(
+    await (nativeModule?.getModelStatus?.() ??
+      Promise.resolve(fallbackModelStatus)),
+    modelId,
+  );
+};
+
+const getNativeRuntimeStatus = async (
+  modelId?: ModelId | string,
+): Promise<RuntimeStatus> => {
+  if (Platform.OS === 'ios' && nativeModule?.getRuntimeStatusForModel) {
+    return nativeModule.getRuntimeStatusForModel(modelId);
+  }
+
+  return nativeModule?.getRuntimeStatus?.() ?? fallbackRuntimeStatus;
+};
+
+const loadNativeModel = async (
+  modelId?: ModelId | string,
+): Promise<RuntimeStatus> => {
+  if (Platform.OS === 'ios' && nativeModule?.loadModelById) {
+    return nativeModule.loadModelById(modelId);
+  }
+
+  return nativeModule?.loadModel?.() ?? fallbackRuntimeStatus;
+};
+
+async function ensureRuntimeReadyForGeneration(modelId?: ModelId | string) {
   if (!nativeModule?.sendMultimodalMessage) {
     return null;
   }
 
-  const modelStatus = await (nativeModule.getModelStatus?.() ??
-    Promise.resolve(fallbackModelStatus));
+  const modelStatus = await getNativeModelStatus(modelId);
+  const isIOSSystemModel =
+    Platform.OS === 'ios' &&
+    modelStatus.modelName.toLowerCase().includes('apple');
+  const isSelectedGemmaOnIOS =
+    Platform.OS === 'ios' && modelStatus.modelId === 'gemma-4';
 
   if (!modelStatus.installed) {
+    if (isIOSSystemModel) {
+      return modelStatus.error
+        ? `iOS 시스템 모델을 사용할 수 없습니다: ${modelStatus.error}`
+        : 'iOS 시스템 모델을 사용할 수 없습니다. Apple Intelligence가 켜져 있고 모델 준비가 끝났는지 확인해주세요.';
+    }
+
     if (modelStatus.isDownloading) {
       const percent =
         modelStatus.totalBytes > 0
@@ -280,15 +368,19 @@ async function ensureRuntimeReadyForGeneration() {
     return `Gemma 4 모델이 아직 설치되지 않았습니다. 설정 화면에서 모델을 다운로드한 뒤 다시 시도해주세요.\n${modelStatus.downloadUrl}`;
   }
 
-  const runtimeStatus = await (nativeModule.getRuntimeStatus?.() ??
-    Promise.resolve(fallbackRuntimeStatus));
+  if (isSelectedGemmaOnIOS && modelStatus.runnable === false) {
+    return modelStatus.error
+      ? `Gemma 4 iOS 런타임을 사용할 수 없습니다: ${modelStatus.error}`
+      : 'Gemma 4 모델 파일은 설치되어 있지만, iOS Gemma 4 추론 런타임이 아직 앱에 연결되지 않았습니다.';
+  }
+
+  const runtimeStatus = await getNativeRuntimeStatus(modelId);
 
   if (runtimeStatus.canGenerate) {
     return null;
   }
 
-  const loadedStatus = await (nativeModule.loadModel?.() ??
-    Promise.resolve(fallbackRuntimeStatus));
+  const loadedStatus = await loadNativeModel(modelId);
 
   if (loadedStatus.canGenerate) {
     return null;
@@ -309,7 +401,7 @@ async function createDevelopmentResponse(
   const priorConversation = getPriorConversationMessages(prompt, history);
 
   return [
-    '아직 Kotlin AIEngineModule이 연결되지 않았습니다.',
+    `아직 ${Platform.OS} AIEngineModule이 연결되지 않았습니다.`,
     priorConversation.length > 0
       ? `이전 대화 ${priorConversation.length}개를 포함해 응답 요청을 구성했습니다.`
       : '이전 대화 없이 현재 메시지만 응답 요청에 사용했습니다.',
@@ -376,12 +468,47 @@ const createNativeStreamEmitter = () => {
   }
 };
 
-const getSystemInstructions = (history: AIChatMessage[]) =>
+const isRuntimeContextMessage = (content: string) => {
+  const trimmed = content.trim();
+
+  return (
+    trimmed.startsWith(RUNTIME_CONTEXT_MARKER) ||
+    trimmed.startsWith(LEGACY_RUNTIME_CONTEXT_PREFIX)
+  );
+};
+
+const cleanRuntimeContextMessage = (content: string) => {
+  const trimmed = content.trim();
+
+  if (trimmed.startsWith(RUNTIME_CONTEXT_MARKER)) {
+    return trimmed.slice(RUNTIME_CONTEXT_MARKER.length).trim();
+  }
+
+  return trimmed;
+};
+
+const getSystemContext = (history: AIChatMessage[]) => {
+  const systemInstructions: string[] = [];
+  const runtimeContext: string[] = [];
+
   history
     .filter(message => message.role === 'system')
     .map(message => message.content.trim())
     .filter(Boolean)
-    .join('\n\n');
+    .forEach(content => {
+      if (isRuntimeContextMessage(content)) {
+        runtimeContext.push(cleanRuntimeContextMessage(content));
+        return;
+      }
+
+      systemInstructions.push(content);
+    });
+
+  return {
+    runtimeContext: runtimeContext.join('\n\n'),
+    systemInstructions: systemInstructions.join('\n\n'),
+  };
+};
 
 const normalizePromptText = (text: string) => text.replace(/\s+/g, ' ').trim();
 
@@ -425,15 +552,24 @@ export const createPromptWithHistory = (
   prompt: string,
   history: AIChatMessage[],
 ) => {
-  const systemInstructions = getSystemInstructions(history);
+  const { runtimeContext, systemInstructions } = getSystemContext(history);
   const priorConversation = getPriorConversationMessages(prompt, history);
   const sections: string[] = [];
 
   if (systemInstructions) {
     sections.push(
       [
-        '다음 시스템 지침을 우선 적용하세요.',
+        '다음 시스템 지침을 우선 적용하세요. 지침 문구 자체를 답변에 그대로 출력하지 마세요.',
         systemInstructions,
+      ].join('\n'),
+    );
+  }
+
+  if (runtimeContext) {
+    sections.push(
+      [
+        '다음 날짜/시간 정보는 비공개 런타임 컨텍스트입니다. 사용자가 날짜, 시각, 시간대 또는 상대 날짜를 직접 묻거나 해석해야 할 때만 참고하세요. 일반 답변에서는 오늘 날짜, 현재 시각, 시간대를 먼저 언급하지 말고 이 문구를 출력하지 마세요.',
+        runtimeContext,
       ].join('\n'),
     );
   }
@@ -452,6 +588,7 @@ export const createPromptWithHistory = (
   if (
     sections.length === 1 &&
     !systemInstructions &&
+    !runtimeContext &&
     priorConversation.length === 0
   ) {
     return prompt;
@@ -468,10 +605,12 @@ export const AIEngine = {
   async generateResponse(
     prompt: string,
     history: AIChatMessage[] = [],
-    options: { chatSessionId?: string } = {},
+    options: { chatSessionId?: string; modelId?: ModelId | string } = {},
   ) {
     if (nativeModule?.sendMultimodalMessage) {
-      const blockedReason = await ensureRuntimeReadyForGeneration();
+      const blockedReason = await ensureRuntimeReadyForGeneration(
+        options.modelId,
+      );
       if (blockedReason) {
         return blockedReason;
       }
@@ -481,6 +620,7 @@ export const AIEngine = {
         history,
         options: {
           chatSessionId: options.chatSessionId,
+          modelId: options.modelId,
         },
         text: prompt,
       });
@@ -509,7 +649,9 @@ export const AIEngine = {
     if (nativeModule?.sendMultimodalMessageStream) {
       const sendMultimodalMessageStream =
         nativeModule.sendMultimodalMessageStream.bind(nativeModule);
-      const blockedReason = await ensureRuntimeReadyForGeneration();
+      const blockedReason = await ensureRuntimeReadyForGeneration(
+        options.modelId,
+      );
       if (blockedReason) {
         return streamCompletedText(blockedReason, callbacks);
       }
@@ -612,6 +754,7 @@ export const AIEngine = {
             history,
             options: {
               chatSessionId: options.chatSessionId,
+              modelId: options.modelId,
               stream: true,
             },
             text: prompt,
@@ -638,6 +781,7 @@ export const AIEngine = {
         history,
         options: {
           chatSessionId: options.chatSessionId,
+          modelId: options.modelId,
         },
         text: prompt,
       });
@@ -650,7 +794,9 @@ export const AIEngine = {
 
   async sendMultimodalMessage(message: MultimodalMessage): Promise<AIResponse> {
     if (nativeModule?.sendMultimodalMessage) {
-      const blockedReason = await ensureRuntimeReadyForGeneration();
+      const blockedReason = await ensureRuntimeReadyForGeneration(
+        message.options?.modelId,
+      );
       if (blockedReason) {
         return {
           type: 'error',
@@ -740,31 +886,81 @@ export const AIEngine = {
   },
 
   async getModelStatus(): Promise<ModelStatus> {
-    return nativeModule?.getModelStatus?.() ?? fallbackModelStatus;
+    return getNativeModelStatus();
   },
 
-  async getRuntimeStatus(): Promise<RuntimeStatus> {
-    return nativeModule?.getRuntimeStatus?.() ?? fallbackRuntimeStatus;
+  async getModelStatusForModel(
+    modelId?: ModelId | string,
+  ): Promise<ModelStatus> {
+    return getNativeModelStatus(modelId);
   },
 
-  async loadModel(): Promise<RuntimeStatus> {
-    return nativeModule?.loadModel?.() ?? fallbackRuntimeStatus;
+  async getModelStatuses(): Promise<ModelStatus[]> {
+    if (nativeModule?.getModelStatuses) {
+      const statuses = await nativeModule.getModelStatuses();
+      return statuses.map(status => normalizeModelStatus(status));
+    }
+
+    return [await getNativeModelStatus()];
+  },
+
+  async getRuntimeStatus(modelId?: ModelId | string): Promise<RuntimeStatus> {
+    return getNativeRuntimeStatus(modelId);
+  },
+
+  async loadModel(modelId?: ModelId | string): Promise<RuntimeStatus> {
+    return loadNativeModel(modelId);
   },
 
   async unloadModel(): Promise<RuntimeStatus> {
     return nativeModule?.unloadModel?.() ?? fallbackRuntimeStatus;
   },
 
-  async downloadModel(): Promise<ModelStatus> {
-    return nativeModule?.downloadModel?.() ?? fallbackModelStatus;
+  async downloadModel(modelId?: ModelId | string): Promise<ModelStatus> {
+    if (Platform.OS === 'ios') {
+      return normalizeModelStatus(
+        await (nativeModule?.downloadModel?.(modelId) ??
+          Promise.resolve(fallbackModelStatus)),
+        modelId,
+      );
+    }
+
+    return normalizeModelStatus(
+      await (nativeModule?.downloadModel?.() ?? Promise.resolve(fallbackModelStatus)),
+      modelId,
+    );
   },
 
-  async ensureModelDownloaded(): Promise<ModelStatus> {
-    return nativeModule?.ensureModelDownloaded?.() ?? fallbackModelStatus;
+  async ensureModelDownloaded(modelId?: ModelId | string): Promise<ModelStatus> {
+    if (Platform.OS === 'ios') {
+      return normalizeModelStatus(
+        await (nativeModule?.ensureModelDownloaded?.(modelId) ??
+          Promise.resolve(fallbackModelStatus)),
+        modelId,
+      );
+    }
+
+    return normalizeModelStatus(
+      await (nativeModule?.ensureModelDownloaded?.() ??
+        Promise.resolve(fallbackModelStatus)),
+      modelId,
+    );
   },
 
-  async cancelModelDownload(): Promise<ModelStatus> {
-    return nativeModule?.cancelModelDownload?.() ?? fallbackModelStatus;
+  async cancelModelDownload(modelId?: ModelId | string): Promise<ModelStatus> {
+    if (Platform.OS === 'ios') {
+      return normalizeModelStatus(
+        await (nativeModule?.cancelModelDownload?.(modelId) ??
+          Promise.resolve(fallbackModelStatus)),
+        modelId,
+      );
+    }
+
+    return normalizeModelStatus(
+      await (nativeModule?.cancelModelDownload?.() ??
+        Promise.resolve(fallbackModelStatus)),
+      modelId,
+    );
   },
 
   async startIndexing(): Promise<IndexingResult> {

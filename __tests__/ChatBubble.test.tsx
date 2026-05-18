@@ -58,4 +58,27 @@ describe('ChatBubble', () => {
     expect(visibleText).toContain('이 문서 요약해줘');
     expect(visibleText).not.toContain('첨부:');
   });
+
+  it('hides assistant profile/name and keeps timestamp in the action row', async () => {
+    let renderer: ReactTestRenderer.ReactTestRenderer | undefined;
+
+    await ReactTestRenderer.act(async () => {
+      renderer = ReactTestRenderer.create(
+        <ChatBubble
+          assistantName="Gemma 4"
+          onRetry={() => undefined}
+          role="assistant"
+          text="응답입니다."
+          timestamp="13:05"
+        />,
+      );
+    });
+
+    const renderedTree = renderer ? renderer.toJSON() : null;
+    const visibleText = collectText(renderedTree).join('\n');
+
+    expect(visibleText).toContain('응답입니다.');
+    expect(visibleText).toContain('13:05');
+    expect(visibleText).not.toContain('Gemma 4');
+  });
 });

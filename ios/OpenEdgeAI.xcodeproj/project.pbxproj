@@ -9,10 +9,43 @@
 /* Begin PBXBuildFile section */
 		0C80B921A6F3F58F76C31292 /* libPods-OpenEdgeAI.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 5DCACB8F33CDC322A6C60F78 /* libPods-OpenEdgeAI.a */; };
 		13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 13B07FB51A68108700A75B9A /* Images.xcassets */; };
+		2D47E8EF76AE2445613FD9E7 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 13B07FB81A68108700A75B9A /* PrivacyInfo.xcprivacy */; };
 		761780ED2CA45674006654EE /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 761780EC2CA45674006654EE /* AppDelegate.swift */; };
 		81AB9BB82411601600AC10FF /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 81AB9BB72411601600AC10FF /* LaunchScreen.storyboard */; };
-		9F3A48A42DCD4B7A9B8C1201 /* AIEngineClipboardModule.m in Sources */ = {isa = PBXBuildFile; fileRef = 9F3A48A32DCD4B7A9B8C1201 /* AIEngineClipboardModule.m */; };
+		A1F4C9A12D0B4E8591F00001 /* AIEngineFoundationModelClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1F4C9A12D0B4E8591F00000 /* AIEngineFoundationModelClient.swift */; };
+		A1F4C9A12D0B4E8591F00005 /* AIEngineGemmaModelClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1F4C9A12D0B4E8591F00004 /* AIEngineGemmaModelClient.swift */; };
+		A1F4C9A12D0B4E8591F00007 /* AIEngineLiteRtLmRuntime.mm in Sources */ = {isa = PBXBuildFile; fileRef = A1F4C9A12D0B4E8591F00006 /* AIEngineLiteRtLmRuntime.mm */; };
+		D1A000000000000000000002 /* DynamicIslandActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1A000000000000000000001 /* DynamicIslandActivityAttributes.swift */; };
+		D1A000000000000000000003 /* DynamicIslandActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1A000000000000000000001 /* DynamicIslandActivityAttributes.swift */; };
+		D1A000000000000000000005 /* NativeDynamicIslandLiveActivityController.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1A000000000000000000004 /* NativeDynamicIslandLiveActivityController.swift */; };
+		D1A000000000000000000009 /* OpenEdgeAIWidgetBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1A000000000000000000008 /* OpenEdgeAIWidgetBundle.swift */; };
+		D1A00000000000000000000B /* OpenEdgeAILiveActivityWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1A00000000000000000000A /* OpenEdgeAILiveActivityWidget.swift */; };
+		D1A00000000000000000000D /* OpenEdgeAIWidget.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = D1A00000000000000000000C /* OpenEdgeAIWidget.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		D1A000000000000000000017 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 83CBB9F71A601CBA00E9B192 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = D1A000000000000000000011;
+			remoteInfo = OpenEdgeAIWidget;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		D1A000000000000000000015 /* Embed App Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				D1A00000000000000000000D /* OpenEdgeAIWidget.appex in Embed App Extensions */,
+			);
+			name = "Embed App Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
 		13B07F961A680F5B00A75B9A /* OpenEdgeAI.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = OpenEdgeAI.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -24,7 +57,17 @@
 		5DCACB8F33CDC322A6C60F78 /* libPods-OpenEdgeAI.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-OpenEdgeAI.a"; sourceTree = BUILT_PRODUCTS_DIR; };
 		761780EC2CA45674006654EE /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AppDelegate.swift; path = OpenEdgeAI/AppDelegate.swift; sourceTree = "<group>"; };
 		81AB9BB72411601600AC10FF /* LaunchScreen.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; name = LaunchScreen.storyboard; path = OpenEdgeAI/LaunchScreen.storyboard; sourceTree = "<group>"; };
-		9F3A48A32DCD4B7A9B8C1201 /* AIEngineClipboardModule.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; name = AIEngineClipboardModule.m; path = OpenEdgeAI/AIEngineClipboardModule.m; sourceTree = "<group>"; };
+		A1F4C9A12D0B4E8591F00000 /* AIEngineFoundationModelClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AIEngineFoundationModelClient.swift; path = OpenEdgeAI/AIEngineFoundationModelClient.swift; sourceTree = "<group>"; };
+		A1F4C9A12D0B4E8591F00004 /* AIEngineGemmaModelClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AIEngineGemmaModelClient.swift; path = OpenEdgeAI/AIEngineGemmaModelClient.swift; sourceTree = "<group>"; };
+		A1F4C9A12D0B4E8591F00006 /* AIEngineLiteRtLmRuntime.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; name = AIEngineLiteRtLmRuntime.mm; path = OpenEdgeAI/AIEngineLiteRtLmRuntime.mm; sourceTree = "<group>"; };
+		A1F4C9A12D0B4E8591F00008 /* AIEngineLiteRtLmRuntime.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = AIEngineLiteRtLmRuntime.h; path = OpenEdgeAI/AIEngineLiteRtLmRuntime.h; sourceTree = "<group>"; };
+		A1F4C9A12D0B4E8591F00009 /* OpenEdgeAI-Bridging-Header.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = "OpenEdgeAI-Bridging-Header.h"; path = "OpenEdgeAI/OpenEdgeAI-Bridging-Header.h"; sourceTree = "<group>"; };
+		D1A000000000000000000001 /* DynamicIslandActivityAttributes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = DynamicIslandActivityAttributes.swift; path = OpenEdgeAI/DynamicIslandActivityAttributes.swift; sourceTree = "<group>"; };
+		D1A000000000000000000004 /* NativeDynamicIslandLiveActivityController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = NativeDynamicIslandLiveActivityController.swift; path = OpenEdgeAI/NativeDynamicIslandLiveActivityController.swift; sourceTree = "<group>"; };
+		D1A000000000000000000007 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; name = Info.plist; path = OpenEdgeAIWidget/Info.plist; sourceTree = "<group>"; };
+		D1A000000000000000000008 /* OpenEdgeAIWidgetBundle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OpenEdgeAIWidgetBundle.swift; path = OpenEdgeAIWidget/OpenEdgeAIWidgetBundle.swift; sourceTree = "<group>"; };
+		D1A00000000000000000000A /* OpenEdgeAILiveActivityWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OpenEdgeAILiveActivityWidget.swift; path = OpenEdgeAIWidget/OpenEdgeAILiveActivityWidget.swift; sourceTree = "<group>"; };
+		D1A00000000000000000000C /* OpenEdgeAIWidget.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = OpenEdgeAIWidget.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		ED297162215061F000B7C4FE /* JavaScriptCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = JavaScriptCore.framework; path = System/Library/Frameworks/JavaScriptCore.framework; sourceTree = SDKROOT; };
 /* End PBXFileReference section */
 
@@ -37,6 +80,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		D1A00000000000000000000F /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -45,7 +95,13 @@
 			children = (
 				13B07FB51A68108700A75B9A /* Images.xcassets */,
 				761780EC2CA45674006654EE /* AppDelegate.swift */,
-				9F3A48A32DCD4B7A9B8C1201 /* AIEngineClipboardModule.m */,
+				D1A000000000000000000001 /* DynamicIslandActivityAttributes.swift */,
+				D1A000000000000000000004 /* NativeDynamicIslandLiveActivityController.swift */,
+				A1F4C9A12D0B4E8591F00000 /* AIEngineFoundationModelClient.swift */,
+				A1F4C9A12D0B4E8591F00004 /* AIEngineGemmaModelClient.swift */,
+				A1F4C9A12D0B4E8591F00008 /* AIEngineLiteRtLmRuntime.h */,
+				A1F4C9A12D0B4E8591F00006 /* AIEngineLiteRtLmRuntime.mm */,
+				A1F4C9A12D0B4E8591F00009 /* OpenEdgeAI-Bridging-Header.h */,
 				13B07FB61A68108700A75B9A /* Info.plist */,
 				81AB9BB72411601600AC10FF /* LaunchScreen.storyboard */,
 				13B07FB81A68108700A75B9A /* PrivacyInfo.xcprivacy */,
@@ -73,6 +129,7 @@
 			isa = PBXGroup;
 			children = (
 				13B07FAE1A68108700A75B9A /* OpenEdgeAI */,
+				D1A000000000000000000006 /* OpenEdgeAIWidget */,
 				832341AE1AAA6A7D00B99B32 /* Libraries */,
 				83CBBA001A601CBA00E9B192 /* Products */,
 				2D16E6871FA4F8E400B85C8A /* Frameworks */,
@@ -87,8 +144,19 @@
 			isa = PBXGroup;
 			children = (
 				13B07F961A680F5B00A75B9A /* OpenEdgeAI.app */,
+				D1A00000000000000000000C /* OpenEdgeAIWidget.appex */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		D1A000000000000000000006 /* OpenEdgeAIWidget */ = {
+			isa = PBXGroup;
+			children = (
+				D1A000000000000000000007 /* Info.plist */,
+				D1A000000000000000000008 /* OpenEdgeAIWidgetBundle.swift */,
+				D1A00000000000000000000A /* OpenEdgeAILiveActivityWidget.swift */,
+			);
+			name = OpenEdgeAIWidget;
 			sourceTree = "<group>";
 		};
 		BBD78D7AC51CEA395F1C20DB /* Pods */ = {
@@ -111,18 +179,35 @@
 				13B07F871A680F5B00A75B9A /* Sources */,
 				13B07F8C1A680F5B00A75B9A /* Frameworks */,
 				13B07F8E1A680F5B00A75B9A /* Resources */,
-				00DD1BFF1BD5951E006B06BC /* Bundle React Native code and images */,
+				D1A000000000000000000015 /* Embed App Extensions */,
 				00EEFC60759A1932668264C0 /* [CP] Embed Pods Frameworks */,
-				E235C05ADACE081382539298 /* [CP] Copy Pods Resources */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				D1A000000000000000000016 /* PBXTargetDependency */,
 			);
 			name = OpenEdgeAI;
 			productName = OpenEdgeAI;
 			productReference = 13B07F961A680F5B00A75B9A /* OpenEdgeAI.app */;
 			productType = "com.apple.product-type.application";
+		};
+		D1A000000000000000000011 /* OpenEdgeAIWidget */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = D1A000000000000000000014 /* Build configuration list for PBXNativeTarget "OpenEdgeAIWidget" */;
+			buildPhases = (
+				D1A00000000000000000000E /* Sources */,
+				D1A00000000000000000000F /* Frameworks */,
+				D1A000000000000000000010 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = OpenEdgeAIWidget;
+			productName = OpenEdgeAIWidget;
+			productReference = D1A00000000000000000000C /* OpenEdgeAIWidget.appex */;
+			productType = "com.apple.product-type.app-extension";
 		};
 /* End PBXNativeTarget section */
 
@@ -134,6 +219,9 @@
 				TargetAttributes = {
 					13B07F861A680F5B00A75B9A = {
 						LastSwiftMigration = 1120;
+					};
+					D1A000000000000000000011 = {
+						CreatedOnToolsVersion = 16.2;
 					};
 				};
 			};
@@ -151,6 +239,7 @@
 			projectRoot = "";
 			targets = (
 				13B07F861A680F5B00A75B9A /* OpenEdgeAI */,
+				D1A000000000000000000011 /* OpenEdgeAIWidget */,
 			);
 		};
 /* End PBXProject section */
@@ -162,28 +251,20 @@
 			files = (
 				81AB9BB82411601600AC10FF /* LaunchScreen.storyboard in Resources */,
 				13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */,
+				2D47E8EF76AE2445613FD9E7 /* PrivacyInfo.xcprivacy in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		D1A000000000000000000010 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXShellScriptBuildPhase section */
-		00DD1BFF1BD5951E006B06BC /* Bundle React Native code and images */ = {
-			isa = PBXShellScriptBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			inputPaths = (
-				"$(SRCROOT)/.xcode.env.local",
-				"$(SRCROOT)/.xcode.env",
-			);
-			name = "Bundle React Native code and images";
-			outputPaths = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-			shellPath = /bin/sh;
-			shellScript = "set -e\n\nWITH_ENVIRONMENT=\"$REACT_NATIVE_PATH/scripts/xcode/with-environment.sh\"\nREACT_NATIVE_XCODE=\"$REACT_NATIVE_PATH/scripts/react-native-xcode.sh\"\n\n/bin/sh -c \"\\\"$WITH_ENVIRONMENT\\\" \\\"$REACT_NATIVE_XCODE\\\"\"\n";
-		};
 		00EEFC60759A1932668264C0 /* [CP] Embed Pods Frameworks */ = {
 			isa = PBXShellScriptBuildPhase;
 			buildActionMask = 2147483647;
@@ -223,23 +304,6 @@
 			shellScript = "diff \"${PODS_PODFILE_DIR_PATH}/Podfile.lock\" \"${PODS_ROOT}/Manifest.lock\" > /dev/null\nif [ $? != 0 ] ; then\n    # print error to STDERR\n    echo \"error: The sandbox is not in sync with the Podfile.lock. Run 'pod install' or update your CocoaPods installation.\" >&2\n    exit 1\nfi\n# This output is used by Xcode 'outputs' to avoid re-running this script phase.\necho \"SUCCESS\" > \"${SCRIPT_OUTPUT_FILE_0}\"\n";
 			showEnvVarsInLog = 0;
 		};
-		E235C05ADACE081382539298 /* [CP] Copy Pods Resources */ = {
-			isa = PBXShellScriptBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			inputFileListPaths = (
-				"${PODS_ROOT}/Target Support Files/Pods-OpenEdgeAI/Pods-OpenEdgeAI-resources-${CONFIGURATION}-input-files.xcfilelist",
-			);
-			name = "[CP] Copy Pods Resources";
-			outputFileListPaths = (
-				"${PODS_ROOT}/Target Support Files/Pods-OpenEdgeAI/Pods-OpenEdgeAI-resources-${CONFIGURATION}-output-files.xcfilelist",
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-			shellPath = /bin/sh;
-			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-OpenEdgeAI/Pods-OpenEdgeAI-resources.sh\"\n";
-			showEnvVarsInLog = 0;
-		};
 /* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
@@ -248,11 +312,33 @@
 			buildActionMask = 2147483647;
 			files = (
 				761780ED2CA45674006654EE /* AppDelegate.swift in Sources */,
-				9F3A48A42DCD4B7A9B8C1201 /* AIEngineClipboardModule.m in Sources */,
+				D1A000000000000000000002 /* DynamicIslandActivityAttributes.swift in Sources */,
+				D1A000000000000000000005 /* NativeDynamicIslandLiveActivityController.swift in Sources */,
+				A1F4C9A12D0B4E8591F00001 /* AIEngineFoundationModelClient.swift in Sources */,
+				A1F4C9A12D0B4E8591F00005 /* AIEngineGemmaModelClient.swift in Sources */,
+				A1F4C9A12D0B4E8591F00007 /* AIEngineLiteRtLmRuntime.mm in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		D1A00000000000000000000E /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				D1A000000000000000000003 /* DynamicIslandActivityAttributes.swift in Sources */,
+				D1A000000000000000000009 /* OpenEdgeAIWidgetBundle.swift in Sources */,
+				D1A00000000000000000000B /* OpenEdgeAILiveActivityWidget.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		D1A000000000000000000016 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = D1A000000000000000000011 /* OpenEdgeAIWidget */;
+			targetProxy = D1A000000000000000000017 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		13B07F941A680F5B00A75B9A /* Debug */ = {
@@ -264,7 +350,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_BITCODE = NO;
 				INFOPLIST_FILE = OpenEdgeAI/Info.plist;
-				IPHONEOS_DEPLOYMENT_TARGET = 15.1;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.2;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -273,11 +359,11 @@
 				OTHER_LDFLAGS = (
 					"$(inherited)",
 					"-ObjC",
-					"-lc++",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = "com.openedgeai";
+				PRODUCT_BUNDLE_IDENTIFIER = com.openedgeai;
 				PRODUCT_NAME = OpenEdgeAI;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_OBJC_BRIDGING_HEADER = "OpenEdgeAI/OpenEdgeAI-Bridging-Header.h";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
@@ -293,7 +379,7 @@
 				CLANG_ENABLE_MODULES = YES;
 				CURRENT_PROJECT_VERSION = 1;
 				INFOPLIST_FILE = OpenEdgeAI/Info.plist;
-				IPHONEOS_DEPLOYMENT_TARGET = 15.1;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.2;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -302,14 +388,63 @@
 				OTHER_LDFLAGS = (
 					"$(inherited)",
 					"-ObjC",
-					"-lc++",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = "com.openedgeai";
+				PRODUCT_BUNDLE_IDENTIFIER = com.openedgeai;
 				PRODUCT_NAME = OpenEdgeAI;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_OBJC_BRIDGING_HEADER = "OpenEdgeAI/OpenEdgeAI-Bridging-Header.h";
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 				VERSIONING_SYSTEM = "apple-generic";
+			};
+			name = Release;
+		};
+		D1A000000000000000000012 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CLANG_ENABLE_MODULES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				ENABLE_BITCODE = NO;
+				INFOPLIST_FILE = OpenEdgeAIWidget/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.2;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.openedgeai.widget;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		D1A000000000000000000013 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CLANG_ENABLE_MODULES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				ENABLE_BITCODE = NO;
+				INFOPLIST_FILE = OpenEdgeAIWidget/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.2;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.openedgeai.widget;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Release;
 		};
@@ -362,7 +497,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 15.1;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.2;
 				LD_RUNPATH_SEARCH_PATHS = (
 					/usr/lib/swift,
 					"$(inherited)",
@@ -374,15 +509,12 @@
 				);
 				MTL_ENABLE_DEBUG_INFO = YES;
 				ONLY_ACTIVE_ARCH = YES;
-				OTHER_CPLUSPLUSFLAGS = (
-					"$(OTHER_CFLAGS)",
-					"-DFOLLY_NO_CONFIG",
-					"-DFOLLY_MOBILE=1",
-					"-DFOLLY_USE_LIBCPP=1",
-					"-DFOLLY_CFG_NO_COROUTINES=1",
-					"-DFOLLY_HAVE_CLOCK_GETTIME=1",
+				OTHER_CFLAGS = (
+					"$(inherited)",
 				);
 				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited) DEBUG";
+				SWIFT_ENABLE_EXPLICIT_MODULES = NO;
 			};
 			name = Debug;
 		};
@@ -428,7 +560,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 15.1;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.2;
 				LD_RUNPATH_SEARCH_PATHS = (
 					/usr/lib/swift,
 					"$(inherited)",
@@ -439,15 +571,11 @@
 					"\"$(inherited)\"",
 				);
 				MTL_ENABLE_DEBUG_INFO = NO;
-				OTHER_CPLUSPLUSFLAGS = (
-					"$(OTHER_CFLAGS)",
-					"-DFOLLY_NO_CONFIG",
-					"-DFOLLY_MOBILE=1",
-					"-DFOLLY_USE_LIBCPP=1",
-					"-DFOLLY_CFG_NO_COROUTINES=1",
-					"-DFOLLY_HAVE_CLOCK_GETTIME=1",
+				OTHER_CFLAGS = (
+					"$(inherited)",
 				);
 				SDKROOT = iphoneos;
+				SWIFT_ENABLE_EXPLICIT_MODULES = NO;
 				VALIDATE_PRODUCT = YES;
 			};
 			name = Release;
@@ -460,6 +588,15 @@
 			buildConfigurations = (
 				13B07F941A680F5B00A75B9A /* Debug */,
 				13B07F951A680F5B00A75B9A /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		D1A000000000000000000014 /* Build configuration list for PBXNativeTarget "OpenEdgeAIWidget" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				D1A000000000000000000012 /* Debug */,
+				D1A000000000000000000013 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

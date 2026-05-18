@@ -1,0 +1,16 @@
+PODS:
+  - OpenEdgeLiteRTLMRuntime (0.1.0)
+
+DEPENDENCIES:
+  - OpenEdgeLiteRTLMRuntime (from `.`)
+
+EXTERNAL SOURCES:
+  OpenEdgeLiteRTLMRuntime:
+    :path: "."
+
+SPEC CHECKSUMS:
+  OpenEdgeLiteRTLMRuntime: 7af63695535baade981075b7e29d92bf39e69181
+
+PODFILE CHECKSUM: 89c15313a156909cc1c699df0135e98736113766
+
+COCOAPODS: 1.16.2

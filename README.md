@@ -4,8 +4,9 @@
   <h1>Open Edge AI</h1>
 
   <p>
-    Local-first AI chat for mobile. Built with React Native, backed by native
-    on-device AI modules, and designed to keep private context close to the user.
+    Local-first AI chat for mobile. Built with React Native on Android,
+    native SwiftUI on iOS, and on-device AI modules that keep private context
+    close to the user.
   </p>
 
   <p>
@@ -18,13 +19,14 @@
 
 ## Overview
 
-Open Edge AI is an open-source React Native application for building a modern
-AI chat experience around local models, multimodal inputs, and device-side
-retrieval. The app currently includes:
+Open Edge AI is an open-source mobile AI app for building a modern chat
+experience around local models, multimodal inputs, and device-side retrieval.
+Android uses a React Native shell; iOS uses a separate native SwiftUI shell.
+The app currently includes:
 
 - a polished iOS-inspired chat interface;
 - persistent chat sessions and work folders;
-- a typed React Native bridge for native AI calls;
+- an Android React Native bridge for native AI calls;
 - Android Kotlin modules for model status, model loading, routing, embeddings,
   vector search, and background indexing;
 - a web preview target for fast UI iteration with `react-native-web`.
@@ -46,11 +48,11 @@ details may change before the first stable release.
 
 | Area                     | Status      |
 | ------------------------ | ----------- |
-| React Native chat UI     | Active      |
+| Android React Native UI  | Active      |
 | Android native bridge    | Active      |
 | Local model lifecycle    | Active      |
 | Vector DB / RAG pipeline | Active      |
-| iOS native AI module     | Planned     |
+| iOS native app           | Active      |
 | Public release process   | In progress |
 
 ## Repository Structure
@@ -71,7 +73,7 @@ details may change before the first stable release.
 │       ├── core/               # Model runtime, routing, embeddings, vision
 │       ├── db/                 # SQLite vector store helpers
 │       └── workers/            # Background indexing workers
-├── ios/                        # iOS app shell and future Swift AI module home
+├── ios/                        # Native SwiftUI iOS app and Swift AI runtime
 ├── docs/                       # Architecture, development, and structure docs
 ├── .github/                    # Issue templates, PR template, CI, Dependabot
 ├── COMMERCIAL_SUPPORT.md       # Voluntary commercial support notice
@@ -89,6 +91,7 @@ For a more detailed tree, see [docs/PROJECT_STRUCTURE.md](docs/PROJECT_STRUCTURE
 - OpenJDK 17 for Android builds
 - Android Studio and Android SDK for Android development
 - Xcode and CocoaPods for iOS development on macOS
+- iOS 26.2 or newer for native Apple Foundation Models and Gemma runtime testing
 
 ### Install
 
@@ -99,18 +102,20 @@ npm install
 ### Run
 
 ```sh
-# Metro for the default React Native port
+# Metro for Android React Native workflows
 npm start
 
-# Metro on port 8082, useful when 8081 is occupied
+# Same Metro port, kept for Android-specific workflows
 npm run start:android
 
-# Android app. This installs debug, maps device 8081 to Metro 8082,
-# and starts com.openedgeai/.MainActivity.
+# Android app. This installs debug with Metro port 8082,
+# applies adb reverse for 8082, and starts com.openedgeai/.MainActivity.
 npm run android
 npm run android:8082
 
-# iOS app
+# Native iOS app. Requires Xcode and CocoaPods; Metro is not required.
+# React Native CLI iOS discovery is disabled in react-native.config.js.
+npm run ios:pods
 npm run ios
 
 # Browser preview
@@ -154,15 +159,19 @@ logos, and prepared app icon sets.
 
 ## Architecture
 
-Open Edge AI is split into a cross-platform React Native shell and native model
-execution modules.
+Open Edge AI uses a React Native shell on Android, a native SwiftUI shell on
+iOS, and native model execution modules on each platform. The React Native CLI
+is configured to ignore the iOS project so RN tooling cannot build or mutate
+the SwiftUI app path.
 
 ```text
-React Native UI
+Android React Native UI
   -> src/native/AIEngine.ts
-  -> NativeModules.AIEngine
   -> Android Kotlin bridge
-  -> Query router / model runtime / vector DB / indexing workers
+
+iOS SwiftUI UI
+  -> AIEngineFoundationModelClient / AIEngineGemmaModelClient
+  -> Apple Foundation Models / LiteRT-LM runtime
 ```
 
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for details.

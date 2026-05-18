@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 const appId = 'com.openedgeai';
 const activity = `${appId}/.MainActivity`;
 const defaultMetroPort = process.env.OPEN_EDGE_METRO_PORT ?? '8082';
-const deviceMetroPort = '8081';
+const deviceMetroPort = defaultMetroPort;
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 const projectRoot = resolve(scriptDir, '..');
 const androidRoot = resolve(projectRoot, 'android');
@@ -77,9 +77,17 @@ const startActivity = serial => {
 };
 
 const installDebug = () => {
-  run(gradleWrapper, [':app:installDebug', '--console=plain'], {
-    cwd: androidRoot,
-  });
+  run(
+    gradleWrapper,
+    [
+      ':app:installDebug',
+      `-PreactNativeDevServerPort=${defaultMetroPort}`,
+      '--console=plain',
+    ],
+    {
+      cwd: androidRoot,
+    },
+  );
 };
 
 try {

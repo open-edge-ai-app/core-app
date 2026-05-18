@@ -47,6 +47,9 @@ yarn-error.log
 .env.*
 !.env.example
 
+# Local agent tooling
+.agents/
+
 # fastlane
 #
 # It is recommended to not store the screenshots in the git repo. Instead, use fastlane to re-generate the
@@ -67,6 +70,8 @@ yarn-error.log
 *.task
 android/app/src/main/assets/models/*
 !android/app/src/main/assets/models/README.md
+ios/Frameworks/*.xcframework/
+!ios/Frameworks/README.md
 
 # Ruby / CocoaPods
 **/Pods/

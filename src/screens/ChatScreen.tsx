@@ -17,6 +17,7 @@ import {
   StyleSheet,
   View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import AppIcon from '../components/AppIcon';
 import ChatBubble, { ChatRole } from '../components/ChatBubble';
@@ -24,7 +25,9 @@ import LoadingDots from '../components/LoadingDots';
 import { I18nKey, useI18n } from '../i18n';
 import AIEngine, {
   AIChatMessage,
+  ModelId,
   MultimodalAttachment,
+  RUNTIME_CONTEXT_MARKER,
 } from '../native/AIEngine';
 import { pickAttachment } from '../native/FilePicker';
 import {
@@ -88,6 +91,7 @@ type ChatScreenProps = {
     title: string,
     options?: SessionTitleChangeOptions,
   ) => void;
+  selectedModelId?: ModelId | string;
   selectedModelLabel?: string;
   sessionId?: string | null;
 };
@@ -149,6 +153,12 @@ const formatLocalDate = (date: Date) => {
   return `${year}-${month}-${day}`;
 };
 
+const RUNTIME_CONTEXT_TRIGGER_PATTERN =
+  /(?:오늘|내일|어제|그제|모레|이번\s*(?:주|달|월|해|연도)|다음\s*(?:주|달|월|해|연도)|지난\s*(?:주|달|월|해|연도)|현재|지금|방금|나중|이따|날짜|시각|시간|몇\s*시|며칠|몇\s*일|요일|타임\s*존|시간대|오전|오후|자정|정오|분\s*(?:뒤|후|이따)|시간\s*(?:뒤|후|이따)|리마인드|상기|알림|일정|예약|today|tomorrow|yesterday|tonight|date|time|timezone|time zone|now|current|later|remind|reminder|schedule|this\s+week|next\s+week|last\s+week|this\s+month|next\s+month|last\s+month)/i;
+
+export const shouldIncludeRuntimeContext = (text: string) =>
+  RUNTIME_CONTEXT_TRIGGER_PATTERN.test(text);
+
 const createRuntimeContextMessage = (date = new Date()): AIChatMessage => {
   const localDate = formatLocalDate(date);
   const readableDate = new Intl.DateTimeFormat('ko-KR', {
@@ -166,12 +176,14 @@ const createRuntimeContextMessage = (date = new Date()): AIChatMessage => {
 
   return {
     content: [
-      '현재 날짜/시간 컨텍스트입니다.',
+      RUNTIME_CONTEXT_MARKER,
+      '비공개 런타임 날짜/시간 컨텍스트입니다.',
       `오늘은 ${readableDate}입니다.`,
       `로컬 날짜: ${localDate}`,
       `현재 로컬 시각: ${readableTime}`,
       `시간대: ${timeZone}`,
-      '사용자가 "오늘", "내일", "어제", "이번 주"처럼 상대 날짜를 말하면 이 값을 기준으로 해석하세요.',
+      '사용자가 날짜, 시각, 시간대 또는 "오늘", "내일", "어제", "이번 주"처럼 상대 날짜를 직접 묻거나 해석해야 할 때만 이 값을 기준으로 사용하세요.',
+      '일반 답변에서는 이 날짜/시각/시간대 정보를 먼저 말하거나 그대로 출력하지 마세요.',
     ].join('\n'),
     role: 'system',
   };
@@ -265,10 +277,12 @@ function ChatScreen({
   messages,
   onMessagesChange,
   onSessionTitleChange,
+  selectedModelId = 'gemma-4',
   selectedModelLabel = 'Gemma 4',
   sessionId = null,
 }: ChatScreenProps) {
   const { locale, t } = useI18n();
+  const insets = useSafeAreaInsets();
   const scrollViewRef = useRef<ScrollView>(null);
   const inputRef = useRef<React.ElementRef<typeof TextInput>>(null);
   const isNearThreadEndRef = useRef(true);
@@ -312,19 +326,32 @@ function ChatScreen({
   const canSubmit = draft.trim().length > 0 || selectedAttachments.length > 0;
   const shouldShowStopButton = isGenerationBusy && !canSubmit;
 
+  const bottomSafeAreaInset = Platform.OS === 'ios' ? insets.bottom : 0;
+  const composerBottomOffset =
+    keyboardHeight > 0 ? keyboardHeight : bottomSafeAreaInset;
   const composerOffsetStyle = useMemo(
     () => ({
-      marginBottom: Platform.OS === 'android' ? keyboardHeight : 0,
+      bottom: composerBottomOffset,
+      paddingBottom: keyboardHeight > 0 ? 8 : 6,
     }),
-    [keyboardHeight],
+    [composerBottomOffset, keyboardHeight],
   );
   const scrollToBottomButtonOffsetStyle = useMemo(
     () => ({
       bottom:
         SCROLL_TO_BOTTOM_BUTTON_OFFSET +
-        (Platform.OS === 'android' ? keyboardHeight : 0),
+        composerBottomOffset,
     }),
-    [keyboardHeight],
+    [composerBottomOffset],
+  );
+  const scrollContentBottomInsetStyle = useMemo(
+    () => ({
+      paddingBottom:
+        (hasUserMessages
+          ? THREAD_SCROLL_BOTTOM_INSET
+          : INITIAL_SCROLL_BOTTOM_INSET) + composerBottomOffset,
+    }),
+    [composerBottomOffset, hasUserMessages],
   );
 
   const scrollToThreadEnd = useCallback((animated = true) => {
@@ -356,20 +383,18 @@ function ChatScreen({
   );
 
   useEffect(() => {
-    if (Platform.OS !== 'android') {
-      return;
-    }
-
     const handleKeyboardShow = (event: KeyboardEvent) => {
       setKeyboardHeight(event.endCoordinates.height);
     };
-    const showSubscription = Keyboard.addListener(
-      'keyboardDidShow',
-      handleKeyboardShow,
-    );
-    const hideSubscription = Keyboard.addListener('keyboardDidHide', () => {
-      setKeyboardHeight(0);
-    });
+    const handleKeyboardHide = () => setKeyboardHeight(0);
+    const showSubscription =
+      Platform.OS === 'ios'
+        ? Keyboard.addListener('keyboardWillChangeFrame', handleKeyboardShow)
+        : Keyboard.addListener('keyboardDidShow', handleKeyboardShow);
+    const hideSubscription =
+      Platform.OS === 'ios'
+        ? Keyboard.addListener('keyboardWillHide', handleKeyboardHide)
+        : Keyboard.addListener('keyboardDidHide', handleKeyboardHide);
 
     return () => {
       showSubscription.remove();
@@ -518,7 +543,9 @@ function ChatScreen({
 
       const requestHistory = [
         ...systemHistory,
-        createRuntimeContextMessage(),
+        ...(shouldIncludeRuntimeContext(promptForModel)
+          ? [createRuntimeContextMessage()]
+          : []),
         ...createConversationHistory(messages),
       ];
 
@@ -590,6 +617,7 @@ function ChatScreen({
         {
           attachments: attachmentsForPrompt,
           chatSessionId: resolvedSessionId ?? undefined,
+          modelId: selectedModelId,
         },
       );
 
@@ -666,6 +694,7 @@ function ChatScreen({
     onMessagesChange,
     onSessionTitleChange,
     selectedModelLabel,
+    selectedModelId,
     sessionId,
     systemHistory,
     t,
@@ -837,7 +866,9 @@ function ChatScreen({
 
         const requestHistory = [
           ...createSystemHistory(commonSystemPrompt),
-          createRuntimeContextMessage(),
+          ...(shouldIncludeRuntimeContext(promptForModel)
+            ? [createRuntimeContextMessage()]
+            : []),
           ...createConversationHistory(messages.slice(0, userIndex + 1)),
         ];
 
@@ -863,6 +894,7 @@ function ChatScreen({
           {
             attachments: sourceAttachments,
             chatSessionId: sessionId ?? undefined,
+            modelId: selectedModelId,
           },
         );
 
@@ -913,6 +945,7 @@ function ChatScreen({
       messages,
       onMessagesChange,
       selectedModelLabel,
+      selectedModelId,
       sessionId,
       t,
     ],
@@ -962,15 +995,13 @@ function ChatScreen({
   }, []);
 
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      style={styles.container}
-    >
+    <KeyboardAvoidingView style={styles.container}>
       <ScrollView
         contentContainerStyle={[
           styles.scrollContent,
           !hasUserMessages && styles.scrollContentInitial,
           hasUserMessages && styles.scrollContentThread,
+          scrollContentBottomInsetStyle,
         ]}
         keyboardShouldPersistTaps="handled"
         onScroll={handleThreadScroll}
@@ -1502,12 +1533,14 @@ const styles = StyleSheet.create({
   composer: {
     backgroundColor: 'transparent',
     bottom: 0,
+    elevation: 20,
     left: 0,
     paddingBottom: 6,
     paddingHorizontal: 12,
     paddingTop: 14,
     position: 'absolute',
     right: 0,
+    zIndex: 20,
   },
   inputPanel: {
     backgroundColor: colors.card,

@@ -303,11 +303,6 @@ export default function TodoListScreen() {
         </ScrollView>
       ) : (
         <View style={styles.calendarContent}>
-          <View style={styles.calendarControls}>
-            <Text style={styles.activeMode}>Week</Text>
-            <Text style={styles.inactiveMode}>Day</Text>
-            <View style={styles.flexSpacer} />
-          </View>
           <View style={styles.weekStrip}>
             <Text style={styles.weekArrow}>‹</Text>
             {weekDays.map(([day, number]) => (
@@ -524,15 +519,6 @@ function formatTimelineHour(hour: number) {
 }
 
 const styles = StyleSheet.create({
-  activeMode: {
-    backgroundColor: colors.accent,
-    borderRadius: 11,
-    color: colors.primary,
-    fontSize: 16,
-    fontWeight: '800',
-    lineHeight: 42,
-    paddingHorizontal: 14,
-  },
   bottomBar: {
     alignItems: 'center',
     bottom: 24,
@@ -585,13 +571,6 @@ const styles = StyleSheet.create({
   },
   calendarContent: {
     flex: 1,
-  },
-  calendarControls: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    gap: 12,
-    paddingHorizontal: 24,
-    paddingTop: 20,
   },
   calendarEmptyText: {
     color: 'rgba(17,17,17,0.38)',
@@ -712,13 +691,6 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '800',
     width: 44,
-  },
-  inactiveMode: {
-    color: 'rgba(17,17,17,0.62)',
-    fontSize: 16,
-    fontWeight: '800',
-    lineHeight: 42,
-    paddingHorizontal: 14,
   },
   metaDot: {
     color: 'rgba(17,17,17,0.28)',

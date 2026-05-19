@@ -5,11 +5,6 @@ private enum NativeTodoTab: String {
   case calendar
 }
 
-private enum NativeTodoCalendarMode {
-  case week
-  case day
-}
-
 private let nativeTodoHorizontalPadding: CGFloat = 24
 
 private struct NativeCalendarEvent: Identifiable {
@@ -27,7 +22,6 @@ struct NativeTodoListView: View {
   @EnvironmentObject private var store: NativeChatStore
 
   @State private var selectedTab: NativeTodoTab = .all
-  @State private var calendarMode: NativeTodoCalendarMode = .week
   @State private var isOverdueExpanded = true
   @State private var isTodayExpanded = true
   @State private var selectedDate = Date()
@@ -215,37 +209,6 @@ struct NativeTodoListView: View {
 
   private var calendarContent: some View {
     VStack(spacing: 0) {
-      HStack(spacing: 12) {
-        Button {
-          calendarMode = .week
-        } label: {
-          Text("Week")
-            .font(.system(size: 16, weight: .bold))
-            .foregroundColor(calendarMode == .week ? store.accentColor.color : Color.black.opacity(0.62))
-            .padding(.horizontal, 14)
-            .frame(height: 42)
-            .background(calendarMode == .week ? store.accentColor.subtleColor : Color.clear)
-            .clipShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
-        }
-        .buttonStyle(.plain)
-
-        Button {
-          calendarMode = .day
-        } label: {
-          Text("Day")
-            .font(.system(size: 16, weight: .bold))
-            .foregroundColor(calendarMode == .day ? store.accentColor.color : Color.black.opacity(0.62))
-            .padding(.horizontal, 14)
-            .frame(height: 42)
-            .background(calendarMode == .day ? store.accentColor.subtleColor : Color.clear)
-            .clipShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
-        }
-        .buttonStyle(.plain)
-
-        Spacer()
-      }
-      .padding(.top, 20)
-
       NativeTodoWeekStrip(
         accentColor: store.accentColor,
         selectedDate: selectedDate,
@@ -253,7 +216,7 @@ struct NativeTodoListView: View {
         onNextWeek: { moveSelectedDate(byDays: 7) },
         onSelectDate: { date in selectedDate = date }
       )
-      .padding(.top, 22)
+      .padding(.top, 20)
       .padding(.bottom, 10)
 
       ScrollView(showsIndicators: false) {

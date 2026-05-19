@@ -153,12 +153,6 @@ struct NativeTodoListView: View {
         Spacer()
       }
 
-      Picker("Todo 보기", selection: $selectedTab) {
-        Text("리스트").tag(NativeTodoTab.all)
-        Text("캘린더").tag(NativeTodoTab.calendar)
-      }
-      .pickerStyle(.segmented)
-
       NativeTodoWeekStrip(
         accentColor: store.accentColor,
         selectedDate: selectedDate,
@@ -166,6 +160,12 @@ struct NativeTodoListView: View {
         onNextWeek: { moveSelectedDate(byDays: 7) },
         onSelectDate: { date in selectedDate = date }
       )
+
+      Picker("Todo 보기", selection: $selectedTab) {
+        Text("리스트").tag(NativeTodoTab.all)
+        Text("캘린더").tag(NativeTodoTab.calendar)
+      }
+      .pickerStyle(.segmented)
     }
     .padding(.horizontal, nativeTodoHorizontalPadding)
     .padding(.top, 24)
@@ -483,11 +483,15 @@ private struct NativeTodoWeekStrip: View {
   var onNextWeek: () -> Void
   var onSelectDate: (Date) -> Void
 
+  private let dayCellWidth: CGFloat = 44
+  private let dayCellSpacing: CGFloat = 8
+
   private var days: [Date] {
     let calendar = Calendar.current
-    let start = calendar.dateInterval(of: .weekOfYear, for: selectedDate)?.start
+    let selectedDay = calendar.startOfDay(for: selectedDate)
+    let start = calendar.date(byAdding: .day, value: -14, to: selectedDay)
       ?? calendar.startOfDay(for: selectedDate)
-    return (0..<7).compactMap { calendar.date(byAdding: .day, value: $0, to: start) }
+    return (0..<29).compactMap { calendar.date(byAdding: .day, value: $0, to: start) }
   }
 
   var body: some View {
@@ -500,23 +504,41 @@ private struct NativeTodoWeekStrip: View {
       }
       .buttonStyle(.plain)
 
-      ForEach(days, id: \.timeIntervalSince1970) { day in
-        Button {
-          onSelectDate(day)
-        } label: {
-          VStack(spacing: 3) {
-            Text(dayLetter(for: day))
-              .font(.system(size: 13, weight: .bold))
-            Text(dayNumber(for: day))
-              .font(.system(size: 12, weight: .semibold))
+      ScrollViewReader { proxy in
+        ScrollView(.horizontal, showsIndicators: false) {
+          LazyHStack(spacing: dayCellSpacing) {
+            ForEach(days, id: \.self) { day in
+              Button {
+                onSelectDate(day)
+              } label: {
+                VStack(spacing: 3) {
+                  Text(dayLetter(for: day))
+                    .font(.system(size: 13, weight: .bold))
+                  Text(dayNumber(for: day))
+                    .font(.system(size: 12, weight: .semibold))
+                }
+                .foregroundColor(Calendar.current.isDate(day, inSameDayAs: selectedDate) ? accentColor.color : Color.black.opacity(0.60))
+                .frame(width: dayCellWidth, height: 52)
+                .background(Calendar.current.isDate(day, inSameDayAs: selectedDate) ? accentColor.subtleColor : Color.clear)
+                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+              }
+              .buttonStyle(.plain)
+              .id(dayID(for: day))
+            }
           }
-          .foregroundColor(Calendar.current.isDate(day, inSameDayAs: selectedDate) ? accentColor.color : Color.black.opacity(0.60))
-          .frame(width: 34, height: 52)
-          .background(Calendar.current.isDate(day, inSameDayAs: selectedDate) ? accentColor.subtleColor : Color.clear)
-          .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+          .padding(.horizontal, dayCellSpacing)
+          .scrollTargetLayout()
         }
-        .frame(maxWidth: .infinity)
-        .buttonStyle(.plain)
+        .scrollTargetBehavior(.viewAligned)
+        .frame(height: 52)
+        .onAppear {
+          proxy.scrollTo(dayID(for: selectedDate), anchor: .center)
+        }
+        .onChange(of: selectedDate) { _, newValue in
+          withAnimation(.easeInOut(duration: 0.18)) {
+            proxy.scrollTo(dayID(for: newValue), anchor: .center)
+          }
+        }
       }
 
       Button(action: onNextWeek) {
@@ -542,6 +564,11 @@ private struct NativeTodoWeekStrip: View {
     formatter.locale = Locale(identifier: "en_US_POSIX")
     formatter.dateFormat = "dd"
     return formatter.string(from: date)
+  }
+
+  private func dayID(for date: Date) -> String {
+    let components = Calendar.current.dateComponents([.year, .month, .day], from: date)
+    return "\(components.year ?? 0)-\(components.month ?? 0)-\(components.day ?? 0)"
   }
 }
 

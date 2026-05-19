@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
 
 import { ScaledText as Text } from '../theme/display';
@@ -35,6 +35,9 @@ const CALENDAR_LANE_START = 60;
 const CALENDAR_LANE_GAP = 8;
 const CALENDAR_LANE_COUNT = 4;
 const CALENDAR_HOURS = Array.from({ length: 24 }, (_, index) => index + 1);
+const DATE_CELL_WIDTH = 44;
+const DATE_CELL_GAP = 8;
+const CENTER_DATE_INDEX = 14;
 
 function dateAtHour(dayOffset: number, hour: number) {
   const date = new Date();
@@ -111,6 +114,7 @@ const initialTasks: TodoTask[] = [
 
 export default function TodoListScreen() {
   const { width: screenWidth } = useWindowDimensions();
+  const weekStripRef = useRef<ScrollView>(null);
   const [tab, setTab] = useState<TodoTab>('all');
   const [tasks, setTasks] = useState<TodoTask[]>(initialTasks);
   const [hasLoadedTasks, setHasLoadedTasks] = useState(false);
@@ -192,6 +196,17 @@ export default function TodoListScreen() {
     AsyncStorage.setItem(TODO_STORAGE_KEY, JSON.stringify(tasks)).catch(() => {});
   }, [hasLoadedTasks, tasks]);
 
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      weekStripRef.current?.scrollTo({
+        animated: false,
+        x: CENTER_DATE_INDEX * (DATE_CELL_WIDTH + DATE_CELL_GAP),
+        y: 0,
+      });
+    }, 0);
+    return () => clearTimeout(timeoutId);
+  }, [selectedDate]);
+
   const addTask = () => {
     const startHour = 13 + (selectedDateTasks.length % 5);
     const nextTask: TodoTask = {
@@ -254,6 +269,52 @@ export default function TodoListScreen() {
         <View style={styles.headerRow}>
           <Text style={styles.dateTitle}>{dateTitle}</Text>
         </View>
+        <View style={styles.weekStripContainer}>
+          <Pressable onPress={() => moveSelectedDate(-7)}>
+            <Text style={styles.weekArrow}>‹</Text>
+          </Pressable>
+          <ScrollView
+            ref={weekStripRef}
+            contentContainerStyle={styles.weekStrip}
+            decelerationRate="fast"
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            snapToAlignment="start"
+            snapToInterval={DATE_CELL_WIDTH + DATE_CELL_GAP}
+            style={styles.weekStripScroll}
+          >
+            {weekDays.map(day => (
+              <Pressable
+                key={day.id}
+                onPress={() => setSelectedDate(day.date)}
+                style={[
+                  styles.weekDay,
+                  day.isSelected && styles.weekDayActive,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.weekDayText,
+                    day.isSelected && styles.weekDayTextActive,
+                  ]}
+                >
+                  {day.dayLabel}
+                </Text>
+                <Text
+                  style={[
+                    styles.weekNumberText,
+                    day.isSelected && styles.weekDayTextActive,
+                  ]}
+                >
+                  {day.numberLabel}
+                </Text>
+              </Pressable>
+            ))}
+          </ScrollView>
+          <Pressable onPress={() => moveSelectedDate(7)}>
+            <Text style={styles.weekArrow}>›</Text>
+          </Pressable>
+        </View>
         <View style={styles.segmentedControl}>
           <Pressable
             onPress={() => setTab('all')}
@@ -286,41 +347,6 @@ export default function TodoListScreen() {
             >
               캘린더
             </Text>
-          </Pressable>
-        </View>
-        <View style={styles.weekStrip}>
-          <Pressable onPress={() => moveSelectedDate(-7)}>
-            <Text style={styles.weekArrow}>‹</Text>
-          </Pressable>
-          {weekDays.map(day => (
-            <Pressable
-              key={day.id}
-              onPress={() => setSelectedDate(day.date)}
-              style={[
-                styles.weekDay,
-                day.isSelected && styles.weekDayActive,
-              ]}
-            >
-              <Text
-                style={[
-                  styles.weekDayText,
-                  day.isSelected && styles.weekDayTextActive,
-                ]}
-              >
-                {day.dayLabel}
-              </Text>
-              <Text
-                style={[
-                  styles.weekNumberText,
-                  day.isSelected && styles.weekDayTextActive,
-                ]}
-              >
-                {day.numberLabel}
-              </Text>
-            </Pressable>
-          ))}
-          <Pressable onPress={() => moveSelectedDate(7)}>
-            <Text style={styles.weekArrow}>›</Text>
           </Pressable>
         </View>
       </View>
@@ -552,13 +578,13 @@ function formatTimelineHour(hour: number) {
 }
 
 function buildWeekDays(selectedDate: Date) {
-  const startOfWeek = new Date(selectedDate);
-  startOfWeek.setDate(selectedDate.getDate() - selectedDate.getDay());
-  startOfWeek.setHours(0, 0, 0, 0);
+  const startDate = new Date(selectedDate);
+  startDate.setDate(selectedDate.getDate() - CENTER_DATE_INDEX);
+  startDate.setHours(0, 0, 0, 0);
 
-  return Array.from({ length: 7 }, (_, index) => {
-    const date = new Date(startOfWeek);
-    date.setDate(startOfWeek.getDate() + index);
+  return Array.from({ length: 29 }, (_, index) => {
+    const date = new Date(startDate);
+    date.setDate(startDate.getDate() + index);
     return {
       date,
       dayLabel: new Intl.DateTimeFormat('en-US', { weekday: 'short' }).format(date).slice(0, 1),
@@ -884,7 +910,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     height: 52,
     justifyContent: 'center',
-    width: 34,
+    width: DATE_CELL_WIDTH,
   },
   weekDayActive: {
     backgroundColor: colors.accent,
@@ -906,8 +932,16 @@ const styles = StyleSheet.create({
   weekStrip: {
     alignItems: 'center',
     flexDirection: 'row',
+    gap: DATE_CELL_GAP,
+    paddingHorizontal: DATE_CELL_GAP,
+  },
+  weekStripContainer: {
+    alignItems: 'center',
+    flexDirection: 'row',
     gap: 0,
-    justifyContent: 'space-between',
     paddingTop: 18,
+  },
+  weekStripScroll: {
+    flex: 1,
   },
 });

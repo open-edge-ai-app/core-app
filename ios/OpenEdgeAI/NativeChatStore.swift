@@ -213,25 +213,47 @@ final class NativeChatStore: ObservableObject {
     rebuildLocalMemoryIndex()
   }
 
-  func createTodo(title: String, note: String, dueDate: Date) {
+  func createTodo(title: String, note: String, startDate: Date, endDate: Date) {
     let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !trimmedTitle.isEmpty else {
       return
     }
 
     let trimmedNote = note.trimmingCharacters(in: .whitespacesAndNewlines)
-    let hour = Calendar.current.component(.hour, from: dueDate)
+    let startHour = snappedTimelineHour(from: startDate, relativeTo: startDate, upperBound: 23.5)
+    let endHour = snappedTimelineHour(from: endDate, relativeTo: startDate, upperBound: 24)
+    let duration = min(max(0.5, endHour - startHour), max(0.5, 24 - startHour))
     let item = NativeTodoItem(
       title: trimmedTitle,
       note: trimmedNote,
-      dueDate: dueDate,
-      startHour: Double(max(8, min(20, hour))),
-      durationHours: 1
+      dueDate: startDate,
+      startHour: startHour,
+      durationHours: duration
     )
 
     todoItems.insert(item, at: 0)
     sortTodoItems()
     saveTodoItems()
+  }
+
+  private func snappedTimelineHour(from date: Date, relativeTo startDate: Date, upperBound: Double) -> Double {
+    let calendar = Calendar.current
+    if date > startDate && !calendar.isDate(date, inSameDayAs: startDate) {
+      return upperBound
+    }
+
+    let hour = calendar.component(.hour, from: date)
+    let minute = calendar.component(.minute, from: date)
+    let roundedMinute: Double
+    if minute < 15 {
+      roundedMinute = 0
+    } else if minute < 45 {
+      roundedMinute = 0.5
+    } else {
+      roundedMinute = 1
+    }
+
+    return min(max(Double(hour) + roundedMinute, 1), upperBound)
   }
 
   func toggleTodoCompletion(_ item: NativeTodoItem) {

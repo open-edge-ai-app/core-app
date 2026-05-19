@@ -30,6 +30,10 @@ type TodoTask = {
 const TODO_STORAGE_KEY = 'open-edge-ai.todo-list.v1';
 const CALENDAR_START_HOUR = 1;
 const HOUR_ROW_HEIGHT = 58;
+const HOUR_LINE_OFFSET = 9;
+const CALENDAR_LANE_START = 60;
+const CALENDAR_LANE_WIDTH = 68;
+const CALENDAR_EVENT_WIDTH = 58;
 const CALENDAR_HOURS = Array.from({ length: 24 }, (_, index) => index + 1);
 
 function dateAtHour(dayOffset: number, hour: number) {
@@ -343,14 +347,13 @@ export default function TodoListScreen() {
                   <Text style={styles.hourText}>{formatTimelineHour(hour)}</Text>
                   <View style={styles.hourGuide}>
                     <View style={styles.hourLine} />
-                    <View style={styles.halfHourTick} />
+                    {hour < 24 ? <View style={styles.halfHourTick} /> : null}
                   </View>
                 </View>
               ))}
             {calendarTasks.length > 0 ? (
               calendarTasks.slice(0, 4).map((task, index) => (
                 <CalendarBlock
-                  compact={index === 3}
                   key={task.id}
                   lane={index}
                   task={task}
@@ -460,35 +463,40 @@ function TodoCard({
 }
 
 function CalendarBlock({
-  compact = false,
   lane,
   task,
 }: {
-  compact?: boolean;
   lane: number;
   task: TodoTask;
 }) {
   const startHour = task.startHour ?? 13;
   const durationHours = task.durationHours ?? 1;
-  const top = Math.max(0, (startHour - CALENDAR_START_HOUR) * HOUR_ROW_HEIGHT + 8);
-  const left = 58 + lane * 56;
-  const height = Math.max(54, durationHours * HOUR_ROW_HEIGHT - 8);
+  const top =
+    HOUR_LINE_OFFSET +
+    Math.max(0, (Math.min(Math.max(startHour, 1), 23.5) - CALENDAR_START_HOUR) * HOUR_ROW_HEIGHT);
+  const left = CALENDAR_LANE_START + lane * CALENDAR_LANE_WIDTH;
+  const height = Math.max(0.5, durationHours) * HOUR_ROW_HEIGHT;
   const endHour = Math.min(24, startHour + durationHours);
+  const isCompact = durationHours <= 0.5;
 
   return (
     <View
       style={[
         styles.calendarBlock,
-        compact && styles.calendarBlockCompact,
-        { height, left, top },
+        isCompact && styles.calendarBlockCompact,
+        { height, left, top, width: CALENDAR_EVENT_WIDTH },
       ]}
     >
       <Text style={styles.calendarBlockTitle}>{formatCalendarTitle(task.title)}</Text>
-      <Text style={styles.calendarBlockAccent}>{formatCalendarAccent(task.title)}</Text>
-      <View style={styles.flexSpacer} />
-      <Text style={styles.calendarBlockTime}>
-        {formatHour(startHour)} -{'\n'}{formatHour(endHour)}
-      </Text>
+      {isCompact ? null : (
+        <>
+          <Text style={styles.calendarBlockAccent}>{formatCalendarAccent(task.title)}</Text>
+          <View style={styles.flexSpacer} />
+          <Text style={styles.calendarBlockTime}>
+            {formatHour(startHour)} -{'\n'}{formatHour(endHour)}
+          </Text>
+        </>
+      )}
     </View>
   );
 }
@@ -502,7 +510,13 @@ function formatCalendarAccent(title: string) {
 }
 
 function formatHour(hour: number) {
-  return formatTimelineHour(Math.min(Math.max(hour, 1), 24));
+  const boundedHour = Math.min(Math.max(hour, 1), 24);
+  const wholeHour = Math.floor(boundedHour);
+  const minute = Math.round((boundedHour - wholeHour) * 60);
+  if (minute === 0) {
+    return formatTimelineHour(wholeHour);
+  }
+  return `${String(wholeHour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
 }
 
 function formatTimelineHour(hour: number) {
@@ -543,11 +557,12 @@ const styles = StyleSheet.create({
   calendarBlock: {
     backgroundColor: colors.primary,
     borderRadius: 9,
-    height: 328,
     paddingHorizontal: 8,
     paddingVertical: 11,
     position: 'absolute',
-    width: 54,
+  },
+  calendarBlockCompact: {
+    paddingVertical: 5,
   },
   calendarBlockAccent: {
     color: colors.primaryForeground,
@@ -555,10 +570,6 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     lineHeight: 14,
     marginTop: 10,
-  },
-  calendarBlockCompact: {
-    height: 164,
-    width: 55,
   },
   calendarBlockTime: {
     color: colors.primaryForeground,
@@ -675,7 +686,7 @@ const styles = StyleSheet.create({
     height: 1,
     left: 0,
     position: 'absolute',
-    top: HOUR_ROW_HEIGHT / 2,
+    top: HOUR_LINE_OFFSET + HOUR_ROW_HEIGHT / 2,
     width: 18,
   },
   hourGuide: {
@@ -689,7 +700,7 @@ const styles = StyleSheet.create({
     left: 0,
     position: 'absolute',
     right: 0,
-    top: 9,
+    top: HOUR_LINE_OFFSET,
   },
   hourRow: {
     flexDirection: 'row',

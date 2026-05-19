@@ -58,7 +58,7 @@ struct NativeTodoListView: View {
         title: eventTitle(for: item.title),
         accent: eventAccent(for: item.title),
         startHour: CGFloat(item.startHour),
-        duration: CGFloat(max(1, item.durationHours)),
+        duration: CGFloat(max(0.5, item.durationHours)),
         lane: index % 4,
         timeText: eventTimeText(for: item)
       )
@@ -306,13 +306,24 @@ struct NativeTodoListView: View {
   }
 
   private func eventTimeText(for item: NativeTodoItem) -> String {
-    let start = Int(item.startHour)
-    let end = Int(min(24, item.startHour + item.durationHours))
+    let start = item.startHour
+    let end = min(24, item.startHour + item.durationHours)
     return "\(hourText(start)) -\n\(hourText(end))"
   }
 
-  private func hourText(_ hour: Int) -> String {
-    String(format: "%02d시", min(max(hour, 1), 24))
+  private func hourText(_ hour: Double) -> String {
+    let boundedHour = min(max(hour, 1), 24)
+    var wholeHour = Int(floor(boundedHour))
+    var minute = Int(round((boundedHour - Double(wholeHour)) * 60))
+    if minute == 60 {
+      wholeHour += 1
+      minute = 0
+    }
+
+    if minute == 0 {
+      return String(format: "%02d시", wholeHour)
+    }
+    return String(format: "%02d:%02d", wholeHour, minute)
   }
 }
 
@@ -554,10 +565,14 @@ private struct NativeTodoTimeline: View {
   private let timelineStart: CGFloat = 1
   private let timelineEnd: CGFloat = 24
   private let hourHeight: CGFloat = 58
+  private let hourLineOffset: CGFloat = 9
+  private let eventLaneStart: CGFloat = 60
+  private let eventLaneWidth: CGFloat = 68
+  private let eventWidth: CGFloat = 58
   private let hours = Array(1...24)
 
   private var timelineHeight: CGFloat {
-    CGFloat(hours.count) * hourHeight
+    hourLineOffset + CGFloat(hours.count - 1) * hourHeight + 80
   }
 
   var body: some View {
@@ -577,9 +592,9 @@ private struct NativeTodoTimeline: View {
 
       ForEach(events) { event in
         NativeTodoCalendarEventCard(accentColor: accentColor, event: event)
-          .frame(width: event.lane == 3 ? 55 : 54, height: eventHeight(for: event))
+          .frame(width: eventWidth, height: eventHeight(for: event))
           .offset(
-            x: 58 + CGFloat(event.lane) * 56,
+            x: eventLaneStart + CGFloat(event.lane) * eventLaneWidth,
             y: eventOffset(for: event)
           )
       }
@@ -589,20 +604,22 @@ private struct NativeTodoTimeline: View {
   }
 
   private func eventOffset(for event: NativeCalendarEvent) -> CGFloat {
-    let startHour = min(max(event.startHour, timelineStart), timelineEnd)
-    return (startHour - timelineStart) * hourHeight + 8
+    let startHour = min(max(event.startHour, timelineStart), timelineEnd - 0.5)
+    return hourLineOffset + (startHour - timelineStart) * hourHeight
   }
 
   private func eventHeight(for event: NativeCalendarEvent) -> CGFloat {
-    let startHour = min(max(event.startHour, timelineStart), timelineEnd)
-    let availableHours = max(0.5, timelineEnd - startHour + 1)
-    return max(54, min(event.duration, availableHours) * hourHeight - 8)
+    let startHour = min(max(event.startHour, timelineStart), timelineEnd - 0.5)
+    let availableHours = max(0.5, timelineEnd - startHour)
+    return min(max(0.5, event.duration), availableHours) * hourHeight
   }
 }
 
 private struct NativeTodoTimelineHourRow: View {
   var hour: Int
   var height: CGFloat
+
+  private let hourLineOffset: CGFloat = 9
 
   var body: some View {
     HStack(alignment: .top, spacing: 16) {
@@ -616,12 +633,14 @@ private struct NativeTodoTimelineHourRow: View {
         Rectangle()
           .fill(Color.black.opacity(0.13))
           .frame(height: 1)
-          .padding(.top, 9)
+          .offset(y: hourLineOffset)
 
-        Rectangle()
-          .fill(Color.black.opacity(0.16))
-          .frame(width: 18, height: 1)
-          .offset(y: height / 2)
+        if hour < 24 {
+          Rectangle()
+            .fill(Color.black.opacity(0.16))
+            .frame(width: 18, height: 1)
+            .offset(y: hourLineOffset + height / 2)
+        }
       }
       .frame(height: height, alignment: .top)
     }
@@ -633,26 +652,32 @@ private struct NativeTodoCalendarEventCard: View {
   var accentColor: NativeAccentColor
   var event: NativeCalendarEvent
 
+  private var isCompact: Bool {
+    event.duration <= 0.5
+  }
+
   var body: some View {
-    VStack(alignment: .leading, spacing: 10) {
+    VStack(alignment: .leading, spacing: isCompact ? 2 : 10) {
       Text(event.title)
         .font(.system(size: 11, weight: .bold))
         .foregroundColor(accentColor.foregroundColor)
-        .lineLimit(3)
+        .lineLimit(isCompact ? 1 : 3)
 
-      Text(event.accent)
-        .font(.system(size: 11, weight: .bold))
-        .foregroundColor(accentColor.foregroundColor.opacity(0.72))
-        .lineLimit(2)
+      if !isCompact {
+        Text(event.accent)
+          .font(.system(size: 11, weight: .bold))
+          .foregroundColor(accentColor.foregroundColor.opacity(0.72))
+          .lineLimit(2)
 
-      Spacer()
+        Spacer()
 
-      Text(event.timeText)
-        .font(.system(size: 11, weight: .bold))
-        .foregroundColor(accentColor.foregroundColor.opacity(0.82))
+        Text(event.timeText)
+          .font(.system(size: 11, weight: .bold))
+          .foregroundColor(accentColor.foregroundColor.opacity(0.82))
+      }
     }
     .padding(.horizontal, 8)
-    .padding(.vertical, 11)
+    .padding(.vertical, isCompact ? 5 : 11)
     .background(accentColor.color)
     .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
     .shadow(color: accentColor.color.opacity(0.22), radius: 18, x: 0, y: 10)
@@ -667,11 +692,14 @@ private struct NativeTodoEditorSheet: View {
 
   @State private var title = ""
   @State private var note = ""
-  @State private var dueDate: Date
+  @State private var startDate: Date
+  @State private var endDate: Date
 
   init(selectedDate: Date) {
     self.selectedDate = selectedDate
-    _dueDate = State(initialValue: NativeTodoEditorSheet.defaultDueDate(for: selectedDate))
+    let defaultStartDate = NativeTodoEditorSheet.defaultStartDate(for: selectedDate)
+    _startDate = State(initialValue: defaultStartDate)
+    _endDate = State(initialValue: NativeTodoEditorSheet.defaultEndDate(for: defaultStartDate))
   }
 
   var body: some View {
@@ -702,9 +730,23 @@ private struct NativeTodoEditorSheet: View {
             .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         }
 
-        DatePicker("Due", selection: $dueDate, displayedComponents: [.date, .hourAndMinute])
-          .font(.system(size: 16, weight: .semibold))
-          .tint(.black)
+        VStack(spacing: 0) {
+          DatePicker("Start", selection: $startDate, displayedComponents: [.date, .hourAndMinute])
+            .font(.system(size: 16, weight: .semibold))
+            .tint(store.accentColor.color)
+            .padding(.vertical, 12)
+
+          Divider()
+            .background(Color.black.opacity(0.07))
+
+          DatePicker("End", selection: $endDate, displayedComponents: [.date, .hourAndMinute])
+            .font(.system(size: 16, weight: .semibold))
+            .tint(store.accentColor.color)
+            .padding(.vertical, 12)
+        }
+        .padding(.horizontal, 14)
+        .background(Color.black.opacity(0.055))
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
 
         Spacer()
       }
@@ -720,16 +762,32 @@ private struct NativeTodoEditorSheet: View {
         }
         ToolbarItem(placement: .confirmationAction) {
           Button("Save") {
-            store.createTodo(title: title, note: note, dueDate: dueDate)
+            store.createTodo(title: title, note: note, startDate: startDate, endDate: endDate)
             dismiss()
           }
           .disabled(title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
         }
       }
+      .onChange(of: startDate) { _, newValue in
+        let minimumEndDate = Calendar.current.date(byAdding: .minute, value: 30, to: newValue) ?? newValue
+        if endDate < minimumEndDate {
+          endDate = NativeTodoEditorSheet.defaultEndDate(for: newValue)
+        }
+      }
+      .onChange(of: endDate) { _, newValue in
+        let minimumEndDate = Calendar.current.date(byAdding: .minute, value: 30, to: startDate) ?? startDate
+        if newValue < minimumEndDate {
+          endDate = minimumEndDate
+        }
+      }
     }
   }
 
-  private static func defaultDueDate(for selectedDate: Date) -> Date {
+  private static func defaultStartDate(for selectedDate: Date) -> Date {
     Calendar.current.date(bySettingHour: 18, minute: 0, second: 0, of: selectedDate) ?? selectedDate
+  }
+
+  private static func defaultEndDate(for startDate: Date) -> Date {
+    Calendar.current.date(byAdding: .hour, value: 1, to: startDate) ?? startDate
   }
 }

@@ -1,14 +1,18 @@
 import SwiftUI
 
+private enum NativeSessionsRoute: Hashable {
+  case project(NativeProject)
+  case todoList
+}
+
 struct NativeSessionsView: View {
   @Binding var isPresented: Bool
   @Binding var showingSettings: Bool
   @Binding var showingAttachmentOptions: Bool
   @EnvironmentObject private var store: NativeChatStore
   @State private var isSearchPresented = false
-  @State private var isTodoListPresented = false
   @State private var isProjectCreatorPresented = false
-  @State private var projectPath: [NativeProject] = []
+  @State private var navigationPath: [NativeSessionsRoute] = []
   @State private var renameTarget: NativeRenameTarget?
 
   private var recentSessions: [NativeChatSession] {
@@ -27,7 +31,7 @@ struct NativeSessionsView: View {
   @ViewBuilder
   private var rootSessionsContent: some View {
     Button {
-      isTodoListPresented = true
+      navigationPath = [.todoList]
     } label: {
       NativeSessionsIconRow(systemImage: "checklist", title: "Todo List")
     }
@@ -57,7 +61,12 @@ struct NativeSessionsView: View {
 
           Button(role: .destructive) {
             store.deleteProject(project)
-            projectPath.removeAll { $0.id == project.id }
+            navigationPath.removeAll { route in
+              if case .project(let currentProject) = route {
+                return currentProject.id == project.id
+              }
+              return false
+            }
           } label: {
             Label("삭제", systemImage: "trash")
           }
@@ -131,7 +140,7 @@ struct NativeSessionsView: View {
   }
 
   var body: some View {
-    NavigationStack(path: $projectPath) {
+    NavigationStack(path: $navigationPath) {
       ZStack(alignment: .bottomTrailing) {
         VStack(alignment: .leading, spacing: 0) {
           HStack(alignment: .center, spacing: 16) {
@@ -187,15 +196,20 @@ struct NativeSessionsView: View {
       }
       .background(Color.oeBackground)
       .frame(maxWidth: .infinity, maxHeight: .infinity)
-      .navigationDestination(for: NativeProject.self) { project in
-        NativeProjectSessionsPage(
-          project: project,
-          showingAttachmentOptions: $showingAttachmentOptions
-        ) { session in
-          store.selectSession(session)
-          close()
+      .navigationDestination(for: NativeSessionsRoute.self) { route in
+        switch route {
+        case .project(let project):
+          NativeProjectSessionsPage(
+            project: project,
+            showingAttachmentOptions: $showingAttachmentOptions
+          ) { session in
+            store.selectSession(session)
+            close()
+          }
+          .environmentObject(store)
+        case .todoList:
+          NativeTodoListView()
         }
-        .environmentObject(store)
       }
       .toolbar(.hidden, for: .navigationBar)
     }
@@ -215,11 +229,6 @@ struct NativeSessionsView: View {
       .environmentObject(store)
       .presentationDetents([.large])
       .presentationDragIndicator(.visible)
-    }
-    .sheet(isPresented: $isTodoListPresented) {
-      NativeTodoListView()
-        .presentationDetents([.large])
-        .presentationDragIndicator(.visible)
     }
     .sheet(item: $renameTarget) { target in
       NativeRenameSheet(target: target)
@@ -252,7 +261,7 @@ struct NativeSessionsView: View {
   }
 
   private func navigateToProject(_ project: NativeProject) {
-    projectPath = [project]
+    navigationPath = [.project(project)]
   }
 }
 
@@ -260,7 +269,32 @@ struct NativeTodoListView: View {
   @Environment(\.dismiss) private var dismiss
 
   var body: some View {
-    NavigationStack {
+    VStack(spacing: 0) {
+      HStack(spacing: 12) {
+        Button {
+          dismiss()
+        } label: {
+          Image(systemName: "line.3.horizontal")
+            .font(.system(size: 18, weight: .semibold))
+            .frame(width: 36, height: 36)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("메뉴로 돌아가기")
+
+        Text("Todo List")
+          .font(.system(size: 15, weight: .semibold))
+          .lineLimit(1)
+
+        Spacer(minLength: 8)
+      }
+      .foregroundColor(.oeText)
+      .padding(.horizontal, 16)
+      .padding(.top, 6)
+      .padding(.bottom, 8)
+      .background(Color.oeBackground)
+
+      Divider()
+
       VStack(alignment: .leading, spacing: 0) {
         Text("Todo List")
           .font(.system(size: 28, weight: .bold))
@@ -272,19 +306,8 @@ struct NativeTodoListView: View {
       }
       .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
       .background(Color.oeBackground)
-      .toolbar {
-        ToolbarItem(placement: .topBarTrailing) {
-          Button {
-            dismiss()
-          } label: {
-            Image(systemName: "xmark")
-              .font(.system(size: 14, weight: .bold))
-              .foregroundColor(.oeText)
-          }
-          .buttonStyle(.plain)
-          .accessibilityLabel("Todo List 닫기")
-        }
-      }
     }
+    .background(Color.oeBackground.ignoresSafeArea())
+    .toolbar(.hidden, for: .navigationBar)
   }
 }

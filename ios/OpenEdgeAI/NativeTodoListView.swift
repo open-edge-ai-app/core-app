@@ -275,7 +275,7 @@ struct NativeTodoListView: View {
           .foregroundColor(.white)
           .frame(width: 56, height: 56)
           .background(Color.black)
-          .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+          .clipShape(Circle())
           .shadow(color: Color.black.opacity(0.10), radius: 20, x: 0, y: 10)
       }
       .buttonStyle(.plain)

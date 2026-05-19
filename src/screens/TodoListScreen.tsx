@@ -466,7 +466,7 @@ const styles = StyleSheet.create({
   bottomButton: {
     alignItems: 'center',
     backgroundColor: '#111111',
-    borderRadius: 14,
+    borderRadius: 28,
     height: 56,
     justifyContent: 'center',
     shadowColor: '#000000',

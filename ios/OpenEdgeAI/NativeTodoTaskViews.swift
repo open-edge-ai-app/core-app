@@ -86,10 +86,6 @@ struct NativeTodoTaskCard: View {
             .buttonStyle(.plain)
           }
 
-          if showsLabels && !labels.isEmpty {
-            NativeTodoTagRow(labels: labels)
-          }
-
           if isExpanded {
             if !task.note.isEmpty {
               Text(task.note)
@@ -101,6 +97,14 @@ struct NativeTodoTaskCard: View {
           }
 
           HStack(spacing: 8) {
+            if showsLabels && !labels.isEmpty {
+              NativeTodoInlineTagGroup(labels: labels)
+
+              Text("•")
+                .font(.system(size: 14, weight: .bold))
+                .foregroundColor(Color.black.opacity(0.28))
+            }
+
             Text(i18n.dueLabel(for: occurrenceDate))
               .font(.system(size: 14, weight: .bold))
               .foregroundColor(isOverdue ? .red.opacity(0.78) : .red.opacity(0.64))
@@ -195,30 +199,53 @@ struct NativeTodoTaskCard: View {
   }
 }
 
-struct NativeTodoTagRow: View {
+struct NativeTodoInlineTagGroup: View {
   var labels: [NativeTodoLabel]
 
-  var body: some View {
-    ScrollView(.horizontal, showsIndicators: false) {
-      HStack(spacing: 6) {
-        ForEach(labels) { label in
-          HStack(spacing: 6) {
-            Circle()
-              .fill(Color(todoLabelHex: label.colorHex))
-              .frame(width: 7, height: 7)
+  private var visibleLabels: [NativeTodoLabel] {
+    Array(labels.prefix(2))
+  }
 
-            Text(label.title)
-              .font(.system(size: 12, weight: .bold))
-              .lineLimit(1)
-          }
-          .foregroundColor(Color.black.opacity(0.62))
-          .padding(.horizontal, 9)
-          .frame(height: 27)
-          .background(Color.black.opacity(0.045))
-          .clipShape(Capsule())
-        }
+  private var remainingCount: Int {
+    max(0, labels.count - visibleLabels.count)
+  }
+
+  var body: some View {
+    HStack(spacing: 5) {
+      ForEach(visibleLabels) { label in
+        NativeTodoInlineTagChip(label: label)
+      }
+
+      if remainingCount > 0 {
+        Text("+\(remainingCount)")
+          .font(.system(size: 11, weight: .bold))
+          .foregroundColor(Color.black.opacity(0.5))
+          .frame(height: 22)
       }
     }
+    .frame(maxWidth: 150, alignment: .leading)
+  }
+}
+
+struct NativeTodoInlineTagChip: View {
+  var label: NativeTodoLabel
+
+  var body: some View {
+    HStack(spacing: 4) {
+      Circle()
+        .fill(Color(todoLabelHex: label.colorHex))
+        .frame(width: 6, height: 6)
+
+      Text(label.title)
+        .font(.system(size: 11, weight: .bold))
+        .lineLimit(1)
+    }
+    .foregroundColor(Color.black.opacity(0.62))
+    .padding(.horizontal, 7)
+    .frame(maxWidth: 72)
+    .frame(height: 22)
+    .background(Color.black.opacity(0.045))
+    .clipShape(Capsule())
   }
 }
 

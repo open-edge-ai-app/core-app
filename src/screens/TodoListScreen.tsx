@@ -131,6 +131,7 @@ export default function TodoListScreen() {
   const [isOverdueExpanded, setOverdueExpanded] = useState(true);
   const [isTodayExpanded, setTodayExpanded] = useState(true);
   const [selectedDate, setSelectedDate] = useState(() => new Date());
+  const [currentDate, setCurrentDate] = useState(() => new Date());
   const dateTitle = useMemo(
     () =>
       new Intl.DateTimeFormat('en-US', {
@@ -177,6 +178,14 @@ export default function TodoListScreen() {
     () => selectedDateTasks.filter(task => task.dueLabel !== 'Yesterday'),
     [selectedDateTasks],
   );
+  const currentTimeHour = useMemo(() => {
+    if (!isSameCalendarDay(selectedDate, currentDate)) {
+      return null;
+    }
+
+    const hour = currentDate.getHours() + currentDate.getMinutes() / 60;
+    return hour >= 1 && hour <= 24 ? hour : null;
+  }, [currentDate, selectedDate]);
 
   useEffect(() => {
     let isMounted = true;
@@ -197,6 +206,14 @@ export default function TodoListScreen() {
     return () => {
       isMounted = false;
     };
+  }, []);
+
+  useEffect(() => {
+    const intervalId = setInterval(() => {
+      setCurrentDate(new Date());
+    }, 60000);
+
+    return () => clearInterval(intervalId);
   }, []);
 
   useEffect(() => {
@@ -442,6 +459,17 @@ export default function TodoListScreen() {
                 />
               ))
             ) : null}
+            {currentTimeHour !== null ? (
+              <View
+                style={[
+                  styles.currentTimeLine,
+                  { top: getCurrentTimeLineTop(currentTimeHour) },
+                ]}
+              >
+                <View style={styles.currentTimeDot} />
+                <View style={styles.currentTimeRule} />
+              </View>
+            ) : null}
           </ScrollView>
         </View>
       )}
@@ -605,6 +633,10 @@ function formatTimelineHour(hour: number) {
   return `${String(hour).padStart(2, '0')}시`;
 }
 
+function getCurrentTimeLineTop(hour: number) {
+  return HOUR_LINE_OFFSET + (hour - CALENDAR_START_HOUR) * HOUR_ROW_HEIGHT - 3.5;
+}
+
 function buildWeekDays(selectedDate: Date) {
   const startDate = new Date(selectedDate);
   startDate.setDate(selectedDate.getDate() - CENTER_DATE_INDEX);
@@ -719,10 +751,6 @@ const styles = StyleSheet.create({
     borderRadius: 28,
     height: 56,
     justifyContent: 'center',
-    shadowColor: '#000000',
-    shadowOffset: { height: 8, width: 0 },
-    shadowOpacity: 0.1,
-    shadowRadius: 18,
     width: 56,
   },
   calendarBlock: {
@@ -795,6 +823,25 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: '800',
     lineHeight: 25,
+  },
+  currentTimeDot: {
+    backgroundColor: colors.primary,
+    borderRadius: 3.5,
+    height: 7,
+    width: 7,
+  },
+  currentTimeLine: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 6,
+    left: CALENDAR_LANE_START,
+    position: 'absolute',
+    right: 0,
+  },
+  currentTimeRule: {
+    backgroundColor: colors.primary,
+    flex: 1,
+    height: 2,
   },
   cardTitleRow: {
     alignItems: 'flex-start',
@@ -921,10 +968,6 @@ const styles = StyleSheet.create({
   },
   segmentedButtonActive: {
     backgroundColor: '#FFFFFF',
-    shadowColor: '#000000',
-    shadowOffset: { height: 1, width: 0 },
-    shadowOpacity: 0.08,
-    shadowRadius: 2,
   },
   segmentedControl: {
     backgroundColor: '#ECEDEF',

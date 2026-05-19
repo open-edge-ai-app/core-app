@@ -25,6 +25,7 @@ struct NativeTodoListView: View {
   @State private var isOverdueExpanded = true
   @State private var isTodayExpanded = true
   @State private var selectedDate = Date()
+  @State private var currentDate = Date()
   @State private var showingComposer = false
   @State private var editingTodo: NativeTodoItem?
 
@@ -58,6 +59,20 @@ struct NativeTodoListView: View {
         timeText: eventTimeText(for: item)
       )
     }
+  }
+
+  private var currentTimeHour: CGFloat? {
+    guard calendar.isDateInToday(selectedDate) else {
+      return nil
+    }
+
+    let components = calendar.dateComponents([.hour, .minute], from: currentDate)
+    let hour = CGFloat(components.hour ?? 0) + CGFloat(components.minute ?? 0) / 60
+    guard hour >= 1 && hour <= 24 else {
+      return nil
+    }
+
+    return hour
   }
 
   private var dateTitle: String {
@@ -113,6 +128,9 @@ struct NativeTodoListView: View {
         .environmentObject(store)
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
+    }
+    .onReceive(Timer.publish(every: 60, on: .main, in: .common).autoconnect()) { date in
+      currentDate = date
     }
     .toolbar(.hidden, for: .navigationBar)
   }
@@ -239,7 +257,11 @@ struct NativeTodoListView: View {
   private var calendarContent: some View {
     VStack(spacing: 0) {
       ScrollView(showsIndicators: false) {
-        NativeTodoTimeline(accentColor: store.accentColor, events: calendarEvents)
+        NativeTodoTimeline(
+          accentColor: store.accentColor,
+          events: calendarEvents,
+          currentTimeHour: currentTimeHour
+        )
           .padding(.bottom, 132)
       }
     }
@@ -258,7 +280,6 @@ struct NativeTodoListView: View {
           .frame(width: 56, height: 56)
           .background(Color.black)
           .clipShape(Circle())
-          .shadow(color: Color.black.opacity(0.10), radius: 20, x: 0, y: 10)
       }
       .buttonStyle(.plain)
       .accessibilityLabel("Todo 추가")
@@ -692,6 +713,7 @@ private struct NativeTodoWeekStrip: View {
 private struct NativeTodoTimeline: View {
   var accentColor: NativeAccentColor
   var events: [NativeCalendarEvent]
+  var currentTimeHour: CGFloat?
 
   private let timelineStart: CGFloat = 1
   private let timelineEnd: CGFloat = 24
@@ -725,6 +747,12 @@ private struct NativeTodoTimeline: View {
               y: eventOffset(for: event)
             )
         }
+
+        if let currentTimeHour {
+          NativeTodoCurrentTimeLine(accentColor: accentColor)
+            .frame(width: max(0, proxy.size.width - eventLaneStart), alignment: .leading)
+            .offset(x: eventLaneStart, y: currentTimeOffset(for: currentTimeHour))
+        }
       }
     }
     .frame(height: timelineHeight, alignment: .topLeading)
@@ -748,6 +776,29 @@ private struct NativeTodoTimeline: View {
     let startHour = min(max(event.startHour, timelineStart), timelineEnd - 0.5)
     let availableHours = max(0.5, timelineEnd - startHour)
     return min(max(0.5, event.duration), availableHours) * hourHeight
+  }
+
+  private func currentTimeOffset(for hour: CGFloat) -> CGFloat {
+    let boundedHour = min(max(hour, timelineStart), timelineEnd)
+    return hourLineOffset + (boundedHour - timelineStart) * hourHeight
+  }
+}
+
+private struct NativeTodoCurrentTimeLine: View {
+  var accentColor: NativeAccentColor
+
+  var body: some View {
+    HStack(spacing: 6) {
+      Circle()
+        .fill(accentColor.color)
+        .frame(width: 7, height: 7)
+
+      Rectangle()
+        .fill(accentColor.color)
+        .frame(height: 2)
+    }
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .offset(y: -3.5)
   }
 }
 
@@ -817,7 +868,6 @@ private struct NativeTodoCalendarEventCard: View {
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     .background(accentColor.color)
     .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
-    .shadow(color: accentColor.color.opacity(0.22), radius: 18, x: 0, y: 10)
   }
 }
 

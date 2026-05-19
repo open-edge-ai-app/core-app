@@ -251,6 +251,8 @@ struct NativeTodoListView: View {
       i18n: store.i18n,
       task: task,
       occurrenceDate: occurrenceDate,
+      labels: labels(for: task),
+      availableLabels: store.todoLabels,
       onToggleComplete: {
         withAnimation(.easeInOut(duration: 0.18)) {
           store.toggleTodoCompletion(task, occurrenceDate: occurrenceDate)
@@ -262,6 +264,9 @@ struct NativeTodoListView: View {
       onToggleSubtask: { subtask in
         store.toggleTodoSubtask(todoId: task.id, subtaskId: subtask.id)
       },
+      onToggleLabel: { label in
+        store.toggleTodoLabel(task, label: label)
+      },
       onEdit: {
         editingTodo = task
       },
@@ -271,6 +276,10 @@ struct NativeTodoListView: View {
         }
       }
     )
+  }
+
+  private func labels(for task: NativeTodoItem) -> [NativeTodoLabel] {
+    store.todoLabels.filter { task.labelIds.contains($0.id) }
   }
 
   private var calendarContent: some View {

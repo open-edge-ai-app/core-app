@@ -114,6 +114,7 @@ struct NativeTodoItem: Identifiable, Codable, Equatable, Hashable {
   var repeatRule: NativeTodoRepeatRule?
   var calendarEventIdentifier: String?
   var completedOccurrenceDayKeys: Set<String>
+  var labelIds: [String]
 
   init(
     id: String = UUID().uuidString,
@@ -129,7 +130,8 @@ struct NativeTodoItem: Identifiable, Codable, Equatable, Hashable {
     durationHours: Double = 2,
     repeatRule: NativeTodoRepeatRule = .none,
     calendarEventIdentifier: String? = nil,
-    completedOccurrenceDayKeys: Set<String> = []
+    completedOccurrenceDayKeys: Set<String> = [],
+    labelIds: [String] = []
   ) {
     self.id = id
     self.title = title
@@ -145,6 +147,7 @@ struct NativeTodoItem: Identifiable, Codable, Equatable, Hashable {
     self.repeatRule = repeatRule.isRepeating ? repeatRule : nil
     self.calendarEventIdentifier = calendarEventIdentifier
     self.completedOccurrenceDayKeys = completedOccurrenceDayKeys
+    self.labelIds = Self.uniqueLabelIds(labelIds)
   }
 
   private enum CodingKeys: String, CodingKey {
@@ -162,6 +165,7 @@ struct NativeTodoItem: Identifiable, Codable, Equatable, Hashable {
     case repeatRule
     case calendarEventIdentifier
     case completedOccurrenceDayKeys
+    case labelIds
   }
 
   init(from decoder: Decoder) throws {
@@ -182,6 +186,7 @@ struct NativeTodoItem: Identifiable, Codable, Equatable, Hashable {
     isCompleted = decodedRepeatRule.isRepeating ? false : decodedIsCompleted
     calendarEventIdentifier = try container.decodeIfPresent(String.self, forKey: .calendarEventIdentifier)
     completedOccurrenceDayKeys = try container.decodeIfPresent(Set<String>.self, forKey: .completedOccurrenceDayKeys) ?? []
+    labelIds = Self.uniqueLabelIds(try container.decodeIfPresent([String].self, forKey: .labelIds) ?? [])
   }
 
   var recurrenceRule: NativeTodoRepeatRule {
@@ -251,6 +256,29 @@ struct NativeTodoItem: Identifiable, Codable, Equatable, Hashable {
       components.month ?? 0,
       components.day ?? 0
     )
+  }
+
+  mutating func setLabelIds(_ ids: [String]) {
+    labelIds = Self.uniqueLabelIds(ids)
+  }
+
+  mutating func toggleLabel(_ label: NativeTodoLabel) {
+    if labelIds.contains(label.id) {
+      labelIds.removeAll { $0 == label.id }
+    } else {
+      labelIds.append(label.id)
+    }
+  }
+
+  private static func uniqueLabelIds(_ ids: [String]) -> [String] {
+    var seen = Set<String>()
+    return ids.filter { id in
+      guard !id.isEmpty, !seen.contains(id) else {
+        return false
+      }
+      seen.insert(id)
+      return true
+    }
   }
 
   static func seedItems(now: Date = Date(), calendar: Calendar = .current) -> [NativeTodoItem] {

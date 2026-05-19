@@ -29,9 +29,12 @@ struct NativeTodoTaskCard: View {
   var i18n: NativeI18n
   var task: NativeTodoItem
   var occurrenceDate: Date
+  var labels: [NativeTodoLabel]
+  var availableLabels: [NativeTodoLabel]
   var onToggleComplete: () -> Void
   var onToggleStar: () -> Void
   var onToggleSubtask: (NativeTodoSubtask) -> Void
+  var onToggleLabel: (NativeTodoLabel) -> Void
   var onEdit: () -> Void
   var onDelete: () -> Void
 
@@ -76,6 +79,10 @@ struct NativeTodoTaskCard: View {
               .foregroundColor(Color.black.opacity(0.52))
               .lineSpacing(4)
               .lineLimit(4)
+          }
+
+          if !labels.isEmpty {
+            NativeTodoTagRow(labels: labels)
           }
 
           HStack(spacing: 8) {
@@ -151,8 +158,54 @@ struct NativeTodoTaskCard: View {
         Label(i18n.t(.todoEdit), systemImage: "pencil")
       }
 
+      Menu {
+        if availableLabels.isEmpty {
+          Text(i18n.t(.todoNoLabels))
+        } else {
+          ForEach(availableLabels) { label in
+            Button {
+              onToggleLabel(label)
+            } label: {
+              Label(
+                label.title,
+                systemImage: task.labelIds.contains(label.id) ? "checkmark" : "tag"
+              )
+            }
+          }
+        }
+      } label: {
+        Label(i18n.t(.todoLabels), systemImage: "tag")
+      }
+
       Button(role: .destructive, action: onDelete) {
         Label(i18n.t(.todoDelete), systemImage: "trash")
+      }
+    }
+  }
+}
+
+struct NativeTodoTagRow: View {
+  var labels: [NativeTodoLabel]
+
+  var body: some View {
+    ScrollView(.horizontal, showsIndicators: false) {
+      HStack(spacing: 6) {
+        ForEach(labels) { label in
+          HStack(spacing: 6) {
+            Circle()
+              .fill(Color(todoLabelHex: label.colorHex))
+              .frame(width: 7, height: 7)
+
+            Text(label.title)
+              .font(.system(size: 12, weight: .bold))
+              .lineLimit(1)
+          }
+          .foregroundColor(Color.black.opacity(0.62))
+          .padding(.horizontal, 9)
+          .frame(height: 27)
+          .background(Color.black.opacity(0.045))
+          .clipShape(Capsule())
+        }
       }
     }
   }

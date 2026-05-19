@@ -12,7 +12,8 @@ extension NativeChatStore {
     note: String,
     startDate: Date,
     endDate: Date,
-    repeatRule: NativeTodoRepeatRule
+    repeatRule: NativeTodoRepeatRule,
+    labelIds: [String] = []
   ) {
     let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !trimmedTitle.isEmpty else {
@@ -27,7 +28,8 @@ extension NativeChatStore {
       dueDate: startDate,
       startHour: schedule.startHour,
       durationHours: schedule.durationHours,
-      repeatRule: repeatRule
+      repeatRule: repeatRule,
+      labelIds: labelIds
     )
 
     todoItems.insert(item, at: 0)
@@ -42,7 +44,8 @@ extension NativeChatStore {
     note: String,
     startDate: Date,
     endDate: Date,
-    repeatRule: NativeTodoRepeatRule
+    repeatRule: NativeTodoRepeatRule,
+    labelIds: [String] = []
   ) {
     let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !trimmedTitle.isEmpty else {
@@ -59,6 +62,7 @@ extension NativeChatStore {
       todo.startHour = schedule.startHour
       todo.durationHours = schedule.durationHours
       todo.repeatRule = repeatRule.isRepeating ? repeatRule : nil
+      todo.setLabelIds(labelIds)
     }
     syncTodoItemsToCalendarIfNeeded()
   }
@@ -102,6 +106,12 @@ extension NativeChatStore {
     }
   }
 
+  func toggleTodoLabel(_ item: NativeTodoItem, label: NativeTodoLabel) {
+    mutateTodoItem(item.id) { todo in
+      todo.toggleLabel(label)
+    }
+  }
+
   func toggleTodoSubtask(todoId: String, subtaskId: String) {
     mutateTodoItem(todoId) { todo in
       guard let index = todo.subtasks.firstIndex(where: { $0.id == subtaskId }) else {
@@ -131,7 +141,11 @@ extension NativeChatStore {
 
   func deleteTodoLabel(_ label: NativeTodoLabel) {
     todoLabels.removeAll { $0.id == label.id }
+    for index in todoItems.indices {
+      todoItems[index].labelIds.removeAll { $0 == label.id }
+    }
     saveTodoLabels()
+    saveTodoItems()
   }
 
   func refreshTodoCalendarAuthorizationState() {

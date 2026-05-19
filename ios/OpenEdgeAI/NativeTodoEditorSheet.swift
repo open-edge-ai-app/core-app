@@ -12,6 +12,7 @@ struct NativeTodoEditorSheet: View {
   @State private var startDate: Date
   @State private var endDate: Date
   @State private var repeatRule: NativeTodoRepeatRule
+  @State private var selectedLabelIds: Set<String>
 
   init(selectedDate: Date) {
     self.todoItem = nil
@@ -20,6 +21,7 @@ struct NativeTodoEditorSheet: View {
     _startDate = State(initialValue: defaultStartDate)
     _endDate = State(initialValue: NativeTodoEditorSheet.defaultEndDate(for: defaultStartDate))
     _repeatRule = State(initialValue: .none)
+    _selectedLabelIds = State(initialValue: [])
   }
 
   init(todoItem: NativeTodoItem) {
@@ -31,6 +33,7 @@ struct NativeTodoEditorSheet: View {
     _startDate = State(initialValue: startDate)
     _endDate = State(initialValue: NativeTodoEditorSheet.endDate(for: todoItem, startDate: startDate))
     _repeatRule = State(initialValue: todoItem.recurrenceRule)
+    _selectedLabelIds = State(initialValue: Set(todoItem.labelIds))
   }
 
   private var isEditing: Bool {
@@ -68,6 +71,12 @@ struct NativeTodoEditorSheet: View {
               .background(Color.black.opacity(0.055))
               .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
           }
+
+          NativeTodoLabelPicker(
+            i18n: i18n,
+            labels: store.todoLabels,
+            selectedLabelIds: $selectedLabelIds
+          )
 
           VStack(alignment: .leading, spacing: 8) {
             Text(i18n.t(.todoSchedule))
@@ -134,7 +143,8 @@ struct NativeTodoEditorSheet: View {
                 note: note,
                 startDate: startDate,
                 endDate: endDate,
-                repeatRule: repeatRule
+                repeatRule: repeatRule,
+                labelIds: Array(selectedLabelIds)
               )
             } else {
               store.createTodo(
@@ -142,7 +152,8 @@ struct NativeTodoEditorSheet: View {
                 note: note,
                 startDate: startDate,
                 endDate: endDate,
-                repeatRule: repeatRule
+                repeatRule: repeatRule,
+                labelIds: Array(selectedLabelIds)
               )
             }
             dismiss()
@@ -187,6 +198,90 @@ struct NativeTodoEditorSheet: View {
     let hour = Int(floor(boundedHour))
     let minute = Int(round((boundedHour - Double(hour)) * 60))
     return Calendar.current.date(bySettingHour: hour, minute: minute, second: 0, of: baseDate) ?? baseDate
+  }
+}
+
+struct NativeTodoLabelPicker: View {
+  var i18n: NativeI18n
+  var labels: [NativeTodoLabel]
+  @Binding var selectedLabelIds: Set<String>
+
+  private var columns: [GridItem] {
+    [GridItem(.adaptive(minimum: 96), spacing: 8)]
+  }
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 10) {
+      Text(i18n.t(.todoLabels))
+        .font(.system(size: 13, weight: .bold))
+        .foregroundColor(Color.black.opacity(0.48))
+
+      if labels.isEmpty {
+        Text(i18n.t(.todoNoLabels))
+          .font(.system(size: 14, weight: .semibold))
+          .foregroundColor(Color.black.opacity(0.42))
+          .frame(maxWidth: .infinity, alignment: .leading)
+          .padding(.horizontal, 14)
+          .padding(.vertical, 13)
+          .background(Color.black.opacity(0.035))
+          .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+      } else {
+        LazyVGrid(columns: columns, alignment: .leading, spacing: 8) {
+          ForEach(labels) { label in
+            NativeTodoTagChip(
+              label: label,
+              isSelected: selectedLabelIds.contains(label.id)
+            ) {
+              toggle(label)
+            }
+          }
+        }
+      }
+    }
+  }
+
+  private func toggle(_ label: NativeTodoLabel) {
+    if selectedLabelIds.contains(label.id) {
+      selectedLabelIds.remove(label.id)
+    } else {
+      selectedLabelIds.insert(label.id)
+    }
+  }
+}
+
+struct NativeTodoTagChip: View {
+  var label: NativeTodoLabel
+  var isSelected: Bool
+  var action: () -> Void
+
+  var body: some View {
+    Button(action: action) {
+      HStack(spacing: 7) {
+        Circle()
+          .fill(Color(todoLabelHex: label.colorHex))
+          .frame(width: 9, height: 9)
+
+        Text(label.title)
+          .font(.system(size: 13, weight: .bold))
+          .lineLimit(1)
+
+        if isSelected {
+          Image(systemName: "checkmark")
+            .font(.system(size: 10, weight: .bold))
+        }
+      }
+      .foregroundColor(.black)
+      .padding(.horizontal, 11)
+      .frame(height: 34)
+      .frame(maxWidth: .infinity)
+      .background(isSelected ? Color.black.opacity(0.10) : Color.black.opacity(0.045))
+      .overlay(
+        Capsule()
+          .stroke(isSelected ? Color.black.opacity(0.34) : Color.black.opacity(0.08), lineWidth: 1)
+      )
+      .clipShape(Capsule())
+    }
+    .buttonStyle(.plain)
   }
 }
 

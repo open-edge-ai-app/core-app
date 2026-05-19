@@ -221,10 +221,10 @@ struct NativeTodoListView: View {
         } label: {
           Text("Week")
             .font(.system(size: 16, weight: .bold))
-            .foregroundColor(calendarMode == .week ? .blue.opacity(0.72) : Color.black.opacity(0.62))
+            .foregroundColor(calendarMode == .week ? store.accentColor.color : Color.black.opacity(0.62))
             .padding(.horizontal, 14)
             .frame(height: 42)
-            .background(calendarMode == .week ? Color.black.opacity(0.06) : Color.clear)
+            .background(calendarMode == .week ? store.accentColor.subtleColor : Color.clear)
             .clipShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
         }
         .buttonStyle(.plain)
@@ -234,10 +234,10 @@ struct NativeTodoListView: View {
         } label: {
           Text("Day")
             .font(.system(size: 16, weight: .bold))
-            .foregroundColor(calendarMode == .day ? .blue.opacity(0.72) : Color.black.opacity(0.62))
+            .foregroundColor(calendarMode == .day ? store.accentColor.color : Color.black.opacity(0.62))
             .padding(.horizontal, 14)
             .frame(height: 42)
-            .background(calendarMode == .day ? Color.black.opacity(0.06) : Color.clear)
+            .background(calendarMode == .day ? store.accentColor.subtleColor : Color.clear)
             .clipShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
         }
         .buttonStyle(.plain)
@@ -247,6 +247,7 @@ struct NativeTodoListView: View {
       .padding(.top, 20)
 
       NativeTodoWeekStrip(
+        accentColor: store.accentColor,
         selectedDate: selectedDate,
         onPreviousWeek: { moveSelectedDate(byDays: -7) },
         onNextWeek: { moveSelectedDate(byDays: 7) },
@@ -256,8 +257,7 @@ struct NativeTodoListView: View {
       .padding(.bottom, 10)
 
       ScrollView(showsIndicators: false) {
-        NativeTodoTimeline(events: calendarEvents)
-          .frame(height: 720)
+        NativeTodoTimeline(accentColor: store.accentColor, events: calendarEvents)
           .padding(.bottom, 132)
       }
     }
@@ -307,14 +307,12 @@ struct NativeTodoListView: View {
 
   private func eventTimeText(for item: NativeTodoItem) -> String {
     let start = Int(item.startHour)
-    let end = Int(min(23, item.startHour + item.durationHours))
+    let end = Int(min(24, item.startHour + item.durationHours))
     return "\(hourText(start)) -\n\(hourText(end))"
   }
 
   private func hourText(_ hour: Int) -> String {
-    let value = hour == 0 ? 12 : (hour > 12 ? hour - 12 : hour)
-    let suffix = hour >= 12 ? "PM" : "AM"
-    return String(format: "%02d%@", value, suffix)
+    String(format: "%02d시", min(max(hour, 1), 24))
   }
 }
 
@@ -481,6 +479,7 @@ private struct NativeTodoEmptyRow: View {
 }
 
 private struct NativeTodoWeekStrip: View {
+  var accentColor: NativeAccentColor
   var selectedDate: Date
   var onPreviousWeek: () -> Void
   var onNextWeek: () -> Void
@@ -513,9 +512,9 @@ private struct NativeTodoWeekStrip: View {
             Text(dayNumber(for: day))
               .font(.system(size: 12, weight: .semibold))
           }
-          .foregroundColor(Calendar.current.isDate(day, inSameDayAs: selectedDate) ? .blue.opacity(0.76) : Color.black.opacity(0.60))
+          .foregroundColor(Calendar.current.isDate(day, inSameDayAs: selectedDate) ? accentColor.color : Color.black.opacity(0.60))
           .frame(width: 34, height: 52)
-          .background(Calendar.current.isDate(day, inSameDayAs: selectedDate) ? Color.black.opacity(0.07) : Color.clear)
+          .background(Calendar.current.isDate(day, inSameDayAs: selectedDate) ? accentColor.subtleColor : Color.clear)
           .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
         }
         .frame(maxWidth: .infinity)
@@ -549,28 +548,23 @@ private struct NativeTodoWeekStrip: View {
 }
 
 private struct NativeTodoTimeline: View {
+  var accentColor: NativeAccentColor
   var events: [NativeCalendarEvent]
 
-  private let timelineStart: CGFloat = 11
-  private let hourHeight: CGFloat = 82
-  private let times = ["11 AM", "12 PM", "01 PM", "02 PM", "03 PM", "04 PM", "05 PM", "06 PM", "07 PM", "08 PM"]
+  private let timelineStart: CGFloat = 1
+  private let timelineEnd: CGFloat = 24
+  private let hourHeight: CGFloat = 58
+  private let hours = Array(1...24)
+
+  private var timelineHeight: CGFloat {
+    CGFloat(hours.count) * hourHeight
+  }
 
   var body: some View {
     ZStack(alignment: .topLeading) {
       VStack(spacing: 0) {
-        ForEach(Array(times.enumerated()), id: \.offset) { _, time in
-          HStack(alignment: .top, spacing: 16) {
-            Text(time)
-              .font(.system(size: 11, weight: .bold))
-              .foregroundColor(Color.black.opacity(0.36))
-              .frame(width: 44, alignment: .leading)
-
-            Rectangle()
-              .fill(Color.black.opacity(0.12))
-              .frame(height: 1)
-              .padding(.top, 9)
-          }
-          .frame(height: hourHeight, alignment: .top)
+        ForEach(hours, id: \.self) { hour in
+          NativeTodoTimelineHourRow(hour: hour, height: hourHeight)
         }
       }
 
@@ -582,64 +576,86 @@ private struct NativeTodoTimeline: View {
       }
 
       ForEach(events) { event in
-        NativeTodoCalendarEventCard(event: event)
-          .frame(width: event.lane == 3 ? 55 : 54, height: max(78, event.duration * hourHeight))
+        NativeTodoCalendarEventCard(accentColor: accentColor, event: event)
+          .frame(width: event.lane == 3 ? 55 : 54, height: eventHeight(for: event))
           .offset(
             x: 58 + CGFloat(event.lane) * 56,
-            y: (event.startHour - timelineStart) * hourHeight + 8
+            y: eventOffset(for: event)
           )
       }
 
-      if !events.isEmpty {
-        HStack(spacing: 9) {
-          ForEach(events.prefix(2)) { event in
-            Text(event.title.replacingOccurrences(of: "\n", with: " "))
-          }
-        }
-        .font(.system(size: 15, weight: .bold))
-        .foregroundColor(.white)
-        .padding(.leading, 58)
-        .offset(y: (19 - timelineStart) * hourHeight - 20)
-      }
     }
+    .frame(height: timelineHeight, alignment: .topLeading)
+  }
+
+  private func eventOffset(for event: NativeCalendarEvent) -> CGFloat {
+    let startHour = min(max(event.startHour, timelineStart), timelineEnd)
+    return (startHour - timelineStart) * hourHeight + 8
+  }
+
+  private func eventHeight(for event: NativeCalendarEvent) -> CGFloat {
+    let startHour = min(max(event.startHour, timelineStart), timelineEnd)
+    let availableHours = max(0.5, timelineEnd - startHour + 1)
+    return max(54, min(event.duration, availableHours) * hourHeight - 8)
+  }
+}
+
+private struct NativeTodoTimelineHourRow: View {
+  var hour: Int
+  var height: CGFloat
+
+  var body: some View {
+    HStack(alignment: .top, spacing: 16) {
+      Text(String(format: "%02d시", hour))
+        .font(.system(size: 11, weight: .bold))
+        .foregroundColor(Color.black.opacity(0.36))
+        .frame(width: 44, alignment: .leading)
+        .padding(.top, 2)
+
+      ZStack(alignment: .topLeading) {
+        Rectangle()
+          .fill(Color.black.opacity(0.13))
+          .frame(height: 1)
+          .padding(.top, 9)
+
+        Rectangle()
+          .fill(Color.black.opacity(0.16))
+          .frame(width: 18, height: 1)
+          .offset(y: height / 2)
+      }
+      .frame(height: height, alignment: .top)
+    }
+    .frame(height: height, alignment: .top)
   }
 }
 
 private struct NativeTodoCalendarEventCard: View {
+  var accentColor: NativeAccentColor
   var event: NativeCalendarEvent
 
   var body: some View {
     VStack(alignment: .leading, spacing: 10) {
       Text(event.title)
         .font(.system(size: 11, weight: .bold))
-        .foregroundColor(.white)
+        .foregroundColor(accentColor.foregroundColor)
         .lineLimit(3)
 
       Text(event.accent)
         .font(.system(size: 11, weight: .bold))
-        .foregroundColor(.green)
+        .foregroundColor(accentColor.foregroundColor.opacity(0.72))
         .lineLimit(2)
 
       Spacer()
 
       Text(event.timeText)
         .font(.system(size: 11, weight: .bold))
-        .foregroundColor(.white.opacity(0.82))
+        .foregroundColor(accentColor.foregroundColor.opacity(0.82))
     }
     .padding(.horizontal, 8)
     .padding(.vertical, 11)
-    .background(
-      LinearGradient(
-        colors: [
-          Color(red: 0.23, green: 0.24, blue: 0.25),
-          Color(red: 0.16, green: 0.17, blue: 0.18)
-        ],
-        startPoint: .topLeading,
-        endPoint: .bottomTrailing
-      )
-    )
+    .background(accentColor.color)
     .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
-    .shadow(color: Color.black.opacity(0.22), radius: 22, x: 0, y: 14)
+    .shadow(color: accentColor.color.opacity(0.22), radius: 18, x: 0, y: 10)
   }
 }
 

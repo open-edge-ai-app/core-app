@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { ScaledText as Text } from '../theme/display';
+import { colors } from '../theme/tokens';
 
 type TodoTab = 'all' | 'calendar';
 
@@ -27,8 +28,9 @@ type TodoTask = {
 };
 
 const TODO_STORAGE_KEY = 'open-edge-ai.todo-list.v1';
-const CALENDAR_START_HOUR = 11;
-const HOUR_ROW_HEIGHT = 82;
+const CALENDAR_START_HOUR = 1;
+const HOUR_ROW_HEIGHT = 58;
+const CALENDAR_HOURS = Array.from({ length: 24 }, (_, index) => index + 1);
 
 function dateAtHour(dayOffset: number, hour: number) {
   const date = new Date();
@@ -336,14 +338,15 @@ export default function TodoListScreen() {
             contentContainerStyle={styles.timeline}
             showsVerticalScrollIndicator={false}
           >
-            {['11 AM', '12 PM', '01 PM', '02 PM', '03 PM', '04 PM', '05 PM', '06 PM', '07 PM', '08 PM'].map(
-              hour => (
+            {CALENDAR_HOURS.map(hour => (
                 <View key={hour} style={styles.hourRow}>
-                  <Text style={styles.hourText}>{hour}</Text>
-                  <View style={styles.hourLine} />
+                  <Text style={styles.hourText}>{formatTimelineHour(hour)}</Text>
+                  <View style={styles.hourGuide}>
+                    <View style={styles.hourLine} />
+                    <View style={styles.halfHourTick} />
+                  </View>
                 </View>
-              ),
-            )}
+              ))}
             {calendarTasks.length > 0 ? (
               calendarTasks.slice(0, 4).map((task, index) => (
                 <CalendarBlock
@@ -469,8 +472,8 @@ function CalendarBlock({
   const durationHours = task.durationHours ?? 1;
   const top = Math.max(0, (startHour - CALENDAR_START_HOUR) * HOUR_ROW_HEIGHT + 8);
   const left = 58 + lane * 56;
-  const height = Math.max(78, durationHours * HOUR_ROW_HEIGHT);
-  const endHour = Math.min(23, startHour + durationHours);
+  const height = Math.max(54, durationHours * HOUR_ROW_HEIGHT - 8);
+  const endHour = Math.min(24, startHour + durationHours);
 
   return (
     <View
@@ -499,16 +502,18 @@ function formatCalendarAccent(title: string) {
 }
 
 function formatHour(hour: number) {
-  const value = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
-  const suffix = hour >= 12 ? 'PM' : 'AM';
-  return `${String(value).padStart(2, '0')}${suffix}`;
+  return formatTimelineHour(Math.min(Math.max(hour, 1), 24));
+}
+
+function formatTimelineHour(hour: number) {
+  return `${String(hour).padStart(2, '0')}시`;
 }
 
 const styles = StyleSheet.create({
   activeMode: {
-    backgroundColor: '#F0F1F3',
+    backgroundColor: colors.accent,
     borderRadius: 11,
-    color: '#2563EB',
+    color: colors.primary,
     fontSize: 16,
     fontWeight: '800',
     lineHeight: 42,
@@ -536,7 +541,7 @@ const styles = StyleSheet.create({
     width: 56,
   },
   calendarBlock: {
-    backgroundColor: '#2E3133',
+    backgroundColor: colors.primary,
     borderRadius: 9,
     height: 328,
     paddingHorizontal: 8,
@@ -545,7 +550,7 @@ const styles = StyleSheet.create({
     width: 54,
   },
   calendarBlockAccent: {
-    color: '#2FD479',
+    color: colors.primaryForeground,
     fontSize: 11,
     fontWeight: '800',
     lineHeight: 14,
@@ -556,13 +561,13 @@ const styles = StyleSheet.create({
     width: 55,
   },
   calendarBlockTime: {
-    color: 'rgba(255,255,255,0.84)',
+    color: colors.primaryForeground,
     fontSize: 11,
     fontWeight: '800',
     lineHeight: 14,
   },
   calendarBlockTitle: {
-    color: '#FFFFFF',
+    color: colors.primaryForeground,
     fontSize: 11,
     fontWeight: '800',
     lineHeight: 14,
@@ -665,16 +670,31 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
   },
+  halfHourTick: {
+    backgroundColor: 'rgba(17,17,17,0.16)',
+    height: 1,
+    left: 0,
+    position: 'absolute',
+    top: HOUR_ROW_HEIGHT / 2,
+    width: 18,
+  },
+  hourGuide: {
+    flex: 1,
+    height: HOUR_ROW_HEIGHT,
+    position: 'relative',
+  },
   hourLine: {
     backgroundColor: 'rgba(17,17,17,0.12)',
-    flex: 1,
     height: 1,
-    marginTop: 9,
+    left: 0,
+    position: 'absolute',
+    right: 0,
+    top: 9,
   },
   hourRow: {
     flexDirection: 'row',
     gap: 16,
-    height: 82,
+    height: HOUR_ROW_HEIGHT,
   },
   hourText: {
     color: 'rgba(17,17,17,0.36)',
@@ -792,7 +812,7 @@ const styles = StyleSheet.create({
     lineHeight: 17,
   },
   timeline: {
-    minHeight: 820,
+    minHeight: CALENDAR_HOURS.length * HOUR_ROW_HEIGHT + 28,
     paddingBottom: 132,
     paddingHorizontal: 24,
     paddingTop: 20,
@@ -812,7 +832,7 @@ const styles = StyleSheet.create({
     width: 34,
   },
   weekDayActive: {
-    backgroundColor: '#F0F1F3',
+    backgroundColor: colors.accent,
   },
   weekDayText: {
     color: 'rgba(17,17,17,0.60)',
@@ -820,7 +840,7 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
   weekDayTextActive: {
-    color: '#2563EB',
+    color: colors.primary,
   },
   weekNumberText: {
     color: 'rgba(17,17,17,0.60)',

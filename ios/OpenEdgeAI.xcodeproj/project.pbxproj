@@ -29,6 +29,7 @@
 		A2C000000000000000000108 /* NativeProjectSessionsViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2C000000000000000000008 /* NativeProjectSessionsViews.swift */; };
 		A2C000000000000000000109 /* NativeSearchViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2C000000000000000000009 /* NativeSearchViews.swift */; };
 		A2C000000000000000000110 /* NativeProjectEditingViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2C000000000000000000010 /* NativeProjectEditingViews.swift */; };
+		A2E000000000000000000101 /* NativeTodoListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2E000000000000000000001 /* NativeTodoListView.swift */; };
 		A1F4C9A12D0B4E8591F00001 /* AIEngineFoundationModelClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1F4C9A12D0B4E8591F00000 /* AIEngineFoundationModelClient.swift */; };
 		A1F4C9A12D0B4E8591F00005 /* AIEngineGemmaModelClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1F4C9A12D0B4E8591F00004 /* AIEngineGemmaModelClient.swift */; };
 		A1F4C9A12D0B4E8591F00007 /* AIEngineLiteRtLmRuntime.mm in Sources */ = {isa = PBXBuildFile; fileRef = A1F4C9A12D0B4E8591F00006 /* AIEngineLiteRtLmRuntime.mm */; };
@@ -91,6 +92,7 @@
 		A2C000000000000000000008 /* NativeProjectSessionsViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = NativeProjectSessionsViews.swift; path = OpenEdgeAI/NativeProjectSessionsViews.swift; sourceTree = "<group>"; };
 		A2C000000000000000000009 /* NativeSearchViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = NativeSearchViews.swift; path = OpenEdgeAI/NativeSearchViews.swift; sourceTree = "<group>"; };
 		A2C000000000000000000010 /* NativeProjectEditingViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = NativeProjectEditingViews.swift; path = OpenEdgeAI/NativeProjectEditingViews.swift; sourceTree = "<group>"; };
+		A2E000000000000000000001 /* NativeTodoListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = NativeTodoListView.swift; path = OpenEdgeAI/NativeTodoListView.swift; sourceTree = "<group>"; };
 		A1F4C9A12D0B4E8591F00000 /* AIEngineFoundationModelClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AIEngineFoundationModelClient.swift; path = OpenEdgeAI/AIEngineFoundationModelClient.swift; sourceTree = "<group>"; };
 		A1F4C9A12D0B4E8591F00004 /* AIEngineGemmaModelClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AIEngineGemmaModelClient.swift; path = OpenEdgeAI/AIEngineGemmaModelClient.swift; sourceTree = "<group>"; };
 		A1F4C9A12D0B4E8591F00006 /* AIEngineLiteRtLmRuntime.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; name = AIEngineLiteRtLmRuntime.mm; path = OpenEdgeAI/AIEngineLiteRtLmRuntime.mm; sourceTree = "<group>"; };
@@ -145,6 +147,7 @@
 				A2C000000000000000000008 /* NativeProjectSessionsViews.swift */,
 				A2C000000000000000000009 /* NativeSearchViews.swift */,
 				A2C000000000000000000010 /* NativeProjectEditingViews.swift */,
+				A2E000000000000000000001 /* NativeTodoListView.swift */,
 				A2B000000000000000000008 /* NativeSettingsViews.swift */,
 				D1A000000000000000000001 /* DynamicIslandActivityAttributes.swift */,
 				D1A000000000000000000004 /* NativeDynamicIslandLiveActivityController.swift */,
@@ -379,6 +382,7 @@
 				A2C000000000000000000108 /* NativeProjectSessionsViews.swift in Sources */,
 				A2C000000000000000000109 /* NativeSearchViews.swift in Sources */,
 				A2C000000000000000000110 /* NativeProjectEditingViews.swift in Sources */,
+				A2E000000000000000000101 /* NativeTodoListView.swift in Sources */,
 				A2B000000000000000000108 /* NativeSettingsViews.swift in Sources */,
 				D1A000000000000000000002 /* DynamicIslandActivityAttributes.swift in Sources */,
 				D1A000000000000000000005 /* NativeDynamicIslandLiveActivityController.swift in Sources */,

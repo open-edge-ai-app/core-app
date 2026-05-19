@@ -30,6 +30,7 @@ struct NativeTodoListView: View {
   @State private var showingComposer = false
   @State private var showingSettings = false
   @State private var editingTodo: NativeTodoItem?
+  @State private var expandedTaskIds: Set<String> = []
 
   private var calendar: Calendar {
     Calendar.current
@@ -253,6 +254,7 @@ struct NativeTodoListView: View {
       occurrenceDate: occurrenceDate,
       labels: labels(for: task),
       availableLabels: store.todoLabels,
+      isExpanded: expandedTaskIds.contains(task.id),
       onToggleComplete: {
         withAnimation(.easeInOut(duration: 0.18)) {
           store.toggleTodoCompletion(task, occurrenceDate: occurrenceDate)
@@ -267,6 +269,11 @@ struct NativeTodoListView: View {
       onToggleLabel: { label in
         store.toggleTodoLabel(task, label: label)
       },
+      onToggleExpanded: {
+        withAnimation(.easeInOut(duration: 0.18)) {
+          toggleExpandedTask(task)
+        }
+      },
       onEdit: {
         editingTodo = task
       },
@@ -276,6 +283,14 @@ struct NativeTodoListView: View {
         }
       }
     )
+  }
+
+  private func toggleExpandedTask(_ task: NativeTodoItem) {
+    if expandedTaskIds.contains(task.id) {
+      expandedTaskIds.remove(task.id)
+    } else {
+      expandedTaskIds.insert(task.id)
+    }
   }
 
   private func labels(for task: NativeTodoItem) -> [NativeTodoLabel] {

@@ -31,10 +31,12 @@ struct NativeTodoTaskCard: View {
   var occurrenceDate: Date
   var labels: [NativeTodoLabel]
   var availableLabels: [NativeTodoLabel]
+  var isExpanded: Bool
   var onToggleComplete: () -> Void
   var onToggleStar: () -> Void
   var onToggleSubtask: (NativeTodoSubtask) -> Void
   var onToggleLabel: (NativeTodoLabel) -> Void
+  var onToggleExpanded: () -> Void
   var onEdit: () -> Void
   var onDelete: () -> Void
 
@@ -68,21 +70,27 @@ struct NativeTodoTaskCard: View {
 
             Spacer()
 
-            Image(systemName: "chevron.up")
-              .font(.system(size: 17, weight: .semibold))
-              .foregroundColor(Color.black.opacity(0.52))
+            Button(action: onToggleExpanded) {
+              Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+                .font(.system(size: 17, weight: .semibold))
+                .foregroundColor(Color.black.opacity(0.52))
+                .frame(width: 28, height: 28)
+            }
+            .buttonStyle(.plain)
           }
 
-          if !task.note.isEmpty {
-            Text(task.note)
-              .font(.system(size: 15, weight: .semibold))
-              .foregroundColor(Color.black.opacity(0.52))
-              .lineSpacing(4)
-              .lineLimit(4)
-          }
+          if isExpanded {
+            if !task.note.isEmpty {
+              Text(task.note)
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundColor(Color.black.opacity(0.52))
+                .lineSpacing(4)
+                .lineLimit(4)
+            }
 
-          if !labels.isEmpty {
-            NativeTodoTagRow(labels: labels)
+            if !labels.isEmpty {
+              NativeTodoTagRow(labels: labels)
+            }
           }
 
           HStack(spacing: 8) {
@@ -108,15 +116,11 @@ struct NativeTodoTaskCard: View {
             }
             .buttonStyle(.plain)
             .accessibilityLabel(task.isStarred ? i18n.t(.todoUnstar) : i18n.t(.todoStar))
-
-            Image(systemName: isOverdue ? "calendar" : "alarm")
-              .font(.system(size: 17, weight: .regular))
-              .foregroundColor(Color.black.opacity(0.48))
           }
         }
       }
 
-      if !task.subtasks.isEmpty {
+      if isExpanded && !task.subtasks.isEmpty {
         VStack(spacing: 0) {
           ForEach(task.subtasks) { subtask in
             Button {

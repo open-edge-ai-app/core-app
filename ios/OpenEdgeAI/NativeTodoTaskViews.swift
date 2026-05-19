@@ -37,6 +37,7 @@ struct NativeTodoTaskCard: View {
   var occurrenceDate: Date
   var labels: [NativeTodoLabel]
   var availableLabels: [NativeTodoLabel]
+  var showsLabels: Bool
   var isExpanded: Bool
   var onToggleComplete: () -> Void
   var onToggleStar: () -> Void
@@ -85,7 +86,7 @@ struct NativeTodoTaskCard: View {
             .buttonStyle(.plain)
           }
 
-          if !labels.isEmpty {
+          if showsLabels && !labels.isEmpty {
             NativeTodoTagRow(labels: labels)
           }
 

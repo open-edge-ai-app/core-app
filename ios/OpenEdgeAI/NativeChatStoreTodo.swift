@@ -112,6 +112,11 @@ extension NativeChatStore {
     }
   }
 
+  func setTodoTagsVisibleOnTaskCards(_ visible: Bool) {
+    todoTagsVisibleOnTaskCards = visible
+    saveSettings()
+  }
+
   func toggleTodoSubtask(todoId: String, subtaskId: String) {
     mutateTodoItem(todoId) { todo in
       guard let index = todo.subtasks.firstIndex(where: { $0.id == subtaskId }) else {

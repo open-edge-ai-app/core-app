@@ -166,6 +166,7 @@ extension NativeI18n {
     .todoEdit: "수정",
     .todoDelete: "삭제",
     .todoLabels: "태그",
+    .todoShowLabelsOnTasks: "태그를 화면에 표시",
     .todoNewLabelName: "새 태그 이름",
     .todoAddLabel: "태그 추가",
     .todoNoLabels: "아직 만든 태그가 없습니다.",
@@ -352,6 +353,7 @@ extension NativeI18n {
     .todoEdit: "Edit",
     .todoDelete: "Delete",
     .todoLabels: "Tags",
+    .todoShowLabelsOnTasks: "Show tags on screen",
     .todoNewLabelName: "New tag name",
     .todoAddLabel: "Add tag",
     .todoNoLabels: "No tags yet.",
@@ -399,13 +401,11 @@ extension NativeI18n {
     todo: ["列表", "日历", "逾期", "今天", "任务", "昨天", "明天"],
     actions: ["完成", "取消", "保存"]
   )
-
   static let compactHindiMessages = compactMessages(
     settings: ["सामान्य", "मॉडल", "व्यक्तिकरण", "दिखावट", "जानकारी", "भाषा"],
     todo: ["सूची", "कैलेंडर", "अतिदेय", "आज", "कार्य", "बीता कल", "कल"],
     actions: ["पूर्ण", "रद्द", "सहेजें"]
   )
-
   static let compactSpanishMessages = compactMessages(
     settings: ["General", "Modelo", "Personalización", "Apariencia", "Información", "Idioma"],
     todo: ["Lista", "Calendario", "Atrasado", "Hoy", "Tareas", "Ayer", "Mañana"],

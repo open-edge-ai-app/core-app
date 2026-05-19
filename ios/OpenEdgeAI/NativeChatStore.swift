@@ -11,6 +11,7 @@ final class NativeChatStore: ObservableObject {
   @Published var projects: [NativeProject] = []
   @Published var todoItems: [NativeTodoItem] = []
   @Published var todoLabels: [NativeTodoLabel] = []
+  @Published var todoTagsVisibleOnTaskCards = false
   @Published var todoCalendarSyncEnabled = false
   @Published var todoCalendarAuthorizationState: NativeTodoCalendarAuthorizationState = .unknown
   @Published var todoCalendarSyncMessage: String?

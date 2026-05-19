@@ -254,6 +254,7 @@ struct NativeTodoListView: View {
       occurrenceDate: occurrenceDate,
       labels: labels(for: task),
       availableLabels: store.todoLabels,
+      showsLabels: store.todoTagsVisibleOnTaskCards,
       isExpanded: expandedTaskIds.contains(task.id),
       onToggleComplete: {
         withAnimation(.easeInOut(duration: 0.18)) {

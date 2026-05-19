@@ -45,6 +45,25 @@ struct NativeTodoSettingsSheet: View {
         .font(.system(size: 13, weight: .bold))
         .foregroundColor(Color.black.opacity(0.48))
 
+      HStack(spacing: 12) {
+        Text(i18n.t(.todoShowLabelsOnTasks))
+          .font(.system(size: 16, weight: .semibold))
+          .foregroundColor(.black)
+
+        Spacer()
+
+        Toggle("", isOn: Binding(
+          get: { store.todoTagsVisibleOnTaskCards },
+          set: { store.setTodoTagsVisibleOnTaskCards($0) }
+        ))
+        .labelsHidden()
+        .tint(store.accentColor.color)
+      }
+      .padding(.horizontal, 14)
+      .frame(height: 52)
+      .background(Color.black.opacity(0.035))
+      .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+
       HStack(spacing: 10) {
         TextField(i18n.t(.todoNewLabelName), text: $newLabelTitle)
           .font(.system(size: 16, weight: .semibold))

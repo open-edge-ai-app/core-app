@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useEffect, useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
 
 import { ScaledText as Text } from '../theme/display';
 import { colors } from '../theme/tokens';
@@ -32,13 +32,19 @@ const CALENDAR_START_HOUR = 1;
 const HOUR_ROW_HEIGHT = 58;
 const HOUR_LINE_OFFSET = 9;
 const CALENDAR_LANE_START = 60;
-const CALENDAR_LANE_WIDTH = 68;
-const CALENDAR_EVENT_WIDTH = 58;
+const CALENDAR_LANE_GAP = 8;
+const CALENDAR_LANE_COUNT = 4;
 const CALENDAR_HOURS = Array.from({ length: 24 }, (_, index) => index + 1);
 
 function dateAtHour(dayOffset: number, hour: number) {
   const date = new Date();
   date.setDate(date.getDate() + dayOffset);
+  date.setHours(hour, 0, 0, 0);
+  return date.toISOString();
+}
+
+function dateOnSelectedDay(selectedDate: Date, hour: number) {
+  const date = new Date(selectedDate);
   date.setHours(hour, 0, 0, 0);
   return date.toISOString();
 }
@@ -103,30 +109,40 @@ const initialTasks: TodoTask[] = [
   },
 ];
 
-const weekDays = [
-  ['S', '17'],
-  ['M', '18'],
-  ['T', '19'],
-  ['W', '20'],
-  ['T', '21'],
-  ['F', '22'],
-  ['S', '23'],
-];
-
 export default function TodoListScreen() {
+  const { width: screenWidth } = useWindowDimensions();
   const [tab, setTab] = useState<TodoTab>('all');
   const [tasks, setTasks] = useState<TodoTask[]>(initialTasks);
   const [hasLoadedTasks, setHasLoadedTasks] = useState(false);
   const [isOverdueExpanded, setOverdueExpanded] = useState(true);
   const [isTodayExpanded, setTodayExpanded] = useState(true);
+  const [selectedDate, setSelectedDate] = useState(() => new Date());
   const dateTitle = useMemo(
     () =>
       new Intl.DateTimeFormat('en-US', {
         day: '2-digit',
         month: 'long',
         weekday: 'short',
-      }).format(new Date()),
-    [],
+      }).format(selectedDate),
+    [selectedDate],
+  );
+  const selectedSectionTitle = useMemo(
+    () =>
+      isSameCalendarDay(selectedDate, new Date())
+        ? 'Today'
+        : new Intl.DateTimeFormat('en-US', {
+            day: 'numeric',
+            month: 'short',
+          }).format(selectedDate),
+    [selectedDate],
+  );
+  const weekDays = useMemo(
+    () => buildWeekDays(selectedDate),
+    [selectedDate],
+  );
+  const calendarEventWidth = useMemo(
+    () => getCalendarEventWidth(screenWidth),
+    [screenWidth],
   );
   const visibleTasks = useMemo(
     () => tasks.filter(task => !task.isCompleted),
@@ -136,13 +152,16 @@ export default function TodoListScreen() {
     () => visibleTasks.filter(task => task.isOverdue),
     [visibleTasks],
   );
-  const todayTasks = useMemo(
-    () => visibleTasks.filter(task => !task.isOverdue),
-    [visibleTasks],
+  const selectedDateTasks = useMemo(
+    () =>
+      visibleTasks.filter(
+        task => !task.isOverdue && isSameCalendarDay(taskDate(task), selectedDate),
+      ),
+    [selectedDate, visibleTasks],
   );
   const calendarTasks = useMemo(
-    () => todayTasks.filter(task => task.dueLabel !== 'Yesterday'),
-    [todayTasks],
+    () => selectedDateTasks.filter(task => task.dueLabel !== 'Yesterday'),
+    [selectedDateTasks],
   );
 
   useEffect(() => {
@@ -174,10 +193,10 @@ export default function TodoListScreen() {
   }, [hasLoadedTasks, tasks]);
 
   const addTask = () => {
-    const startHour = 13 + (todayTasks.length % 5);
+    const startHour = 13 + (selectedDateTasks.length % 5);
     const nextTask: TodoTask = {
-      dueDateISO: dateAtHour(0, startHour),
-      dueLabel: 'Today',
+      dueDateISO: dateOnSelectedDay(selectedDate, startHour),
+      dueLabel: isSameCalendarDay(selectedDate, new Date()) ? 'Today' : 'Tasks',
       durationHours: 1,
       id: `todo-${Date.now()}`,
       note: '',
@@ -185,6 +204,14 @@ export default function TodoListScreen() {
       title: 'New Todo',
     };
     setTasks(current => [nextTask, ...current]);
+  };
+
+  const moveSelectedDate = (days: number) => {
+    setSelectedDate(current => {
+      const next = new Date(current);
+      next.setDate(next.getDate() + days);
+      return next;
+    });
   };
 
   const toggleTaskComplete = (taskId: string) => {
@@ -261,6 +288,41 @@ export default function TodoListScreen() {
             </Text>
           </Pressable>
         </View>
+        <View style={styles.weekStrip}>
+          <Pressable onPress={() => moveSelectedDate(-7)}>
+            <Text style={styles.weekArrow}>‹</Text>
+          </Pressable>
+          {weekDays.map(day => (
+            <Pressable
+              key={day.id}
+              onPress={() => setSelectedDate(day.date)}
+              style={[
+                styles.weekDay,
+                day.isSelected && styles.weekDayActive,
+              ]}
+            >
+              <Text
+                style={[
+                  styles.weekDayText,
+                  day.isSelected && styles.weekDayTextActive,
+                ]}
+              >
+                {day.dayLabel}
+              </Text>
+              <Text
+                style={[
+                  styles.weekNumberText,
+                  day.isSelected && styles.weekDayTextActive,
+                ]}
+              >
+                {day.numberLabel}
+              </Text>
+            </Pressable>
+          ))}
+          <Pressable onPress={() => moveSelectedDate(7)}>
+            <Text style={styles.weekArrow}>›</Text>
+          </Pressable>
+        </View>
       </View>
 
       {tab === 'all' ? (
@@ -287,10 +349,10 @@ export default function TodoListScreen() {
           <SectionHeader
             expanded={isTodayExpanded}
             onPress={() => setTodayExpanded(current => !current)}
-            title="Today"
+            title={selectedSectionTitle}
           />
           {isTodayExpanded
-            ? todayTasks.map(task => (
+            ? selectedDateTasks.map(task => (
                 <TodoCard
                   key={task.id}
                   onToggleComplete={() => toggleTaskComplete(task.id)}
@@ -303,36 +365,6 @@ export default function TodoListScreen() {
         </ScrollView>
       ) : (
         <View style={styles.calendarContent}>
-          <View style={styles.weekStrip}>
-            <Text style={styles.weekArrow}>‹</Text>
-            {weekDays.map(([day, number]) => (
-              <View
-                key={number}
-                style={[
-                  styles.weekDay,
-                  number === '19' && styles.weekDayActive,
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.weekDayText,
-                    number === '19' && styles.weekDayTextActive,
-                  ]}
-                >
-                  {day}
-                </Text>
-                <Text
-                  style={[
-                    styles.weekNumberText,
-                    number === '19' && styles.weekDayTextActive,
-                  ]}
-                >
-                  {number}
-                </Text>
-              </View>
-            ))}
-            <Text style={styles.weekArrow}>›</Text>
-          </View>
           <ScrollView
             contentContainerStyle={styles.timeline}
             showsVerticalScrollIndicator={false}
@@ -349,14 +381,13 @@ export default function TodoListScreen() {
             {calendarTasks.length > 0 ? (
               calendarTasks.slice(0, 4).map((task, index) => (
                 <CalendarBlock
+                  eventWidth={calendarEventWidth}
                   key={task.id}
                   lane={index}
                   task={task}
                 />
               ))
-            ) : (
-              <Text style={styles.calendarEmptyText}>No scheduled tasks</Text>
-            )}
+            ) : null}
           </ScrollView>
         </View>
       )}
@@ -458,9 +489,11 @@ function TodoCard({
 }
 
 function CalendarBlock({
+  eventWidth,
   lane,
   task,
 }: {
+  eventWidth: number;
   lane: number;
   task: TodoTask;
 }) {
@@ -469,7 +502,7 @@ function CalendarBlock({
   const top =
     HOUR_LINE_OFFSET +
     Math.max(0, (Math.min(Math.max(startHour, 1), 23.5) - CALENDAR_START_HOUR) * HOUR_ROW_HEIGHT);
-  const left = CALENDAR_LANE_START + lane * CALENDAR_LANE_WIDTH;
+  const left = CALENDAR_LANE_START + lane * (eventWidth + CALENDAR_LANE_GAP);
   const height = Math.max(0.5, durationHours) * HOUR_ROW_HEIGHT;
   const endHour = Math.min(24, startHour + durationHours);
   const isCompact = durationHours <= 0.5;
@@ -479,7 +512,7 @@ function CalendarBlock({
       style={[
         styles.calendarBlock,
         isCompact && styles.calendarBlockCompact,
-        { height, left, top, width: CALENDAR_EVENT_WIDTH },
+        { height, left, top, width: eventWidth },
       ]}
     >
       <Text style={styles.calendarBlockTitle}>{formatCalendarTitle(task.title)}</Text>
@@ -516,6 +549,53 @@ function formatHour(hour: number) {
 
 function formatTimelineHour(hour: number) {
   return `${String(hour).padStart(2, '0')}시`;
+}
+
+function buildWeekDays(selectedDate: Date) {
+  const startOfWeek = new Date(selectedDate);
+  startOfWeek.setDate(selectedDate.getDate() - selectedDate.getDay());
+  startOfWeek.setHours(0, 0, 0, 0);
+
+  return Array.from({ length: 7 }, (_, index) => {
+    const date = new Date(startOfWeek);
+    date.setDate(startOfWeek.getDate() + index);
+    return {
+      date,
+      dayLabel: new Intl.DateTimeFormat('en-US', { weekday: 'short' }).format(date).slice(0, 1),
+      id: date.toISOString(),
+      isSelected: isSameCalendarDay(date, selectedDate),
+      numberLabel: String(date.getDate()).padStart(2, '0'),
+    };
+  });
+}
+
+function isSameCalendarDay(left: Date, right: Date) {
+  return (
+    left.getFullYear() === right.getFullYear() &&
+    left.getMonth() === right.getMonth() &&
+    left.getDate() === right.getDate()
+  );
+}
+
+function taskDate(task: TodoTask) {
+  if (task.dueDateISO) {
+    return new Date(task.dueDateISO);
+  }
+
+  const date = new Date();
+  if (task.dueLabel === 'Yesterday') {
+    date.setDate(date.getDate() - 1);
+  } else if (task.dueLabel === 'Tomorrow') {
+    date.setDate(date.getDate() + 1);
+  }
+  return date;
+}
+
+function getCalendarEventWidth(screenWidth: number) {
+  const contentWidth = Math.max(0, screenWidth - 48);
+  const availableWidth =
+    contentWidth - CALENDAR_LANE_START - CALENDAR_LANE_GAP * (CALENDAR_LANE_COUNT - 1);
+  return Math.max(44, Math.floor(availableWidth / CALENDAR_LANE_COUNT));
 }
 
 const styles = StyleSheet.create({
@@ -571,14 +651,6 @@ const styles = StyleSheet.create({
   },
   calendarContent: {
     flex: 1,
-  },
-  calendarEmptyText: {
-    color: 'rgba(17,17,17,0.38)',
-    fontSize: 13,
-    fontWeight: '700',
-    left: 84,
-    position: 'absolute',
-    top: 98,
   },
   card: {
     backgroundColor: '#F0F1F3',
@@ -836,8 +908,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 0,
     justifyContent: 'space-between',
-    paddingBottom: 10,
-    paddingHorizontal: 24,
-    paddingTop: 22,
+    paddingTop: 18,
   },
 });

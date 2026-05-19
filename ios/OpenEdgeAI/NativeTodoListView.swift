@@ -67,6 +67,17 @@ struct NativeTodoListView: View {
     return formatter.string(from: selectedDate)
   }
 
+  private var selectedTodoSectionTitle: String {
+    if calendar.isDateInToday(selectedDate) {
+      return "Today"
+    }
+
+    let formatter = DateFormatter()
+    formatter.locale = Locale(identifier: "en_US_POSIX")
+    formatter.dateFormat = "MMM d"
+    return formatter.string(from: selectedDate)
+  }
+
   var body: some View {
     ZStack(alignment: .bottom) {
       VStack(spacing: 0) {
@@ -147,10 +158,18 @@ struct NativeTodoListView: View {
         Text("캘린더").tag(NativeTodoTab.calendar)
       }
       .pickerStyle(.segmented)
+
+      NativeTodoWeekStrip(
+        accentColor: store.accentColor,
+        selectedDate: selectedDate,
+        onPreviousWeek: { moveSelectedDate(byDays: -7) },
+        onNextWeek: { moveSelectedDate(byDays: 7) },
+        onSelectDate: { date in selectedDate = date }
+      )
     }
     .padding(.horizontal, nativeTodoHorizontalPadding)
     .padding(.top, 24)
-    .padding(.bottom, 24)
+    .padding(.bottom, 18)
   }
 
   private var allTasksContent: some View {
@@ -172,7 +191,7 @@ struct NativeTodoListView: View {
         }
 
         NativeTodoSectionHeader(
-          title: "Today",
+          title: selectedTodoSectionTitle,
           isExpanded: $isTodayExpanded
         )
 
@@ -219,16 +238,6 @@ struct NativeTodoListView: View {
 
   private var calendarContent: some View {
     VStack(spacing: 0) {
-      NativeTodoWeekStrip(
-        accentColor: store.accentColor,
-        selectedDate: selectedDate,
-        onPreviousWeek: { moveSelectedDate(byDays: -7) },
-        onNextWeek: { moveSelectedDate(byDays: 7) },
-        onSelectDate: { date in selectedDate = date }
-      )
-      .padding(.top, 20)
-      .padding(.bottom, 10)
-
       ScrollView(showsIndicators: false) {
         NativeTodoTimeline(accentColor: store.accentColor, events: calendarEvents)
           .padding(.bottom, 132)
@@ -545,8 +554,8 @@ private struct NativeTodoTimeline: View {
   private let hourHeight: CGFloat = 58
   private let hourLineOffset: CGFloat = 9
   private let eventLaneStart: CGFloat = 60
-  private let eventLaneWidth: CGFloat = 68
-  private let eventWidth: CGFloat = 58
+  private let eventLaneCount: CGFloat = 4
+  private let eventLaneGap: CGFloat = 8
   private let hours = Array(1...24)
 
   private var timelineHeight: CGFloat {
@@ -554,31 +563,36 @@ private struct NativeTodoTimeline: View {
   }
 
   var body: some View {
-    ZStack(alignment: .topLeading) {
-      VStack(spacing: 0) {
-        ForEach(hours, id: \.self) { hour in
-          NativeTodoTimelineHourRow(hour: hour, height: hourHeight)
+    GeometryReader { proxy in
+      let laneWidth = eventWidth(containerWidth: proxy.size.width)
+
+      ZStack(alignment: .topLeading) {
+        VStack(spacing: 0) {
+          ForEach(hours, id: \.self) { hour in
+            NativeTodoTimelineHourRow(hour: hour, height: hourHeight)
+          }
+        }
+
+        ForEach(events) { event in
+          NativeTodoCalendarEventCard(accentColor: accentColor, event: event)
+            .frame(width: laneWidth, height: eventHeight(for: event))
+            .offset(
+              x: eventXOffset(for: event, laneWidth: laneWidth),
+              y: eventOffset(for: event)
+            )
         }
       }
-
-      if events.isEmpty {
-        Text("No scheduled tasks")
-          .font(.system(size: 13, weight: .semibold))
-          .foregroundColor(Color.black.opacity(0.38))
-          .offset(x: 60, y: 88)
-      }
-
-      ForEach(events) { event in
-        NativeTodoCalendarEventCard(accentColor: accentColor, event: event)
-          .frame(width: eventWidth, height: eventHeight(for: event))
-          .offset(
-            x: eventLaneStart + CGFloat(event.lane) * eventLaneWidth,
-            y: eventOffset(for: event)
-          )
-      }
-
     }
     .frame(height: timelineHeight, alignment: .topLeading)
+  }
+
+  private func eventWidth(containerWidth: CGFloat) -> CGFloat {
+    let availableWidth = max(0, containerWidth - eventLaneStart - eventLaneGap * (eventLaneCount - 1))
+    return max(44, floor(availableWidth / eventLaneCount))
+  }
+
+  private func eventXOffset(for event: NativeCalendarEvent, laneWidth: CGFloat) -> CGFloat {
+    eventLaneStart + CGFloat(event.lane) * (laneWidth + eventLaneGap)
   }
 
   private func eventOffset(for event: NativeCalendarEvent) -> CGFloat {

@@ -112,6 +112,11 @@ extension NativeChatStore {
     }
   }
 
+  func setTodoHideCompletedTasks(_ hidden: Bool) {
+    todoHideCompletedTasks = hidden
+    saveSettings()
+  }
+
   func setTodoTagsVisibleOnTaskCards(_ visible: Bool) {
     todoTagsVisibleOnTaskCards = visible
     saveSettings()

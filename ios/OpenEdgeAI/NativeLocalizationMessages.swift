@@ -165,6 +165,8 @@ extension NativeI18n {
     .todoUnstar: "중요 해제",
     .todoEdit: "수정",
     .todoDelete: "삭제",
+    .todoDisplay: "보기",
+    .todoHideCompletedTasks: "끝난 일은 없애기",
     .todoLabels: "태그",
     .todoShowLabelsOnTasks: "태그를 화면에 표시",
     .todoNewLabelName: "새 태그 이름",
@@ -352,6 +354,8 @@ extension NativeI18n {
     .todoUnstar: "Unmark important",
     .todoEdit: "Edit",
     .todoDelete: "Delete",
+    .todoDisplay: "Display",
+    .todoHideCompletedTasks: "Hide completed tasks",
     .todoLabels: "Tags",
     .todoShowLabelsOnTasks: "Show tags on screen",
     .todoNewLabelName: "New tag name",
@@ -411,19 +415,16 @@ extension NativeI18n {
     todo: ["Lista", "Calendario", "Atrasado", "Hoy", "Tareas", "Ayer", "Mañana"],
     actions: ["Listo", "Cancelar", "Guardar"]
   )
-
   static let compactFrenchMessages = compactMessages(
     settings: ["Général", "Modèle", "Personnalisation", "Apparence", "Infos", "Langue"],
     todo: ["Liste", "Calendrier", "En retard", "Aujourd'hui", "Tâches", "Hier", "Demain"],
     actions: ["Terminé", "Annuler", "Enregistrer"]
   )
-
   static let compactArabicMessages = compactMessages(
     settings: ["عام", "النموذج", "تخصيص", "المظهر", "معلومات", "اللغة"],
     todo: ["قائمة", "تقويم", "متأخر", "اليوم", "مهام", "أمس", "غدًا"],
     actions: ["تم", "إلغاء", "حفظ"]
   )
-
   static let compactBengaliMessages = compactMessages(
     settings: ["সাধারণ", "মডেল", "ব্যক্তিগতকরণ", "চেহারা", "তথ্য", "ভাষা"],
     todo: ["তালিকা", "ক্যালেন্ডার", "বিলম্বিত", "আজ", "কাজ", "গতকাল", "আগামীকাল"],

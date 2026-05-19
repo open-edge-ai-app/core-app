@@ -36,17 +36,16 @@ struct NativeTodoListView: View {
     Calendar.current
   }
 
-  private var visibleTodos: [NativeTodoItem] {
-    store.todoItems.filter { $0.recurrenceRule.isRepeating || !$0.isCompleted }
-  }
-
   private var overdueTodos: [NativeTodoItem] {
-    visibleTodos.filter { $0.isOverdue() }
+    store.todoItems.filter { $0.isOverdue() }
   }
 
   private var selectedDateTodos: [NativeTodoItem] {
-    visibleTodos.filter { item in
-      !item.isOverdue() && item.isVisible(on: selectedDate, calendar: calendar)
+    store.todoItems.filter { item in
+      guard !item.isOverdue(), item.occurs(on: selectedDate, calendar: calendar) else {
+        return false
+      }
+      return !store.todoHideCompletedTasks || !item.isCompleted(on: selectedDate, calendar: calendar)
     }
   }
 

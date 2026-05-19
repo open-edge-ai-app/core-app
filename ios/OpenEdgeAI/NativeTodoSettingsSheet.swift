@@ -16,6 +16,7 @@ struct NativeTodoSettingsSheet: View {
     NavigationStack {
       ScrollView(showsIndicators: false) {
         VStack(alignment: .leading, spacing: 22) {
+          displaySection
           labelSection
           calendarSection
         }
@@ -37,6 +38,25 @@ struct NativeTodoSettingsSheet: View {
     }
   }
 
+  private var displaySection: some View {
+    let i18n = store.i18n
+
+    return VStack(alignment: .leading, spacing: 12) {
+      Text(i18n.t(.todoDisplay))
+        .font(.system(size: 13, weight: .bold))
+        .foregroundColor(Color.black.opacity(0.48))
+
+      NativeTodoSettingsToggleRow(
+        title: i18n.t(.todoHideCompletedTasks),
+        isOn: Binding(
+          get: { store.todoHideCompletedTasks },
+          set: { store.setTodoHideCompletedTasks($0) }
+        ),
+        accentColor: store.accentColor.color
+      )
+    }
+  }
+
   private var labelSection: some View {
     let i18n = store.i18n
 
@@ -45,24 +65,14 @@ struct NativeTodoSettingsSheet: View {
         .font(.system(size: 13, weight: .bold))
         .foregroundColor(Color.black.opacity(0.48))
 
-      HStack(spacing: 12) {
-        Text(i18n.t(.todoShowLabelsOnTasks))
-          .font(.system(size: 16, weight: .semibold))
-          .foregroundColor(.black)
-
-        Spacer()
-
-        Toggle("", isOn: Binding(
+      NativeTodoSettingsToggleRow(
+        title: i18n.t(.todoShowLabelsOnTasks),
+        isOn: Binding(
           get: { store.todoTagsVisibleOnTaskCards },
           set: { store.setTodoTagsVisibleOnTaskCards($0) }
-        ))
-        .labelsHidden()
-        .tint(store.accentColor.color)
-      }
-      .padding(.horizontal, 14)
-      .frame(height: 52)
-      .background(Color.black.opacity(0.035))
-      .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        ),
+        accentColor: store.accentColor.color
+      )
 
       HStack(spacing: 10) {
         TextField(i18n.t(.todoNewLabelName), text: $newLabelTitle)
@@ -196,6 +206,30 @@ struct NativeTodoSettingsSheet: View {
       .background(Color.black.opacity(0.055))
       .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
+  }
+}
+
+struct NativeTodoSettingsToggleRow: View {
+  var title: String
+  @Binding var isOn: Bool
+  var accentColor: Color
+
+  var body: some View {
+    HStack(spacing: 12) {
+      Text(title)
+        .font(.system(size: 16, weight: .semibold))
+        .foregroundColor(.black)
+
+      Spacer()
+
+      Toggle("", isOn: $isOn)
+        .labelsHidden()
+        .tint(accentColor)
+    }
+    .padding(.horizontal, 14)
+    .frame(height: 52)
+    .background(Color.black.opacity(0.035))
+    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
   }
 }
 

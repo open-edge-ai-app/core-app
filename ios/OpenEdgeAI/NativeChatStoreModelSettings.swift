@@ -62,6 +62,7 @@ extension NativeChatStore {
       "backgroundDynamicIslandEnabled": backgroundDynamicIslandEnabled,
       "dynamicIslandPetEnabled": dynamicIslandPetEnabled,
       "selectedDynamicIslandPet": selectedDynamicIslandPet.rawValue,
+      "todoHideCompletedTasks": todoHideCompletedTasks,
       "todoTagsVisibleOnTaskCards": todoTagsVisibleOnTaskCards,
       "todoCalendarSyncEnabled": todoCalendarSyncEnabled
     ]

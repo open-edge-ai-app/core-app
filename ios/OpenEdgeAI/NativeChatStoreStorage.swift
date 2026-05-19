@@ -411,6 +411,7 @@ extension NativeChatStore {
     }
     backgroundExecutionEnabled = boolSetting(data["backgroundExecutionEnabled"], default: false)
     backgroundDynamicIslandEnabled = boolSetting(data["backgroundDynamicIslandEnabled"], default: true)
+    todoHideCompletedTasks = boolSetting(data["todoHideCompletedTasks"], default: true)
     todoTagsVisibleOnTaskCards = boolSetting(data["todoTagsVisibleOnTaskCards"], default: false)
     todoCalendarSyncEnabled = boolSetting(data["todoCalendarSyncEnabled"], default: false)
     if storedSettingsSchemaVersion < currentSettingsSchemaVersion {

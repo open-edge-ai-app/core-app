@@ -82,11 +82,7 @@ struct NativeTodoListView: View {
   }
 
   private var selectedTodoSectionTitle: String {
-    if calendar.isDateInToday(selectedDate) {
-      return store.i18n.t(.todoToday)
-    }
-
-    return store.i18n.shortDateTitle(for: selectedDate)
+    store.i18n.t(.todoTasks)
   }
 
   var body: some View {

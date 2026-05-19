@@ -41,7 +41,7 @@ struct NativeSearchView: View {
         NativeSearchResult(
           id: "project-\(project.id)",
           title: project.title,
-          subtitle: project.systemPrompt.isEmpty ? "프로젝트" : clipped(project.systemPrompt),
+          subtitle: project.systemPrompt.isEmpty ? store.i18n.t(.menuProjects) : clipped(project.systemPrompt),
           systemImage: project.iconName,
           kind: .project(project)
         )
@@ -95,7 +95,7 @@ struct NativeSearchView: View {
             .font(.system(size: 18, weight: .semibold))
             .foregroundColor(.oeSecondaryText)
 
-          TextField("검색", text: $query)
+          TextField(store.i18n.t(.searchTitle), text: $query)
             .focused($isSearchFocused)
             .font(.system(size: 17, weight: .medium))
             .foregroundColor(.oeText)
@@ -111,7 +111,7 @@ struct NativeSearchView: View {
                 .foregroundColor(.oeText.opacity(0.35))
             }
             .buttonStyle(.plain)
-            .accessibilityLabel("검색어 지우기")
+            .accessibilityLabel(store.i18n.t(.searchClearQuery))
           }
         }
         .padding(.horizontal, 14)
@@ -125,9 +125,9 @@ struct NativeSearchView: View {
         ScrollView(showsIndicators: false) {
           VStack(alignment: .leading, spacing: 24) {
             if normalizedQuery.isEmpty {
-              NativeSearchSection(title: "최근 대화") {
+              NativeSearchSection(title: store.i18n.t(.searchRecentChats)) {
                 if recentSessions.isEmpty {
-                  NativeSearchEmptyState(text: "최근 대화가 없습니다")
+                  NativeSearchEmptyState(text: store.i18n.t(.menuNoRecentChats))
                 } else {
                   ForEach(recentSessions) { session in
                     NativeSearchSessionButton(session: session, subtitle: session.updatedAt.formatted(date: .abbreviated, time: .shortened)) {
@@ -137,10 +137,10 @@ struct NativeSearchView: View {
                 }
               }
             } else if searchResults.isEmpty {
-              NativeSearchEmptyState(text: "검색 결과가 없습니다")
+              NativeSearchEmptyState(text: store.i18n.t(.searchNoResults))
                 .padding(.top, 80)
             } else {
-              NativeSearchSection(title: "검색 결과") {
+              NativeSearchSection(title: store.i18n.t(.searchResults)) {
                 ForEach(searchResults) { result in
                   NativeSearchResultRow(result: result) {
                     switch result.kind {
@@ -161,11 +161,11 @@ struct NativeSearchView: View {
         .scrollDismissesKeyboard(.interactively)
       }
       .background(Color.oeBackground)
-      .navigationTitle("검색")
+      .navigationTitle(store.i18n.t(.searchTitle))
       .navigationBarTitleDisplayMode(.inline)
       .toolbar {
         ToolbarItem(placement: .cancellationAction) {
-          Button("닫기") {
+          Button(store.i18n.t(.commonClose)) {
             dismiss()
           }
           .foregroundColor(.oeText)
@@ -194,7 +194,7 @@ struct NativeSearchView: View {
       .replacingOccurrences(of: "\n", with: " ")
       .trimmingCharacters(in: .whitespacesAndNewlines)
     guard !cleaned.isEmpty else {
-      return "대화"
+      return store.i18n.t(.searchConversationFallback)
     }
     return cleaned.count > 92 ? "\(cleaned.prefix(92))..." : cleaned
   }

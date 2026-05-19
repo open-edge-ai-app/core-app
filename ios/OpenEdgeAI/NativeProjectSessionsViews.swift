@@ -74,7 +74,7 @@ struct NativeProjectSessionsPage: View {
           .frame(width: 36, height: 36)
       }
       .buttonStyle(.plain)
-      .accessibilityLabel("프로젝트 목록")
+      .accessibilityLabel(store.i18n.t(.projectList))
 
       Button {
         renameTarget = .project(currentProject)
@@ -95,7 +95,7 @@ struct NativeProjectSessionsPage: View {
           .frame(width: 36, height: 36)
       }
       .buttonStyle(.plain)
-      .accessibilityLabel("프로젝트 공유")
+      .accessibilityLabel(store.i18n.t(.projectShare))
 
       Button {
         renameTarget = .project(currentProject)
@@ -105,7 +105,7 @@ struct NativeProjectSessionsPage: View {
           .frame(width: 36, height: 36)
       }
       .buttonStyle(.plain)
-      .accessibilityLabel("프로젝트 설정")
+      .accessibilityLabel(store.i18n.t(.menuProjectSettings))
     }
     .foregroundColor(.oeText)
     .padding(.horizontal, 16)
@@ -116,8 +116,8 @@ struct NativeProjectSessionsPage: View {
 
   private var tabBar: some View {
     HStack(spacing: 12) {
-      projectTabButton("채팅", tab: .chats)
-      projectTabButton("출처", tab: .sources)
+      projectTabButton(store.i18n.t(.projectChatTab), tab: .chats)
+      projectTabButton(store.i18n.t(.projectSourcesTab), tab: .sources)
       Spacer()
     }
   }
@@ -140,7 +140,7 @@ struct NativeProjectSessionsPage: View {
   private var chatList: some View {
     VStack(alignment: .leading, spacing: 20) {
       if projectSessions.isEmpty {
-        Text("프로젝트에 채팅이 없습니다")
+        Text(store.i18n.t(.projectNoChats))
           .font(.system(size: 14, weight: .medium))
           .foregroundColor(.oeMutedText)
           .frame(maxWidth: .infinity, alignment: .leading)
@@ -168,11 +168,11 @@ struct NativeProjectSessionsPage: View {
 
   private var sourcesPlaceholder: some View {
     VStack(alignment: .leading, spacing: 8) {
-      Text("출처가 없습니다")
+      Text(store.i18n.t(.projectNoSources))
         .font(.system(size: 15, weight: .semibold))
         .foregroundColor(.oeText)
 
-      Text("첨부 파일이나 참조 자료를 추가하면 여기에 표시됩니다.")
+      Text(store.i18n.t(.projectSourcesPlaceholder))
         .font(.system(size: 13, weight: .regular))
         .foregroundColor(.oeMutedText)
     }
@@ -191,13 +191,14 @@ struct NativeProjectSessionsPage: View {
       .replacingOccurrences(of: "\n", with: " ")
       .trimmingCharacters(in: .whitespacesAndNewlines)
     guard !cleaned.isEmpty else {
-      return "새 대화"
+      return store.i18n.t(.projectNewConversation)
     }
     return cleaned.count > 48 ? "\(cleaned.prefix(48))..." : cleaned
   }
 }
 
 struct NativeProjectSessionRow: View {
+  @EnvironmentObject private var store: NativeChatStore
   var session: NativeChatSession
   var subtitle: String
   var isWriting: Bool
@@ -229,7 +230,7 @@ struct NativeProjectSessionRow: View {
             .controlSize(.small)
             .tint(.oeMutedText)
             .frame(width: 18, height: 18)
-            .accessibilityLabel("응답 생성 중")
+            .accessibilityLabel(store.i18n.t(.chatGenerating))
         }
       }
       .frame(maxWidth: .infinity, alignment: .leading)
@@ -240,12 +241,12 @@ struct NativeProjectSessionRow: View {
       Button {
         onRename()
       } label: {
-        Label("이름 변경", systemImage: "pencil")
+        Label(store.i18n.t(.commonRename), systemImage: "pencil")
       }
 
       Menu {
         if availableProjects.isEmpty {
-          Text("추가할 프로젝트 없음")
+          Text(store.i18n.t(.menuNoProjectsToAdd))
         } else {
           ForEach(availableProjects) { project in
             Button {
@@ -256,14 +257,14 @@ struct NativeProjectSessionRow: View {
           }
         }
       } label: {
-        Label("프로젝트에 추가", systemImage: "folder.badge.plus")
+        Label(store.i18n.t(.menuAddToProject), systemImage: "folder.badge.plus")
       }
 
       Button(role: .destructive) {
-        onDelete()
-      } label: {
-        Label("삭제", systemImage: "trash")
-      }
+      onDelete()
+    } label: {
+      Label(store.i18n.t(.commonDelete), systemImage: "trash")
+    }
     }
   }
 }
@@ -346,7 +347,7 @@ struct NativeProjectComposerBar: View {
             .clipShape(Circle())
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("파일 첨부")
+        .accessibilityLabel(store.i18n.t(.chatAttachFile))
 
         VStack(alignment: .leading, spacing: 6) {
           if isSearchMode {
@@ -357,7 +358,7 @@ struct NativeProjectComposerBar: View {
 
           NativePromptEditor(
             text: $store.inputText,
-            placeholder: "\(project.title)에 메시지...",
+            placeholder: store.i18n.t(.projectMessagePlaceholder, ["name": project.title]),
             focused: $focused
           )
           .environmentObject(store)
@@ -373,7 +374,7 @@ struct NativeProjectComposerBar: View {
         }
         .buttonStyle(.plain)
         .disabled(!showsStopButton && !hasDraftInput)
-        .accessibilityLabel(showsStopButton ? "응답 중지" : "메시지 보내기")
+        .accessibilityLabel(showsStopButton ? store.i18n.t(.chatStopResponse) : store.i18n.t(.chatSendMessage))
       }
       .padding(.horizontal, 8)
       .padding(.vertical, 6)
@@ -413,6 +414,7 @@ struct NativeProjectComposerBar: View {
 }
 
 struct NativeSessionListRow: View {
+  @EnvironmentObject private var store: NativeChatStore
   var title: String
   var isWriting = false
 
@@ -430,7 +432,7 @@ struct NativeSessionListRow: View {
           .controlSize(.small)
           .tint(.oeMutedText)
           .frame(width: 18, height: 18)
-          .accessibilityLabel("응답 생성 중")
+          .accessibilityLabel(store.i18n.t(.chatGenerating))
       }
     }
     .padding(.horizontal, 4)

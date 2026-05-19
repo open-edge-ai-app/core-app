@@ -762,7 +762,7 @@ struct NativeMarkdownCodeBlock: View {
         }
         .buttonStyle(.plain)
         .foregroundColor(store.accentColor.color)
-        .accessibilityLabel("코드 복사")
+        .accessibilityLabel(store.i18n.t(.chatCopyCode))
       }
 
       ScrollView(.horizontal, showsIndicators: false) {

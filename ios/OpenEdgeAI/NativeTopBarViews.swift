@@ -15,7 +15,7 @@ struct NativeTopBar: View {
           .font(.system(size: 18, weight: .semibold))
           .frame(width: 36, height: 36)
       }
-      .accessibilityLabel("채팅 목록 열기")
+      .accessibilityLabel(store.i18n.t(.chatOpenList))
       .buttonStyle(.plain)
 
       Button {
@@ -60,7 +60,10 @@ struct NativeModelMenu: View {
           Button {
             store.downloadGemma()
           } label: {
-            Label(status.downloading ? "다운로드 중" : "다운로드", systemImage: status.downloading ? "arrow.triangle.2.circlepath" : "arrow.down.circle")
+            Label(
+              status.downloading ? store.i18n.t(.commonDownloading) : store.i18n.t(.commonDownload),
+              systemImage: status.downloading ? "arrow.triangle.2.circlepath" : "arrow.down.circle"
+            )
           }
         }
       }

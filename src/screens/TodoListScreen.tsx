@@ -10,6 +10,13 @@ import {
   View,
 } from 'react-native';
 
+import {
+  useI18n,
+} from '../i18n';
+import type {
+  I18nKey,
+  LocaleCode,
+} from '../i18n';
 import { ScaledText as Text } from '../theme/display';
 import { colors } from '../theme/tokens';
 
@@ -36,6 +43,11 @@ type TodoTask = {
   subtasks?: TodoSubtask[];
   title: string;
 };
+
+type Translate = (
+  key: I18nKey,
+  values?: Record<string, string | number>,
+) => string;
 
 const TODO_STORAGE_KEY = 'open-edge-ai.todo-list.v1';
 const CALENDAR_START_HOUR = 1;
@@ -124,6 +136,7 @@ const initialTasks: TodoTask[] = [
 ];
 
 export default function TodoListScreen() {
+  const { locale, t } = useI18n();
   const { width: screenWidth } = useWindowDimensions();
   const weekStripRef = useRef<ScrollView>(null);
   const calendarScrollRef = useRef<ScrollView>(null);
@@ -137,26 +150,26 @@ export default function TodoListScreen() {
   const [currentDate, setCurrentDate] = useState(() => new Date());
   const dateTitle = useMemo(
     () =>
-      new Intl.DateTimeFormat('en-US', {
+      new Intl.DateTimeFormat(locale, {
         day: '2-digit',
         month: 'long',
         weekday: 'short',
       }).format(selectedDate),
-    [selectedDate],
+    [locale, selectedDate],
   );
   const selectedSectionTitle = useMemo(
     () =>
       isSameCalendarDay(selectedDate, new Date())
-        ? 'Today'
-        : new Intl.DateTimeFormat('en-US', {
+        ? t('todo.today')
+        : new Intl.DateTimeFormat(locale, {
             day: 'numeric',
             month: 'short',
           }).format(selectedDate),
-    [selectedDate],
+    [locale, selectedDate, t],
   );
   const weekDays = useMemo(
-    () => buildWeekDays(selectedDate),
-    [selectedDate],
+    () => buildWeekDays(selectedDate, locale),
+    [locale, selectedDate],
   );
   const calendarEventWidth = useMemo(
     () => getCalendarEventWidth(screenWidth),
@@ -266,7 +279,7 @@ export default function TodoListScreen() {
 
   const addTask = () => {
     const startHour = 13 + (selectedDateTasks.length % 5);
-    const nextTask: TodoTask = {
+      const nextTask: TodoTask = {
       dueDateISO: dateOnSelectedDay(selectedDate, startHour),
       dueLabel: isSameCalendarDay(selectedDate, new Date()) ? 'Today' : 'Tasks',
       durationHours: 1,
@@ -274,7 +287,7 @@ export default function TodoListScreen() {
       note: '',
       repeatRule: 'none',
       startHour,
-      title: 'New Todo',
+      title: t('todo.newTodo'),
     };
     setTasks(current => [nextTask, ...current]);
   };
@@ -404,7 +417,7 @@ export default function TodoListScreen() {
                 tab === 'all' && styles.segmentedTextActive,
               ]}
             >
-              리스트
+              {t('todo.list')}
             </Text>
           </Pressable>
           <Pressable
@@ -420,7 +433,7 @@ export default function TodoListScreen() {
                 tab === 'calendar' && styles.segmentedTextActive,
               ]}
             >
-              캘린더
+              {t('todo.calendar')}
             </Text>
           </Pressable>
         </View>
@@ -434,7 +447,7 @@ export default function TodoListScreen() {
           <SectionHeader
             expanded={isOverdueExpanded}
             onPress={() => setOverdueExpanded(current => !current)}
-            title="Overdue"
+            title={t('todo.overdue')}
           />
           {isOverdueExpanded
             ? overdueTasks.map(task => (
@@ -443,6 +456,8 @@ export default function TodoListScreen() {
                   onToggleComplete={() => toggleTaskComplete(task.id)}
                   onToggleStar={() => toggleTaskStar(task.id)}
                   onToggleSubtask={subtaskId => toggleSubtask(task.id, subtaskId)}
+                  dueLabel={formatTaskDueLabel(task, locale, t)}
+                  repeatText={repeatLabel(task.repeatRule, t)}
                   task={task}
                 />
               ))
@@ -459,6 +474,8 @@ export default function TodoListScreen() {
                   onToggleComplete={() => toggleTaskComplete(task.id)}
                   onToggleStar={() => toggleTaskStar(task.id)}
                   onToggleSubtask={subtaskId => toggleSubtask(task.id, subtaskId)}
+                  dueLabel={formatTaskDueLabel(task, locale, t)}
+                  repeatText={repeatLabel(task.repeatRule, t)}
                   task={task}
                 />
               ))
@@ -473,7 +490,7 @@ export default function TodoListScreen() {
           >
             {CALENDAR_HOURS.map(hour => (
                 <View key={hour} style={styles.hourRow}>
-                  <Text style={styles.hourText}>{formatTimelineHour(hour)}</Text>
+                  <Text style={styles.hourText}>{formatTimelineHour(hour, locale)}</Text>
                   <View style={styles.hourGuide}>
                     <View style={styles.hourLine} />
                     {hour < 24 ? <View style={styles.halfHourTick} /> : null}
@@ -486,6 +503,7 @@ export default function TodoListScreen() {
                   eventWidth={calendarEventWidth}
                   key={task.id}
                   lane={index}
+                  locale={locale}
                   task={task}
                 />
               ))
@@ -535,14 +553,18 @@ function SectionHeader({
 }
 
 function TodoCard({
+  dueLabel,
   onToggleComplete,
   onToggleStar,
   onToggleSubtask,
+  repeatText,
   task,
 }: {
+  dueLabel: string;
   onToggleComplete: () => void;
   onToggleStar: () => void;
   onToggleSubtask: (subtaskId: string) => void;
+  repeatText: string;
   task: TodoTask;
 }) {
   return (
@@ -565,10 +587,10 @@ function TodoCard({
                 task.isOverdue && styles.overdueText,
               ]}
             >
-              {task.dueLabel}
+              {dueLabel}
             </Text>
             <Text style={styles.metaDot}>•</Text>
-            <Text style={styles.metaText}>{repeatLabel(task.repeatRule)}</Text>
+            <Text style={styles.metaText}>{repeatText}</Text>
             <View style={styles.flexSpacer} />
             <Pressable onPress={onToggleStar}>
               <Text
@@ -607,10 +629,12 @@ function TodoCard({
 function CalendarBlock({
   eventWidth,
   lane,
+  locale,
   task,
 }: {
   eventWidth: number;
   lane: number;
+  locale: LocaleCode;
   task: TodoTask;
 }) {
   const startHour = task.startHour ?? 13;
@@ -637,7 +661,7 @@ function CalendarBlock({
           <Text style={styles.calendarBlockAccent}>{formatCalendarAccent(task.title)}</Text>
           <View style={styles.flexSpacer} />
           <Text style={styles.calendarBlockTime}>
-            {formatHour(startHour)} -{'\n'}{formatHour(endHour)}
+            {formatHour(startHour, locale)} -{'\n'}{formatHour(endHour, locale)}
           </Text>
         </>
       )}
@@ -653,18 +677,19 @@ function formatCalendarAccent(title: string) {
   return title.split(/\s+/).filter(Boolean).slice(0, 2).join('-\n') || 'Todo';
 }
 
-function formatHour(hour: number) {
+function formatHour(hour: number, locale: LocaleCode) {
   const boundedHour = Math.min(Math.max(hour, 1), 24);
   const wholeHour = Math.floor(boundedHour);
   const minute = Math.round((boundedHour - wholeHour) * 60);
   if (minute === 0) {
-    return formatTimelineHour(wholeHour);
+    return formatTimelineHour(wholeHour, locale);
   }
   return `${String(wholeHour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
 }
 
-function formatTimelineHour(hour: number) {
-  return `${String(hour).padStart(2, '0')}시`;
+function formatTimelineHour(hour: number, locale: LocaleCode = 'ko') {
+  const hourText = String(hour).padStart(2, '0');
+  return locale === 'ko' ? `${hourText}시` : `${hourText}:00`;
 }
 
 function formatCurrentTimeLabel(hour: number) {
@@ -686,7 +711,7 @@ function dateKey(date: Date) {
   return `${date.getFullYear()}-${date.getMonth() + 1}-${date.getDate()}`;
 }
 
-function buildWeekDays(selectedDate: Date) {
+function buildWeekDays(selectedDate: Date, locale: LocaleCode) {
   const startDate = new Date(selectedDate);
   startDate.setDate(selectedDate.getDate() - CENTER_DATE_INDEX);
   startDate.setHours(0, 0, 0, 0);
@@ -696,7 +721,7 @@ function buildWeekDays(selectedDate: Date) {
     date.setDate(startDate.getDate() + index);
     return {
       date,
-      dayLabel: new Intl.DateTimeFormat('en-US', { weekday: 'short' }).format(date).slice(0, 1),
+      dayLabel: new Intl.DateTimeFormat(locale, { weekday: 'narrow' }).format(date),
       id: date.toISOString(),
       isSelected: isSameCalendarDay(date, selectedDate),
       numberLabel: String(date.getDate()).padStart(2, '0'),
@@ -761,20 +786,51 @@ function startOfCalendarDay(date: Date) {
   return value;
 }
 
-function repeatLabel(repeatRule?: TodoRepeatRule) {
+function repeatLabel(repeatRule: TodoRepeatRule | undefined, t: Translate) {
   switch (repeatRule) {
     case 'daily':
-      return '매일';
+      return t('todo.repeat.daily');
     case 'weekdays':
-      return '평일';
+      return t('todo.repeat.weekdays');
     case 'weekly':
-      return '매주';
+      return t('todo.repeat.weekly');
     case 'monthly':
-      return '매월';
+      return t('todo.repeat.monthly');
     case 'none':
     default:
-      return 'Tasks';
+      return t('todo.repeat.none');
   }
+}
+
+function formatTaskDueLabel(
+  task: TodoTask,
+  locale: LocaleCode,
+  t: Translate,
+) {
+  const dueDate = taskDate(task);
+  const today = new Date();
+
+  if (isSameCalendarDay(dueDate, today)) {
+    return t('todo.today');
+  }
+
+  const yesterday = new Date(today);
+  yesterday.setDate(today.getDate() - 1);
+  if (isSameCalendarDay(dueDate, yesterday)) {
+    return t('todo.yesterday');
+  }
+
+  const tomorrow = new Date(today);
+  tomorrow.setDate(today.getDate() + 1);
+  if (isSameCalendarDay(dueDate, tomorrow)) {
+    return t('todo.tomorrow');
+  }
+
+  return new Intl.DateTimeFormat(locale, {
+    day: 'numeric',
+    month: 'short',
+    year: dueDate.getFullYear() === today.getFullYear() ? undefined : 'numeric',
+  }).format(dueDate);
 }
 
 function getCalendarEventWidth(screenWidth: number) {

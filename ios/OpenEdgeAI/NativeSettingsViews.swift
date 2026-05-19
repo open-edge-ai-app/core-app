@@ -5,6 +5,8 @@ struct NativeSettingsView: View {
   @EnvironmentObject private var store: NativeChatStore
 
   var body: some View {
+    let i18n = store.i18n
+
     NavigationStack {
       List {
         Section {
@@ -13,7 +15,7 @@ struct NativeSettingsView: View {
           } label: {
             NativeSettingsNavigationRow(
               icon: "gearshape",
-              title: "일반"
+              title: i18n.t(.settingsGeneral)
             )
           }
 
@@ -22,7 +24,7 @@ struct NativeSettingsView: View {
           } label: {
             NativeSettingsNavigationRow(
               icon: "cpu",
-              title: "모델"
+              title: i18n.t(.settingsModel)
             )
           }
 
@@ -31,7 +33,7 @@ struct NativeSettingsView: View {
           } label: {
             NativeSettingsNavigationRow(
               icon: "person.crop.circle",
-              title: "개인 맞춤 설정"
+              title: i18n.t(.settingsPersonalization)
             )
           }
 
@@ -40,7 +42,7 @@ struct NativeSettingsView: View {
           } label: {
             NativeSettingsNavigationRow(
               icon: "circle.lefthalf.filled",
-              title: "모양"
+              title: i18n.t(.settingsAppearance)
             )
           }
 
@@ -49,7 +51,7 @@ struct NativeSettingsView: View {
           } label: {
             NativeSettingsNavigationRow(
               icon: "info.circle",
-              title: "정보"
+              title: i18n.t(.settingsInfo)
             )
           }
         }
@@ -67,7 +69,7 @@ struct NativeSettingsView: View {
         }
 
         ToolbarItem(placement: .confirmationAction) {
-          Button("완료") {
+          Button(i18n.t(.commonDone)) {
             store.saveSettings()
             dismiss()
           }
@@ -101,19 +103,21 @@ struct NativeGeneralSettingsView: View {
   @EnvironmentObject private var store: NativeChatStore
 
   var body: some View {
+    let i18n = store.i18n
+
     List {
-      Section("백그라운드") {
-        Toggle("백그라운드 실행", isOn: $store.backgroundExecutionEnabled)
+      Section(i18n.t(.settingsBackground)) {
+        Toggle(i18n.t(.settingsBackgroundExecution), isOn: $store.backgroundExecutionEnabled)
           .tint(store.accentColor.color)
 
-        Toggle("백그라운드 Dynamic Island 활성", isOn: $store.backgroundDynamicIslandEnabled)
+        Toggle(i18n.t(.settingsBackgroundDynamicIsland), isOn: $store.backgroundDynamicIslandEnabled)
           .tint(store.accentColor.color)
           .disabled(!store.backgroundExecutionEnabled)
           .opacity(store.backgroundExecutionEnabled ? 1 : 0.42)
       }
 
-      Section("Dynamic Island 펫") {
-        Toggle("Dynamic Island 펫 활성", isOn: $store.dynamicIslandPetEnabled)
+      Section(i18n.t(.settingsDynamicIslandPet)) {
+        Toggle(i18n.t(.settingsDynamicIslandPetEnabled), isOn: $store.dynamicIslandPetEnabled)
           .tint(store.accentColor.color)
           .disabled(!store.canRunBackgroundDynamicIsland)
 
@@ -127,6 +131,7 @@ struct NativeGeneralSettingsView: View {
             store.saveSettings()
           } label: {
             NativeDynamicIslandPetOption(
+              i18n: i18n,
               pet: pet,
               isSelected: store.selectedDynamicIslandPet == pet
             )
@@ -138,8 +143,8 @@ struct NativeGeneralSettingsView: View {
       .disabled(!store.canRunBackgroundDynamicIsland)
       .opacity(store.canRunBackgroundDynamicIsland ? 1 : 0.42)
 
-      Section("언어") {
-        Picker("언어", selection: $store.selectedLanguage) {
+      Section(i18n.t(.settingsLanguage)) {
+        Picker(i18n.t(.settingsLanguage), selection: $store.selectedLanguage) {
           ForEach(NativeLanguage.allCases) { language in
             Text("\(language.nativeName) · \(language.englishName)")
               .tag(language)
@@ -147,7 +152,7 @@ struct NativeGeneralSettingsView: View {
         }
       }
     }
-    .navigationTitle("일반")
+    .navigationTitle(i18n.t(.settingsGeneral))
     .navigationBarTitleDisplayMode(.inline)
     .onChange(of: store.backgroundExecutionEnabled) { _, isEnabled in
       if !isEnabled {
@@ -187,6 +192,7 @@ struct NativeGeneralSettingsView: View {
 }
 
 struct NativeDynamicIslandPetOption: View {
+  var i18n: NativeI18n
   var pet: NativeDynamicIslandPet
   var isSelected: Bool
 
@@ -206,7 +212,7 @@ struct NativeDynamicIslandPetOption: View {
           .font(.system(size: 16, weight: .semibold))
           .foregroundColor(.oeText)
 
-        Text(pet.subtitle)
+        Text(pet.localizedSubtitle(i18n))
           .font(.system(size: 12))
           .foregroundColor(.oeSecondaryText)
           .lineLimit(1)
@@ -229,6 +235,8 @@ struct NativeModelSettingsView: View {
   @EnvironmentObject private var store: NativeChatStore
 
   var body: some View {
+    let i18n = store.i18n
+
     List {
       Section {
         ForEach(NativeModel.allCases) { model in
@@ -238,7 +246,7 @@ struct NativeModelSettingsView: View {
               VStack(alignment: .leading, spacing: 3) {
                 Text(model.title)
                   .font(.system(size: 16, weight: .semibold))
-                Text(model.subtitle)
+                Text(model.localizedSubtitle(i18n))
                   .font(.system(size: 13))
                   .foregroundColor(.oeMutedText)
               }
@@ -260,7 +268,7 @@ struct NativeModelSettingsView: View {
             }
 
             HStack {
-              Button("선택") {
+              Button(i18n.t(.commonSelect)) {
                 store.selectedModel = model
                 store.saveSettings()
                 store.loadSelectedModel()
@@ -269,7 +277,7 @@ struct NativeModelSettingsView: View {
               .tint(store.accentColor.color)
 
               if model == .gemma && !status.installed {
-                Button(status.downloading ? "다운로드 중" : "다운로드") {
+                Button(status.downloading ? i18n.t(.commonDownloading) : i18n.t(.commonDownload)) {
                   store.downloadGemma()
                 }
                 .buttonStyle(.borderedProminent)
@@ -281,7 +289,7 @@ struct NativeModelSettingsView: View {
         }
       }
     }
-    .navigationTitle("모델")
+    .navigationTitle(i18n.t(.settingsModel))
     .navigationBarTitleDisplayMode(.inline)
   }
 }
@@ -290,16 +298,18 @@ struct NativeAppearanceSettingsView: View {
   @EnvironmentObject private var store: NativeChatStore
 
   var body: some View {
+    let i18n = store.i18n
+
     List {
-      Section("글씨 크기") {
+      Section(i18n.t(.settingsFontSize)) {
         VStack(alignment: .leading, spacing: 12) {
           HStack {
-            Text("글씨 크기")
+            Text(i18n.t(.settingsFontSize))
               .font(.system(size: 16, weight: .semibold))
 
             Spacer()
 
-            Text(store.fontSizeSetting.title)
+            Text(store.fontSizeSetting.localizedTitle(i18n))
               .font(.system(size: 13, weight: .medium))
               .foregroundColor(.oeMutedText)
           }
@@ -316,7 +326,7 @@ struct NativeAppearanceSettingsView: View {
 
           HStack {
             ForEach(NativeFontSizeSetting.allCases) { setting in
-              Text(setting.title)
+              Text(setting.localizedTitle(i18n))
                 .font(.system(size: 12, weight: .medium))
                 .foregroundColor(Color.oeText.opacity(store.fontSizeSetting == setting ? 0.82 : 0.36))
                 .frame(maxWidth: .infinity, alignment: alignment(for: setting))
@@ -325,25 +335,25 @@ struct NativeAppearanceSettingsView: View {
         }
 
         HStack {
-          Text("미리보기")
+          Text(i18n.t(.settingsPreview))
             .font(.system(size: store.fontSizeSetting.bodySize))
           Spacer()
-          Text(store.fontSizeSetting.title)
+          Text(store.fontSizeSetting.localizedTitle(i18n))
             .font(.system(size: 13))
             .foregroundColor(.oeMutedText)
         }
       }
 
-      Section("화면 모드") {
-        Picker("모드", selection: $store.appearanceMode) {
+      Section(i18n.t(.settingsDisplayMode)) {
+        Picker(i18n.t(.settingsMode), selection: $store.appearanceMode) {
           ForEach(NativeAppearanceMode.allCases) { mode in
-            Text(mode.title).tag(mode)
+            Text(mode.localizedTitle(i18n)).tag(mode)
           }
         }
         .pickerStyle(.segmented)
       }
 
-      Section("강조 컬러") {
+      Section(i18n.t(.settingsAccentColor)) {
         ForEach(NativeAccentColor.allCases) { accentColor in
           Button {
             store.accentColor = accentColor
@@ -358,7 +368,7 @@ struct NativeAppearanceSettingsView: View {
                     .stroke(Color.oeBorder, lineWidth: 1)
                 )
 
-              Text(accentColor.title)
+              Text(accentColor.localizedTitle(i18n))
                 .foregroundColor(.oeText)
 
               Spacer()
@@ -374,7 +384,7 @@ struct NativeAppearanceSettingsView: View {
         }
       }
     }
-    .navigationTitle("모양")
+    .navigationTitle(i18n.t(.settingsAppearance))
     .navigationBarTitleDisplayMode(.inline)
     .onChange(of: store.fontSizeSetting) { _, _ in
       store.saveSettings()
@@ -401,36 +411,38 @@ struct NativePersonalSettingsView: View {
   private let personalities = ["Balanced", "Direct", "Friendly", "Creative", "Precise"]
 
   var body: some View {
+    let i18n = store.i18n
+
     List {
-      Section("기본 정보") {
-        TextField("이름", text: $store.userName)
-        Picker("성격", selection: $store.personality) {
+      Section(i18n.t(.settingsBasicInfo)) {
+        TextField(i18n.t(.settingsName), text: $store.userName)
+        Picker(i18n.t(.settingsPersonality), selection: $store.personality) {
           ForEach(personalities, id: \.self) { personality in
             Text(personality).tag(personality)
           }
         }
       }
 
-      Section("메모리") {
-        Toggle("메모리 활성", isOn: $store.memoryEnabled)
+      Section(i18n.t(.settingsMemory)) {
+        Toggle(i18n.t(.settingsMemoryEnabled), isOn: $store.memoryEnabled)
           .tint(store.accentColor.color)
         HStack {
-          Text("인덱싱된 항목")
+          Text(i18n.t(.settingsIndexedItems))
           Spacer()
-          Text("\(store.localMemoryIndexedItems)개")
+          Text(i18n.t(.settingsIndexedItemCount, ["count": String(store.localMemoryIndexedItems)]))
             .foregroundColor(.oeMutedText)
         }
-        Button("메모리 다시 인덱싱") {
+        Button(i18n.t(.settingsRebuildMemory)) {
           store.rebuildLocalMemoryIndex()
         }
       }
 
-      Section("맞춤형 지침") {
+      Section(i18n.t(.settingsCustomInstructions)) {
         TextEditor(text: $store.systemPrompt)
           .frame(minHeight: 160)
       }
     }
-    .navigationTitle("개인 맞춤 설정")
+    .navigationTitle(i18n.t(.settingsPersonalization))
     .navigationBarTitleDisplayMode(.inline)
     .onDisappear {
       store.saveSettings()
@@ -439,29 +451,33 @@ struct NativePersonalSettingsView: View {
 }
 
 struct NativeAppInfoSettingsView: View {
+  @EnvironmentObject private var store: NativeChatStore
+
   var body: some View {
+    let i18n = store.i18n
+
     List {
-      Section("지원") {
-        Link("문제 신고하기", destination: URL(string: "https://github.com/open-edge-ai-app/core-app/issues")!)
-        Link("기여하기", destination: URL(string: "https://github.com/open-edge-ai-app/core-app")!)
+      Section(i18n.t(.settingsSupport)) {
+        Link(i18n.t(.settingsReportIssue), destination: URL(string: "https://github.com/open-edge-ai-app/core-app/issues")!)
+        Link(i18n.t(.settingsContribute), destination: URL(string: "https://github.com/open-edge-ai-app/core-app")!)
       }
 
-      Section("앱 정보") {
+      Section(i18n.t(.settingsAppInfo)) {
         HStack {
-          Text("버전")
+          Text(i18n.t(.settingsVersion))
           Spacer()
           Text(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.0.1")
             .foregroundColor(.oeMutedText)
         }
         HStack {
-          Text("플랫폼")
+          Text(i18n.t(.settingsPlatform))
           Spacer()
-          Text("iOS native")
+          Text(i18n.t(.settingsPlatformIosNative))
             .foregroundColor(.oeMutedText)
         }
       }
     }
-    .navigationTitle("정보")
+    .navigationTitle(i18n.t(.settingsInfo))
     .navigationBarTitleDisplayMode(.inline)
   }
 }

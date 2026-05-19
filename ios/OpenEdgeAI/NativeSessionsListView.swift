@@ -33,15 +33,15 @@ struct NativeSessionsView: View {
     Button {
       navigationPath = [.todoList]
     } label: {
-      NativeSessionsIconRow(systemImage: "checklist", title: "Todo List")
+      NativeSessionsIconRow(systemImage: "checklist", title: store.i18n.t(.menuTodoList))
     }
     .buttonStyle(.plain)
 
-    NativeSessionsSection(title: "프로젝트") {
+    NativeSessionsSection(title: store.i18n.t(.menuProjects)) {
       Button {
         isProjectCreatorPresented = true
       } label: {
-        NativeSessionsIconRow(systemImage: "folder.badge.plus", title: "새 프로젝트")
+        NativeSessionsIconRow(systemImage: "folder.badge.plus", title: store.i18n.t(.menuNewProject))
       }
       .buttonStyle(.plain)
 
@@ -56,7 +56,7 @@ struct NativeSessionsView: View {
           Button {
             renameTarget = .project(project)
           } label: {
-            Label("프로젝트 설정", systemImage: "slider.horizontal.3")
+            Label(store.i18n.t(.menuProjectSettings), systemImage: "slider.horizontal.3")
           }
 
           Button(role: .destructive) {
@@ -68,14 +68,14 @@ struct NativeSessionsView: View {
               return false
             }
           } label: {
-            Label("삭제", systemImage: "trash")
+            Label(store.i18n.t(.commonDelete), systemImage: "trash")
           }
         }
       }
     }
 
-    NativeSessionsSection(title: "최근") {
-      sessionList(recentSessions, emptyText: "최근 대화가 없습니다")
+    NativeSessionsSection(title: store.i18n.t(.menuRecent)) {
+      sessionList(recentSessions, emptyText: store.i18n.t(.menuNoRecentChats))
     }
   }
 
@@ -112,13 +112,13 @@ struct NativeSessionsView: View {
     Button {
       renameTarget = .session(id: session.id, title: session.title)
     } label: {
-      Label("이름 변경", systemImage: "pencil")
+      Label(store.i18n.t(.commonRename), systemImage: "pencil")
     }
 
     Menu {
       let availableProjects = store.projects.filter { $0.id != session.projectId }
       if availableProjects.isEmpty {
-        Text("추가할 프로젝트 없음")
+        Text(store.i18n.t(.menuNoProjectsToAdd))
       } else {
         ForEach(availableProjects) { project in
           Button {
@@ -129,13 +129,13 @@ struct NativeSessionsView: View {
         }
       }
     } label: {
-      Label("프로젝트에 추가", systemImage: "folder.badge.plus")
+      Label(store.i18n.t(.menuAddToProject), systemImage: "folder.badge.plus")
     }
 
     Button(role: .destructive) {
       store.deleteSession(session)
     } label: {
-      Label("삭제", systemImage: "trash")
+      Label(store.i18n.t(.commonDelete), systemImage: "trash")
     }
   }
 
@@ -179,7 +179,7 @@ struct NativeSessionsView: View {
           HStack(spacing: 6) {
             Image(systemName: "square.and.pencil")
               .font(.system(size: 17, weight: .semibold))
-            Text("채팅")
+            Text(store.i18n.t(.chatButton))
               .font(.system(size: 15, weight: .bold))
           }
           .foregroundColor(store.accentColor.foregroundColor)
@@ -190,7 +190,7 @@ struct NativeSessionsView: View {
           .shadow(color: Color.black.opacity(0.16), radius: 14, x: 0, y: 8)
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("새 채팅")
+        .accessibilityLabel(store.i18n.t(.chatNewChat))
         .padding(.trailing, 26)
         .padding(.bottom, 26)
       }

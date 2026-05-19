@@ -29,8 +29,8 @@ struct NativeRenameSheet: View {
     NavigationStack {
       ScrollView(showsIndicators: false) {
         VStack(alignment: .leading, spacing: 24) {
-          NativeProjectCreatorSection(title: target.fieldTitle) {
-            TextField(target.placeholder, text: $title)
+          NativeProjectCreatorSection(title: target.localizedFieldTitle(store.i18n)) {
+            TextField(target.localizedPlaceholder(store.i18n), text: $title)
               .focused($isFocused)
               .font(.system(size: 17, weight: .semibold))
               .foregroundColor(.oeText)
@@ -42,7 +42,7 @@ struct NativeRenameSheet: View {
           }
 
           if target.isProject {
-            NativeProjectCreatorSection(title: "아이콘") {
+            NativeProjectCreatorSection(title: store.i18n.t(.projectIcon)) {
               LazyVGrid(
                 columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: 3),
                 alignment: .leading,
@@ -60,7 +60,7 @@ struct NativeRenameSheet: View {
               }
             }
 
-            NativeProjectCreatorSection(title: "시스템 프롬프트") {
+            NativeProjectCreatorSection(title: store.i18n.t(.projectSystemPrompt)) {
               ZStack(alignment: .topLeading) {
                 TextEditor(text: $systemPrompt)
                   .font(.system(size: 16, weight: .regular))
@@ -71,7 +71,7 @@ struct NativeRenameSheet: View {
                   .frame(minHeight: 168)
 
                 if systemPrompt.isEmpty {
-                  Text("이 프로젝트에서 항상 적용할 지침을 입력하세요.")
+                  Text(store.i18n.t(.projectInstructionPlaceholder))
                     .font(.system(size: 16, weight: .regular))
                     .foregroundColor(.oeText.opacity(0.35))
                     .padding(.horizontal, 17)
@@ -89,18 +89,18 @@ struct NativeRenameSheet: View {
         .padding(.bottom, 34)
       }
       .background(Color.oeBackground)
-      .navigationTitle(target.navigationTitle)
+      .navigationTitle(target.localizedNavigationTitle(store.i18n))
       .navigationBarTitleDisplayMode(.inline)
       .toolbar {
         ToolbarItem(placement: .cancellationAction) {
-          Button("취소") {
+          Button(store.i18n.t(.commonCancel)) {
             dismiss()
           }
           .foregroundColor(.oeText)
         }
 
         ToolbarItem(placement: .confirmationAction) {
-          Button("저장", action: save)
+          Button(store.i18n.t(.commonSave), action: save)
             .fontWeight(.semibold)
             .foregroundColor(canSave ? store.accentColor.color : Color.oeText.opacity(0.3))
             .disabled(!canSave)
@@ -155,8 +155,8 @@ struct NativeProjectCreatorView: View {
     NavigationStack {
       ScrollView(showsIndicators: false) {
         VStack(alignment: .leading, spacing: 26) {
-          NativeProjectCreatorSection(title: "프로젝트 이름") {
-            TextField("예: Atlas", text: $projectTitle)
+          NativeProjectCreatorSection(title: store.i18n.t(.projectName)) {
+            TextField(store.i18n.t(.renameProjectPlaceholder), text: $projectTitle)
               .focused($focusedField, equals: .title)
               .font(.system(size: 17, weight: .semibold))
               .foregroundColor(.oeText)
@@ -167,7 +167,7 @@ struct NativeProjectCreatorView: View {
               .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
           }
 
-          NativeProjectCreatorSection(title: "아이콘") {
+          NativeProjectCreatorSection(title: store.i18n.t(.projectIcon)) {
             LazyVGrid(
               columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: 3),
               alignment: .leading,
@@ -185,7 +185,7 @@ struct NativeProjectCreatorView: View {
             }
           }
 
-          NativeProjectCreatorSection(title: "시스템 프롬프트") {
+          NativeProjectCreatorSection(title: store.i18n.t(.projectSystemPrompt)) {
             ZStack(alignment: .topLeading) {
               TextEditor(text: $systemPrompt)
                 .focused($focusedField, equals: .systemPrompt)
@@ -197,7 +197,7 @@ struct NativeProjectCreatorView: View {
                 .frame(minHeight: 168)
 
               if systemPrompt.isEmpty {
-                Text("이 프로젝트에서 항상 적용할 지침을 입력하세요.")
+                Text(store.i18n.t(.projectInstructionPlaceholder))
                   .font(.system(size: 16, weight: .regular))
                   .foregroundColor(.oeText.opacity(0.35))
                   .padding(.horizontal, 17)
@@ -214,18 +214,18 @@ struct NativeProjectCreatorView: View {
         .padding(.bottom, 34)
       }
       .background(Color.oeBackground)
-      .navigationTitle("새 프로젝트")
+      .navigationTitle(store.i18n.t(.projectNew))
       .navigationBarTitleDisplayMode(.inline)
       .toolbar {
         ToolbarItem(placement: .cancellationAction) {
-          Button("취소") {
+          Button(store.i18n.t(.commonCancel)) {
             dismiss()
           }
           .foregroundColor(.oeText)
         }
 
         ToolbarItem(placement: .confirmationAction) {
-          Button("생성", action: createProject)
+          Button(store.i18n.t(.projectCreate), action: createProject)
             .fontWeight(.semibold)
             .foregroundColor(canCreate ? store.accentColor.color : Color.oeText.opacity(0.3))
             .disabled(!canCreate)
@@ -309,7 +309,7 @@ struct NativeSessionsSearchPill: View {
           .foregroundColor(store.accentColor.color)
       }
       .buttonStyle(.plain)
-      .accessibilityLabel("대화 검색")
+      .accessibilityLabel(store.i18n.t(.searchTitle))
 
       Button(action: onSettingsPress) {
         Image(systemName: "gearshape")
@@ -318,7 +318,7 @@ struct NativeSessionsSearchPill: View {
           .frame(width: 32, height: 32)
       }
       .buttonStyle(.plain)
-      .accessibilityLabel("설정 열기")
+      .accessibilityLabel(store.i18n.t(.commonOpenSettings))
     }
     .padding(.leading, 16)
     .padding(.trailing, 8)

@@ -45,22 +45,22 @@ struct NativeRootView: View {
       NativeSettingsView()
         .environmentObject(store)
     }
-    .confirmationDialog("첨부 추가", isPresented: $showingAttachmentOptions, titleVisibility: .visible) {
+    .confirmationDialog(store.i18n.t(.attachmentAdd), isPresented: $showingAttachmentOptions, titleVisibility: .visible) {
       Button {
         requestPhotoLibraryAccess()
       } label: {
-        Label("사진 또는 동영상", systemImage: "photo.on.rectangle")
+        Label(store.i18n.t(.attachmentPhotoOrVideo), systemImage: "photo.on.rectangle")
       }
 
       Button {
         showingFileImporter = true
       } label: {
-        Label("파일", systemImage: "doc")
+        Label(store.i18n.t(.attachmentFile), systemImage: "doc")
       }
 
-      Button("취소", role: .cancel) {}
+      Button(store.i18n.t(.commonCancel), role: .cancel) {}
     } message: {
-      Text("이미지, 동영상, 문서 파일을 대화에 첨부할 수 있습니다.")
+      Text(store.i18n.t(.attachmentDialogMessage))
     }
     .photosPicker(
       isPresented: $showingPhotoPicker,
@@ -80,13 +80,13 @@ struct NativeRootView: View {
         }
       }
     }
-    .alert("사진 접근 권한 필요", isPresented: $showingPhotoPermissionAlert) {
-      Button("확인", role: .cancel) {}
-      Button("설정 열기") {
+    .alert(store.i18n.t(.attachmentPhotoPermissionTitle), isPresented: $showingPhotoPermissionAlert) {
+      Button(store.i18n.t(.commonOk), role: .cancel) {}
+      Button(store.i18n.t(.commonOpenSettings)) {
         openAppSettings()
       }
     } message: {
-      Text("사진과 동영상을 첨부하려면 사진 보관함 접근 권한을 허용해 주세요.")
+      Text(store.i18n.t(.attachmentPhotoPermissionMessage))
     }
     .fileImporter(
       isPresented: $showingFileImporter,

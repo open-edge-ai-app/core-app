@@ -38,22 +38,26 @@ struct NativeChatTranscript: View {
 struct NativeEmptyChatView: View {
   @EnvironmentObject private var store: NativeChatStore
 
-  private let subtitles = [
-    "필요한 내용을 편하게 물어보세요.",
-    "생각 정리부터 글쓰기, 코드까지 이어서 도와드릴게요."
-  ]
+  private var subtitles: [String] {
+    [
+      store.i18n.t(.chatSubtitlePrimary),
+      store.i18n.t(.chatSubtitleSecondary)
+    ]
+  }
 
-  private let suggestedPrompts = [
-    "오늘 할 일 우선순위 정리해줘",
-    "이 아이디어를 더 구체화해줘",
-    "긴 글을 핵심만 요약해줘",
-    "코드 오류 원인을 같이 찾아줘"
-  ]
+  private var suggestedPrompts: [String] {
+    [
+      store.i18n.t(.chatSuggestionPriority),
+      store.i18n.t(.chatSuggestionDevelopIdea),
+      store.i18n.t(.chatSuggestionSummarize),
+      store.i18n.t(.chatSuggestionDebugCode)
+    ]
+  }
 
   var body: some View {
     VStack(alignment: .leading, spacing: 22) {
       VStack(alignment: .leading, spacing: 8) {
-        Text("안녕하세요, 무엇을 도와드릴까요?")
+        Text(store.i18n.t(.chatGreeting))
           .font(.system(size: store.fontSizeSetting.bodySize + 5, weight: .semibold))
           .foregroundColor(.oeText)
 
@@ -66,7 +70,7 @@ struct NativeEmptyChatView: View {
       }
 
       VStack(alignment: .leading, spacing: 10) {
-        Text("추천 질문")
+        Text(store.i18n.t(.chatSuggestionsTitle))
           .font(.system(size: store.fontSizeSetting.bodySize - 2, weight: .semibold))
           .foregroundColor(.oeSecondaryText)
 
@@ -115,7 +119,7 @@ struct NativeMessageView: View {
       }
 
       if message.role == .user {
-        Text(message.text.isEmpty ? "첨부 파일" : message.text)
+        Text(message.text.isEmpty ? store.i18n.t(.chatAttachmentFallback) : message.text)
           .font(.system(size: store.fontSizeSetting.bodySize))
           .foregroundColor(store.accentColor.foregroundColor)
           .padding(.horizontal, 14)
@@ -130,7 +134,7 @@ struct NativeMessageView: View {
         }
 
         NativeMarkdownText(
-          text: message.text.isEmpty ? "응답 준비 중..." : message.text,
+          text: message.text.isEmpty ? store.i18n.t(.chatResponsePreparing) : message.text,
           sources: message.sourceReferences,
           onOpenSource: { _ in
             showingSources = true
@@ -160,7 +164,7 @@ struct NativeMessageView: View {
             } label: {
               NativeMessageSourcesButton(sources: message.sourceReferences)
             }
-            .accessibilityLabel("출처 \(message.sourceReferences.count)개")
+            .accessibilityLabel(store.i18n.t(.chatSourcesCount, ["count": String(message.sourceReferences.count)]))
           }
 
           Text(message.createdAt.formatted(date: .omitted, time: .shortened))
@@ -190,7 +194,7 @@ struct NativeContextCompressedNotice: View {
       Image(systemName: "arrow.down.right.and.arrow.up.left")
         .font(.system(size: 10, weight: .bold))
 
-      Text("컨텍스트 압축됨")
+      Text(store.i18n.t(.chatContextCompressed))
         .font(.system(size: 12, weight: .semibold))
     }
     .foregroundColor(store.accentColor.color)
@@ -198,7 +202,7 @@ struct NativeContextCompressedNotice: View {
     .padding(.vertical, 6)
     .background(store.accentColor.color.opacity(0.08))
     .clipShape(Capsule())
-    .accessibilityLabel("컨텍스트 압축됨")
+    .accessibilityLabel(store.i18n.t(.chatContextCompressed))
   }
 }
 
@@ -209,7 +213,7 @@ struct NativeMessageSourcesButton: View {
   var body: some View {
     HStack(spacing: 6) {
       NativeSourceFaviconStack(sources: sources)
-      Text("출처")
+      Text(store.i18n.t(.chatSources))
         .font(.system(size: 13, weight: .semibold))
     }
     .foregroundColor(store.accentColor.color)
@@ -294,7 +298,7 @@ struct NativeMessageSourcesSheet: View {
         .padding(.bottom, 28)
       }
       .background(Color.oeGroupedBackground)
-      .navigationTitle("출처")
+      .navigationTitle(store.i18n.t(.chatSources))
       .navigationBarTitleDisplayMode(.inline)
       .toolbar {
         ToolbarItem(placement: .topBarTrailing) {
@@ -305,7 +309,7 @@ struct NativeMessageSourcesSheet: View {
               .font(.system(size: 14, weight: .semibold))
           }
           .buttonStyle(.plain)
-          .accessibilityLabel("닫기")
+          .accessibilityLabel(store.i18n.t(.commonClose))
         }
       }
     }

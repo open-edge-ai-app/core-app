@@ -78,21 +78,15 @@ struct NativeTodoListView: View {
   }
 
   private var dateTitle: String {
-    let formatter = DateFormatter()
-    formatter.locale = Locale(identifier: "en_US_POSIX")
-    formatter.dateFormat = "EEE dd, MMMM"
-    return formatter.string(from: selectedDate)
+    store.i18n.dateTitle(for: selectedDate)
   }
 
   private var selectedTodoSectionTitle: String {
     if calendar.isDateInToday(selectedDate) {
-      return "Today"
+      return store.i18n.t(.todoToday)
     }
 
-    let formatter = DateFormatter()
-    formatter.locale = Locale(identifier: "en_US_POSIX")
-    formatter.dateFormat = "MMM d"
-    return formatter.string(from: selectedDate)
+    return store.i18n.shortDateTitle(for: selectedDate)
   }
 
   var body: some View {
@@ -146,7 +140,9 @@ struct NativeTodoListView: View {
   }
 
   private var topBar: some View {
-    HStack(spacing: 12) {
+    let i18n = store.i18n
+
+    return HStack(spacing: 12) {
       Button {
         dismiss()
       } label: {
@@ -155,9 +151,9 @@ struct NativeTodoListView: View {
           .frame(width: 36, height: 36)
       }
       .buttonStyle(.plain)
-      .accessibilityLabel("메뉴로 돌아가기")
+      .accessibilityLabel(i18n.t(.todoBackToMenu))
 
-      Text("Todo List")
+      Text(i18n.t(.todoListTitle))
         .font(.system(size: 15, weight: .semibold))
         .lineLimit(1)
 
@@ -171,7 +167,7 @@ struct NativeTodoListView: View {
           .frame(width: 36, height: 36)
       }
       .buttonStyle(.plain)
-      .accessibilityLabel("Todo 설정")
+      .accessibilityLabel(i18n.t(.todoSettings))
     }
     .foregroundColor(.black)
     .padding(.horizontal, 16)
@@ -181,7 +177,9 @@ struct NativeTodoListView: View {
   }
 
   private var header: some View {
-    VStack(alignment: .leading, spacing: 18) {
+    let i18n = store.i18n
+
+    return VStack(alignment: .leading, spacing: 18) {
       HStack(alignment: .center) {
         Text(dateTitle)
           .font(.system(size: 31, weight: .bold))
@@ -193,15 +191,16 @@ struct NativeTodoListView: View {
 
       NativeTodoWeekStrip(
         accentColor: store.accentColor,
+        i18n: i18n,
         selectedDate: selectedDate,
         onPreviousWeek: { moveSelectedDate(byDays: -7) },
         onNextWeek: { moveSelectedDate(byDays: 7) },
         onSelectDate: { date in selectedDate = date }
       )
 
-      Picker("Todo 보기", selection: $selectedTab) {
-        Text("리스트").tag(NativeTodoTab.all)
-        Text("캘린더").tag(NativeTodoTab.calendar)
+      Picker(i18n.t(.todoViewPicker), selection: $selectedTab) {
+        Text(i18n.t(.todoTabList)).tag(NativeTodoTab.all)
+        Text(i18n.t(.todoTabCalendar)).tag(NativeTodoTab.calendar)
       }
       .pickerStyle(.segmented)
     }
@@ -211,16 +210,18 @@ struct NativeTodoListView: View {
   }
 
   private var allTasksContent: some View {
-    ScrollView(showsIndicators: false) {
+    let i18n = store.i18n
+
+    return ScrollView(showsIndicators: false) {
       VStack(alignment: .leading, spacing: 24) {
         NativeTodoSectionHeader(
-          title: "Overdue",
+          title: i18n.t(.todoOverdue),
           isExpanded: $isOverdueExpanded
         )
 
         if isOverdueExpanded {
           if overdueTodos.isEmpty {
-            NativeTodoEmptyRow(title: "No overdue tasks")
+            NativeTodoEmptyRow(title: i18n.t(.todoNoOverdue))
           } else {
             ForEach(overdueTodos) { task in
               todoCard(for: task)
@@ -235,7 +236,7 @@ struct NativeTodoListView: View {
 
         if isTodayExpanded {
           if selectedDateTodos.isEmpty {
-            NativeTodoEmptyRow(title: "No tasks for this date")
+            NativeTodoEmptyRow(title: i18n.t(.todoNoTasksForDate))
           } else {
             ForEach(selectedDateTodos) { task in
               todoCard(for: task)
@@ -251,6 +252,7 @@ struct NativeTodoListView: View {
 
   private func todoCard(for task: NativeTodoItem) -> some View {
     NativeTodoTaskCard(
+      i18n: store.i18n,
       task: task,
       onToggleComplete: {
         withAnimation(.easeInOut(duration: 0.18)) {
@@ -275,13 +277,16 @@ struct NativeTodoListView: View {
   }
 
   private var calendarContent: some View {
-    VStack(spacing: 0) {
+    let i18n = store.i18n
+
+    return VStack(spacing: 0) {
       ScrollViewReader { proxy in
         ScrollView(showsIndicators: false) {
           NativeTodoTimeline(
             accentColor: store.accentColor,
             events: calendarEvents,
-            currentTimeHour: currentTimeHour
+            currentTimeHour: currentTimeHour,
+            i18n: i18n
           )
             .padding(.bottom, 132)
         }
@@ -297,7 +302,9 @@ struct NativeTodoListView: View {
   }
 
   private var bottomControls: some View {
-    HStack {
+    let i18n = store.i18n
+
+    return HStack {
       Spacer()
       Button {
         showingComposer = true
@@ -310,7 +317,7 @@ struct NativeTodoListView: View {
           .clipShape(Circle())
       }
       .buttonStyle(.plain)
-      .accessibilityLabel("Todo 추가")
+      .accessibilityLabel(i18n.t(.todoAdd))
     }
     .padding(.horizontal, nativeTodoHorizontalPadding)
     .padding(.bottom, 24)
@@ -352,7 +359,7 @@ struct NativeTodoListView: View {
     }
 
     if minute == 0 {
-      return String(format: "%02d시", wholeHour)
+      return store.i18n.timelineHour(wholeHour)
     }
     return String(format: "%02d:%02d", wholeHour, minute)
   }
@@ -396,6 +403,7 @@ private struct NativeTodoSectionHeader: View {
 }
 
 private struct NativeTodoTaskCard: View {
+  var i18n: NativeI18n
   var task: NativeTodoItem
   var onToggleComplete: () -> Void
   var onToggleStar: () -> Void
@@ -418,7 +426,7 @@ private struct NativeTodoTaskCard: View {
             .padding(.top, 1)
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(task.isCompleted ? "Todo 완료 해제" : "Todo 완료")
+        .accessibilityLabel(task.isCompleted ? i18n.t(.todoIncomplete) : i18n.t(.todoComplete))
 
         VStack(alignment: .leading, spacing: 11) {
           HStack(alignment: .top) {
@@ -443,7 +451,7 @@ private struct NativeTodoTaskCard: View {
           }
 
           HStack(spacing: 8) {
-            Text(task.dueLabel())
+            Text(i18n.dueLabel(for: task.dueDate))
               .font(.system(size: 14, weight: .bold))
               .foregroundColor(isOverdue ? .red.opacity(0.78) : .red.opacity(0.64))
 
@@ -451,7 +459,7 @@ private struct NativeTodoTaskCard: View {
               .font(.system(size: 14, weight: .bold))
               .foregroundColor(Color.black.opacity(0.28))
 
-            Text(task.recurrenceRule.isRepeating ? task.recurrenceRule.title : "Tasks")
+            Text(task.recurrenceRule.isRepeating ? task.recurrenceRule.localizedTitle(i18n) : i18n.t(.todoTasks))
               .font(.system(size: 14, weight: .semibold))
               .foregroundColor(Color.black.opacity(0.42))
 
@@ -464,7 +472,7 @@ private struct NativeTodoTaskCard: View {
                 .frame(width: 28, height: 28)
             }
             .buttonStyle(.plain)
-            .accessibilityLabel(task.isStarred ? "중요 해제" : "중요 표시")
+            .accessibilityLabel(task.isStarred ? i18n.t(.todoUnstar) : i18n.t(.todoStar))
 
             Image(systemName: isOverdue ? "calendar" : "alarm")
               .font(.system(size: 17, weight: .regular))
@@ -512,11 +520,11 @@ private struct NativeTodoTaskCard: View {
     .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
     .contextMenu {
       Button(action: onEdit) {
-        Label("수정", systemImage: "pencil")
+        Label(i18n.t(.todoEdit), systemImage: "pencil")
       }
 
       Button(role: .destructive, action: onDelete) {
-        Label("삭제", systemImage: "trash")
+        Label(i18n.t(.todoDelete), systemImage: "trash")
       }
     }
   }
@@ -539,6 +547,7 @@ private struct NativeTodoEmptyRow: View {
 
 private struct NativeTodoWeekStrip: View {
   var accentColor: NativeAccentColor
+  var i18n: NativeI18n
   var selectedDate: Date
   var onPreviousWeek: () -> Void
   var onNextWeek: () -> Void
@@ -587,9 +596,9 @@ private struct NativeTodoWeekStrip: View {
               onSelectDate(day)
             } label: {
               VStack(spacing: 3) {
-                Text(dayLetter(for: day))
+                Text(i18n.weekdayLetter(for: day))
                   .font(.system(size: 13, weight: .bold))
-                Text(dayNumber(for: day))
+                Text(i18n.dayNumber(for: day))
                   .font(.system(size: 12, weight: .semibold))
               }
               .foregroundColor(isSelected ? accentColor.color : Color.black.opacity(0.60))
@@ -717,20 +726,6 @@ private struct NativeTodoWeekStrip: View {
     }
   }
 
-  private func dayLetter(for date: Date) -> String {
-    let formatter = DateFormatter()
-    formatter.locale = Locale(identifier: "en_US_POSIX")
-    formatter.dateFormat = "E"
-    return String(formatter.string(from: date).prefix(1))
-  }
-
-  private func dayNumber(for date: Date) -> String {
-    let formatter = DateFormatter()
-    formatter.locale = Locale(identifier: "en_US_POSIX")
-    formatter.dateFormat = "dd"
-    return formatter.string(from: date)
-  }
-
   private func dayID(for date: Date) -> String {
     let components = Calendar.current.dateComponents([.year, .month, .day], from: date)
     return "\(components.year ?? 0)-\(components.month ?? 0)-\(components.day ?? 0)"
@@ -754,6 +749,7 @@ private struct NativeTodoTimeline: View {
   var accentColor: NativeAccentColor
   var events: [NativeCalendarEvent]
   var currentTimeHour: CGFloat?
+  var i18n: NativeI18n
 
   private let timelineStart: CGFloat = 1
   private let timelineEnd: CGFloat = 24
@@ -775,7 +771,7 @@ private struct NativeTodoTimeline: View {
       ZStack(alignment: .topLeading) {
         VStack(spacing: 0) {
           ForEach(hours, id: \.self) { hour in
-            NativeTodoTimelineHourRow(hour: hour, height: hourHeight)
+            NativeTodoTimelineHourRow(hour: hour, height: hourHeight, i18n: i18n)
           }
         }
 
@@ -883,12 +879,13 @@ private struct NativeTodoCurrentTimeLine: View {
 private struct NativeTodoTimelineHourRow: View {
   var hour: Int
   var height: CGFloat
+  var i18n: NativeI18n
 
   private let hourLineOffset: CGFloat = 9
 
   var body: some View {
     HStack(alignment: .top, spacing: 16) {
-      Text(String(format: "%02d시", hour))
+      Text(i18n.timelineHour(hour))
         .font(.system(size: 11, weight: .bold))
         .foregroundColor(Color.black.opacity(0.36))
         .frame(width: 44, alignment: .leading)
@@ -960,6 +957,8 @@ private struct NativeTodoSettingsSheet: View {
   }
 
   var body: some View {
+    let i18n = store.i18n
+
     NavigationStack {
       ScrollView(showsIndicators: false) {
         VStack(alignment: .leading, spacing: 22) {
@@ -969,11 +968,11 @@ private struct NativeTodoSettingsSheet: View {
         .padding(22)
       }
       .background(Color.white)
-      .navigationTitle("Todo 설정")
+      .navigationTitle(i18n.t(.todoSettings))
       .navigationBarTitleDisplayMode(.inline)
       .toolbar {
         ToolbarItem(placement: .confirmationAction) {
-          Button("Done") {
+          Button(i18n.t(.commonDone)) {
             dismiss()
           }
         }
@@ -985,13 +984,15 @@ private struct NativeTodoSettingsSheet: View {
   }
 
   private var labelSection: some View {
-    VStack(alignment: .leading, spacing: 12) {
-      Text("Labels")
+    let i18n = store.i18n
+
+    return VStack(alignment: .leading, spacing: 12) {
+      Text(i18n.t(.todoLabels))
         .font(.system(size: 13, weight: .bold))
         .foregroundColor(Color.black.opacity(0.48))
 
       HStack(spacing: 10) {
-        TextField("새 라벨 이름", text: $newLabelTitle)
+        TextField(i18n.t(.todoNewLabelName), text: $newLabelTitle)
           .font(.system(size: 16, weight: .semibold))
           .textInputAutocapitalization(.words)
           .padding(.horizontal, 14)
@@ -1012,11 +1013,11 @@ private struct NativeTodoSettingsSheet: View {
         }
         .buttonStyle(.plain)
         .disabled(!canAddLabel)
-        .accessibilityLabel("라벨 추가")
+        .accessibilityLabel(i18n.t(.todoAddLabel))
       }
 
       if store.todoLabels.isEmpty {
-        Text("아직 만든 라벨이 없습니다.")
+        Text(i18n.t(.todoNoLabels))
           .font(.system(size: 14, weight: .semibold))
           .foregroundColor(Color.black.opacity(0.42))
           .padding(.horizontal, 14)
@@ -1026,7 +1027,7 @@ private struct NativeTodoSettingsSheet: View {
       } else {
         LazyVStack(spacing: 8) {
           ForEach(store.todoLabels) { label in
-            NativeTodoLabelRow(label: label) {
+            NativeTodoLabelRow(i18n: i18n, label: label) {
               store.deleteTodoLabel(label)
             }
           }
@@ -1036,8 +1037,10 @@ private struct NativeTodoSettingsSheet: View {
   }
 
   private var calendarSection: some View {
-    VStack(alignment: .leading, spacing: 12) {
-      Text("iOS Calendar")
+    let i18n = store.i18n
+
+    return VStack(alignment: .leading, spacing: 12) {
+      Text(i18n.t(.todoIosCalendar))
         .font(.system(size: 13, weight: .bold))
         .foregroundColor(Color.black.opacity(0.48))
 
@@ -1049,10 +1052,10 @@ private struct NativeTodoSettingsSheet: View {
             .frame(width: 24)
 
           VStack(alignment: .leading, spacing: 3) {
-            Text("기본 캘린더 앱 연동")
+            Text(i18n.t(.todoDefaultCalendarIntegration))
               .font(.system(size: 16, weight: .semibold))
               .foregroundColor(.black)
-            Text(store.todoCalendarAuthorizationState.title)
+            Text(store.todoCalendarAuthorizationState.localizedTitle(i18n))
               .font(.system(size: 13, weight: .semibold))
               .foregroundColor(Color.black.opacity(0.46))
           }
@@ -1073,7 +1076,7 @@ private struct NativeTodoSettingsSheet: View {
           .padding(.leading, 50)
 
         VStack(alignment: .leading, spacing: 10) {
-          Text("Open Edge AI Todo 캘린더를 만들고, Todo 항목을 iOS Calendar 이벤트로 동기화합니다.")
+          Text(i18n.t(.todoCalendarIntegrationDescription))
             .font(.system(size: 13, weight: .semibold))
             .foregroundColor(Color.black.opacity(0.48))
             .lineSpacing(3)
@@ -1083,7 +1086,7 @@ private struct NativeTodoSettingsSheet: View {
               Button {
                 store.requestTodoCalendarAccess()
               } label: {
-                Text("권한 허용")
+                Text(i18n.t(.todoAllowPermission))
                   .font(.system(size: 14, weight: .bold))
                   .foregroundColor(.white)
                   .frame(height: 40)
@@ -1097,7 +1100,7 @@ private struct NativeTodoSettingsSheet: View {
             Button {
               store.syncTodoItemsToCalendar()
             } label: {
-              Text("지금 동기화")
+              Text(i18n.t(.todoSyncNow))
                 .font(.system(size: 14, weight: .bold))
                 .foregroundColor(store.todoCalendarAuthorizationState.canSync ? .black : Color.black.opacity(0.34))
                 .frame(height: 40)
@@ -1124,6 +1127,7 @@ private struct NativeTodoSettingsSheet: View {
 }
 
 private struct NativeTodoLabelRow: View {
+  var i18n: NativeI18n
   var label: NativeTodoLabel
   var onDelete: () -> Void
 
@@ -1146,7 +1150,7 @@ private struct NativeTodoLabelRow: View {
           .frame(width: 28, height: 28)
       }
       .buttonStyle(.plain)
-      .accessibilityLabel("\(label.title) 라벨 삭제")
+      .accessibilityLabel(i18n.t(.todoDeleteLabel, ["name": label.title]))
     }
     .padding(.horizontal, 14)
     .frame(height: 48)
@@ -1193,14 +1197,16 @@ private struct NativeTodoEditorSheet: View {
   }
 
   var body: some View {
+    let i18n = store.i18n
+
     NavigationStack {
       ScrollView(showsIndicators: false) {
         VStack(alignment: .leading, spacing: 18) {
           VStack(alignment: .leading, spacing: 8) {
-            Text("Title")
+            Text(i18n.t(.todoTitleField))
               .font(.system(size: 13, weight: .bold))
               .foregroundColor(Color.black.opacity(0.48))
-            TextField("New task", text: $title)
+            TextField(i18n.t(.todoNewTaskPlaceholder), text: $title)
               .font(.system(size: 18, weight: .semibold))
               .textInputAutocapitalization(.sentences)
               .padding(.horizontal, 14)
@@ -1210,10 +1216,10 @@ private struct NativeTodoEditorSheet: View {
           }
 
           VStack(alignment: .leading, spacing: 8) {
-            Text("Note")
+            Text(i18n.t(.todoNoteField))
               .font(.system(size: 13, weight: .bold))
               .foregroundColor(Color.black.opacity(0.48))
-            TextField("Optional details", text: $note, axis: .vertical)
+            TextField(i18n.t(.todoOptionalDetails), text: $note, axis: .vertical)
               .font(.system(size: 16, weight: .medium))
               .lineLimit(3...6)
               .padding(14)
@@ -1223,20 +1229,20 @@ private struct NativeTodoEditorSheet: View {
           }
 
           VStack(alignment: .leading, spacing: 8) {
-            Text("Schedule")
+            Text(i18n.t(.todoSchedule))
               .font(.system(size: 13, weight: .bold))
               .foregroundColor(Color.black.opacity(0.48))
 
             VStack(spacing: 10) {
               NativeTodoDateTimeField(
-                title: "Start",
+                title: i18n.t(.todoStart),
                 systemImage: "clock",
                 date: $startDate,
                 tintColor: store.accentColor.color
               )
 
               NativeTodoDateTimeField(
-                title: "End",
+                title: i18n.t(.todoEnd),
                 systemImage: "clock.badge.checkmark",
                 date: $endDate,
                 tintColor: store.accentColor.color
@@ -1245,15 +1251,15 @@ private struct NativeTodoEditorSheet: View {
           }
 
           HStack(spacing: 12) {
-            Text("Repeat")
+            Text(i18n.t(.todoRepeat))
               .font(.system(size: 13, weight: .bold))
               .foregroundColor(Color.black.opacity(0.48))
 
             Spacer()
 
-            Picker("Repeat", selection: $repeatRule) {
+            Picker(i18n.t(.todoRepeat), selection: $repeatRule) {
               ForEach(NativeTodoRepeatRule.allCases) { rule in
-                Text(rule.title).tag(rule)
+                Text(rule.localizedTitle(i18n)).tag(rule)
               }
             }
             .pickerStyle(.menu)
@@ -1270,16 +1276,16 @@ private struct NativeTodoEditorSheet: View {
       }
       .background(Color.white)
       .scrollDismissesKeyboard(.interactively)
-      .navigationTitle(isEditing ? "Edit Todo" : "Add Todo")
+      .navigationTitle(isEditing ? i18n.t(.todoEditTitle) : i18n.t(.todoAddTitle))
       .navigationBarTitleDisplayMode(.inline)
       .toolbar {
         ToolbarItem(placement: .cancellationAction) {
-          Button("Cancel") {
+          Button(i18n.t(.commonCancel)) {
             dismiss()
           }
         }
         ToolbarItem(placement: .confirmationAction) {
-          Button("Save") {
+          Button(i18n.t(.commonSave)) {
             if let todoItem {
               store.updateTodo(
                 todoItem,

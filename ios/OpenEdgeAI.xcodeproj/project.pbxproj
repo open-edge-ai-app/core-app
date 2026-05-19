@@ -17,6 +17,7 @@
 		A2B000000000000000000103 /* NativeKnowledgeServices.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2B000000000000000000003 /* NativeKnowledgeServices.swift */; };
 		A2B000000000000000000104 /* NativeProjectModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2B000000000000000000004 /* NativeProjectModels.swift */; };
 		A2B000000000000000000105 /* NativeChatStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2B000000000000000000005 /* NativeChatStore.swift */; };
+		A2F000000000000000000101 /* NativeLocalization.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2F000000000000000000001 /* NativeLocalization.swift */; };
 		A2D000000000000000000101 /* NativeChatStoreDynamicIsland.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2D000000000000000000001 /* NativeChatStoreDynamicIsland.swift */; };
 		A2B000000000000000000108 /* NativeSettingsViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2B000000000000000000008 /* NativeSettingsViews.swift */; };
 		A2C000000000000000000101 /* NativeRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2C000000000000000000001 /* NativeRootView.swift */; };
@@ -80,6 +81,7 @@
 		A2B000000000000000000003 /* NativeKnowledgeServices.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = NativeKnowledgeServices.swift; path = OpenEdgeAI/NativeKnowledgeServices.swift; sourceTree = "<group>"; };
 		A2B000000000000000000004 /* NativeProjectModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = NativeProjectModels.swift; path = OpenEdgeAI/NativeProjectModels.swift; sourceTree = "<group>"; };
 		A2B000000000000000000005 /* NativeChatStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = NativeChatStore.swift; path = OpenEdgeAI/NativeChatStore.swift; sourceTree = "<group>"; };
+		A2F000000000000000000001 /* NativeLocalization.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = NativeLocalization.swift; path = OpenEdgeAI/NativeLocalization.swift; sourceTree = "<group>"; };
 		A2D000000000000000000001 /* NativeChatStoreDynamicIsland.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = NativeChatStoreDynamicIsland.swift; path = OpenEdgeAI/NativeChatStoreDynamicIsland.swift; sourceTree = "<group>"; };
 		A2B000000000000000000008 /* NativeSettingsViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = NativeSettingsViews.swift; path = OpenEdgeAI/NativeSettingsViews.swift; sourceTree = "<group>"; };
 		A2C000000000000000000001 /* NativeRootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = NativeRootView.swift; path = OpenEdgeAI/NativeRootView.swift; sourceTree = "<group>"; };
@@ -136,6 +138,7 @@
 				A2B000000000000000000003 /* NativeKnowledgeServices.swift */,
 				A2B000000000000000000004 /* NativeProjectModels.swift */,
 				A2B000000000000000000005 /* NativeChatStore.swift */,
+				A2F000000000000000000001 /* NativeLocalization.swift */,
 				A2D000000000000000000001 /* NativeChatStoreDynamicIsland.swift */,
 				A2C000000000000000000001 /* NativeRootView.swift */,
 				A2C000000000000000000002 /* NativeDynamicIslandPetView.swift */,
@@ -371,6 +374,7 @@
 				A2B000000000000000000103 /* NativeKnowledgeServices.swift in Sources */,
 				A2B000000000000000000104 /* NativeProjectModels.swift in Sources */,
 				A2B000000000000000000105 /* NativeChatStore.swift in Sources */,
+				A2F000000000000000000101 /* NativeLocalization.swift in Sources */,
 				A2D000000000000000000101 /* NativeChatStoreDynamicIsland.swift in Sources */,
 				A2C000000000000000000101 /* NativeRootView.swift in Sources */,
 				A2C000000000000000000102 /* NativeDynamicIslandPetView.swift in Sources */,

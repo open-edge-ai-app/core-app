@@ -53,6 +53,20 @@ struct NativeSlashCommand: Identifiable, Equatable {
 
   static let all = [search]
 
+  func localizedTitle(_ i18n: NativeI18n) -> String {
+    if self == Self.search {
+      return i18n.t(.chatSlashSearchTitle)
+    }
+    return title
+  }
+
+  func localizedSubtitle(_ i18n: NativeI18n) -> String {
+    if self == Self.search {
+      return i18n.t(.chatSlashSearchSubtitle)
+    }
+    return subtitle
+  }
+
   static func query(in inputText: String) -> String? {
     let leadingTrimmed = inputText.drop { $0.isWhitespace }
     guard leadingTrimmed.hasPrefix("/") else {
@@ -124,12 +138,12 @@ struct NativeSlashCommandMenu: View {
                   .font(.system(size: store.fontSizeSetting.bodySize - 1, weight: .semibold))
                   .foregroundColor(.oeText)
 
-                Text(command.title)
+                Text(command.localizedTitle(store.i18n))
                   .font(.system(size: store.fontSizeSetting.bodySize - 2, weight: .medium))
                   .foregroundColor(.oeSecondaryText)
               }
 
-              Text(command.subtitle)
+              Text(command.localizedSubtitle(store.i18n))
                 .font(.system(size: store.fontSizeSetting.bodySize - 4, weight: .regular))
                 .foregroundColor(.oeMutedText)
                 .lineLimit(1)
@@ -143,7 +157,7 @@ struct NativeSlashCommandMenu: View {
           .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("\(command.trigger) \(command.title)")
+        .accessibilityLabel("\(command.trigger) \(command.localizedTitle(store.i18n))")
       }
     }
     .padding(6)
@@ -164,7 +178,7 @@ struct NativeSearchModeChip: View {
       Image(systemName: "magnifyingglass")
         .font(.system(size: 11, weight: .bold))
 
-      Text("검색 모드")
+      Text(store.i18n.t(.chatSearchMode))
         .font(.system(size: 12, weight: .semibold))
     }
     .foregroundColor(store.accentColor.color)
@@ -172,7 +186,7 @@ struct NativeSearchModeChip: View {
     .frame(height: 28)
     .background(store.accentColor.subtleColor)
     .clipShape(Capsule())
-    .accessibilityLabel("검색 모드")
+    .accessibilityLabel(store.i18n.t(.chatSearchMode))
   }
 }
 
@@ -292,7 +306,7 @@ struct NativeInputBar: View {
             .clipShape(Circle())
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("파일 첨부")
+        .accessibilityLabel(store.i18n.t(.chatAttachFile))
 
         VStack(alignment: .leading, spacing: 6) {
           if isSearchMode {
@@ -303,7 +317,7 @@ struct NativeInputBar: View {
 
           NativePromptEditor(
             text: $store.inputText,
-            placeholder: "무엇이든 묻거나 검색하고 만들어보세요...",
+            placeholder: store.i18n.t(.chatInputPlaceholder),
             focused: $focused
           )
           .environmentObject(store)
@@ -325,7 +339,7 @@ struct NativeInputBar: View {
         }
         .buttonStyle(.plain)
         .disabled(!showsStopButton && !hasDraftInput)
-        .accessibilityLabel(showsStopButton ? "응답 중지" : "메시지 보내기")
+        .accessibilityLabel(showsStopButton ? store.i18n.t(.chatStopResponse) : store.i18n.t(.chatSendMessage))
       }
       .padding(.horizontal, 8)
       .padding(.vertical, 6)
@@ -360,7 +374,7 @@ struct NativeQueueView: View {
     VStack(spacing: 6) {
       ForEach(store.queuedDrafts) { draft in
         HStack(spacing: 8) {
-          TextField("대기 중인 후속 질문", text: Binding(
+          TextField(store.i18n.t(.chatQueuedFollowUp), text: Binding(
             get: { draft.text },
             set: { store.updateQueuedDraft(draft, text: $0) }
           ))

@@ -397,7 +397,7 @@ final class NativeChatStore: ObservableObject {
         } else {
           self.todoCalendarSyncEnabled = false
           self.saveSettings()
-          self.todoCalendarSyncMessage = error?.localizedDescription ?? "캘린더 권한이 허용되지 않았습니다."
+          self.todoCalendarSyncMessage = error?.localizedDescription ?? self.i18n.t(.todoNoCalendarPermission)
         }
       }
     }
@@ -406,7 +406,7 @@ final class NativeChatStore: ObservableObject {
   func syncTodoItemsToCalendar() {
     refreshTodoCalendarAuthorizationState()
     guard todoCalendarAuthorizationState.canSync else {
-      todoCalendarSyncMessage = "캘린더 권한을 먼저 허용해주세요."
+      todoCalendarSyncMessage = i18n.t(.todoAllowCalendarFirst)
       return
     }
 
@@ -430,8 +430,8 @@ final class NativeChatStore: ObservableObject {
 
       saveTodoItems()
       todoCalendarSyncMessage = syncedCount == 0
-        ? "동기화할 Todo가 없습니다."
-        : "\(syncedCount)개 Todo를 iOS 캘린더에 동기화했습니다."
+        ? i18n.t(.todoNothingToSync)
+        : i18n.t(.todoSyncedCount, ["count": String(syncedCount)])
     } catch {
       todoCalendarSyncMessage = error.localizedDescription
     }

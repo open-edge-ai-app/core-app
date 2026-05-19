@@ -149,19 +149,6 @@ struct NativeTodoListView: View {
           .lineLimit(1)
 
         Spacer()
-
-        Button {
-          withAnimation(.easeInOut(duration: 0.16)) {
-            showingStarredOnly.toggle()
-          }
-        } label: {
-          Image(systemName: showingStarredOnly ? "star.fill" : "slider.vertical.3")
-            .font(.system(size: showingStarredOnly ? 22 : 24, weight: .medium))
-            .foregroundColor(showingStarredOnly ? .red.opacity(0.74) : .black)
-            .frame(width: 42, height: 42)
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(showingStarredOnly ? "중요 Todo만 보기 해제" : "중요 Todo만 보기")
       }
     }
     .padding(.horizontal, nativeTodoHorizontalPadding)

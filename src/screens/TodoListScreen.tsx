@@ -197,7 +197,6 @@ export default function TodoListScreen() {
       <View style={styles.header}>
         <View style={styles.headerRow}>
           <Text style={styles.dateTitle}>{dateTitle}</Text>
-          <AppIcon color="#111111" icon={appIcons.modelManage} size={24} />
         </View>
       </View>
 

@@ -6,6 +6,7 @@ private enum NativeTodoTab: String {
 }
 
 private let nativeTodoHorizontalPadding: CGFloat = 24
+private let nativeTodoCurrentTimeLineID = "native-todo-current-time-line"
 
 private struct NativeCalendarEvent: Identifiable {
   var id: String
@@ -256,13 +257,21 @@ struct NativeTodoListView: View {
 
   private var calendarContent: some View {
     VStack(spacing: 0) {
-      ScrollView(showsIndicators: false) {
-        NativeTodoTimeline(
-          accentColor: store.accentColor,
-          events: calendarEvents,
-          currentTimeHour: currentTimeHour
-        )
-          .padding(.bottom, 132)
+      ScrollViewReader { proxy in
+        ScrollView(showsIndicators: false) {
+          NativeTodoTimeline(
+            accentColor: store.accentColor,
+            events: calendarEvents,
+            currentTimeHour: currentTimeHour
+          )
+            .padding(.bottom, 132)
+        }
+        .onAppear {
+          scrollCalendarToCurrentTime(proxy)
+        }
+        .onChange(of: selectedDate) { _, _ in
+          scrollCalendarToCurrentTime(proxy)
+        }
       }
     }
     .padding(.horizontal, nativeTodoHorizontalPadding)
@@ -327,6 +336,18 @@ struct NativeTodoListView: View {
       return String(format: "%02d시", wholeHour)
     }
     return String(format: "%02d:%02d", wholeHour, minute)
+  }
+
+  private func scrollCalendarToCurrentTime(_ proxy: ScrollViewProxy) {
+    guard currentTimeHour != nil else {
+      return
+    }
+
+    DispatchQueue.main.async {
+      withAnimation(.easeInOut(duration: 0.2)) {
+        proxy.scrollTo(nativeTodoCurrentTimeLineID, anchor: .center)
+      }
+    }
   }
 }
 
@@ -749,9 +770,11 @@ private struct NativeTodoTimeline: View {
         }
 
         if let currentTimeHour {
-          NativeTodoCurrentTimeLine(accentColor: accentColor)
-            .frame(width: max(0, proxy.size.width - eventLaneStart), alignment: .leading)
-            .offset(x: eventLaneStart, y: currentTimeOffset(for: currentTimeHour))
+          NativeTodoCurrentTimeLine(timeText: currentTimeText(for: currentTimeHour))
+            .id(nativeTodoCurrentTimeLineID)
+            .frame(width: proxy.size.width, alignment: .leading)
+            .offset(x: 0, y: currentTimeOffset(for: currentTimeHour))
+            .zIndex(10)
         }
       }
     }
@@ -782,23 +805,59 @@ private struct NativeTodoTimeline: View {
     let boundedHour = min(max(hour, timelineStart), timelineEnd)
     return hourLineOffset + (boundedHour - timelineStart) * hourHeight
   }
+
+  private func currentTimeText(for hour: CGFloat) -> String {
+    let boundedHour = min(max(hour, timelineStart), timelineEnd)
+    var wholeHour = Int(floor(boundedHour))
+    var minute = Int(round((boundedHour - CGFloat(wholeHour)) * 60))
+    if minute == 60 {
+      wholeHour += 1
+      minute = 0
+    }
+
+    return String(format: "%02d:%02d", min(wholeHour, 24), minute)
+  }
 }
 
 private struct NativeTodoCurrentTimeLine: View {
-  var accentColor: NativeAccentColor
+  var timeText: String
+
+  private let indicatorColor = Color(red: 1, green: 0.23, blue: 0.18)
 
   var body: some View {
-    HStack(spacing: 6) {
-      Circle()
-        .fill(accentColor.color)
-        .frame(width: 7, height: 7)
+    HStack(spacing: 5) {
+      Text(timeText)
+        .font(.system(size: 10, weight: .bold))
+        .foregroundColor(.white)
+        .lineLimit(1)
+        .frame(width: 48, height: 18)
+        .background(indicatorColor)
+        .clipShape(Capsule())
+        .overlay(
+          Capsule()
+            .stroke(Color.white, lineWidth: 1.5)
+        )
 
-      Rectangle()
-        .fill(accentColor.color)
-        .frame(height: 2)
+      Circle()
+        .fill(indicatorColor)
+        .frame(width: 9, height: 9)
+        .overlay(
+          Circle()
+            .stroke(Color.white, lineWidth: 1.5)
+        )
+
+      ZStack {
+        Rectangle()
+          .fill(Color.white)
+          .frame(height: 4)
+
+        Rectangle()
+          .fill(indicatorColor)
+          .frame(height: 2)
+      }
     }
     .frame(maxWidth: .infinity, alignment: .leading)
-    .offset(y: -3.5)
+    .offset(y: -9)
   }
 }
 

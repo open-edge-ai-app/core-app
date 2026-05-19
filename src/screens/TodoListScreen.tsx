@@ -48,6 +48,7 @@ const CALENDAR_HOURS = Array.from({ length: 24 }, (_, index) => index + 1);
 const DATE_CELL_WIDTH = 44;
 const DATE_CELL_GAP = 8;
 const CENTER_DATE_INDEX = 14;
+const CURRENT_TIME_COLOR = '#FF3B30';
 
 function dateAtHour(dayOffset: number, hour: number) {
   const date = new Date();
@@ -125,6 +126,8 @@ const initialTasks: TodoTask[] = [
 export default function TodoListScreen() {
   const { width: screenWidth } = useWindowDimensions();
   const weekStripRef = useRef<ScrollView>(null);
+  const calendarScrollRef = useRef<ScrollView>(null);
+  const lastAutoScrolledCalendarDayRef = useRef<string | null>(null);
   const [tab, setTab] = useState<TodoTab>('all');
   const [tasks, setTasks] = useState<TodoTask[]>(initialTasks);
   const [hasLoadedTasks, setHasLoadedTasks] = useState(false);
@@ -215,6 +218,33 @@ export default function TodoListScreen() {
 
     return () => clearInterval(intervalId);
   }, []);
+
+  useEffect(() => {
+    if (tab !== 'calendar') {
+      lastAutoScrolledCalendarDayRef.current = null;
+      return;
+    }
+
+    if (currentTimeHour === null) {
+      return;
+    }
+
+    const selectedDateKey = dateKey(selectedDate);
+    if (lastAutoScrolledCalendarDayRef.current === selectedDateKey) {
+      return;
+    }
+
+    lastAutoScrolledCalendarDayRef.current = selectedDateKey;
+    const timeoutId = setTimeout(() => {
+      calendarScrollRef.current?.scrollTo({
+        animated: true,
+        x: 0,
+        y: Math.max(0, getCurrentTimeLineTop(currentTimeHour) - 180),
+      });
+    }, 0);
+
+    return () => clearTimeout(timeoutId);
+  }, [currentTimeHour, selectedDate, tab]);
 
   useEffect(() => {
     if (!hasLoadedTasks) {
@@ -437,6 +467,7 @@ export default function TodoListScreen() {
       ) : (
         <View style={styles.calendarContent}>
           <ScrollView
+            ref={calendarScrollRef}
             contentContainerStyle={styles.timeline}
             showsVerticalScrollIndicator={false}
           >
@@ -466,6 +497,9 @@ export default function TodoListScreen() {
                   { top: getCurrentTimeLineTop(currentTimeHour) },
                 ]}
               >
+                <Text style={styles.currentTimeLabel}>
+                  {formatCurrentTimeLabel(currentTimeHour)}
+                </Text>
                 <View style={styles.currentTimeDot} />
                 <View style={styles.currentTimeRule} />
               </View>
@@ -633,8 +667,23 @@ function formatTimelineHour(hour: number) {
   return `${String(hour).padStart(2, '0')}시`;
 }
 
+function formatCurrentTimeLabel(hour: number) {
+  const boundedHour = Math.min(Math.max(hour, CALENDAR_START_HOUR), 24);
+  let wholeHour = Math.floor(boundedHour);
+  let minute = Math.round((boundedHour - wholeHour) * 60);
+  if (minute === 60) {
+    wholeHour += 1;
+    minute = 0;
+  }
+  return `${String(Math.min(wholeHour, 24)).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
+}
+
 function getCurrentTimeLineTop(hour: number) {
-  return HOUR_LINE_OFFSET + (hour - CALENDAR_START_HOUR) * HOUR_ROW_HEIGHT - 3.5;
+  return HOUR_LINE_OFFSET + (hour - CALENDAR_START_HOUR) * HOUR_ROW_HEIGHT - 9;
+}
+
+function dateKey(date: Date) {
+  return `${date.getFullYear()}-${date.getMonth() + 1}-${date.getDate()}`;
 }
 
 function buildWeekDays(selectedDate: Date) {
@@ -825,23 +874,42 @@ const styles = StyleSheet.create({
     lineHeight: 25,
   },
   currentTimeDot: {
-    backgroundColor: colors.primary,
-    borderRadius: 3.5,
-    height: 7,
-    width: 7,
+    backgroundColor: CURRENT_TIME_COLOR,
+    borderColor: '#FFFFFF',
+    borderRadius: 4.5,
+    borderWidth: 1.5,
+    height: 9,
+    width: 9,
+  },
+  currentTimeLabel: {
+    backgroundColor: CURRENT_TIME_COLOR,
+    borderColor: '#FFFFFF',
+    borderRadius: 9,
+    borderWidth: 1.5,
+    color: '#FFFFFF',
+    fontSize: 10,
+    fontWeight: '800',
+    height: 18,
+    lineHeight: 15,
+    overflow: 'hidden',
+    textAlign: 'center',
+    width: 48,
   },
   currentTimeLine: {
     alignItems: 'center',
     flexDirection: 'row',
-    gap: 6,
-    left: CALENDAR_LANE_START,
+    gap: 5,
+    left: 0,
     position: 'absolute',
     right: 0,
+    zIndex: 10,
   },
   currentTimeRule: {
-    backgroundColor: colors.primary,
+    backgroundColor: CURRENT_TIME_COLOR,
+    borderTopColor: '#FFFFFF',
+    borderTopWidth: 1,
     flex: 1,
-    height: 2,
+    height: 3,
   },
   cardTitleRow: {
     alignItems: 'flex-start',
@@ -1019,6 +1087,7 @@ const styles = StyleSheet.create({
     paddingBottom: 132,
     paddingHorizontal: 24,
     paddingTop: 20,
+    position: 'relative',
   },
   weekArrow: {
     color: 'rgba(17,17,17,0.58)',

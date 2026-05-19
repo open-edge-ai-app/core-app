@@ -94,18 +94,22 @@ export default function TodoListScreen() {
   const [hasLoadedTasks, setHasLoadedTasks] = useState(false);
   const [isOverdueExpanded, setOverdueExpanded] = useState(true);
   const [isTodayExpanded, setTodayExpanded] = useState(true);
+  const [selectedDate, setSelectedDate] = useState(() => new Date());
   const dateTitle = useMemo(
     () =>
       new Intl.DateTimeFormat('en-US', {
         day: '2-digit',
         month: 'long',
         weekday: 'short',
-      }).format(new Date()),
-    [],
+      }).format(selectedDate),
+    [selectedDate],
   );
-  const monthTitle = useMemo(
-    () => new Intl.DateTimeFormat('en-US', { month: 'long' }).format(new Date()),
-    [],
+  const bottomDateTitle = useMemo(
+    () =>
+      `${selectedDate.getFullYear()}.${String(
+        selectedDate.getMonth() + 1,
+      ).padStart(2, '0')}.${String(selectedDate.getDate()).padStart(2, '0')}`,
+    [selectedDate],
   );
   const visibleTasks = useMemo(
     () => tasks.filter(task => !task.isCompleted),
@@ -191,6 +195,16 @@ export default function TodoListScreen() {
       }),
     );
   };
+  const toggleViewMode = () => {
+    setTab(current => (current === 'all' ? 'calendar' : 'all'));
+  };
+  const moveSelectedDate = (days: number) => {
+    setSelectedDate(current => {
+      const next = new Date(current);
+      next.setDate(current.getDate() + days);
+      return next;
+    });
+  };
 
   return (
     <View style={styles.screen}>
@@ -205,7 +219,6 @@ export default function TodoListScreen() {
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
-          <TabSwitcher selected={tab} onSelect={setTab} />
           <SectionHeader
             expanded={isOverdueExpanded}
             onPress={() => setOverdueExpanded(current => !current)}
@@ -245,7 +258,6 @@ export default function TodoListScreen() {
             <Text style={styles.activeMode}>Week</Text>
             <Text style={styles.inactiveMode}>Day</Text>
             <View style={styles.flexSpacer} />
-            <AppIcon color="#111111" icon={appIcons.search} size={25} />
           </View>
           <View style={styles.weekStrip}>
             <Text style={styles.weekArrow}>‹</Text>
@@ -298,52 +310,26 @@ export default function TodoListScreen() {
       )}
 
       <View style={styles.bottomBar}>
-        <View style={styles.bottomButton}>
-          <Text style={styles.backArrow}>←</Text>
-        </View>
+        <Pressable onPress={toggleViewMode} style={styles.bottomButton}>
+          <AppIcon
+            color="#111111"
+            icon={tab === 'all' ? appIcons.menuScheduling : appIcons.todoList}
+            size={21}
+          />
+        </Pressable>
         <View style={styles.monthPill}>
-          <Text style={styles.monthArrow}>‹</Text>
-          <Text style={styles.monthText}>{monthTitle}</Text>
-          <Text style={styles.monthArrow}>›</Text>
+          <Pressable onPress={() => moveSelectedDate(-1)}>
+            <Text style={styles.monthArrow}>‹</Text>
+          </Pressable>
+          <Text style={styles.monthText}>{bottomDateTitle}</Text>
+          <Pressable onPress={() => moveSelectedDate(1)}>
+            <Text style={styles.monthArrow}>›</Text>
+          </Pressable>
         </View>
         <Pressable onPress={addTask} style={styles.bottomButton}>
           <Text style={styles.plusText}>+</Text>
         </Pressable>
       </View>
-    </View>
-  );
-}
-
-function TabSwitcher({
-  onSelect,
-  selected,
-}: {
-  onSelect: (tab: TodoTab) => void;
-  selected: TodoTab;
-}) {
-  return (
-    <View style={styles.tabRow}>
-      {(['all', 'calendar'] as const).map(tab => (
-        <Pressable
-          key={tab}
-          onPress={() => onSelect(tab)}
-          style={[
-            styles.tabButton,
-            selected === tab && styles.tabButtonActive,
-          ]}
-        >
-          <Text
-            style={[
-              styles.tabText,
-              selected === tab && styles.tabTextActive,
-            ]}
-          >
-            {tab === 'all' ? 'All' : 'Calendar'}
-          </Text>
-        </Pressable>
-      ))}
-      <View style={styles.flexSpacer} />
-      <AppIcon color="#111111" icon={appIcons.search} size={25} />
     </View>
   );
 }
@@ -469,11 +455,6 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     lineHeight: 42,
     paddingHorizontal: 14,
-  },
-  backArrow: {
-    color: '#111111',
-    fontSize: 30,
-    fontWeight: '300',
   },
   bottomBar: {
     alignItems: 'center',
@@ -674,7 +655,9 @@ const styles = StyleSheet.create({
     color: '#111111',
     fontSize: 16,
     fontWeight: '800',
-    marginHorizontal: 22,
+    marginHorizontal: 16,
+    minWidth: 92,
+    textAlign: 'center',
   },
   overdueText: {
     color: '#D4413B',
@@ -738,28 +721,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '800',
     lineHeight: 17,
-  },
-  tabButton: {
-    borderRadius: 11,
-    height: 42,
-    justifyContent: 'center',
-    paddingHorizontal: 14,
-  },
-  tabButtonActive: {
-    backgroundColor: '#F0F1F3',
-  },
-  tabRow: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    gap: 12,
-  },
-  tabText: {
-    color: 'rgba(17,17,17,0.52)',
-    fontSize: 16,
-    fontWeight: '800',
-  },
-  tabTextActive: {
-    color: '#111111',
   },
   timeline: {
     minHeight: 820,

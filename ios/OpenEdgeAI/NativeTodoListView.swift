@@ -32,16 +32,13 @@ struct NativeTodoListView: View {
   @State private var isTodayExpanded = true
   @State private var selectedDate = Date()
   @State private var showingComposer = false
-  @State private var showingStarredOnly = false
 
   private var calendar: Calendar {
     Calendar.current
   }
 
   private var visibleTodos: [NativeTodoItem] {
-    store.todoItems.filter { item in
-      !item.isCompleted && (!showingStarredOnly || item.isStarred)
-    }
+    store.todoItems.filter { !$0.isCompleted }
   }
 
   private var overdueTodos: [NativeTodoItem] {
@@ -75,10 +72,10 @@ struct NativeTodoListView: View {
     return formatter.string(from: selectedDate)
   }
 
-  private var monthTitle: String {
+  private var bottomDateTitle: String {
     let formatter = DateFormatter()
     formatter.locale = Locale(identifier: "en_US_POSIX")
-    formatter.dateFormat = "MMMM"
+    formatter.dateFormat = "yyyy.MM.dd"
     return formatter.string(from: selectedDate)
   }
 
@@ -156,48 +153,9 @@ struct NativeTodoListView: View {
     .padding(.bottom, 24)
   }
 
-  private var tabSwitcher: some View {
-    HStack(spacing: 12) {
-      tabButton(title: "All", tab: .all)
-      tabButton(title: "Calendar", tab: .calendar)
-
-      Spacer()
-
-      Button {
-        withAnimation(.easeInOut(duration: 0.16)) {
-          showingStarredOnly.toggle()
-        }
-      } label: {
-        Image(systemName: "magnifyingglass")
-          .font(.system(size: 25, weight: .regular))
-          .foregroundColor(.black)
-          .frame(width: 44, height: 42)
-      }
-      .buttonStyle(.plain)
-      .accessibilityLabel("Todo 검색")
-    }
-  }
-
-  private func tabButton(title: String, tab: NativeTodoTab) -> some View {
-    Button {
-      selectedTab = tab
-    } label: {
-      Text(title)
-        .font(.system(size: 16, weight: .bold))
-        .foregroundColor(selectedTab == tab ? .black : Color.black.opacity(0.52))
-        .padding(.horizontal, 14)
-        .frame(height: 42)
-        .background(selectedTab == tab ? Color.black.opacity(0.06) : Color.clear)
-        .clipShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
-    }
-    .buttonStyle(.plain)
-  }
-
   private var allTasksContent: some View {
     ScrollView(showsIndicators: false) {
       VStack(alignment: .leading, spacing: 24) {
-        tabSwitcher
-
         NativeTodoSectionHeader(
           title: "Overdue",
           isExpanded: $isOverdueExpanded
@@ -286,16 +244,6 @@ struct NativeTodoListView: View {
         .buttonStyle(.plain)
 
         Spacer()
-
-        Button {
-          showingStarredOnly.toggle()
-        } label: {
-          Image(systemName: "magnifyingglass")
-            .font(.system(size: 25, weight: .regular))
-            .foregroundColor(.black)
-            .frame(width: 44, height: 42)
-        }
-        .buttonStyle(.plain)
       }
       .padding(.top, 20)
 
@@ -320,10 +268,12 @@ struct NativeTodoListView: View {
   private var bottomControls: some View {
     HStack(alignment: .center, spacing: 14) {
       Button {
-        dismiss()
+        withAnimation(.easeInOut(duration: 0.18)) {
+          selectedTab = selectedTab == .all ? .calendar : .all
+        }
       } label: {
-        Image(systemName: "arrow.left")
-          .font(.system(size: 28, weight: .regular))
+        Image(systemName: selectedTab == .all ? "calendar" : "list.bullet")
+          .font(.system(size: 22, weight: .semibold))
           .foregroundColor(.black)
           .frame(width: 56, height: 56)
           .background(Color.white.opacity(0.94))
@@ -331,11 +281,11 @@ struct NativeTodoListView: View {
           .shadow(color: Color.black.opacity(0.08), radius: 18, x: 0, y: 8)
       }
       .buttonStyle(.plain)
-      .accessibilityLabel("Todo List 닫기")
+      .accessibilityLabel(selectedTab == .all ? "캘린더 보기" : "목록 보기")
 
       HStack(spacing: 22) {
         Button {
-          moveSelectedDate(byMonths: -1)
+          moveSelectedDate(byDays: -1)
         } label: {
           Image(systemName: "chevron.left")
             .font(.system(size: 19, weight: .semibold))
@@ -343,12 +293,12 @@ struct NativeTodoListView: View {
         }
         .buttonStyle(.plain)
 
-        Text(monthTitle)
+        Text(bottomDateTitle)
           .font(.system(size: 16, weight: .bold))
-          .frame(minWidth: 92)
+          .frame(minWidth: 104)
 
         Button {
-          moveSelectedDate(byMonths: 1)
+          moveSelectedDate(byDays: 1)
         } label: {
           Image(systemName: "chevron.right")
             .font(.system(size: 19, weight: .semibold))
@@ -383,10 +333,6 @@ struct NativeTodoListView: View {
 
   private func moveSelectedDate(byDays days: Int) {
     selectedDate = calendar.date(byAdding: .day, value: days, to: selectedDate) ?? selectedDate
-  }
-
-  private func moveSelectedDate(byMonths months: Int) {
-    selectedDate = calendar.date(byAdding: .month, value: months, to: selectedDate) ?? selectedDate
   }
 
   private func eventTitle(for title: String) -> String {

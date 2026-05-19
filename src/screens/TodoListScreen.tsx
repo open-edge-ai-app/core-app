@@ -13,38 +13,59 @@ type TodoSubtask = {
 };
 
 type TodoTask = {
+  dueDateISO?: string;
   dueLabel: string;
   id: string;
+  durationHours?: number;
   isCompleted?: boolean;
   isOverdue?: boolean;
   isStarred?: boolean;
   note: string;
+  startHour?: number;
   subtasks?: TodoSubtask[];
   title: string;
 };
 
 const TODO_STORAGE_KEY = 'open-edge-ai.todo-list.v1';
+const CALENDAR_START_HOUR = 11;
+const HOUR_ROW_HEIGHT = 82;
+
+function dateAtHour(dayOffset: number, hour: number) {
+  const date = new Date();
+  date.setDate(date.getDate() + dayOffset);
+  date.setHours(hour, 0, 0, 0);
+  return date.toISOString();
+}
 
 const initialTasks: TodoTask[] = [
   {
+    dueDateISO: dateAtHour(-1, 11),
     dueLabel: 'Yesterday',
+    durationHours: 1,
     id: 'seed-call-jason',
     isOverdue: true,
     note: '',
+    startHour: 11,
     title: 'Call Jason',
   },
   {
+    dueDateISO: dateAtHour(0, 19),
     dueLabel: 'Today',
+    durationHours: 1,
     id: 'seed-email-james',
     isStarred: true,
     note:
       'Email Mrs. James for the new intern we have next week from Alex Carter, a marketing student from Brookfield University. Confirm their start date, schedule, and onboarding needs.',
+    startHour: 19,
     title: 'Email Back Mrs James',
   },
   {
+    dueDateISO: dateAtHour(0, 13),
     dueLabel: 'Today',
+    durationHours: 4,
     id: 'seed-design-system',
     note: '',
+    startHour: 13,
     subtasks: [
       {
         id: 'seed-design-system-1',
@@ -113,6 +134,10 @@ export default function TodoListScreen() {
     () => visibleTasks.filter(task => !task.isOverdue),
     [visibleTasks],
   );
+  const calendarTasks = useMemo(
+    () => todayTasks.filter(task => task.dueLabel !== 'Yesterday'),
+    [todayTasks],
+  );
 
   useEffect(() => {
     let isMounted = true;
@@ -143,10 +168,14 @@ export default function TodoListScreen() {
   }, [hasLoadedTasks, tasks]);
 
   const addTask = () => {
+    const startHour = 13 + (todayTasks.length % 5);
     const nextTask: TodoTask = {
+      dueDateISO: dateAtHour(0, startHour),
       dueLabel: 'Today',
+      durationHours: 1,
       id: `todo-${Date.now()}`,
       note: '',
+      startHour,
       title: 'New Todo',
     };
     setTasks(current => [nextTask, ...current]);
@@ -315,10 +344,18 @@ export default function TodoListScreen() {
                 </View>
               ),
             )}
-            <CalendarBlock left={82} top={162} />
-            <CalendarBlock left={138} top={162} />
-            <CalendarBlock left={194} top={162} />
-            <CalendarBlock left={250} top={82} compact />
+            {calendarTasks.length > 0 ? (
+              calendarTasks.slice(0, 4).map((task, index) => (
+                <CalendarBlock
+                  compact={index === 3}
+                  key={task.id}
+                  lane={index}
+                  task={task}
+                />
+              ))
+            ) : (
+              <Text style={styles.calendarEmptyText}>No scheduled tasks</Text>
+            )}
           </ScrollView>
         </View>
       )}
@@ -421,27 +458,50 @@ function TodoCard({
 
 function CalendarBlock({
   compact = false,
-  left,
-  top,
+  lane,
+  task,
 }: {
   compact?: boolean;
-  left: number;
-  top: number;
+  lane: number;
+  task: TodoTask;
 }) {
+  const startHour = task.startHour ?? 13;
+  const durationHours = task.durationHours ?? 1;
+  const top = Math.max(0, (startHour - CALENDAR_START_HOUR) * HOUR_ROW_HEIGHT + 8);
+  const left = 58 + lane * 56;
+  const height = Math.max(78, durationHours * HOUR_ROW_HEIGHT);
+  const endHour = Math.min(23, startHour + durationHours);
+
   return (
     <View
       style={[
         styles.calendarBlock,
         compact && styles.calendarBlockCompact,
-        { left, top },
+        { height, left, top },
       ]}
     >
-      <Text style={styles.calendarBlockTitle}>New{'\n'}Design{'\n'}System</Text>
-      <Text style={styles.calendarBlockAccent}>New-{'\n'}Design</Text>
+      <Text style={styles.calendarBlockTitle}>{formatCalendarTitle(task.title)}</Text>
+      <Text style={styles.calendarBlockAccent}>{formatCalendarAccent(task.title)}</Text>
       <View style={styles.flexSpacer} />
-      <Text style={styles.calendarBlockTime}>01PM -{'\n'}05PM</Text>
+      <Text style={styles.calendarBlockTime}>
+        {formatHour(startHour)} -{'\n'}{formatHour(endHour)}
+      </Text>
     </View>
   );
+}
+
+function formatCalendarTitle(title: string) {
+  return title.split(/\s+/).filter(Boolean).slice(0, 3).join('\n') || 'New\nTodo';
+}
+
+function formatCalendarAccent(title: string) {
+  return title.split(/\s+/).filter(Boolean).slice(0, 2).join('-\n') || 'Todo';
+}
+
+function formatHour(hour: number) {
+  const value = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
+  const suffix = hour >= 12 ? 'PM' : 'AM';
+  return `${String(value).padStart(2, '0')}${suffix}`;
 }
 
 const styles = StyleSheet.create({
@@ -516,6 +576,14 @@ const styles = StyleSheet.create({
     gap: 12,
     paddingHorizontal: 24,
     paddingTop: 20,
+  },
+  calendarEmptyText: {
+    color: 'rgba(17,17,17,0.38)',
+    fontSize: 13,
+    fontWeight: '700',
+    left: 84,
+    position: 'absolute',
+    top: 98,
   },
   card: {
     backgroundColor: '#F0F1F3',

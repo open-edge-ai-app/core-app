@@ -112,6 +112,12 @@ extension NativeChatStore {
     }
   }
 
+  func setTodoLabel(_ item: NativeTodoItem, label: NativeTodoLabel?) {
+    mutateTodoItem(item.id) { todo in
+      todo.setLabelIds(label.map { [$0.id] } ?? [])
+    }
+  }
+
   func setTodoHideCompletedTasks(_ hidden: Bool) {
     todoHideCompletedTasks = hidden
     saveSettings()

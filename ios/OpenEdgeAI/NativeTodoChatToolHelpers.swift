@@ -33,8 +33,6 @@ extension NativeChatStore {
     let ids = todoToolLabelIds(from: names)
     mutateTodoItem(item.id) { todo in
       switch mode {
-      case "add", "append", "추가":
-        todo.setLabelIds(todo.labelIds + ids)
       case "remove", "delete", "삭제":
         todo.setLabelIds(todo.labelIds.filter { !ids.contains($0) })
       default:
@@ -123,7 +121,7 @@ extension NativeChatStore {
   }
 
   func todoToolLabelIds(from names: [String]) -> [String] {
-    names.map { ensureTodoToolLabel(named: $0).id }
+    names.prefix(1).map { ensureTodoToolLabel(named: $0).id }
   }
 
   func ensureTodoToolLabel(named name: String) -> NativeTodoLabel {

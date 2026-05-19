@@ -42,7 +42,7 @@ struct NativeTodoTaskCard: View {
   var onToggleComplete: () -> Void
   var onToggleStar: () -> Void
   var onToggleSubtask: (NativeTodoSubtask) -> Void
-  var onToggleLabel: (NativeTodoLabel) -> Void
+  var onSelectLabel: (NativeTodoLabel?) -> Void
   var onToggleExpanded: () -> Void
   var onEdit: () -> Void
   var onDelete: () -> Void
@@ -177,9 +177,18 @@ struct NativeTodoTaskCard: View {
         if availableLabels.isEmpty {
           Text(i18n.t(.todoNoLabels))
         } else {
+          Button {
+            onSelectLabel(nil)
+          } label: {
+            Label(
+              i18n.t(.todoNoLabel),
+              systemImage: task.labelIds.isEmpty ? "checkmark" : "tag.slash"
+            )
+          }
+
           ForEach(availableLabels) { label in
             Button {
-              onToggleLabel(label)
+              onSelectLabel(label)
             } label: {
               Label(
                 label.title,
@@ -203,11 +212,7 @@ struct NativeTodoInlineTagGroup: View {
   var labels: [NativeTodoLabel]
 
   private var visibleLabels: [NativeTodoLabel] {
-    Array(labels.prefix(2))
-  }
-
-  private var remainingCount: Int {
-    max(0, labels.count - visibleLabels.count)
+    Array(labels.prefix(1))
   }
 
   var body: some View {
@@ -216,12 +221,6 @@ struct NativeTodoInlineTagGroup: View {
         NativeTodoInlineTagChip(label: label)
       }
 
-      if remainingCount > 0 {
-        Text("+\(remainingCount)")
-          .font(.system(size: 11, weight: .bold))
-          .foregroundColor(Color.black.opacity(0.5))
-          .frame(height: 22)
-      }
     }
     .frame(maxWidth: 150, alignment: .leading)
   }

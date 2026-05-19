@@ -241,7 +241,7 @@ struct NativeTodoCalendarTagRow: View {
   var foregroundColor: Color
 
   private var visibleLabels: [NativeTodoLabel] {
-    Array(labels.prefix(2))
+    Array(labels.prefix(1))
   }
 
   var body: some View {

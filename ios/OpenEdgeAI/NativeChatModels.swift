@@ -109,12 +109,12 @@ enum NativeToolRegistry {
     let todoToolSection = """
     Todo app tools:
     - todo_list(filter, date, include_completed): reads Todo tasks. filter is all, today, tomorrow, overdue, or date.
-    - todo_create(title, note, start_at, end_at, repeat, labels, starred): creates a Todo.
-    - todo_update(id or query, title, note, start_at, end_at, repeat, labels, starred): edits a Todo.
+    - todo_create(title, note, start_at, end_at, repeat, labels, starred): creates a Todo. Use at most one label.
+    - todo_update(id or query, title, note, start_at, end_at, repeat, labels, starred): edits a Todo. Use at most one label.
     - todo_complete(id or query, date, completed): marks a Todo or one recurring occurrence complete/incomplete.
     - todo_delete(id or query): deletes a Todo.
     - todo_star(id or query, starred): changes important/starred state.
-    - todo_label_create(name), todo_label_delete(name), todo_label_assign(id or query, labels, mode): manages tags. mode is replace, add, or remove.
+    - todo_label_create(name), todo_label_delete(name), todo_label_assign(id or query, labels, mode): manages tags. Each Todo can have only one tag; mode is replace or remove.
     - todo_subtask_add(id or query, title), todo_subtask_toggle(id or query, subtask, completed), todo_subtask_delete(id or query, subtask): manages subtasks.
     - todo_settings_update(hide_completed, show_tags, calendar_sync): updates Todo display/calendar settings.
     Todo tool call format:

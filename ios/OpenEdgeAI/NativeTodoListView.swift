@@ -272,8 +272,8 @@ struct NativeTodoListView: View {
       onToggleSubtask: { subtask in
         store.toggleTodoSubtask(todoId: task.id, subtaskId: subtask.id)
       },
-      onToggleLabel: { label in
-        store.toggleTodoLabel(task, label: label)
+      onSelectLabel: { label in
+        store.setTodoLabel(task, label: label)
       },
       onToggleExpanded: {
         withAnimation(.easeInOut(duration: 0.18)) {
@@ -300,7 +300,7 @@ struct NativeTodoListView: View {
   }
 
   private func labels(for task: NativeTodoItem) -> [NativeTodoLabel] {
-    store.todoLabels.filter { task.labelIds.contains($0.id) }
+    Array(store.todoLabels.filter { task.labelIds.contains($0.id) }.prefix(1))
   }
 
   private var calendarContent: some View {

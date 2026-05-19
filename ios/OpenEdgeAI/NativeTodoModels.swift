@@ -263,22 +263,23 @@ struct NativeTodoItem: Identifiable, Codable, Equatable, Hashable {
   }
 
   mutating func toggleLabel(_ label: NativeTodoLabel) {
-    if labelIds.contains(label.id) {
-      labelIds.removeAll { $0 == label.id }
+    if labelIds.first == label.id {
+      labelIds.removeAll()
     } else {
-      labelIds.append(label.id)
+      labelIds = [label.id]
     }
   }
 
   private static func uniqueLabelIds(_ ids: [String]) -> [String] {
     var seen = Set<String>()
-    return ids.filter { id in
+    let uniqueIds = ids.filter { id in
       guard !id.isEmpty, !seen.contains(id) else {
         return false
       }
       seen.insert(id)
       return true
     }
+    return Array(uniqueIds.prefix(1))
   }
 
   static func seedItems(now: Date = Date(), calendar: Calendar = .current) -> [NativeTodoItem] {

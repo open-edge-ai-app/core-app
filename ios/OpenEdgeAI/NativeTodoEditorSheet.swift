@@ -12,7 +12,7 @@ struct NativeTodoEditorSheet: View {
   @State private var startDate: Date
   @State private var endDate: Date
   @State private var repeatRule: NativeTodoRepeatRule
-  @State private var selectedLabelIds: Set<String>
+  @State private var selectedLabelId: String?
 
   init(selectedDate: Date) {
     self.todoItem = nil
@@ -21,7 +21,7 @@ struct NativeTodoEditorSheet: View {
     _startDate = State(initialValue: defaultStartDate)
     _endDate = State(initialValue: NativeTodoEditorSheet.defaultEndDate(for: defaultStartDate))
     _repeatRule = State(initialValue: .none)
-    _selectedLabelIds = State(initialValue: [])
+    _selectedLabelId = State(initialValue: nil)
   }
 
   init(todoItem: NativeTodoItem) {
@@ -33,7 +33,7 @@ struct NativeTodoEditorSheet: View {
     _startDate = State(initialValue: startDate)
     _endDate = State(initialValue: NativeTodoEditorSheet.endDate(for: todoItem, startDate: startDate))
     _repeatRule = State(initialValue: todoItem.recurrenceRule)
-    _selectedLabelIds = State(initialValue: Set(todoItem.labelIds))
+    _selectedLabelId = State(initialValue: todoItem.labelIds.first)
   }
 
   private var isEditing: Bool {
@@ -72,10 +72,11 @@ struct NativeTodoEditorSheet: View {
               .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
           }
 
-          NativeTodoLabelPicker(
+          NativeTodoLabelSelect(
             i18n: i18n,
             labels: store.todoLabels,
-            selectedLabelIds: $selectedLabelIds
+            selectedLabelId: $selectedLabelId,
+            accentColor: store.accentColor.color
           )
 
           VStack(alignment: .leading, spacing: 8) {
@@ -144,7 +145,7 @@ struct NativeTodoEditorSheet: View {
                 startDate: startDate,
                 endDate: endDate,
                 repeatRule: repeatRule,
-                labelIds: Array(selectedLabelIds)
+                labelIds: selectedLabelIds
               )
             } else {
               store.createTodo(
@@ -153,7 +154,7 @@ struct NativeTodoEditorSheet: View {
                 startDate: startDate,
                 endDate: endDate,
                 repeatRule: repeatRule,
-                labelIds: Array(selectedLabelIds)
+                labelIds: selectedLabelIds
               )
             }
             dismiss()
@@ -174,6 +175,10 @@ struct NativeTodoEditorSheet: View {
         }
       }
     }
+  }
+
+  private var selectedLabelIds: [String] {
+    selectedLabelId.map { [$0] } ?? []
   }
 
   private static func defaultStartDate(for selectedDate: Date) -> Date {
@@ -201,87 +206,69 @@ struct NativeTodoEditorSheet: View {
   }
 }
 
-struct NativeTodoLabelPicker: View {
+struct NativeTodoLabelSelect: View {
   var i18n: NativeI18n
   var labels: [NativeTodoLabel]
-  @Binding var selectedLabelIds: Set<String>
+  @Binding var selectedLabelId: String?
+  var accentColor: Color
 
-  private var columns: [GridItem] {
-    [GridItem(.adaptive(minimum: 96), spacing: 8)]
+  private var selectedLabel: NativeTodoLabel? {
+    labels.first { $0.id == selectedLabelId }
   }
 
   var body: some View {
-    VStack(alignment: .leading, spacing: 10) {
+    VStack(alignment: .leading, spacing: 8) {
       Text(i18n.t(.todoLabels))
         .font(.system(size: 13, weight: .bold))
         .foregroundColor(Color.black.opacity(0.48))
 
-      if labels.isEmpty {
-        Text(i18n.t(.todoNoLabels))
-          .font(.system(size: 14, weight: .semibold))
-          .foregroundColor(Color.black.opacity(0.42))
-          .frame(maxWidth: .infinity, alignment: .leading)
-          .padding(.horizontal, 14)
-          .padding(.vertical, 13)
-          .background(Color.black.opacity(0.035))
-          .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-      } else {
-        LazyVGrid(columns: columns, alignment: .leading, spacing: 8) {
-          ForEach(labels) { label in
-            NativeTodoTagChip(
-              label: label,
-              isSelected: selectedLabelIds.contains(label.id)
-            ) {
-              toggle(label)
+      HStack(spacing: 12) {
+        Image(systemName: "tag")
+          .font(.system(size: 16, weight: .semibold))
+          .foregroundColor(Color.black.opacity(0.48))
+          .frame(width: 22)
+
+        Text(i18n.t(.todoLabels))
+          .font(.system(size: 16, weight: .semibold))
+          .foregroundColor(.black)
+
+        Spacer(minLength: 12)
+
+        if labels.isEmpty {
+          Text(i18n.t(.todoNoLabels))
+            .font(.system(size: 14, weight: .semibold))
+            .foregroundColor(Color.black.opacity(0.42))
+        } else {
+          if let selectedLabel {
+            Circle()
+              .fill(Color(todoLabelHex: selectedLabel.colorHex))
+              .frame(width: 8, height: 8)
+          }
+
+          Picker(i18n.t(.todoLabels), selection: selectedBinding) {
+            Text(i18n.t(.todoNoLabel)).tag("")
+            ForEach(labels) { label in
+              Text(label.title).tag(label.id)
             }
           }
+          .pickerStyle(.menu)
+          .tint(accentColor)
         }
       }
+      .padding(.horizontal, 14)
+      .frame(height: 54)
+      .background(Color.black.opacity(0.055))
+      .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
     }
   }
 
-  private func toggle(_ label: NativeTodoLabel) {
-    if selectedLabelIds.contains(label.id) {
-      selectedLabelIds.remove(label.id)
-    } else {
-      selectedLabelIds.insert(label.id)
-    }
-  }
-}
-
-struct NativeTodoTagChip: View {
-  var label: NativeTodoLabel
-  var isSelected: Bool
-  var action: () -> Void
-
-  var body: some View {
-    Button(action: action) {
-      HStack(spacing: 7) {
-        Circle()
-          .fill(Color(todoLabelHex: label.colorHex))
-          .frame(width: 9, height: 9)
-
-        Text(label.title)
-          .font(.system(size: 13, weight: .bold))
-          .lineLimit(1)
-
-        if isSelected {
-          Image(systemName: "checkmark")
-            .font(.system(size: 10, weight: .bold))
-        }
+  private var selectedBinding: Binding<String> {
+    Binding(
+      get: { selectedLabelId ?? "" },
+      set: { newValue in
+        selectedLabelId = newValue.isEmpty ? nil : newValue
       }
-      .foregroundColor(.black)
-      .padding(.horizontal, 11)
-      .frame(height: 34)
-      .frame(maxWidth: .infinity)
-      .background(isSelected ? Color.black.opacity(0.10) : Color.black.opacity(0.045))
-      .overlay(
-        Capsule()
-          .stroke(isSelected ? Color.black.opacity(0.34) : Color.black.opacity(0.08), lineWidth: 1)
-      )
-      .clipShape(Capsule())
-    }
-    .buttonStyle(.plain)
+    )
   }
 }
 

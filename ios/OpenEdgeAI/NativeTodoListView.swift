@@ -10,6 +10,7 @@ let nativeTodoCurrentTimeLineID = "native-todo-current-time-line"
 
 struct NativeCalendarEvent: Identifiable {
   var id: String
+  var task: NativeTodoItem
   var title: String
   var accent: String
   var startHour: CGFloat
@@ -53,6 +54,7 @@ struct NativeTodoListView: View {
     selectedDateTodos.enumerated().map { index, item in
       NativeCalendarEvent(
         id: item.id,
+        task: item,
         title: eventTitle(for: item.title),
         accent: eventAccent(for: item.title),
         startHour: CGFloat(item.startHour),
@@ -307,7 +309,10 @@ struct NativeTodoListView: View {
             accentColor: store.accentColor,
             events: calendarEvents,
             currentTimeHour: currentTimeHour,
-            i18n: i18n
+            i18n: i18n,
+            onEditEvent: { task in
+              editingTodo = task
+            }
           )
             .padding(.bottom, 132)
         }

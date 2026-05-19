@@ -5,6 +5,7 @@ struct NativeTodoTimeline: View {
   var events: [NativeCalendarEvent]
   var currentTimeHour: CGFloat?
   var i18n: NativeI18n
+  var onEditEvent: (NativeTodoItem) -> Void
 
   private let timelineStart: CGFloat = 1
   private let timelineEnd: CGFloat = 24
@@ -33,6 +34,13 @@ struct NativeTodoTimeline: View {
         ForEach(events) { event in
           NativeTodoCalendarEventCard(accentColor: accentColor, event: event)
             .frame(width: laneWidth, height: eventHeight(for: event))
+            .contextMenu {
+              Button {
+                onEditEvent(event.task)
+              } label: {
+                Label(i18n.t(.todoEdit), systemImage: "pencil")
+              }
+            }
             .offset(
               x: eventXOffset(for: event, laneWidth: laneWidth),
               y: eventOffset(for: event)

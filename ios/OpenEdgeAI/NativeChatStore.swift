@@ -220,20 +220,43 @@ final class NativeChatStore: ObservableObject {
     }
 
     let trimmedNote = note.trimmingCharacters(in: .whitespacesAndNewlines)
-    let startHour = snappedTimelineHour(from: startDate, relativeTo: startDate, upperBound: 23.5)
-    let endHour = snappedTimelineHour(from: endDate, relativeTo: startDate, upperBound: 24)
-    let duration = min(max(0.5, endHour - startHour), max(0.5, 24 - startHour))
+    let schedule = todoSchedule(startDate: startDate, endDate: endDate)
     let item = NativeTodoItem(
       title: trimmedTitle,
       note: trimmedNote,
       dueDate: startDate,
-      startHour: startHour,
-      durationHours: duration
+      startHour: schedule.startHour,
+      durationHours: schedule.durationHours
     )
 
     todoItems.insert(item, at: 0)
     sortTodoItems()
     saveTodoItems()
+  }
+
+  func updateTodo(_ item: NativeTodoItem, title: String, note: String, startDate: Date, endDate: Date) {
+    let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !trimmedTitle.isEmpty else {
+      return
+    }
+
+    let trimmedNote = note.trimmingCharacters(in: .whitespacesAndNewlines)
+    let schedule = todoSchedule(startDate: startDate, endDate: endDate)
+
+    mutateTodoItem(item.id) { todo in
+      todo.title = trimmedTitle
+      todo.note = trimmedNote
+      todo.dueDate = startDate
+      todo.startHour = schedule.startHour
+      todo.durationHours = schedule.durationHours
+    }
+  }
+
+  private func todoSchedule(startDate: Date, endDate: Date) -> (startHour: Double, durationHours: Double) {
+    let startHour = snappedTimelineHour(from: startDate, relativeTo: startDate, upperBound: 23.5)
+    let endHour = snappedTimelineHour(from: endDate, relativeTo: startDate, upperBound: 24)
+    let duration = min(max(0.5, endHour - startHour), max(0.5, 24 - startHour))
+    return (startHour, duration)
   }
 
   private func snappedTimelineHour(from date: Date, relativeTo startDate: Date, upperBound: Double) -> Double {

@@ -26,6 +26,7 @@ struct NativeTodoListView: View {
   @State private var isTodayExpanded = true
   @State private var selectedDate = Date()
   @State private var showingComposer = false
+  @State private var editingTodo: NativeTodoItem?
 
   private var calendar: Calendar {
     Calendar.current
@@ -92,6 +93,12 @@ struct NativeTodoListView: View {
     .background(Color.white.ignoresSafeArea())
     .sheet(isPresented: $showingComposer) {
       NativeTodoEditorSheet(selectedDate: selectedDate)
+        .environmentObject(store)
+        .presentationDetents([.medium, .large])
+        .presentationDragIndicator(.visible)
+    }
+    .sheet(item: $editingTodo) { item in
+      NativeTodoEditorSheet(todoItem: item)
         .environmentObject(store)
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
@@ -198,6 +205,9 @@ struct NativeTodoListView: View {
       },
       onToggleSubtask: { subtask in
         store.toggleTodoSubtask(todoId: task.id, subtaskId: subtask.id)
+      },
+      onEdit: {
+        editingTodo = task
       },
       onDelete: {
         withAnimation(.easeInOut(duration: 0.18)) {
@@ -320,6 +330,7 @@ private struct NativeTodoTaskCard: View {
   var onToggleComplete: () -> Void
   var onToggleStar: () -> Void
   var onToggleSubtask: (NativeTodoSubtask) -> Void
+  var onEdit: () -> Void
   var onDelete: () -> Void
 
   private var isOverdue: Bool {
@@ -430,6 +441,10 @@ private struct NativeTodoTaskCard: View {
     .background(Color(red: 0.94, green: 0.945, blue: 0.95))
     .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
     .contextMenu {
+      Button(action: onEdit) {
+        Label("수정", systemImage: "pencil")
+      }
+
       Button(role: .destructive, action: onDelete) {
         Label("삭제", systemImage: "trash")
       }
@@ -651,6 +666,7 @@ private struct NativeTodoEditorSheet: View {
   @Environment(\.dismiss) private var dismiss
   @EnvironmentObject private var store: NativeChatStore
 
+  var todoItem: NativeTodoItem?
   var selectedDate: Date
 
   @State private var title = ""
@@ -659,10 +675,25 @@ private struct NativeTodoEditorSheet: View {
   @State private var endDate: Date
 
   init(selectedDate: Date) {
+    self.todoItem = nil
     self.selectedDate = selectedDate
     let defaultStartDate = NativeTodoEditorSheet.defaultStartDate(for: selectedDate)
     _startDate = State(initialValue: defaultStartDate)
     _endDate = State(initialValue: NativeTodoEditorSheet.defaultEndDate(for: defaultStartDate))
+  }
+
+  init(todoItem: NativeTodoItem) {
+    self.todoItem = todoItem
+    self.selectedDate = todoItem.dueDate
+    let startDate = NativeTodoEditorSheet.startDate(for: todoItem)
+    _title = State(initialValue: todoItem.title)
+    _note = State(initialValue: todoItem.note)
+    _startDate = State(initialValue: startDate)
+    _endDate = State(initialValue: NativeTodoEditorSheet.endDate(for: todoItem, startDate: startDate))
+  }
+
+  private var isEditing: Bool {
+    todoItem != nil
   }
 
   var body: some View {
@@ -715,7 +746,7 @@ private struct NativeTodoEditorSheet: View {
       }
       .padding(22)
       .background(Color.white)
-      .navigationTitle("Add Todo")
+      .navigationTitle(isEditing ? "Edit Todo" : "Add Todo")
       .navigationBarTitleDisplayMode(.inline)
       .toolbar {
         ToolbarItem(placement: .cancellationAction) {
@@ -725,7 +756,11 @@ private struct NativeTodoEditorSheet: View {
         }
         ToolbarItem(placement: .confirmationAction) {
           Button("Save") {
-            store.createTodo(title: title, note: note, startDate: startDate, endDate: endDate)
+            if let todoItem {
+              store.updateTodo(todoItem, title: title, note: note, startDate: startDate, endDate: endDate)
+            } else {
+              store.createTodo(title: title, note: note, startDate: startDate, endDate: endDate)
+            }
             dismiss()
           }
           .disabled(title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
@@ -752,5 +787,21 @@ private struct NativeTodoEditorSheet: View {
 
   private static func defaultEndDate(for startDate: Date) -> Date {
     Calendar.current.date(byAdding: .hour, value: 1, to: startDate) ?? startDate
+  }
+
+  private static func startDate(for item: NativeTodoItem) -> Date {
+    date(on: item.dueDate, timelineHour: item.startHour)
+  }
+
+  private static func endDate(for item: NativeTodoItem, startDate: Date) -> Date {
+    let durationMinutes = Int((max(0.5, item.durationHours) * 60).rounded())
+    return Calendar.current.date(byAdding: .minute, value: durationMinutes, to: startDate) ?? defaultEndDate(for: startDate)
+  }
+
+  private static func date(on baseDate: Date, timelineHour: Double) -> Date {
+    let boundedHour = min(max(timelineHour, 1), 23.5)
+    let hour = Int(floor(boundedHour))
+    let minute = Int(round((boundedHour - Double(hour)) * 60))
+    return Calendar.current.date(bySettingHour: hour, minute: minute, second: 0, of: baseDate) ?? baseDate
   }
 }

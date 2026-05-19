@@ -42,7 +42,7 @@ struct NativeTodoListView: View {
 
   private var selectedDateTodos: [NativeTodoItem] {
     visibleTodos.filter { item in
-      !item.isOverdue() && calendar.isDate(item.dueDate, inSameDayAs: selectedDate)
+      !item.isOverdue() && item.occurs(on: selectedDate, calendar: calendar)
     }
   }
 
@@ -390,7 +390,7 @@ private struct NativeTodoTaskCard: View {
               .font(.system(size: 14, weight: .bold))
               .foregroundColor(Color.black.opacity(0.28))
 
-            Text("Tasks")
+            Text(task.recurrenceRule.isRepeating ? task.recurrenceRule.title : "Tasks")
               .font(.system(size: 14, weight: .semibold))
               .foregroundColor(Color.black.opacity(0.42))
 
@@ -714,6 +714,7 @@ private struct NativeTodoEditorSheet: View {
   @State private var note = ""
   @State private var startDate: Date
   @State private var endDate: Date
+  @State private var repeatRule: NativeTodoRepeatRule
 
   init(selectedDate: Date) {
     self.todoItem = nil
@@ -721,6 +722,7 @@ private struct NativeTodoEditorSheet: View {
     let defaultStartDate = NativeTodoEditorSheet.defaultStartDate(for: selectedDate)
     _startDate = State(initialValue: defaultStartDate)
     _endDate = State(initialValue: NativeTodoEditorSheet.defaultEndDate(for: defaultStartDate))
+    _repeatRule = State(initialValue: .none)
   }
 
   init(todoItem: NativeTodoItem) {
@@ -731,6 +733,7 @@ private struct NativeTodoEditorSheet: View {
     _note = State(initialValue: todoItem.note)
     _startDate = State(initialValue: startDate)
     _endDate = State(initialValue: NativeTodoEditorSheet.endDate(for: todoItem, startDate: startDate))
+    _repeatRule = State(initialValue: todoItem.recurrenceRule)
   }
 
   private var isEditing: Bool {
@@ -783,6 +786,26 @@ private struct NativeTodoEditorSheet: View {
         .background(Color.black.opacity(0.055))
         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
 
+        HStack(spacing: 12) {
+          Text("Repeat")
+            .font(.system(size: 13, weight: .bold))
+            .foregroundColor(Color.black.opacity(0.48))
+
+          Spacer()
+
+          Picker("Repeat", selection: $repeatRule) {
+            ForEach(NativeTodoRepeatRule.allCases) { rule in
+              Text(rule.title).tag(rule)
+            }
+          }
+          .pickerStyle(.menu)
+          .tint(store.accentColor.color)
+        }
+        .padding(.horizontal, 14)
+        .frame(height: 50)
+        .background(Color.black.opacity(0.055))
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+
         Spacer()
       }
       .padding(22)
@@ -798,9 +821,22 @@ private struct NativeTodoEditorSheet: View {
         ToolbarItem(placement: .confirmationAction) {
           Button("Save") {
             if let todoItem {
-              store.updateTodo(todoItem, title: title, note: note, startDate: startDate, endDate: endDate)
+              store.updateTodo(
+                todoItem,
+                title: title,
+                note: note,
+                startDate: startDate,
+                endDate: endDate,
+                repeatRule: repeatRule
+              )
             } else {
-              store.createTodo(title: title, note: note, startDate: startDate, endDate: endDate)
+              store.createTodo(
+                title: title,
+                note: note,
+                startDate: startDate,
+                endDate: endDate,
+                repeatRule: repeatRule
+              )
             }
             dismiss()
           }

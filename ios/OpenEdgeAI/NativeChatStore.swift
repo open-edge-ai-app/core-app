@@ -213,7 +213,13 @@ final class NativeChatStore: ObservableObject {
     rebuildLocalMemoryIndex()
   }
 
-  func createTodo(title: String, note: String, startDate: Date, endDate: Date) {
+  func createTodo(
+    title: String,
+    note: String,
+    startDate: Date,
+    endDate: Date,
+    repeatRule: NativeTodoRepeatRule
+  ) {
     let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !trimmedTitle.isEmpty else {
       return
@@ -226,7 +232,8 @@ final class NativeChatStore: ObservableObject {
       note: trimmedNote,
       dueDate: startDate,
       startHour: schedule.startHour,
-      durationHours: schedule.durationHours
+      durationHours: schedule.durationHours,
+      repeatRule: repeatRule
     )
 
     todoItems.insert(item, at: 0)
@@ -234,7 +241,14 @@ final class NativeChatStore: ObservableObject {
     saveTodoItems()
   }
 
-  func updateTodo(_ item: NativeTodoItem, title: String, note: String, startDate: Date, endDate: Date) {
+  func updateTodo(
+    _ item: NativeTodoItem,
+    title: String,
+    note: String,
+    startDate: Date,
+    endDate: Date,
+    repeatRule: NativeTodoRepeatRule
+  ) {
     let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !trimmedTitle.isEmpty else {
       return
@@ -249,6 +263,7 @@ final class NativeChatStore: ObservableObject {
       todo.dueDate = startDate
       todo.startHour = schedule.startHour
       todo.durationHours = schedule.durationHours
+      todo.repeatRule = repeatRule.isRepeating ? repeatRule : nil
     }
   }
 

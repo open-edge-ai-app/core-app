@@ -205,6 +205,35 @@ struct NativeTodoSubtask: Identifiable, Codable, Equatable, Hashable {
   }
 }
 
+enum NativeTodoRepeatRule: String, CaseIterable, Codable, Identifiable, Hashable {
+  case none
+  case daily
+  case weekdays
+  case weekly
+  case monthly
+
+  var id: String { rawValue }
+
+  var title: String {
+    switch self {
+    case .none:
+      return "반복 없음"
+    case .daily:
+      return "매일"
+    case .weekdays:
+      return "평일"
+    case .weekly:
+      return "매주"
+    case .monthly:
+      return "매월"
+    }
+  }
+
+  var isRepeating: Bool {
+    self != .none
+  }
+}
+
 struct NativeTodoItem: Identifiable, Codable, Equatable, Hashable {
   var id: String
   var title: String
@@ -217,6 +246,7 @@ struct NativeTodoItem: Identifiable, Codable, Equatable, Hashable {
   var updatedAt: Date
   var startHour: Double
   var durationHours: Double
+  var repeatRule: NativeTodoRepeatRule?
 
   init(
     id: String = UUID().uuidString,
@@ -229,7 +259,8 @@ struct NativeTodoItem: Identifiable, Codable, Equatable, Hashable {
     createdAt: Date = Date(),
     updatedAt: Date = Date(),
     startHour: Double = 13,
-    durationHours: Double = 2
+    durationHours: Double = 2,
+    repeatRule: NativeTodoRepeatRule = .none
   ) {
     self.id = id
     self.title = title
@@ -242,10 +273,40 @@ struct NativeTodoItem: Identifiable, Codable, Equatable, Hashable {
     self.updatedAt = updatedAt
     self.startHour = startHour
     self.durationHours = durationHours
+    self.repeatRule = repeatRule.isRepeating ? repeatRule : nil
+  }
+
+  var recurrenceRule: NativeTodoRepeatRule {
+    repeatRule ?? .none
   }
 
   func isOverdue(relativeTo date: Date = Date(), calendar: Calendar = .current) -> Bool {
-    !isCompleted && calendar.startOfDay(for: dueDate) < calendar.startOfDay(for: date)
+    guard recurrenceRule == .none else {
+      return false
+    }
+    return !isCompleted && calendar.startOfDay(for: dueDate) < calendar.startOfDay(for: date)
+  }
+
+  func occurs(on date: Date, calendar: Calendar = .current) -> Bool {
+    let targetDay = calendar.startOfDay(for: date)
+    let anchorDay = calendar.startOfDay(for: dueDate)
+    guard targetDay >= anchorDay else {
+      return false
+    }
+
+    switch recurrenceRule {
+    case .none:
+      return calendar.isDate(dueDate, inSameDayAs: date)
+    case .daily:
+      return true
+    case .weekdays:
+      let weekday = calendar.component(.weekday, from: targetDay)
+      return weekday >= 2 && weekday <= 6
+    case .weekly:
+      return calendar.component(.weekday, from: targetDay) == calendar.component(.weekday, from: anchorDay)
+    case .monthly:
+      return calendar.component(.day, from: targetDay) == calendar.component(.day, from: anchorDay)
+    }
   }
 
   func dueLabel(relativeTo date: Date = Date(), calendar: Calendar = .current) -> String {

@@ -6,6 +6,7 @@ import { ScaledText as Text } from '../theme/display';
 import { colors } from '../theme/tokens';
 
 type TodoTab = 'all' | 'calendar';
+type TodoRepeatRule = 'none' | 'daily' | 'weekdays' | 'weekly' | 'monthly';
 
 type TodoSubtask = {
   id: string;
@@ -22,6 +23,7 @@ type TodoTask = {
   isOverdue?: boolean;
   isStarred?: boolean;
   note: string;
+  repeatRule?: TodoRepeatRule;
   startHour?: number;
   subtasks?: TodoSubtask[];
   title: string;
@@ -153,13 +155,13 @@ export default function TodoListScreen() {
     [tasks],
   );
   const overdueTasks = useMemo(
-    () => visibleTasks.filter(task => task.isOverdue),
+    () => visibleTasks.filter(task => task.isOverdue && taskRepeatRule(task) === 'none'),
     [visibleTasks],
   );
   const selectedDateTasks = useMemo(
     () =>
       visibleTasks.filter(
-        task => !task.isOverdue && isSameCalendarDay(taskDate(task), selectedDate),
+        task => !task.isOverdue && taskOccursOnDate(task, selectedDate),
       ),
     [selectedDate, visibleTasks],
   );
@@ -215,6 +217,7 @@ export default function TodoListScreen() {
       durationHours: 1,
       id: `todo-${Date.now()}`,
       note: '',
+      repeatRule: 'none',
       startHour,
       title: 'New Todo',
     };
@@ -478,7 +481,7 @@ function TodoCard({
               {task.dueLabel}
             </Text>
             <Text style={styles.metaDot}>•</Text>
-            <Text style={styles.metaText}>Tasks</Text>
+            <Text style={styles.metaText}>{repeatLabel(task.repeatRule)}</Text>
             <View style={styles.flexSpacer} />
             <Pressable onPress={onToggleStar}>
               <Text
@@ -615,6 +618,57 @@ function taskDate(task: TodoTask) {
     date.setDate(date.getDate() + 1);
   }
   return date;
+}
+
+function taskRepeatRule(task: TodoTask): TodoRepeatRule {
+  return task.repeatRule ?? 'none';
+}
+
+function taskOccursOnDate(task: TodoTask, selectedDate: Date) {
+  const anchorDate = taskDate(task);
+  const selectedDay = startOfCalendarDay(selectedDate);
+  const anchorDay = startOfCalendarDay(anchorDate);
+  if (selectedDay.getTime() < anchorDay.getTime()) {
+    return false;
+  }
+
+  switch (taskRepeatRule(task)) {
+    case 'daily':
+      return true;
+    case 'weekdays': {
+      const weekday = selectedDay.getDay();
+      return weekday >= 1 && weekday <= 5;
+    }
+    case 'weekly':
+      return selectedDay.getDay() === anchorDay.getDay();
+    case 'monthly':
+      return selectedDay.getDate() === anchorDay.getDate();
+    case 'none':
+    default:
+      return isSameCalendarDay(anchorDay, selectedDay);
+  }
+}
+
+function startOfCalendarDay(date: Date) {
+  const value = new Date(date);
+  value.setHours(0, 0, 0, 0);
+  return value;
+}
+
+function repeatLabel(repeatRule?: TodoRepeatRule) {
+  switch (repeatRule) {
+    case 'daily':
+      return '매일';
+    case 'weekdays':
+      return '평일';
+    case 'weekly':
+      return '매주';
+    case 'monthly':
+      return '매월';
+    case 'none':
+    default:
+      return 'Tasks';
+  }
 }
 
 function getCalendarEventWidth(screenWidth: number) {

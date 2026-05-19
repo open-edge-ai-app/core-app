@@ -272,9 +272,9 @@ struct NativeTodoListView: View {
       } label: {
         Image(systemName: "plus")
           .font(.system(size: 31, weight: .light))
-          .foregroundColor(.blue.opacity(0.72))
+          .foregroundColor(.white)
           .frame(width: 56, height: 56)
-          .background(Color.white.opacity(0.96))
+          .background(Color.black)
           .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
           .shadow(color: Color.black.opacity(0.10), radius: 20, x: 0, y: 10)
       }

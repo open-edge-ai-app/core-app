@@ -465,7 +465,7 @@ const styles = StyleSheet.create({
   },
   bottomButton: {
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#111111',
     borderRadius: 14,
     height: 56,
     justifyContent: 'center',
@@ -635,7 +635,7 @@ const styles = StyleSheet.create({
     color: '#D4413B',
   },
   plusText: {
-    color: '#2563EB',
+    color: '#FFFFFF',
     fontSize: 34,
     fontWeight: '200',
   },

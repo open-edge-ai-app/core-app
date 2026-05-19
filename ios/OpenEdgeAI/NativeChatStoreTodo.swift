@@ -90,9 +90,9 @@ extension NativeChatStore {
     return min(max(Double(hour) + roundedMinute, 1), upperBound)
   }
 
-  func toggleTodoCompletion(_ item: NativeTodoItem) {
+  func toggleTodoCompletion(_ item: NativeTodoItem, occurrenceDate: Date? = nil) {
     mutateTodoItem(item.id) { todo in
-      todo.isCompleted.toggle()
+      todo.toggleCompletion(on: occurrenceDate ?? item.dueDate)
     }
   }
 

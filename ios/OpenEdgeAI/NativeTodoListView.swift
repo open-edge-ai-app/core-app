@@ -36,7 +36,7 @@ struct NativeTodoListView: View {
   }
 
   private var visibleTodos: [NativeTodoItem] {
-    store.todoItems.filter { !$0.isCompleted }
+    store.todoItems.filter { $0.recurrenceRule.isRepeating || !$0.isCompleted }
   }
 
   private var overdueTodos: [NativeTodoItem] {
@@ -45,7 +45,7 @@ struct NativeTodoListView: View {
 
   private var selectedDateTodos: [NativeTodoItem] {
     visibleTodos.filter { item in
-      !item.isOverdue() && item.occurs(on: selectedDate, calendar: calendar)
+      !item.isOverdue() && item.isVisible(on: selectedDate, calendar: calendar)
     }
   }
 
@@ -224,7 +224,7 @@ struct NativeTodoListView: View {
             NativeTodoEmptyRow(title: i18n.t(.todoNoOverdue))
           } else {
             ForEach(overdueTodos) { task in
-              todoCard(for: task)
+              todoCard(for: task, occurrenceDate: task.dueDate)
             }
           }
         }
@@ -239,7 +239,7 @@ struct NativeTodoListView: View {
             NativeTodoEmptyRow(title: i18n.t(.todoNoTasksForDate))
           } else {
             ForEach(selectedDateTodos) { task in
-              todoCard(for: task)
+              todoCard(for: task, occurrenceDate: selectedDate)
             }
           }
         }
@@ -250,13 +250,14 @@ struct NativeTodoListView: View {
     }
   }
 
-  private func todoCard(for task: NativeTodoItem) -> some View {
+  private func todoCard(for task: NativeTodoItem, occurrenceDate: Date) -> some View {
     NativeTodoTaskCard(
       i18n: store.i18n,
       task: task,
+      occurrenceDate: occurrenceDate,
       onToggleComplete: {
         withAnimation(.easeInOut(duration: 0.18)) {
-          store.toggleTodoCompletion(task)
+          store.toggleTodoCompletion(task, occurrenceDate: occurrenceDate)
         }
       },
       onToggleStar: {

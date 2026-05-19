@@ -28,6 +28,7 @@ struct NativeTodoSectionHeader: View {
 struct NativeTodoTaskCard: View {
   var i18n: NativeI18n
   var task: NativeTodoItem
+  var occurrenceDate: Date
   var onToggleComplete: () -> Void
   var onToggleStar: () -> Void
   var onToggleSubtask: (NativeTodoSubtask) -> Void
@@ -38,18 +39,22 @@ struct NativeTodoTaskCard: View {
     task.isOverdue()
   }
 
+  private var isOccurrenceCompleted: Bool {
+    task.isCompleted(on: occurrenceDate)
+  }
+
   var body: some View {
     VStack(alignment: .leading, spacing: 18) {
       HStack(alignment: .top, spacing: 14) {
         Button(action: onToggleComplete) {
-          Image(systemName: task.isCompleted ? "checkmark.circle.fill" : "circle")
+          Image(systemName: isOccurrenceCompleted ? "checkmark.circle.fill" : "circle")
             .font(.system(size: 23, weight: .medium))
-            .foregroundColor(task.isCompleted ? .black : Color.black.opacity(0.56))
+            .foregroundColor(isOccurrenceCompleted ? .black : Color.black.opacity(0.56))
             .frame(width: 25, height: 25)
             .padding(.top, 1)
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(task.isCompleted ? i18n.t(.todoIncomplete) : i18n.t(.todoComplete))
+        .accessibilityLabel(isOccurrenceCompleted ? i18n.t(.todoIncomplete) : i18n.t(.todoComplete))
 
         VStack(alignment: .leading, spacing: 11) {
           HStack(alignment: .top) {
@@ -74,7 +79,7 @@ struct NativeTodoTaskCard: View {
           }
 
           HStack(spacing: 8) {
-            Text(i18n.dueLabel(for: task.dueDate))
+            Text(i18n.dueLabel(for: occurrenceDate))
               .font(.system(size: 14, weight: .bold))
               .foregroundColor(isOverdue ? .red.opacity(0.78) : .red.opacity(0.64))
 

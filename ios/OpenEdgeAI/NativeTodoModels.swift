@@ -113,6 +113,7 @@ struct NativeTodoItem: Identifiable, Codable, Equatable, Hashable {
   var durationHours: Double
   var repeatRule: NativeTodoRepeatRule?
   var calendarEventIdentifier: String?
+  var completedOccurrenceDayKeys: Set<String>
 
   init(
     id: String = UUID().uuidString,
@@ -127,14 +128,15 @@ struct NativeTodoItem: Identifiable, Codable, Equatable, Hashable {
     startHour: Double = 13,
     durationHours: Double = 2,
     repeatRule: NativeTodoRepeatRule = .none,
-    calendarEventIdentifier: String? = nil
+    calendarEventIdentifier: String? = nil,
+    completedOccurrenceDayKeys: Set<String> = []
   ) {
     self.id = id
     self.title = title
     self.note = note
     self.dueDate = dueDate
     self.isStarred = isStarred
-    self.isCompleted = isCompleted
+    self.isCompleted = repeatRule.isRepeating ? false : isCompleted
     self.subtasks = subtasks
     self.createdAt = createdAt
     self.updatedAt = updatedAt
@@ -142,6 +144,44 @@ struct NativeTodoItem: Identifiable, Codable, Equatable, Hashable {
     self.durationHours = durationHours
     self.repeatRule = repeatRule.isRepeating ? repeatRule : nil
     self.calendarEventIdentifier = calendarEventIdentifier
+    self.completedOccurrenceDayKeys = completedOccurrenceDayKeys
+  }
+
+  private enum CodingKeys: String, CodingKey {
+    case id
+    case title
+    case note
+    case dueDate
+    case isStarred
+    case isCompleted
+    case subtasks
+    case createdAt
+    case updatedAt
+    case startHour
+    case durationHours
+    case repeatRule
+    case calendarEventIdentifier
+    case completedOccurrenceDayKeys
+  }
+
+  init(from decoder: Decoder) throws {
+    let container = try decoder.container(keyedBy: CodingKeys.self)
+    id = try container.decode(String.self, forKey: .id)
+    title = try container.decode(String.self, forKey: .title)
+    note = try container.decodeIfPresent(String.self, forKey: .note) ?? ""
+    dueDate = try container.decode(Date.self, forKey: .dueDate)
+    isStarred = try container.decodeIfPresent(Bool.self, forKey: .isStarred) ?? false
+    let decodedIsCompleted = try container.decodeIfPresent(Bool.self, forKey: .isCompleted) ?? false
+    subtasks = try container.decodeIfPresent([NativeTodoSubtask].self, forKey: .subtasks) ?? []
+    createdAt = try container.decodeIfPresent(Date.self, forKey: .createdAt) ?? dueDate
+    updatedAt = try container.decodeIfPresent(Date.self, forKey: .updatedAt) ?? createdAt
+    startHour = try container.decodeIfPresent(Double.self, forKey: .startHour) ?? 13
+    durationHours = try container.decodeIfPresent(Double.self, forKey: .durationHours) ?? 2
+    let decodedRepeatRule = try container.decodeIfPresent(NativeTodoRepeatRule.self, forKey: .repeatRule) ?? .none
+    repeatRule = decodedRepeatRule.isRepeating ? decodedRepeatRule : nil
+    isCompleted = decodedRepeatRule.isRepeating ? false : decodedIsCompleted
+    calendarEventIdentifier = try container.decodeIfPresent(String.self, forKey: .calendarEventIdentifier)
+    completedOccurrenceDayKeys = try container.decodeIfPresent(Set<String>.self, forKey: .completedOccurrenceDayKeys) ?? []
   }
 
   var recurrenceRule: NativeTodoRepeatRule {
@@ -175,6 +215,42 @@ struct NativeTodoItem: Identifiable, Codable, Equatable, Hashable {
     case .monthly:
       return calendar.component(.day, from: targetDay) == calendar.component(.day, from: anchorDay)
     }
+  }
+
+  func isCompleted(on date: Date, calendar: Calendar = .current) -> Bool {
+    guard recurrenceRule.isRepeating else {
+      return isCompleted
+    }
+    return completedOccurrenceDayKeys.contains(Self.occurrenceDayKey(for: date, calendar: calendar))
+  }
+
+  func isVisible(on date: Date, calendar: Calendar = .current) -> Bool {
+    occurs(on: date, calendar: calendar) && !isCompleted(on: date, calendar: calendar)
+  }
+
+  mutating func toggleCompletion(on date: Date, calendar: Calendar = .current) {
+    guard recurrenceRule.isRepeating else {
+      isCompleted.toggle()
+      return
+    }
+
+    let key = Self.occurrenceDayKey(for: date, calendar: calendar)
+    if completedOccurrenceDayKeys.contains(key) {
+      completedOccurrenceDayKeys.remove(key)
+    } else {
+      completedOccurrenceDayKeys.insert(key)
+    }
+  }
+
+  static func occurrenceDayKey(for date: Date, calendar: Calendar = .current) -> String {
+    let day = calendar.startOfDay(for: date)
+    let components = calendar.dateComponents([.year, .month, .day], from: day)
+    return String(
+      format: "%04d-%02d-%02d",
+      components.year ?? 0,
+      components.month ?? 0,
+      components.day ?? 0
+    )
   }
 
   func dueLabel(relativeTo date: Date = Date(), calendar: Calendar = .current) -> String {

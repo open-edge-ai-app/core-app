@@ -41,6 +41,7 @@ struct NativeTodoWeekStrip: View {
         LazyHStack(spacing: dayCellSpacing) {
           ForEach(days, id: \.self) { day in
             let isSelected = Calendar.current.isDate(day, inSameDayAs: selectedDate)
+            let isToday = Calendar.current.isDateInToday(day)
 
             Button {
               let id = dayID(for: day)
@@ -55,6 +56,10 @@ struct NativeTodoWeekStrip: View {
                   .font(.system(size: 13, weight: .bold))
                 Text(i18n.dayNumber(for: day))
                   .font(.system(size: 12, weight: .semibold))
+                Circle()
+                  .fill(Color.black)
+                  .frame(width: 4, height: 4)
+                  .opacity(isToday ? 1 : 0)
               }
               .foregroundColor(isSelected ? accentColor.color : Color.black.opacity(0.60))
               .frame(width: dayCellWidth, height: 52)

@@ -1,7 +1,8 @@
 import SwiftUI
 
-struct NativeInputBar: View {
+struct NativeProjectComposerBar: View {
   @EnvironmentObject private var store: NativeChatStore
+  var project: NativeProject
   @Binding var showingAttachmentOptions: Bool
   @FocusState private var focused: Bool
 
@@ -88,19 +89,13 @@ struct NativeInputBar: View {
 
           NativePromptEditor(
             text: $store.inputText,
-            placeholder: store.i18n.t(.chatInputPlaceholder),
+            placeholder: store.i18n.t(.projectMessagePlaceholder, ["name": project.title]),
             focused: $focused
           )
           .environmentObject(store)
         }
 
-        Button {
-          if showsStopButton {
-            store.cancelGeneration()
-          } else {
-            store.sendCurrentInput()
-          }
-        } label: {
+        Button(action: send) {
           Image(systemName: showsStopButton ? "stop.fill" : "arrow.up")
             .font(.system(size: 15, weight: .bold))
             .foregroundColor(submitButtonIsActive ? store.accentColor.foregroundColor : .oeMutedText)
@@ -128,6 +123,17 @@ struct NativeInputBar: View {
     .animation(.easeOut(duration: 0.18), value: showsSlashCommands)
     .animation(.easeOut(duration: 0.18), value: isSearchMode)
     .animation(.easeOut(duration: 0.14), value: hasDraftInput)
+  }
+
+  private func send() {
+    if showsStopButton {
+      store.cancelGeneration()
+      return
+    }
+    guard hasDraftInput else {
+      return
+    }
+    store.sendCurrentInput(projectId: project.id)
   }
 
   private func performSlashCommand(_ command: NativeSlashCommand) {

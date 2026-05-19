@@ -123,12 +123,14 @@ struct NativeTodoListView: View {
       NativeTodoEditorSheet(selectedDate: selectedDate)
         .environmentObject(store)
         .presentationDetents([.medium, .large])
+        .presentationContentInteraction(.scrolls)
         .presentationDragIndicator(.visible)
     }
     .sheet(item: $editingTodo) { item in
       NativeTodoEditorSheet(todoItem: item)
         .environmentObject(store)
         .presentationDetents([.medium, .large])
+        .presentationContentInteraction(.scrolls)
         .presentationDragIndicator(.visible)
     }
     .sheet(isPresented: $showingSettings) {
@@ -1192,79 +1194,82 @@ private struct NativeTodoEditorSheet: View {
 
   var body: some View {
     NavigationStack {
-      VStack(alignment: .leading, spacing: 18) {
-        VStack(alignment: .leading, spacing: 8) {
-          Text("Title")
-            .font(.system(size: 13, weight: .bold))
-            .foregroundColor(Color.black.opacity(0.48))
-          TextField("New task", text: $title)
-            .font(.system(size: 18, weight: .semibold))
-            .textInputAutocapitalization(.sentences)
-            .padding(.horizontal, 14)
-            .frame(height: 50)
-            .background(Color.black.opacity(0.055))
-            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-        }
-
-        VStack(alignment: .leading, spacing: 8) {
-          Text("Note")
-            .font(.system(size: 13, weight: .bold))
-            .foregroundColor(Color.black.opacity(0.48))
-          TextField("Optional details", text: $note, axis: .vertical)
-            .font(.system(size: 16, weight: .medium))
-            .lineLimit(3...6)
-            .padding(14)
-            .frame(minHeight: 94, alignment: .topLeading)
-            .background(Color.black.opacity(0.055))
-            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-        }
-
-        VStack(alignment: .leading, spacing: 8) {
-          Text("Schedule")
-            .font(.system(size: 13, weight: .bold))
-            .foregroundColor(Color.black.opacity(0.48))
-
-          VStack(spacing: 10) {
-            NativeTodoDateTimeField(
-              title: "Start",
-              systemImage: "clock",
-              date: $startDate,
-              tintColor: store.accentColor.color
-            )
-
-            NativeTodoDateTimeField(
-              title: "End",
-              systemImage: "clock.badge.checkmark",
-              date: $endDate,
-              tintColor: store.accentColor.color
-            )
+      ScrollView(showsIndicators: false) {
+        VStack(alignment: .leading, spacing: 18) {
+          VStack(alignment: .leading, spacing: 8) {
+            Text("Title")
+              .font(.system(size: 13, weight: .bold))
+              .foregroundColor(Color.black.opacity(0.48))
+            TextField("New task", text: $title)
+              .font(.system(size: 18, weight: .semibold))
+              .textInputAutocapitalization(.sentences)
+              .padding(.horizontal, 14)
+              .frame(height: 50)
+              .background(Color.black.opacity(0.055))
+              .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
           }
-        }
 
-        HStack(spacing: 12) {
-          Text("Repeat")
-            .font(.system(size: 13, weight: .bold))
-            .foregroundColor(Color.black.opacity(0.48))
+          VStack(alignment: .leading, spacing: 8) {
+            Text("Note")
+              .font(.system(size: 13, weight: .bold))
+              .foregroundColor(Color.black.opacity(0.48))
+            TextField("Optional details", text: $note, axis: .vertical)
+              .font(.system(size: 16, weight: .medium))
+              .lineLimit(3...6)
+              .padding(14)
+              .frame(minHeight: 94, alignment: .topLeading)
+              .background(Color.black.opacity(0.055))
+              .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+          }
 
-          Spacer()
+          VStack(alignment: .leading, spacing: 8) {
+            Text("Schedule")
+              .font(.system(size: 13, weight: .bold))
+              .foregroundColor(Color.black.opacity(0.48))
 
-          Picker("Repeat", selection: $repeatRule) {
-            ForEach(NativeTodoRepeatRule.allCases) { rule in
-              Text(rule.title).tag(rule)
+            VStack(spacing: 10) {
+              NativeTodoDateTimeField(
+                title: "Start",
+                systemImage: "clock",
+                date: $startDate,
+                tintColor: store.accentColor.color
+              )
+
+              NativeTodoDateTimeField(
+                title: "End",
+                systemImage: "clock.badge.checkmark",
+                date: $endDate,
+                tintColor: store.accentColor.color
+              )
             }
           }
-          .pickerStyle(.menu)
-          .tint(store.accentColor.color)
-        }
-        .padding(.horizontal, 14)
-        .frame(height: 50)
-        .background(Color.black.opacity(0.055))
-        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
 
-        Spacer()
+          HStack(spacing: 12) {
+            Text("Repeat")
+              .font(.system(size: 13, weight: .bold))
+              .foregroundColor(Color.black.opacity(0.48))
+
+            Spacer()
+
+            Picker("Repeat", selection: $repeatRule) {
+              ForEach(NativeTodoRepeatRule.allCases) { rule in
+                Text(rule.title).tag(rule)
+              }
+            }
+            .pickerStyle(.menu)
+            .tint(store.accentColor.color)
+          }
+          .padding(.horizontal, 14)
+          .frame(height: 50)
+          .background(Color.black.opacity(0.055))
+          .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        }
+        .padding(.horizontal, 22)
+        .padding(.top, 18)
+        .padding(.bottom, 30)
       }
-      .padding(22)
       .background(Color.white)
+      .scrollDismissesKeyboard(.interactively)
       .navigationTitle(isEditing ? "Edit Todo" : "Add Todo")
       .navigationBarTitleDisplayMode(.inline)
       .toolbar {

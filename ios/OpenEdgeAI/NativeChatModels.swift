@@ -102,6 +102,10 @@ enum NativeToolRegistry {
       return [.webSearch]
     }
 
+    if shouldUseTodoTool(draft.text) && !hasExplicitWebSearchTrigger(draft.text) {
+      return [.todo]
+    }
+
     return shouldUseWebSearch(draft.text) ? [.webSearch] : []
   }
 
@@ -122,6 +126,9 @@ enum NativeToolRegistry {
     ```openedge_tool
     {"tool":"todo_create","arguments":{"title":"...","start_at":"2026-05-20 13:00","end_at":"2026-05-20 14:00","repeat":"none","labels":["..."]}}
     ```
+    - Todo, schedule, reminder, meeting, and appointment requests have priority over web_search unless the user explicitly asks to search the web.
+    - Named people, companies, venues, or places inside a Todo sentence are usually Todo title/note content, not a reason to search.
+    - Korean declarative schedule statements such as "오늘 오후 4시부터 5시까지 대한상공회의소 미팅 가신데" mean create a Todo/schedule item unless the sentence is clearly a question.
     - You may include an array of calls in one block.
     - Dates must use the user's local timezone in yyyy-MM-dd HH:mm format when possible.
     - Keep any normal answer concise; the app will execute the tool and hide the JSON block from the user.
@@ -158,11 +165,7 @@ enum NativeToolRegistry {
       return false
     }
 
-    let explicitTriggers = [
-      "검색", "찾아", "구글", "웹", "인터넷", "출처", "근거", "링크",
-      "search", "web", "internet", "source", "sources", "lookup", "look up"
-    ]
-    if explicitTriggers.contains(where: { normalized.contains($0) }) {
+    if hasExplicitWebSearchTrigger(normalized) {
       return true
     }
 
@@ -171,6 +174,69 @@ enum NativeToolRegistry {
       "latest", "recent", "today", "current", "news", "price", "stock", "schedule", "law", "regulation"
     ]
     return volatileTriggers.contains { normalized.contains($0) }
+  }
+
+  private static func hasExplicitWebSearchTrigger(_ text: String) -> Bool {
+    let normalized = text.lowercased()
+    let explicitTriggers = [
+      "검색", "찾아", "구글", "웹", "인터넷", "출처", "근거", "링크",
+      "search", "web", "internet", "source", "sources", "lookup", "look up"
+    ]
+    return explicitTriggers.contains { normalized.contains($0) }
+  }
+
+  private static func shouldUseTodoTool(_ text: String) -> Bool {
+    let normalized = text.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !normalized.isEmpty else {
+      return false
+    }
+
+    let directTodoTerms = [
+      "todo", "to-do", "task", "할 일", "할일", "태스크",
+      "리마인드", "리마인더", "알림", "remind", "reminder"
+    ]
+    if containsAny(directTodoTerms, in: normalized) {
+      return true
+    }
+
+    let eventTerms = [
+      "일정", "스케줄", "캘린더", "회의", "미팅", "약속", "예약", "면담", "방문", "통화", "콜",
+      "schedule", "calendar", "meeting", "appointment", "reservation", "call"
+    ]
+    let scheduleVerbs = [
+      "추가", "등록", "넣어", "만들", "생성", "저장", "기록", "잡아", "정리",
+      "가신데", "간데", "가신다고", "간다고", "있대", "있어", "예정", "잡혀", "잡혔", "해야", "하래",
+      "add", "create", "save", "schedule", "book"
+    ]
+    let hasEventTerm = containsAny(eventTerms, in: normalized)
+    let hasScheduleVerb = containsAny(scheduleVerbs, in: normalized)
+    let hasTimeExpression = matchesAny(
+      [
+        #"오전|오후|아침|점심|저녁|밤"#,
+        #"\d{1,2}\s*시"#,
+        #"\d{1,2}\s*:\s*\d{2}"#,
+        #"오늘|내일|모레|이번\s*주|다음\s*주|다음\s*달"#,
+        #"\d{1,2}\s*월\s*\d{1,2}\s*일"#,
+        #"\d{4}[-./]\d{1,2}[-./]\d{1,2}"#
+      ],
+      in: normalized
+    )
+
+    if hasEventTerm && (hasTimeExpression || hasScheduleVerb) {
+      return true
+    }
+
+    return hasScheduleVerb && hasTimeExpression
+  }
+
+  private static func containsAny(_ needles: [String], in text: String) -> Bool {
+    needles.contains { text.contains($0) }
+  }
+
+  private static func matchesAny(_ patterns: [String], in text: String) -> Bool {
+    patterns.contains { pattern in
+      text.range(of: pattern, options: .regularExpression) != nil
+    }
   }
 }
 

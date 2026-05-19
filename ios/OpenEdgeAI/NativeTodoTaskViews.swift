@@ -85,6 +85,10 @@ struct NativeTodoTaskCard: View {
             .buttonStyle(.plain)
           }
 
+          if !labels.isEmpty {
+            NativeTodoTagRow(labels: labels)
+          }
+
           if isExpanded {
             if !task.note.isEmpty {
               Text(task.note)
@@ -92,10 +96,6 @@ struct NativeTodoTaskCard: View {
                 .foregroundColor(Color.black.opacity(0.52))
                 .lineSpacing(4)
                 .lineLimit(4)
-            }
-
-            if !labels.isEmpty {
-              NativeTodoTagRow(labels: labels)
             }
           }
 

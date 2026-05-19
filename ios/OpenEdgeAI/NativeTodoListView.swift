@@ -989,29 +989,34 @@ private struct NativeTodoEditorSheet: View {
             .foregroundColor(Color.black.opacity(0.48))
           TextField("Optional details", text: $note, axis: .vertical)
             .font(.system(size: 16, weight: .medium))
-            .lineLimit(2...5)
+            .lineLimit(3...6)
             .padding(14)
+            .frame(minHeight: 94, alignment: .topLeading)
             .background(Color.black.opacity(0.055))
             .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         }
 
-        VStack(spacing: 0) {
-          DatePicker("Start", selection: $startDate, displayedComponents: [.date, .hourAndMinute])
-            .font(.system(size: 16, weight: .semibold))
-            .tint(store.accentColor.color)
-            .padding(.vertical, 12)
+        VStack(alignment: .leading, spacing: 8) {
+          Text("Schedule")
+            .font(.system(size: 13, weight: .bold))
+            .foregroundColor(Color.black.opacity(0.48))
 
-          Divider()
-            .background(Color.black.opacity(0.07))
+          VStack(spacing: 10) {
+            NativeTodoDateTimeField(
+              title: "Start",
+              systemImage: "clock",
+              date: $startDate,
+              tintColor: store.accentColor.color
+            )
 
-          DatePicker("End", selection: $endDate, displayedComponents: [.date, .hourAndMinute])
-            .font(.system(size: 16, weight: .semibold))
-            .tint(store.accentColor.color)
-            .padding(.vertical, 12)
+            NativeTodoDateTimeField(
+              title: "End",
+              systemImage: "clock.badge.checkmark",
+              date: $endDate,
+              tintColor: store.accentColor.color
+            )
+          }
         }
-        .padding(.horizontal, 14)
-        .background(Color.black.opacity(0.055))
-        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
 
         HStack(spacing: 12) {
           Text("Repeat")
@@ -1107,5 +1112,36 @@ private struct NativeTodoEditorSheet: View {
     let hour = Int(floor(boundedHour))
     let minute = Int(round((boundedHour - Double(hour)) * 60))
     return Calendar.current.date(bySettingHour: hour, minute: minute, second: 0, of: baseDate) ?? baseDate
+  }
+}
+
+private struct NativeTodoDateTimeField: View {
+  var title: String
+  var systemImage: String
+  @Binding var date: Date
+  var tintColor: Color
+
+  var body: some View {
+    HStack(spacing: 12) {
+      Image(systemName: systemImage)
+        .font(.system(size: 16, weight: .semibold))
+        .foregroundColor(Color.black.opacity(0.48))
+        .frame(width: 22)
+
+      Text(title)
+        .font(.system(size: 16, weight: .semibold))
+        .foregroundColor(.black)
+
+      Spacer(minLength: 12)
+
+      DatePicker("", selection: $date, displayedComponents: [.date, .hourAndMinute])
+        .datePickerStyle(.compact)
+        .labelsHidden()
+        .tint(tintColor)
+    }
+    .padding(.horizontal, 14)
+    .frame(height: 54)
+    .background(Color.black.opacity(0.055))
+    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
   }
 }

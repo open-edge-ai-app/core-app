@@ -152,11 +152,11 @@ extension NativeI18n {
     .todoViewPicker: "Todo 보기",
     .todoTabList: "리스트",
     .todoTabCalendar: "캘린더",
-    .todoOverdue: "Overdue",
-    .todoToday: "Today",
-    .todoYesterday: "Yesterday",
-    .todoTomorrow: "Tomorrow",
-    .todoTasks: "Tasks",
+    .todoOverdue: "지연됨",
+    .todoToday: "오늘",
+    .todoYesterday: "어제",
+    .todoTomorrow: "내일",
+    .todoTasks: "작업",
     .todoNoOverdue: "지연된 Todo가 없습니다.",
     .todoNoTasksForDate: "이 날짜에 등록된 Todo가 없습니다.",
     .todoComplete: "Todo 완료",
@@ -165,12 +165,12 @@ extension NativeI18n {
     .todoUnstar: "중요 해제",
     .todoEdit: "수정",
     .todoDelete: "삭제",
-    .todoLabels: "Labels",
+    .todoLabels: "라벨",
     .todoNewLabelName: "새 라벨 이름",
     .todoAddLabel: "라벨 추가",
     .todoNoLabels: "아직 만든 라벨이 없습니다.",
     .todoDeleteLabel: "{name} 라벨 삭제",
-    .todoIosCalendar: "iOS Calendar",
+    .todoIosCalendar: "iOS 캘린더",
     .todoDefaultCalendarIntegration: "기본 캘린더 앱 연동",
     .todoCalendarIntegrationDescription: "Open Edge AI Todo 캘린더를 만들고, Todo 항목을 iOS Calendar 이벤트로 동기화합니다.",
     .todoAllowPermission: "권한 허용",
@@ -396,79 +396,79 @@ extension NativeI18n {
 
   static let compactChineseMessages = compactMessages(
     settings: ["一般", "模型", "个性化", "外观", "信息", "语言"],
-    todo: ["列表", "日历", "逾期", "今天", "任务"],
+    todo: ["列表", "日历", "逾期", "今天", "任务", "昨天", "明天"],
     actions: ["完成", "取消", "保存"]
   )
 
   static let compactHindiMessages = compactMessages(
     settings: ["सामान्य", "मॉडल", "व्यक्तिकरण", "दिखावट", "जानकारी", "भाषा"],
-    todo: ["सूची", "कैलेंडर", "अतिदेय", "आज", "कार्य"],
+    todo: ["सूची", "कैलेंडर", "अतिदेय", "आज", "कार्य", "बीता कल", "कल"],
     actions: ["पूर्ण", "रद्द", "सहेजें"]
   )
 
   static let compactSpanishMessages = compactMessages(
     settings: ["General", "Modelo", "Personalización", "Apariencia", "Información", "Idioma"],
-    todo: ["Lista", "Calendario", "Atrasado", "Hoy", "Tareas"],
+    todo: ["Lista", "Calendario", "Atrasado", "Hoy", "Tareas", "Ayer", "Mañana"],
     actions: ["Listo", "Cancelar", "Guardar"]
   )
 
   static let compactFrenchMessages = compactMessages(
     settings: ["Général", "Modèle", "Personnalisation", "Apparence", "Infos", "Langue"],
-    todo: ["Liste", "Calendrier", "En retard", "Aujourd'hui", "Tâches"],
+    todo: ["Liste", "Calendrier", "En retard", "Aujourd'hui", "Tâches", "Hier", "Demain"],
     actions: ["Terminé", "Annuler", "Enregistrer"]
   )
 
   static let compactArabicMessages = compactMessages(
     settings: ["عام", "النموذج", "تخصيص", "المظهر", "معلومات", "اللغة"],
-    todo: ["قائمة", "تقويم", "متأخر", "اليوم", "مهام"],
+    todo: ["قائمة", "تقويم", "متأخر", "اليوم", "مهام", "أمس", "غدًا"],
     actions: ["تم", "إلغاء", "حفظ"]
   )
 
   static let compactBengaliMessages = compactMessages(
     settings: ["সাধারণ", "মডেল", "ব্যক্তিগতকরণ", "চেহারা", "তথ্য", "ভাষা"],
-    todo: ["তালিকা", "ক্যালেন্ডার", "বিলম্বিত", "আজ", "কাজ"],
+    todo: ["তালিকা", "ক্যালেন্ডার", "বিলম্বিত", "আজ", "কাজ", "গতকাল", "আগামীকাল"],
     actions: ["সম্পন্ন", "বাতিল", "সংরক্ষণ"]
   )
 
   static let compactRussianMessages = compactMessages(
     settings: ["Общие", "Модель", "Персонализация", "Вид", "Инфо", "Язык"],
-    todo: ["Список", "Календарь", "Просрочено", "Сегодня", "Задачи"],
+    todo: ["Список", "Календарь", "Просрочено", "Сегодня", "Задачи", "Вчера", "Завтра"],
     actions: ["Готово", "Отмена", "Сохранить"]
   )
 
   static let compactPortugueseMessages = compactMessages(
     settings: ["Geral", "Modelo", "Personalização", "Aparência", "Info", "Idioma"],
-    todo: ["Lista", "Calendário", "Atrasado", "Hoje", "Tarefas"],
+    todo: ["Lista", "Calendário", "Atrasado", "Hoje", "Tarefas", "Ontem", "Amanhã"],
     actions: ["Concluído", "Cancelar", "Salvar"]
   )
 
   static let compactUrduMessages = compactMessages(
     settings: ["عام", "ماڈل", "ذاتی", "ظاہری شکل", "معلومات", "زبان"],
-    todo: ["فہرست", "کیلنڈر", "تاخیر", "آج", "کام"],
+    todo: ["فہرست", "کیلنڈر", "تاخیر", "آج", "کام", "گزشتہ کل", "کل"],
     actions: ["مکمل", "منسوخ", "محفوظ"]
   )
 
   static let compactIndonesianMessages = compactMessages(
     settings: ["Umum", "Model", "Personalisasi", "Tampilan", "Info", "Bahasa"],
-    todo: ["Daftar", "Kalender", "Terlambat", "Hari ini", "Tugas"],
+    todo: ["Daftar", "Kalender", "Terlambat", "Hari ini", "Tugas", "Kemarin", "Besok"],
     actions: ["Selesai", "Batal", "Simpan"]
   )
 
   static let compactGermanMessages = compactMessages(
     settings: ["Allgemein", "Modell", "Personalisierung", "Darstellung", "Info", "Sprache"],
-    todo: ["Liste", "Kalender", "Überfällig", "Heute", "Aufgaben"],
+    todo: ["Liste", "Kalender", "Überfällig", "Heute", "Aufgaben", "Gestern", "Morgen"],
     actions: ["Fertig", "Abbrechen", "Speichern"]
   )
 
   static let compactJapaneseMessages = compactMessages(
     settings: ["一般", "モデル", "パーソナライズ", "外観", "情報", "言語"],
-    todo: ["リスト", "カレンダー", "期限切れ", "今日", "タスク"],
+    todo: ["リスト", "カレンダー", "期限切れ", "今日", "タスク", "昨日", "明日"],
     actions: ["完了", "キャンセル", "保存"]
   )
 
   static let compactTurkishMessages = compactMessages(
     settings: ["Genel", "Model", "Kişiselleştirme", "Görünüm", "Bilgi", "Dil"],
-    todo: ["Liste", "Takvim", "Gecikmiş", "Bugün", "Görevler"],
+    todo: ["Liste", "Takvim", "Gecikmiş", "Bugün", "Görevler", "Dün", "Yarın"],
     actions: ["Bitti", "İptal", "Kaydet"]
   )
 
@@ -489,6 +489,8 @@ extension NativeI18n {
       .todoOverdue: todo[2],
       .todoToday: todo[3],
       .todoTasks: todo[4],
+      .todoYesterday: todo[5],
+      .todoTomorrow: todo[6],
       .commonDone: actions[0],
       .commonCancel: actions[1],
       .commonSave: actions[2]

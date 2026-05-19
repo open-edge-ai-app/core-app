@@ -253,25 +253,6 @@ struct NativeTodoItem: Identifiable, Codable, Equatable, Hashable {
     )
   }
 
-  func dueLabel(relativeTo date: Date = Date(), calendar: Calendar = .current) -> String {
-    if calendar.isDateInToday(dueDate) {
-      return "Today"
-    }
-    if calendar.isDateInYesterday(dueDate) {
-      return "Yesterday"
-    }
-    if calendar.isDateInTomorrow(dueDate) {
-      return "Tomorrow"
-    }
-
-    let formatter = DateFormatter()
-    formatter.locale = Locale(identifier: "en_US_POSIX")
-    formatter.dateFormat = calendar.component(.year, from: dueDate) == calendar.component(.year, from: date)
-      ? "MMM d"
-      : "MMM d, yyyy"
-    return formatter.string(from: dueDate)
-  }
-
   static func seedItems(now: Date = Date(), calendar: Calendar = .current) -> [NativeTodoItem] {
     let today = calendar.startOfDay(for: now)
     let yesterday = calendar.date(byAdding: .day, value: -1, to: today) ?? today

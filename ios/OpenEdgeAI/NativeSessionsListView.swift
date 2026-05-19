@@ -209,6 +209,7 @@ struct NativeSessionsView: View {
           .environmentObject(store)
         case .todoList:
           NativeTodoListView()
+            .environmentObject(store)
         }
       }
       .toolbar(.hidden, for: .navigationBar)

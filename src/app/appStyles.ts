@@ -1,18 +1,14 @@
-import { Platform, StyleSheet } from 'react-native';
+import { StyleSheet } from 'react-native';
 
 import {
-  MENU_HEADER_ICON_SIZE,
   MENU_HEADER_LOGO_LEFT_OFFSET,
   MENU_HORIZONTAL_PADDING,
   MODEL_MENU_TOP,
   MODEL_MENU_WIDTH,
   OPTION_MENU_ELEVATION,
   OPTION_MENU_Z_INDEX,
-  RECENT_ACTION_MENU_HEIGHT,
   RECENT_ACTION_MENU_WIDTH,
   WEB_APP_MAX_WIDTH,
-  WORK_FOLDER_ACTION_MENU_HEIGHT,
-  WORK_FOLDER_SESSION_ACTION_MENU_HEIGHT,
 } from './appConfig';
 import { colors, typography } from '../theme/tokens';
 

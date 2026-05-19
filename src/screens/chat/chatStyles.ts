@@ -1,4 +1,4 @@
-import { Platform, StyleSheet } from 'react-native';
+import { StyleSheet } from 'react-native';
 
 import {
   INITIAL_SCROLL_BOTTOM_INSET,

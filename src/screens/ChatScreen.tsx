@@ -24,7 +24,6 @@ import LoadingDots from '../components/LoadingDots';
 import { useI18n } from '../i18n';
 import AIEngine, {
   AIChatMessage,
-  ModelId,
   MultimodalAttachment,
 } from '../native/AIEngine';
 import { pickAttachment } from '../native/FilePicker';

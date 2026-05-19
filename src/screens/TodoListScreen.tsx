@@ -1,22 +1,43 @@
-import { useMemo, useState } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useEffect, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import AppIcon from '../components/AppIcon';
 import { ScaledText as Text } from '../theme/display';
 import { appIcons } from '../theme/icons';
-import { colors, typography } from '../theme/tokens';
 
 type TodoTab = 'all' | 'calendar';
 
-const tasks = [
+type TodoSubtask = {
+  id: string;
+  isComplete: boolean;
+  title: string;
+};
+
+type TodoTask = {
+  dueLabel: string;
+  id: string;
+  isCompleted?: boolean;
+  isOverdue?: boolean;
+  isStarred?: boolean;
+  note: string;
+  subtasks?: TodoSubtask[];
+  title: string;
+};
+
+const TODO_STORAGE_KEY = 'open-edge-ai.todo-list.v1';
+
+const initialTasks: TodoTask[] = [
   {
     dueLabel: 'Yesterday',
+    id: 'seed-call-jason',
     isOverdue: true,
     note: '',
     title: 'Call Jason',
   },
   {
     dueLabel: 'Today',
+    id: 'seed-email-james',
     isStarred: true,
     note:
       'Email Mrs. James for the new intern we have next week from Alex Carter, a marketing student from Brookfield University. Confirm their start date, schedule, and onboarding needs.',
@@ -24,14 +45,35 @@ const tasks = [
   },
   {
     dueLabel: 'Today',
+    id: 'seed-design-system',
     note: '',
     subtasks: [
-      ['Update the UI system with a modern, cohesive design.', true],
-      ['Focus on consistency, scalability, and accessibility.', false],
-      ['Use clean aesthetics with reusable, responsive components.', false],
-      ['Enhance usability for a seamless user experience.', false],
-      ['Streamline development with clear design guidelines.', false],
-    ] as const,
+      {
+        id: 'seed-design-system-1',
+        isComplete: true,
+        title: 'Update the UI system with a modern, cohesive design.',
+      },
+      {
+        id: 'seed-design-system-2',
+        isComplete: false,
+        title: 'Focus on consistency, scalability, and accessibility.',
+      },
+      {
+        id: 'seed-design-system-3',
+        isComplete: false,
+        title: 'Use clean aesthetics with reusable, responsive components.',
+      },
+      {
+        id: 'seed-design-system-4',
+        isComplete: false,
+        title: 'Enhance usability for a seamless user experience.',
+      },
+      {
+        id: 'seed-design-system-5',
+        isComplete: false,
+        title: 'Streamline development with clear design guidelines.',
+      },
+    ],
     title: 'New Design System',
   },
 ];
@@ -48,6 +90,10 @@ const weekDays = [
 
 export default function TodoListScreen() {
   const [tab, setTab] = useState<TodoTab>('all');
+  const [tasks, setTasks] = useState<TodoTask[]>(initialTasks);
+  const [hasLoadedTasks, setHasLoadedTasks] = useState(false);
+  const [isOverdueExpanded, setOverdueExpanded] = useState(true);
+  const [isTodayExpanded, setTodayExpanded] = useState(true);
   const dateTitle = useMemo(
     () =>
       new Intl.DateTimeFormat('en-US', {
@@ -61,6 +107,90 @@ export default function TodoListScreen() {
     () => new Intl.DateTimeFormat('en-US', { month: 'long' }).format(new Date()),
     [],
   );
+  const visibleTasks = useMemo(
+    () => tasks.filter(task => !task.isCompleted),
+    [tasks],
+  );
+  const overdueTasks = useMemo(
+    () => visibleTasks.filter(task => task.isOverdue),
+    [visibleTasks],
+  );
+  const todayTasks = useMemo(
+    () => visibleTasks.filter(task => !task.isOverdue),
+    [visibleTasks],
+  );
+
+  useEffect(() => {
+    let isMounted = true;
+    AsyncStorage.getItem(TODO_STORAGE_KEY)
+      .then(value => {
+        if (!isMounted) {
+          return;
+        }
+        if (value) {
+          setTasks(JSON.parse(value) as TodoTask[]);
+        }
+      })
+      .finally(() => {
+        if (isMounted) {
+          setHasLoadedTasks(true);
+        }
+      });
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!hasLoadedTasks) {
+      return;
+    }
+    AsyncStorage.setItem(TODO_STORAGE_KEY, JSON.stringify(tasks)).catch(() => {});
+  }, [hasLoadedTasks, tasks]);
+
+  const addTask = () => {
+    const nextTask: TodoTask = {
+      dueLabel: 'Today',
+      id: `todo-${Date.now()}`,
+      note: '',
+      title: 'New Todo',
+    };
+    setTasks(current => [nextTask, ...current]);
+  };
+
+  const toggleTaskComplete = (taskId: string) => {
+    setTasks(current =>
+      current.map(task =>
+        task.id === taskId ? { ...task, isCompleted: !task.isCompleted } : task,
+      ),
+    );
+  };
+
+  const toggleTaskStar = (taskId: string) => {
+    setTasks(current =>
+      current.map(task =>
+        task.id === taskId ? { ...task, isStarred: !task.isStarred } : task,
+      ),
+    );
+  };
+
+  const toggleSubtask = (taskId: string, subtaskId: string) => {
+    setTasks(current =>
+      current.map(task => {
+        if (task.id !== taskId || !task.subtasks) {
+          return task;
+        }
+        return {
+          ...task,
+          subtasks: task.subtasks.map(subtask =>
+            subtask.id === subtaskId
+              ? { ...subtask, isComplete: !subtask.isComplete }
+              : subtask,
+          ),
+        };
+      }),
+    );
+  };
 
   return (
     <View style={styles.screen}>
@@ -77,11 +207,38 @@ export default function TodoListScreen() {
           showsVerticalScrollIndicator={false}
         >
           <TabSwitcher selected={tab} onSelect={setTab} />
-          <SectionHeader title="Overdue" />
-          <TodoCard task={tasks[0]} />
-          <SectionHeader title="Today" />
-          <TodoCard task={tasks[1]} />
-          <TodoCard task={tasks[2]} />
+          <SectionHeader
+            expanded={isOverdueExpanded}
+            onPress={() => setOverdueExpanded(current => !current)}
+            title="Overdue"
+          />
+          {isOverdueExpanded
+            ? overdueTasks.map(task => (
+                <TodoCard
+                  key={task.id}
+                  onToggleComplete={() => toggleTaskComplete(task.id)}
+                  onToggleStar={() => toggleTaskStar(task.id)}
+                  onToggleSubtask={subtaskId => toggleSubtask(task.id, subtaskId)}
+                  task={task}
+                />
+              ))
+            : null}
+          <SectionHeader
+            expanded={isTodayExpanded}
+            onPress={() => setTodayExpanded(current => !current)}
+            title="Today"
+          />
+          {isTodayExpanded
+            ? todayTasks.map(task => (
+                <TodoCard
+                  key={task.id}
+                  onToggleComplete={() => toggleTaskComplete(task.id)}
+                  onToggleStar={() => toggleTaskStar(task.id)}
+                  onToggleSubtask={subtaskId => toggleSubtask(task.id, subtaskId)}
+                  task={task}
+                />
+              ))
+            : null}
         </ScrollView>
       ) : (
         <View style={styles.calendarContent}>
@@ -150,9 +307,9 @@ export default function TodoListScreen() {
           <Text style={styles.monthText}>{monthTitle}</Text>
           <Text style={styles.monthArrow}>›</Text>
         </View>
-        <View style={styles.bottomButton}>
+        <Pressable onPress={addTask} style={styles.bottomButton}>
           <Text style={styles.plusText}>+</Text>
-        </View>
+        </Pressable>
       </View>
     </View>
   );
@@ -192,20 +349,41 @@ function TabSwitcher({
   );
 }
 
-function SectionHeader({ title }: { title: string }) {
+function SectionHeader({
+  expanded,
+  onPress,
+  title,
+}: {
+  expanded: boolean;
+  onPress: () => void;
+  title: string;
+}) {
   return (
-    <View style={styles.sectionHeader}>
+    <Pressable onPress={onPress} style={styles.sectionHeader}>
       <Text style={styles.sectionTitle}>{title}</Text>
-      <Text style={styles.sectionChevron}>⌄</Text>
-    </View>
+      <Text style={styles.sectionChevron}>{expanded ? '⌄' : '›'}</Text>
+    </Pressable>
   );
 }
 
-function TodoCard({ task }: { task: (typeof tasks)[number] }) {
+function TodoCard({
+  onToggleComplete,
+  onToggleStar,
+  onToggleSubtask,
+  task,
+}: {
+  onToggleComplete: () => void;
+  onToggleStar: () => void;
+  onToggleSubtask: (subtaskId: string) => void;
+  task: TodoTask;
+}) {
   return (
     <View style={styles.card}>
       <View style={styles.cardHeader}>
-        <View style={styles.checkCircle} />
+        <Pressable
+          onPress={onToggleComplete}
+          style={[styles.checkCircle, task.isCompleted && styles.checkCircleActive]}
+        />
         <View style={styles.cardBody}>
           <View style={styles.cardTitleRow}>
             <Text style={styles.cardTitle}>{task.title}</Text>
@@ -224,25 +402,33 @@ function TodoCard({ task }: { task: (typeof tasks)[number] }) {
             <Text style={styles.metaDot}>•</Text>
             <Text style={styles.metaText}>Tasks</Text>
             <View style={styles.flexSpacer} />
-            <Text
-              style={[
-                styles.starText,
-                task.isStarred && styles.starTextActive,
-              ]}
-            >
-              {task.isStarred ? '★' : '☆'}
-            </Text>
+            <Pressable onPress={onToggleStar}>
+              <Text
+                style={[
+                  styles.starText,
+                  task.isStarred && styles.starTextActive,
+                ]}
+              >
+                {task.isStarred ? '★' : '☆'}
+              </Text>
+            </Pressable>
           </View>
         </View>
       </View>
 
-      {'subtasks' in task && task.subtasks ? (
+      {task.subtasks ? (
         <View style={styles.subtaskList}>
-          {task.subtasks.map(([title, complete]) => (
-            <View key={title} style={styles.subtaskRow}>
-              <Text style={styles.subtaskCheck}>{complete ? '◉' : '○'}</Text>
-              <Text style={styles.subtaskText}>{title}</Text>
-            </View>
+          {task.subtasks.map(subtask => (
+            <Pressable
+              key={subtask.id}
+              onPress={() => onToggleSubtask(subtask.id)}
+              style={[
+                styles.subtaskRow,
+              ]}
+            >
+              <Text style={styles.subtaskCheck}>{subtask.isComplete ? '◉' : '○'}</Text>
+              <Text style={styles.subtaskText}>{subtask.title}</Text>
+            </Pressable>
           ))}
         </View>
       ) : null}
@@ -403,6 +589,9 @@ const styles = StyleSheet.create({
     height: 23,
     marginTop: 2,
     width: 23,
+  },
+  checkCircleActive: {
+    backgroundColor: '#111111',
   },
   dateTitle: {
     color: '#111111',
@@ -578,13 +767,6 @@ const styles = StyleSheet.create({
     paddingBottom: 132,
     paddingHorizontal: 24,
     paddingTop: 20,
-  },
-  title: {
-    ...typography.title,
-    color: '#111111',
-    fontSize: 36,
-    fontWeight: '800',
-    lineHeight: 43,
   },
   weekArrow: {
     color: 'rgba(17,17,17,0.58)',

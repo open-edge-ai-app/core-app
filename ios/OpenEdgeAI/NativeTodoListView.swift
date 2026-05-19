@@ -5,83 +5,79 @@ private enum NativeTodoTab {
   case calendar
 }
 
-private struct NativeTodoTask: Identifiable {
-  let id = UUID()
-  var title: String
-  var note: String?
-  var dueLabel: String
-  var isOverdue: Bool = false
-  var isStarred: Bool = false
-  var subtasks: [NativeTodoSubtask] = []
-}
-
-private struct NativeTodoSubtask: Identifiable {
-  let id = UUID()
-  var title: String
-  var isComplete: Bool
+private enum NativeTodoCalendarMode {
+  case week
+  case day
 }
 
 private struct NativeCalendarEvent: Identifiable {
-  let id = UUID()
+  var id: String
   var title: String
   var accent: String
   var startHour: CGFloat
   var duration: CGFloat
   var lane: Int
+  var timeText: String
 }
 
 struct NativeTodoListView: View {
   @Environment(\.dismiss) private var dismiss
+  @EnvironmentObject private var store: NativeChatStore
+
   @State private var selectedTab: NativeTodoTab = .all
+  @State private var calendarMode: NativeTodoCalendarMode = .week
   @State private var isOverdueExpanded = true
   @State private var isTodayExpanded = true
+  @State private var selectedDate = Date()
+  @State private var showingComposer = false
+  @State private var showingStarredOnly = false
 
-  private let tasks = [
-    NativeTodoTask(
-      title: "Call Jason",
-      note: nil,
-      dueLabel: "Yesterday",
-      isOverdue: true
-    ),
-    NativeTodoTask(
-      title: "Email Back Mrs James",
-      note: "Email Mrs. James for the new intern we have next week from Alex Carter, a marketing student from Brookfield University. Confirm their start date, schedule, and onboarding needs.",
-      dueLabel: "Today",
-      isStarred: true
-    ),
-    NativeTodoTask(
-      title: "New Design System",
-      note: nil,
-      dueLabel: "Today",
-      subtasks: [
-        NativeTodoSubtask(title: "Update the UI system with a modern, cohesive design.", isComplete: true),
-        NativeTodoSubtask(title: "Focus on consistency, scalability, and accessibility.", isComplete: false),
-        NativeTodoSubtask(title: "Use clean aesthetics with reusable, responsive components.", isComplete: false),
-        NativeTodoSubtask(title: "Enhance usability for a seamless user experience.", isComplete: false),
-        NativeTodoSubtask(title: "Streamline development with clear design guidelines.", isComplete: false)
-      ]
-    )
-  ]
+  private var calendar: Calendar {
+    Calendar.current
+  }
 
-  private let events = [
-    NativeCalendarEvent(title: "New\nDesign\nSystem", accent: "New-\nDesign", startHour: 13.0, duration: 4.0, lane: 0),
-    NativeCalendarEvent(title: "New\nDesign\nSystem", accent: "New-\nDesign", startHour: 13.0, duration: 4.0, lane: 1),
-    NativeCalendarEvent(title: "New\nDesign\nSystem", accent: "New-\nDesign", startHour: 13.0, duration: 4.0, lane: 2),
-    NativeCalendarEvent(title: "New\nDesign\nSystem", accent: "New-\nDesign", startHour: 12.0, duration: 2.0, lane: 3)
-  ]
+  private var visibleTodos: [NativeTodoItem] {
+    store.todoItems.filter { item in
+      !item.isCompleted && (!showingStarredOnly || item.isStarred)
+    }
+  }
+
+  private var overdueTodos: [NativeTodoItem] {
+    visibleTodos.filter { $0.isOverdue() }
+  }
+
+  private var selectedDateTodos: [NativeTodoItem] {
+    visibleTodos.filter { item in
+      !item.isOverdue() && calendar.isDate(item.dueDate, inSameDayAs: selectedDate)
+    }
+  }
+
+  private var calendarEvents: [NativeCalendarEvent] {
+    selectedDateTodos.enumerated().map { index, item in
+      NativeCalendarEvent(
+        id: item.id,
+        title: eventTitle(for: item.title),
+        accent: eventAccent(for: item.title),
+        startHour: CGFloat(item.startHour),
+        duration: CGFloat(max(1, item.durationHours)),
+        lane: index % 4,
+        timeText: eventTimeText(for: item)
+      )
+    }
+  }
 
   private var dateTitle: String {
     let formatter = DateFormatter()
     formatter.locale = Locale(identifier: "en_US_POSIX")
     formatter.dateFormat = "EEE dd, MMMM"
-    return formatter.string(from: Date())
+    return formatter.string(from: selectedDate)
   }
 
   private var monthTitle: String {
     let formatter = DateFormatter()
     formatter.locale = Locale(identifier: "en_US_POSIX")
     formatter.dateFormat = "MMMM"
-    return formatter.string(from: Date())
+    return formatter.string(from: selectedDate)
   }
 
   var body: some View {
@@ -108,6 +104,12 @@ struct NativeTodoListView: View {
       bottomControls
     }
     .background(Color.white.ignoresSafeArea())
+    .sheet(isPresented: $showingComposer) {
+      NativeTodoEditorSheet(selectedDate: selectedDate)
+        .environmentObject(store)
+        .presentationDetents([.medium, .large])
+        .presentationDragIndicator(.visible)
+    }
     .toolbar(.hidden, for: .navigationBar)
   }
 
@@ -147,14 +149,17 @@ struct NativeTodoListView: View {
         Spacer()
 
         Button {
+          withAnimation(.easeInOut(duration: 0.16)) {
+            showingStarredOnly.toggle()
+          }
         } label: {
-          Image(systemName: "slider.vertical.3")
-            .font(.system(size: 24, weight: .medium))
-            .foregroundColor(.black)
+          Image(systemName: showingStarredOnly ? "star.fill" : "slider.vertical.3")
+            .font(.system(size: showingStarredOnly ? 22 : 24, weight: .medium))
+            .foregroundColor(showingStarredOnly ? .red.opacity(0.74) : .black)
             .frame(width: 42, height: 42)
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("Todo 필터")
+        .accessibilityLabel(showingStarredOnly ? "중요 Todo만 보기 해제" : "중요 Todo만 보기")
       }
     }
     .padding(.horizontal, 24)
@@ -164,39 +169,39 @@ struct NativeTodoListView: View {
 
   private var tabSwitcher: some View {
     HStack(spacing: 12) {
-      Button {
-        selectedTab = .all
-      } label: {
-        Text("All")
-          .font(.system(size: 16, weight: .bold))
-          .foregroundColor(selectedTab == .all ? .black : Color.black.opacity(0.52))
-          .padding(.horizontal, 14)
-          .frame(height: 42)
-          .background(selectedTab == .all ? Color.black.opacity(0.06) : Color.clear)
-          .clipShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
-      }
-      .buttonStyle(.plain)
-
-      Button {
-        selectedTab = .calendar
-      } label: {
-        Text("Calendar")
-          .font(.system(size: 16, weight: .bold))
-          .foregroundColor(selectedTab == .calendar ? .black : Color.black.opacity(0.52))
-          .padding(.horizontal, 14)
-          .frame(height: 42)
-          .background(selectedTab == .calendar ? Color.black.opacity(0.06) : Color.clear)
-          .clipShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
-      }
-      .buttonStyle(.plain)
+      tabButton(title: "All", tab: .all)
+      tabButton(title: "Calendar", tab: .calendar)
 
       Spacer()
 
-      Image(systemName: "magnifyingglass")
-        .font(.system(size: 25, weight: .regular))
-        .foregroundColor(.black)
-        .frame(width: 44, height: 42)
+      Button {
+        withAnimation(.easeInOut(duration: 0.16)) {
+          showingStarredOnly.toggle()
+        }
+      } label: {
+        Image(systemName: "magnifyingglass")
+          .font(.system(size: 25, weight: .regular))
+          .foregroundColor(.black)
+          .frame(width: 44, height: 42)
+      }
+      .buttonStyle(.plain)
+      .accessibilityLabel("Todo 검색")
     }
+  }
+
+  private func tabButton(title: String, tab: NativeTodoTab) -> some View {
+    Button {
+      selectedTab = tab
+    } label: {
+      Text(title)
+        .font(.system(size: 16, weight: .bold))
+        .foregroundColor(selectedTab == tab ? .black : Color.black.opacity(0.52))
+        .padding(.horizontal, 14)
+        .frame(height: 42)
+        .background(selectedTab == tab ? Color.black.opacity(0.06) : Color.clear)
+        .clipShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
+    }
+    .buttonStyle(.plain)
   }
 
   private var allTasksContent: some View {
@@ -210,7 +215,13 @@ struct NativeTodoListView: View {
         )
 
         if isOverdueExpanded {
-          NativeTodoTaskCard(task: tasks[0])
+          if overdueTodos.isEmpty {
+            NativeTodoEmptyRow(title: "No overdue tasks")
+          } else {
+            ForEach(overdueTodos) { task in
+              todoCard(for: task)
+            }
+          }
         }
 
         NativeTodoSectionHeader(
@@ -219,8 +230,13 @@ struct NativeTodoListView: View {
         )
 
         if isTodayExpanded {
-          NativeTodoTaskCard(task: tasks[1])
-          NativeTodoTaskCard(task: tasks[2])
+          if selectedDateTodos.isEmpty {
+            NativeTodoEmptyRow(title: "No tasks for this date")
+          } else {
+            ForEach(selectedDateTodos) { task in
+              todoCard(for: task)
+            }
+          }
         }
       }
       .padding(.horizontal, 24)
@@ -229,48 +245,84 @@ struct NativeTodoListView: View {
     }
   }
 
+  private func todoCard(for task: NativeTodoItem) -> some View {
+    NativeTodoTaskCard(
+      task: task,
+      onToggleComplete: {
+        withAnimation(.easeInOut(duration: 0.18)) {
+          store.toggleTodoCompletion(task)
+        }
+      },
+      onToggleStar: {
+        store.toggleTodoStar(task)
+      },
+      onToggleSubtask: { subtask in
+        store.toggleTodoSubtask(todoId: task.id, subtaskId: subtask.id)
+      },
+      onDelete: {
+        withAnimation(.easeInOut(duration: 0.18)) {
+          store.deleteTodo(task)
+        }
+      }
+    )
+  }
+
   private var calendarContent: some View {
     VStack(spacing: 0) {
       HStack(spacing: 12) {
         Button {
+          calendarMode = .week
         } label: {
           Text("Week")
             .font(.system(size: 16, weight: .bold))
-            .foregroundColor(.blue.opacity(0.72))
+            .foregroundColor(calendarMode == .week ? .blue.opacity(0.72) : Color.black.opacity(0.62))
             .padding(.horizontal, 14)
             .frame(height: 42)
-            .background(Color.black.opacity(0.06))
+            .background(calendarMode == .week ? Color.black.opacity(0.06) : Color.clear)
             .clipShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
         }
         .buttonStyle(.plain)
 
         Button {
+          calendarMode = .day
         } label: {
           Text("Day")
             .font(.system(size: 16, weight: .bold))
-            .foregroundColor(Color.black.opacity(0.62))
+            .foregroundColor(calendarMode == .day ? .blue.opacity(0.72) : Color.black.opacity(0.62))
             .padding(.horizontal, 14)
             .frame(height: 42)
+            .background(calendarMode == .day ? Color.black.opacity(0.06) : Color.clear)
+            .clipShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
         }
         .buttonStyle(.plain)
 
         Spacer()
 
-        Image(systemName: "magnifyingglass")
-          .font(.system(size: 25, weight: .regular))
-          .foregroundColor(.black)
-          .frame(width: 44, height: 42)
+        Button {
+          showingStarredOnly.toggle()
+        } label: {
+          Image(systemName: "magnifyingglass")
+            .font(.system(size: 25, weight: .regular))
+            .foregroundColor(.black)
+            .frame(width: 44, height: 42)
+        }
+        .buttonStyle(.plain)
       }
       .padding(.horizontal, 24)
       .padding(.top, 20)
 
-      NativeTodoWeekStrip()
-        .padding(.horizontal, 28)
-        .padding(.top, 22)
-        .padding(.bottom, 10)
+      NativeTodoWeekStrip(
+        selectedDate: selectedDate,
+        onPreviousWeek: { moveSelectedDate(byDays: -7) },
+        onNextWeek: { moveSelectedDate(byDays: 7) },
+        onSelectDate: { date in selectedDate = date }
+      )
+      .padding(.horizontal, 28)
+      .padding(.top, 22)
+      .padding(.bottom, 10)
 
       ScrollView(showsIndicators: false) {
-        NativeTodoTimeline(events: events)
+        NativeTodoTimeline(events: calendarEvents)
           .frame(height: 720)
           .padding(.horizontal, 24)
           .padding(.bottom, 132)
@@ -295,12 +347,27 @@ struct NativeTodoListView: View {
       .accessibilityLabel("Todo List 닫기")
 
       HStack(spacing: 22) {
-        Image(systemName: "chevron.left")
-          .font(.system(size: 19, weight: .semibold))
+        Button {
+          moveSelectedDate(byMonths: -1)
+        } label: {
+          Image(systemName: "chevron.left")
+            .font(.system(size: 19, weight: .semibold))
+            .frame(width: 34, height: 44)
+        }
+        .buttonStyle(.plain)
+
         Text(monthTitle)
           .font(.system(size: 16, weight: .bold))
-        Image(systemName: "chevron.right")
-          .font(.system(size: 19, weight: .semibold))
+          .frame(minWidth: 92)
+
+        Button {
+          moveSelectedDate(byMonths: 1)
+        } label: {
+          Image(systemName: "chevron.right")
+            .font(.system(size: 19, weight: .semibold))
+            .frame(width: 34, height: 44)
+        }
+        .buttonStyle(.plain)
       }
       .foregroundColor(.black)
       .frame(maxWidth: .infinity)
@@ -310,6 +377,7 @@ struct NativeTodoListView: View {
       .shadow(color: Color.black.opacity(0.10), radius: 20, x: 0, y: 10)
 
       Button {
+        showingComposer = true
       } label: {
         Image(systemName: "plus")
           .font(.system(size: 31, weight: .light))
@@ -324,6 +392,42 @@ struct NativeTodoListView: View {
     }
     .padding(.horizontal, 24)
     .padding(.bottom, 24)
+  }
+
+  private func moveSelectedDate(byDays days: Int) {
+    selectedDate = calendar.date(byAdding: .day, value: days, to: selectedDate) ?? selectedDate
+  }
+
+  private func moveSelectedDate(byMonths months: Int) {
+    selectedDate = calendar.date(byAdding: .month, value: months, to: selectedDate) ?? selectedDate
+  }
+
+  private func eventTitle(for title: String) -> String {
+    title
+      .split(separator: " ")
+      .prefix(3)
+      .map(String.init)
+      .joined(separator: "\n")
+  }
+
+  private func eventAccent(for title: String) -> String {
+    title
+      .split(separator: " ")
+      .prefix(2)
+      .map(String.init)
+      .joined(separator: "-\n")
+  }
+
+  private func eventTimeText(for item: NativeTodoItem) -> String {
+    let start = Int(item.startHour)
+    let end = Int(min(23, item.startHour + item.durationHours))
+    return "\(hourText(start)) -\n\(hourText(end))"
+  }
+
+  private func hourText(_ hour: Int) -> String {
+    let value = hour == 0 ? 12 : (hour > 12 ? hour - 12 : hour)
+    let suffix = hour >= 12 ? "PM" : "AM"
+    return String(format: "%02d%@", value, suffix)
   }
 }
 
@@ -353,15 +457,28 @@ private struct NativeTodoSectionHeader: View {
 }
 
 private struct NativeTodoTaskCard: View {
-  var task: NativeTodoTask
+  var task: NativeTodoItem
+  var onToggleComplete: () -> Void
+  var onToggleStar: () -> Void
+  var onToggleSubtask: (NativeTodoSubtask) -> Void
+  var onDelete: () -> Void
+
+  private var isOverdue: Bool {
+    task.isOverdue()
+  }
 
   var body: some View {
     VStack(alignment: .leading, spacing: 18) {
       HStack(alignment: .top, spacing: 14) {
-        Circle()
-          .stroke(Color.black.opacity(0.56), lineWidth: 2)
-          .frame(width: 23, height: 23)
-          .padding(.top, 2)
+        Button(action: onToggleComplete) {
+          Image(systemName: task.isCompleted ? "checkmark.circle.fill" : "circle")
+            .font(.system(size: 23, weight: .medium))
+            .foregroundColor(task.isCompleted ? .black : Color.black.opacity(0.56))
+            .frame(width: 25, height: 25)
+            .padding(.top, 1)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(task.isCompleted ? "Todo 완료 해제" : "Todo 완료")
 
         VStack(alignment: .leading, spacing: 11) {
           HStack(alignment: .top) {
@@ -372,13 +489,13 @@ private struct NativeTodoTaskCard: View {
 
             Spacer()
 
-            Image(systemName: task.subtasks.isEmpty ? "chevron.up" : "chevron.up")
+            Image(systemName: "chevron.up")
               .font(.system(size: 17, weight: .semibold))
               .foregroundColor(Color.black.opacity(0.52))
           }
 
-          if let note = task.note {
-            Text(note)
+          if !task.note.isEmpty {
+            Text(task.note)
               .font(.system(size: 15, weight: .semibold))
               .foregroundColor(Color.black.opacity(0.52))
               .lineSpacing(4)
@@ -386,9 +503,9 @@ private struct NativeTodoTaskCard: View {
           }
 
           HStack(spacing: 8) {
-            Text(task.dueLabel)
+            Text(task.dueLabel())
               .font(.system(size: 14, weight: .bold))
-              .foregroundColor(task.isOverdue ? .red.opacity(0.78) : .red.opacity(0.64))
+              .foregroundColor(isOverdue ? .red.opacity(0.78) : .red.opacity(0.64))
 
             Text("•")
               .font(.system(size: 14, weight: .bold))
@@ -400,11 +517,16 @@ private struct NativeTodoTaskCard: View {
 
             Spacer()
 
-            Image(systemName: task.isStarred ? "star.fill" : "star")
-              .font(.system(size: 18, weight: .regular))
-              .foregroundColor(task.isStarred ? .red.opacity(0.74) : Color.black.opacity(0.48))
+            Button(action: onToggleStar) {
+              Image(systemName: task.isStarred ? "star.fill" : "star")
+                .font(.system(size: 18, weight: .regular))
+                .foregroundColor(task.isStarred ? .red.opacity(0.74) : Color.black.opacity(0.48))
+                .frame(width: 28, height: 28)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(task.isStarred ? "중요 해제" : "중요 표시")
 
-            Image(systemName: task.isOverdue ? "calendar" : "alarm")
+            Image(systemName: isOverdue ? "calendar" : "alarm")
               .font(.system(size: 17, weight: .regular))
               .foregroundColor(Color.black.opacity(0.48))
           }
@@ -414,21 +536,27 @@ private struct NativeTodoTaskCard: View {
       if !task.subtasks.isEmpty {
         VStack(spacing: 0) {
           ForEach(task.subtasks) { subtask in
-            HStack(alignment: .top, spacing: 14) {
-              Image(systemName: subtask.isComplete ? "checkmark.circle" : "circle")
-                .font(.system(size: 19, weight: .medium))
-                .foregroundColor(Color.black.opacity(0.58))
-                .padding(.top, 1)
+            Button {
+              onToggleSubtask(subtask)
+            } label: {
+              HStack(alignment: .top, spacing: 14) {
+                Image(systemName: subtask.isComplete ? "checkmark.circle" : "circle")
+                  .font(.system(size: 19, weight: .medium))
+                  .foregroundColor(Color.black.opacity(0.58))
+                  .padding(.top, 1)
 
-              Text(subtask.title)
-                .font(.system(size: 13, weight: .bold))
-                .foregroundColor(Color.black.opacity(0.68))
-                .lineLimit(2)
+                Text(subtask.title)
+                  .font(.system(size: 13, weight: .bold))
+                  .foregroundColor(Color.black.opacity(0.68))
+                  .lineLimit(2)
+                  .multilineTextAlignment(.leading)
 
-              Spacer()
+                Spacer()
+              }
+              .padding(.leading, 46)
+              .padding(.vertical, 12)
             }
-            .padding(.leading, 46)
-            .padding(.vertical, 12)
+            .buttonStyle(.plain)
 
             if subtask.id != task.subtasks.last?.id {
               Divider()
@@ -442,43 +570,92 @@ private struct NativeTodoTaskCard: View {
     .padding(22)
     .background(Color(red: 0.94, green: 0.945, blue: 0.95))
     .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+    .contextMenu {
+      Button(role: .destructive, action: onDelete) {
+        Label("삭제", systemImage: "trash")
+      }
+    }
+  }
+}
+
+private struct NativeTodoEmptyRow: View {
+  var title: String
+
+  var body: some View {
+    Text(title)
+      .font(.system(size: 14, weight: .semibold))
+      .foregroundColor(Color.black.opacity(0.42))
+      .frame(maxWidth: .infinity, alignment: .leading)
+      .padding(.horizontal, 18)
+      .padding(.vertical, 16)
+      .background(Color.black.opacity(0.035))
+      .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
   }
 }
 
 private struct NativeTodoWeekStrip: View {
-  private let days = [
-    ("S", "17"),
-    ("M", "18"),
-    ("T", "19"),
-    ("W", "20"),
-    ("T", "21"),
-    ("F", "22"),
-    ("S", "23")
-  ]
+  var selectedDate: Date
+  var onPreviousWeek: () -> Void
+  var onNextWeek: () -> Void
+  var onSelectDate: (Date) -> Void
+
+  private var days: [Date] {
+    let calendar = Calendar.current
+    let start = calendar.dateInterval(of: .weekOfYear, for: selectedDate)?.start
+      ?? calendar.startOfDay(for: selectedDate)
+    return (0..<7).compactMap { calendar.date(byAdding: .day, value: $0, to: start) }
+  }
 
   var body: some View {
     HStack(spacing: 15) {
-      Image(systemName: "chevron.left")
-        .font(.system(size: 18, weight: .medium))
-        .foregroundColor(Color.black.opacity(0.58))
+      Button(action: onPreviousWeek) {
+        Image(systemName: "chevron.left")
+          .font(.system(size: 18, weight: .medium))
+          .foregroundColor(Color.black.opacity(0.58))
+          .frame(width: 24, height: 44)
+      }
+      .buttonStyle(.plain)
 
-      ForEach(days, id: \.1) { day in
-        VStack(spacing: 3) {
-          Text(day.0)
-            .font(.system(size: 13, weight: .bold))
-          Text(day.1)
-            .font(.system(size: 12, weight: .semibold))
+      ForEach(days, id: \.timeIntervalSince1970) { day in
+        Button {
+          onSelectDate(day)
+        } label: {
+          VStack(spacing: 3) {
+            Text(dayLetter(for: day))
+              .font(.system(size: 13, weight: .bold))
+            Text(dayNumber(for: day))
+              .font(.system(size: 12, weight: .semibold))
+          }
+          .foregroundColor(Calendar.current.isDate(day, inSameDayAs: selectedDate) ? .blue.opacity(0.76) : Color.black.opacity(0.60))
+          .frame(width: 34, height: 52)
+          .background(Calendar.current.isDate(day, inSameDayAs: selectedDate) ? Color.black.opacity(0.07) : Color.clear)
+          .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
         }
-        .foregroundColor(day.1 == "19" ? .blue.opacity(0.76) : Color.black.opacity(0.60))
-        .frame(width: 34, height: 52)
-        .background(day.1 == "19" ? Color.black.opacity(0.07) : Color.clear)
-        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .buttonStyle(.plain)
       }
 
-      Image(systemName: "chevron.right")
-        .font(.system(size: 18, weight: .medium))
-        .foregroundColor(Color.black.opacity(0.58))
+      Button(action: onNextWeek) {
+        Image(systemName: "chevron.right")
+          .font(.system(size: 18, weight: .medium))
+          .foregroundColor(Color.black.opacity(0.58))
+          .frame(width: 24, height: 44)
+      }
+      .buttonStyle(.plain)
     }
+  }
+
+  private func dayLetter(for date: Date) -> String {
+    let formatter = DateFormatter()
+    formatter.locale = Locale(identifier: "en_US_POSIX")
+    formatter.dateFormat = "E"
+    return String(formatter.string(from: date).prefix(1))
+  }
+
+  private func dayNumber(for date: Date) -> String {
+    let formatter = DateFormatter()
+    formatter.locale = Locale(identifier: "en_US_POSIX")
+    formatter.dateFormat = "dd"
+    return formatter.string(from: date)
   }
 }
 
@@ -508,6 +685,13 @@ private struct NativeTodoTimeline: View {
         }
       }
 
+      if events.isEmpty {
+        Text("No scheduled tasks")
+          .font(.system(size: 13, weight: .semibold))
+          .foregroundColor(Color.black.opacity(0.38))
+          .offset(x: 60, y: 88)
+      }
+
       ForEach(events) { event in
         NativeTodoCalendarEventCard(event: event)
           .frame(width: event.lane == 3 ? 55 : 54, height: max(78, event.duration * hourHeight))
@@ -517,14 +701,17 @@ private struct NativeTodoTimeline: View {
           )
       }
 
-      HStack(spacing: 9) {
-        Text("Continue Coding")
-        Text("Email Back Mrs James")
+      if !events.isEmpty {
+        HStack(spacing: 9) {
+          ForEach(events.prefix(2)) { event in
+            Text(event.title.replacingOccurrences(of: "\n", with: " "))
+          }
+        }
+        .font(.system(size: 15, weight: .bold))
+        .foregroundColor(.white)
+        .padding(.leading, 58)
+        .offset(y: (19 - timelineStart) * hourHeight - 20)
       }
-      .font(.system(size: 15, weight: .bold))
-      .foregroundColor(.white)
-      .padding(.leading, 58)
-      .offset(y: (19 - timelineStart) * hourHeight - 20)
     }
   }
 }
@@ -546,7 +733,7 @@ private struct NativeTodoCalendarEventCard: View {
 
       Spacer()
 
-      Text("01PM -\n05PM")
+      Text(event.timeText)
         .font(.system(size: 11, weight: .bold))
         .foregroundColor(.white.opacity(0.82))
     }
@@ -564,5 +751,80 @@ private struct NativeTodoCalendarEventCard: View {
     )
     .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
     .shadow(color: Color.black.opacity(0.22), radius: 22, x: 0, y: 14)
+  }
+}
+
+private struct NativeTodoEditorSheet: View {
+  @Environment(\.dismiss) private var dismiss
+  @EnvironmentObject private var store: NativeChatStore
+
+  var selectedDate: Date
+
+  @State private var title = ""
+  @State private var note = ""
+  @State private var dueDate: Date
+
+  init(selectedDate: Date) {
+    self.selectedDate = selectedDate
+    _dueDate = State(initialValue: NativeTodoEditorSheet.defaultDueDate(for: selectedDate))
+  }
+
+  var body: some View {
+    NavigationStack {
+      VStack(alignment: .leading, spacing: 18) {
+        VStack(alignment: .leading, spacing: 8) {
+          Text("Title")
+            .font(.system(size: 13, weight: .bold))
+            .foregroundColor(Color.black.opacity(0.48))
+          TextField("New task", text: $title)
+            .font(.system(size: 18, weight: .semibold))
+            .textInputAutocapitalization(.sentences)
+            .padding(.horizontal, 14)
+            .frame(height: 50)
+            .background(Color.black.opacity(0.055))
+            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        }
+
+        VStack(alignment: .leading, spacing: 8) {
+          Text("Note")
+            .font(.system(size: 13, weight: .bold))
+            .foregroundColor(Color.black.opacity(0.48))
+          TextField("Optional details", text: $note, axis: .vertical)
+            .font(.system(size: 16, weight: .medium))
+            .lineLimit(2...5)
+            .padding(14)
+            .background(Color.black.opacity(0.055))
+            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        }
+
+        DatePicker("Due", selection: $dueDate, displayedComponents: [.date, .hourAndMinute])
+          .font(.system(size: 16, weight: .semibold))
+          .tint(.black)
+
+        Spacer()
+      }
+      .padding(22)
+      .background(Color.white)
+      .navigationTitle("Add Todo")
+      .navigationBarTitleDisplayMode(.inline)
+      .toolbar {
+        ToolbarItem(placement: .cancellationAction) {
+          Button("Cancel") {
+            dismiss()
+          }
+        }
+        ToolbarItem(placement: .confirmationAction) {
+          Button("Save") {
+            store.createTodo(title: title, note: note, dueDate: dueDate)
+            dismiss()
+          }
+          .disabled(title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+        }
+      }
+    }
+  }
+
+  private static func defaultDueDate(for selectedDate: Date) -> Date {
+    Calendar.current.date(bySettingHour: 18, minute: 0, second: 0, of: selectedDate) ?? selectedDate
   }
 }

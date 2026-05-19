@@ -8,6 +8,7 @@ import PhotosUI
 final class NativeChatStore: ObservableObject {
   @Published var sessions: [NativeChatSession] = []
   @Published var projects: [NativeProject] = []
+  @Published var todoItems: [NativeTodoItem] = []
   @Published var selectedSessionId: String?
   @Published var inputText = ""
   @Published var pendingAttachments: [NativeAttachment] = []
@@ -32,6 +33,7 @@ final class NativeChatStore: ObservableObject {
 
   private let storageKey = "OpenEdgeAI.NativeChatSessions.v1"
   private let projectsStorageKey = "OpenEdgeAI.NativeProjects.v1"
+  private let todoStorageKey = "OpenEdgeAI.NativeTodoItems.v1"
   private let settingsKey = "OpenEdgeAI.NativeSettings.v1"
   private let currentSettingsSchemaVersion = 2
   let dynamicIslandActivityId = "open-edge-ai.live-generation"
@@ -47,6 +49,7 @@ final class NativeChatStore: ObservableObject {
     loadSettings()
     loadSessions()
     loadProjects()
+    loadTodoItems()
     rebuildLocalMemoryIndex()
 
     if sessions.isEmpty {
@@ -208,6 +211,53 @@ final class NativeChatStore: ObservableObject {
     projects[index].systemPrompt = systemPrompt.trimmingCharacters(in: .whitespacesAndNewlines)
     saveProjects()
     rebuildLocalMemoryIndex()
+  }
+
+  func createTodo(title: String, note: String, dueDate: Date) {
+    let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !trimmedTitle.isEmpty else {
+      return
+    }
+
+    let trimmedNote = note.trimmingCharacters(in: .whitespacesAndNewlines)
+    let hour = Calendar.current.component(.hour, from: dueDate)
+    let item = NativeTodoItem(
+      title: trimmedTitle,
+      note: trimmedNote,
+      dueDate: dueDate,
+      startHour: Double(max(8, min(20, hour))),
+      durationHours: 1
+    )
+
+    todoItems.insert(item, at: 0)
+    sortTodoItems()
+    saveTodoItems()
+  }
+
+  func toggleTodoCompletion(_ item: NativeTodoItem) {
+    mutateTodoItem(item.id) { todo in
+      todo.isCompleted.toggle()
+    }
+  }
+
+  func toggleTodoStar(_ item: NativeTodoItem) {
+    mutateTodoItem(item.id) { todo in
+      todo.isStarred.toggle()
+    }
+  }
+
+  func toggleTodoSubtask(todoId: String, subtaskId: String) {
+    mutateTodoItem(todoId) { todo in
+      guard let index = todo.subtasks.firstIndex(where: { $0.id == subtaskId }) else {
+        return
+      }
+      todo.subtasks[index].isComplete.toggle()
+    }
+  }
+
+  func deleteTodo(_ item: NativeTodoItem) {
+    todoItems.removeAll { $0.id == item.id }
+    saveTodoItems()
   }
 
   func sendCurrentInput() {
@@ -1076,6 +1126,30 @@ final class NativeChatStore: ObservableObject {
     saveSessions()
   }
 
+  private func mutateTodoItem(_ id: String, _ mutation: (inout NativeTodoItem) -> Void) {
+    guard let index = todoItems.firstIndex(where: { $0.id == id }) else {
+      return
+    }
+
+    objectWillChange.send()
+    mutation(&todoItems[index])
+    todoItems[index].updatedAt = Date()
+    sortTodoItems()
+    saveTodoItems()
+  }
+
+  private func sortTodoItems() {
+    todoItems.sort { left, right in
+      if left.isCompleted != right.isCompleted {
+        return !left.isCompleted
+      }
+      if left.dueDate != right.dueDate {
+        return left.dueDate < right.dueDate
+      }
+      return left.updatedAt > right.updatedAt
+    }
+  }
+
   private func pruneEmptyDraftSessions(keeping keptSessionId: String? = nil) {
     sessions.removeAll { session in
       session.id != keptSessionId && !sessionHasContent(session)
@@ -1263,6 +1337,31 @@ final class NativeChatStore: ObservableObject {
       return
     }
     UserDefaults.standard.set(data, forKey: projectsStorageKey)
+  }
+
+  private func loadTodoItems() {
+    guard UserDefaults.standard.object(forKey: todoStorageKey) != nil else {
+      todoItems = NativeTodoItem.seedItems()
+      saveTodoItems()
+      return
+    }
+
+    guard let data = UserDefaults.standard.data(forKey: todoStorageKey),
+          let decoded = try? JSONDecoder().decode([NativeTodoItem].self, from: data)
+    else {
+      todoItems = []
+      return
+    }
+
+    todoItems = decoded
+    sortTodoItems()
+  }
+
+  private func saveTodoItems() {
+    guard let data = try? JSONEncoder().encode(todoItems) else {
+      return
+    }
+    UserDefaults.standard.set(data, forKey: todoStorageKey)
   }
 
   private func loadSettings() {

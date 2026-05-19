@@ -192,3 +192,115 @@ struct NativeModelStatus: Equatable {
     return 0
   }
 }
+
+struct NativeTodoSubtask: Identifiable, Codable, Equatable, Hashable {
+  var id: String
+  var title: String
+  var isComplete: Bool
+
+  init(id: String = UUID().uuidString, title: String, isComplete: Bool = false) {
+    self.id = id
+    self.title = title
+    self.isComplete = isComplete
+  }
+}
+
+struct NativeTodoItem: Identifiable, Codable, Equatable, Hashable {
+  var id: String
+  var title: String
+  var note: String
+  var dueDate: Date
+  var isStarred: Bool
+  var isCompleted: Bool
+  var subtasks: [NativeTodoSubtask]
+  var createdAt: Date
+  var updatedAt: Date
+  var startHour: Double
+  var durationHours: Double
+
+  init(
+    id: String = UUID().uuidString,
+    title: String,
+    note: String = "",
+    dueDate: Date,
+    isStarred: Bool = false,
+    isCompleted: Bool = false,
+    subtasks: [NativeTodoSubtask] = [],
+    createdAt: Date = Date(),
+    updatedAt: Date = Date(),
+    startHour: Double = 13,
+    durationHours: Double = 2
+  ) {
+    self.id = id
+    self.title = title
+    self.note = note
+    self.dueDate = dueDate
+    self.isStarred = isStarred
+    self.isCompleted = isCompleted
+    self.subtasks = subtasks
+    self.createdAt = createdAt
+    self.updatedAt = updatedAt
+    self.startHour = startHour
+    self.durationHours = durationHours
+  }
+
+  func isOverdue(relativeTo date: Date = Date(), calendar: Calendar = .current) -> Bool {
+    !isCompleted && calendar.startOfDay(for: dueDate) < calendar.startOfDay(for: date)
+  }
+
+  func dueLabel(relativeTo date: Date = Date(), calendar: Calendar = .current) -> String {
+    if calendar.isDateInToday(dueDate) {
+      return "Today"
+    }
+    if calendar.isDateInYesterday(dueDate) {
+      return "Yesterday"
+    }
+    if calendar.isDateInTomorrow(dueDate) {
+      return "Tomorrow"
+    }
+
+    let formatter = DateFormatter()
+    formatter.locale = Locale(identifier: "en_US_POSIX")
+    formatter.dateFormat = calendar.component(.year, from: dueDate) == calendar.component(.year, from: date)
+      ? "MMM d"
+      : "MMM d, yyyy"
+    return formatter.string(from: dueDate)
+  }
+
+  static func seedItems(now: Date = Date(), calendar: Calendar = .current) -> [NativeTodoItem] {
+    let today = calendar.startOfDay(for: now)
+    let yesterday = calendar.date(byAdding: .day, value: -1, to: today) ?? today
+    let evening = calendar.date(bySettingHour: 19, minute: 0, second: 0, of: today) ?? today
+    let afternoon = calendar.date(bySettingHour: 13, minute: 0, second: 0, of: today) ?? today
+
+    return [
+      NativeTodoItem(
+        title: "Call Jason",
+        dueDate: yesterday,
+        startHour: 11,
+        durationHours: 1
+      ),
+      NativeTodoItem(
+        title: "Email Back Mrs James",
+        note: "Email Mrs. James for the new intern we have next week from Alex Carter, a marketing student from Brookfield University. Confirm their start date, schedule, and onboarding needs.",
+        dueDate: evening,
+        isStarred: true,
+        startHour: 19,
+        durationHours: 1
+      ),
+      NativeTodoItem(
+        title: "New Design System",
+        dueDate: afternoon,
+        subtasks: [
+          NativeTodoSubtask(title: "Update the UI system with a modern, cohesive design.", isComplete: true),
+          NativeTodoSubtask(title: "Focus on consistency, scalability, and accessibility."),
+          NativeTodoSubtask(title: "Use clean aesthetics with reusable, responsive components."),
+          NativeTodoSubtask(title: "Enhance usability for a seamless user experience."),
+          NativeTodoSubtask(title: "Streamline development with clear design guidelines.")
+        ],
+        startHour: 13,
+        durationHours: 4
+      )
+    ]
+  }
+}

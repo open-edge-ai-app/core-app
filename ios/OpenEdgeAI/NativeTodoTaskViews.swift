@@ -10,15 +10,21 @@ struct NativeTodoSectionHeader: View {
         isExpanded.toggle()
       }
     } label: {
-      HStack(spacing: 12) {
+      HStack(spacing: 8) {
         Text(title)
           .font(.system(size: 25, weight: .bold))
           .foregroundColor(.black)
+          .frame(alignment: .leading)
 
         Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
           .font(.system(size: 20, weight: .medium))
           .foregroundColor(Color.black.opacity(0.68))
+          .frame(width: 22, height: 22)
+
+        Spacer(minLength: 0)
       }
+      .frame(maxWidth: .infinity, alignment: .leading)
+      .contentShape(Rectangle())
     }
     .buttonStyle(.plain)
     .padding(.top, 2)

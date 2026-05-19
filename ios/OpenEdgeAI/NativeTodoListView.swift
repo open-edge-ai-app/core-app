@@ -28,6 +28,7 @@ struct NativeTodoListView: View {
   @State private var selectedDate = Date()
   @State private var currentDate = Date()
   @State private var showingComposer = false
+  @State private var showingSettings = false
   @State private var editingTodo: NativeTodoItem?
 
   private var calendar: Calendar {
@@ -130,6 +131,12 @@ struct NativeTodoListView: View {
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
     }
+    .sheet(isPresented: $showingSettings) {
+      NativeTodoSettingsSheet()
+        .environmentObject(store)
+        .presentationDetents([.medium, .large])
+        .presentationDragIndicator(.visible)
+    }
     .onReceive(Timer.publish(every: 60, on: .main, in: .common).autoconnect()) { date in
       currentDate = date
     }
@@ -153,6 +160,16 @@ struct NativeTodoListView: View {
         .lineLimit(1)
 
       Spacer(minLength: 8)
+
+      Button {
+        showingSettings = true
+      } label: {
+        Image(systemName: "gearshape")
+          .font(.system(size: 18, weight: .semibold))
+          .frame(width: 36, height: 36)
+      }
+      .buttonStyle(.plain)
+      .accessibilityLabel("Todo 설정")
     }
     .foregroundColor(.black)
     .padding(.horizontal, 16)
@@ -930,6 +947,212 @@ private struct NativeTodoCalendarEventCard: View {
   }
 }
 
+private struct NativeTodoSettingsSheet: View {
+  @Environment(\.dismiss) private var dismiss
+  @EnvironmentObject private var store: NativeChatStore
+
+  @State private var newLabelTitle = ""
+
+  private var canAddLabel: Bool {
+    !newLabelTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+  }
+
+  var body: some View {
+    NavigationStack {
+      ScrollView(showsIndicators: false) {
+        VStack(alignment: .leading, spacing: 22) {
+          labelSection
+          calendarSection
+        }
+        .padding(22)
+      }
+      .background(Color.white)
+      .navigationTitle("Todo 설정")
+      .navigationBarTitleDisplayMode(.inline)
+      .toolbar {
+        ToolbarItem(placement: .confirmationAction) {
+          Button("Done") {
+            dismiss()
+          }
+        }
+      }
+      .onAppear {
+        store.refreshTodoCalendarAuthorizationState()
+      }
+    }
+  }
+
+  private var labelSection: some View {
+    VStack(alignment: .leading, spacing: 12) {
+      Text("Labels")
+        .font(.system(size: 13, weight: .bold))
+        .foregroundColor(Color.black.opacity(0.48))
+
+      HStack(spacing: 10) {
+        TextField("새 라벨 이름", text: $newLabelTitle)
+          .font(.system(size: 16, weight: .semibold))
+          .textInputAutocapitalization(.words)
+          .padding(.horizontal, 14)
+          .frame(height: 50)
+          .background(Color.black.opacity(0.055))
+          .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+
+        Button {
+          store.createTodoLabel(title: newLabelTitle)
+          newLabelTitle = ""
+        } label: {
+          Image(systemName: "plus")
+            .font(.system(size: 17, weight: .bold))
+            .foregroundColor(.white)
+            .frame(width: 50, height: 50)
+            .background(canAddLabel ? Color.black : Color.black.opacity(0.24))
+            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .disabled(!canAddLabel)
+        .accessibilityLabel("라벨 추가")
+      }
+
+      if store.todoLabels.isEmpty {
+        Text("아직 만든 라벨이 없습니다.")
+          .font(.system(size: 14, weight: .semibold))
+          .foregroundColor(Color.black.opacity(0.42))
+          .padding(.horizontal, 14)
+          .frame(maxWidth: .infinity, minHeight: 48, alignment: .leading)
+          .background(Color.black.opacity(0.035))
+          .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+      } else {
+        LazyVStack(spacing: 8) {
+          ForEach(store.todoLabels) { label in
+            NativeTodoLabelRow(label: label) {
+              store.deleteTodoLabel(label)
+            }
+          }
+        }
+      }
+    }
+  }
+
+  private var calendarSection: some View {
+    VStack(alignment: .leading, spacing: 12) {
+      Text("iOS Calendar")
+        .font(.system(size: 13, weight: .bold))
+        .foregroundColor(Color.black.opacity(0.48))
+
+      VStack(spacing: 0) {
+        HStack(spacing: 12) {
+          Image(systemName: "calendar")
+            .font(.system(size: 18, weight: .semibold))
+            .foregroundColor(.black)
+            .frame(width: 24)
+
+          VStack(alignment: .leading, spacing: 3) {
+            Text("기본 캘린더 앱 연동")
+              .font(.system(size: 16, weight: .semibold))
+              .foregroundColor(.black)
+            Text(store.todoCalendarAuthorizationState.title)
+              .font(.system(size: 13, weight: .semibold))
+              .foregroundColor(Color.black.opacity(0.46))
+          }
+
+          Spacer()
+
+          Toggle("", isOn: Binding(
+            get: { store.todoCalendarSyncEnabled },
+            set: { store.setTodoCalendarSyncEnabled($0) }
+          ))
+          .labelsHidden()
+          .tint(store.accentColor.color)
+        }
+        .padding(14)
+
+        Divider()
+          .background(Color.black.opacity(0.07))
+          .padding(.leading, 50)
+
+        VStack(alignment: .leading, spacing: 10) {
+          Text("Open Edge AI Todo 캘린더를 만들고, Todo 항목을 iOS Calendar 이벤트로 동기화합니다.")
+            .font(.system(size: 13, weight: .semibold))
+            .foregroundColor(Color.black.opacity(0.48))
+            .lineSpacing(3)
+
+          HStack(spacing: 10) {
+            if !store.todoCalendarAuthorizationState.canSync {
+              Button {
+                store.requestTodoCalendarAccess()
+              } label: {
+                Text("권한 허용")
+                  .font(.system(size: 14, weight: .bold))
+                  .foregroundColor(.white)
+                  .frame(height: 40)
+                  .frame(maxWidth: .infinity)
+                  .background(Color.black)
+                  .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+              }
+              .buttonStyle(.plain)
+            }
+
+            Button {
+              store.syncTodoItemsToCalendar()
+            } label: {
+              Text("지금 동기화")
+                .font(.system(size: 14, weight: .bold))
+                .foregroundColor(store.todoCalendarAuthorizationState.canSync ? .black : Color.black.opacity(0.34))
+                .frame(height: 40)
+                .frame(maxWidth: .infinity)
+                .background(Color.black.opacity(0.055))
+                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            }
+            .buttonStyle(.plain)
+            .disabled(!store.todoCalendarAuthorizationState.canSync)
+          }
+
+          if let message = store.todoCalendarSyncMessage {
+            Text(message)
+              .font(.system(size: 12, weight: .semibold))
+              .foregroundColor(Color.black.opacity(0.45))
+          }
+        }
+        .padding(14)
+      }
+      .background(Color.black.opacity(0.055))
+      .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+    }
+  }
+}
+
+private struct NativeTodoLabelRow: View {
+  var label: NativeTodoLabel
+  var onDelete: () -> Void
+
+  var body: some View {
+    HStack(spacing: 12) {
+      Circle()
+        .fill(Color(todoLabelHex: label.colorHex))
+        .frame(width: 13, height: 13)
+
+      Text(label.title)
+        .font(.system(size: 15, weight: .semibold))
+        .foregroundColor(.black)
+
+      Spacer()
+
+      Button(action: onDelete) {
+        Image(systemName: "xmark")
+          .font(.system(size: 12, weight: .bold))
+          .foregroundColor(Color.black.opacity(0.42))
+          .frame(width: 28, height: 28)
+      }
+      .buttonStyle(.plain)
+      .accessibilityLabel("\(label.title) 라벨 삭제")
+    }
+    .padding(.horizontal, 14)
+    .frame(height: 48)
+    .background(Color.black.opacity(0.035))
+    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+  }
+}
+
 private struct NativeTodoEditorSheet: View {
   @Environment(\.dismiss) private var dismiss
   @EnvironmentObject private var store: NativeChatStore
@@ -1143,5 +1366,19 @@ private struct NativeTodoDateTimeField: View {
     .frame(height: 54)
     .background(Color.black.opacity(0.055))
     .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+  }
+}
+
+private extension Color {
+  init(todoLabelHex hex: String) {
+    let cleaned = hex.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
+    var value: UInt64 = 0
+    Scanner(string: cleaned).scanHexInt64(&value)
+
+    let red = Double((value >> 16) & 0xFF) / 255
+    let green = Double((value >> 8) & 0xFF) / 255
+    let blue = Double(value & 0xFF) / 255
+
+    self.init(red: red, green: green, blue: blue)
   }
 }

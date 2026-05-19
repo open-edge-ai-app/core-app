@@ -1,4 +1,5 @@
 import Foundation
+import EventKit
 import SwiftUI
 import UIKit
 import UniformTypeIdentifiers
@@ -9,6 +10,10 @@ final class NativeChatStore: ObservableObject {
   @Published var sessions: [NativeChatSession] = []
   @Published var projects: [NativeProject] = []
   @Published var todoItems: [NativeTodoItem] = []
+  @Published var todoLabels: [NativeTodoLabel] = []
+  @Published var todoCalendarSyncEnabled = false
+  @Published var todoCalendarAuthorizationState: NativeTodoCalendarAuthorizationState = .unknown
+  @Published var todoCalendarSyncMessage: String?
   @Published var selectedSessionId: String?
   @Published var inputText = ""
   @Published var pendingAttachments: [NativeAttachment] = []
@@ -34,8 +39,11 @@ final class NativeChatStore: ObservableObject {
   private let storageKey = "OpenEdgeAI.NativeChatSessions.v1"
   private let projectsStorageKey = "OpenEdgeAI.NativeProjects.v1"
   private let todoStorageKey = "OpenEdgeAI.NativeTodoItems.v1"
+  private let todoLabelsStorageKey = "OpenEdgeAI.NativeTodoLabels.v1"
+  private let todoCalendarIdentifierKey = "OpenEdgeAI.NativeTodoCalendarIdentifier.v1"
   private let settingsKey = "OpenEdgeAI.NativeSettings.v1"
   private let currentSettingsSchemaVersion = 2
+  private let todoEventStore = EKEventStore()
   let dynamicIslandActivityId = "open-edge-ai.live-generation"
   private var activeAssistantMessageId: String?
   @Published private var activeRequestSessionId: String?
@@ -50,6 +58,8 @@ final class NativeChatStore: ObservableObject {
     loadSessions()
     loadProjects()
     loadTodoItems()
+    loadTodoLabels()
+    refreshTodoCalendarAuthorizationState()
     rebuildLocalMemoryIndex()
 
     if sessions.isEmpty {
@@ -239,6 +249,7 @@ final class NativeChatStore: ObservableObject {
     todoItems.insert(item, at: 0)
     sortTodoItems()
     saveTodoItems()
+    syncTodoItemsToCalendarIfNeeded()
   }
 
   func updateTodo(
@@ -265,6 +276,7 @@ final class NativeChatStore: ObservableObject {
       todo.durationHours = schedule.durationHours
       todo.repeatRule = repeatRule.isRepeating ? repeatRule : nil
     }
+    syncTodoItemsToCalendarIfNeeded()
   }
 
   private func todoSchedule(startDate: Date, endDate: Date) -> (startHour: Double, durationHours: Double) {
@@ -318,6 +330,111 @@ final class NativeChatStore: ObservableObject {
   func deleteTodo(_ item: NativeTodoItem) {
     todoItems.removeAll { $0.id == item.id }
     saveTodoItems()
+    deleteTodoCalendarEventIfNeeded(identifier: item.calendarEventIdentifier)
+  }
+
+  func createTodoLabel(title: String) {
+    let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !trimmedTitle.isEmpty else {
+      return
+    }
+
+    let color = NativeTodoLabel.defaultColors[todoLabels.count % NativeTodoLabel.defaultColors.count]
+    let label = NativeTodoLabel(title: trimmedTitle, colorHex: color)
+    todoLabels.insert(label, at: 0)
+    saveTodoLabels()
+  }
+
+  func deleteTodoLabel(_ label: NativeTodoLabel) {
+    todoLabels.removeAll { $0.id == label.id }
+    saveTodoLabels()
+  }
+
+  func refreshTodoCalendarAuthorizationState() {
+    switch EKEventStore.authorizationStatus(for: .event) {
+    case .notDetermined:
+      todoCalendarAuthorizationState = .notDetermined
+    case .restricted:
+      todoCalendarAuthorizationState = .restricted
+    case .denied:
+      todoCalendarAuthorizationState = .denied
+    case .authorized, .fullAccess:
+      todoCalendarAuthorizationState = .fullAccess
+    case .writeOnly:
+      todoCalendarAuthorizationState = .writeOnly
+    @unknown default:
+      todoCalendarAuthorizationState = .unknown
+    }
+  }
+
+  func setTodoCalendarSyncEnabled(_ enabled: Bool) {
+    if enabled && !todoCalendarAuthorizationState.canSync {
+      requestTodoCalendarAccess()
+      return
+    }
+
+    todoCalendarSyncEnabled = enabled
+    saveSettings()
+    if enabled {
+      syncTodoItemsToCalendar()
+    }
+  }
+
+  func requestTodoCalendarAccess() {
+    todoCalendarSyncMessage = nil
+    todoEventStore.requestFullAccessToEvents { [weak self] granted, error in
+      Task { @MainActor in
+        guard let self else {
+          return
+        }
+
+        self.refreshTodoCalendarAuthorizationState()
+
+        if granted {
+          self.todoCalendarSyncEnabled = true
+          self.saveSettings()
+          self.syncTodoItemsToCalendar()
+        } else {
+          self.todoCalendarSyncEnabled = false
+          self.saveSettings()
+          self.todoCalendarSyncMessage = error?.localizedDescription ?? "캘린더 권한이 허용되지 않았습니다."
+        }
+      }
+    }
+  }
+
+  func syncTodoItemsToCalendar() {
+    refreshTodoCalendarAuthorizationState()
+    guard todoCalendarAuthorizationState.canSync else {
+      todoCalendarSyncMessage = "캘린더 권한을 먼저 허용해주세요."
+      return
+    }
+
+    do {
+      let calendar = try openEdgeTodoCalendar()
+      var syncedCount = 0
+
+      for index in todoItems.indices where !todoItems[index].isCompleted {
+        let item = todoItems[index]
+        let event = calendarEvent(for: item)
+        event.calendar = calendar
+        event.title = item.title
+        event.notes = item.note.isEmpty ? nil : item.note
+        event.startDate = todoStartDate(for: item)
+        event.endDate = todoEndDate(for: item)
+        event.recurrenceRules = recurrenceRules(for: item)
+        try todoEventStore.save(event, span: .futureEvents, commit: true)
+        todoItems[index].calendarEventIdentifier = event.eventIdentifier
+        syncedCount += 1
+      }
+
+      saveTodoItems()
+      todoCalendarSyncMessage = syncedCount == 0
+        ? "동기화할 Todo가 없습니다."
+        : "\(syncedCount)개 Todo를 iOS 캘린더에 동기화했습니다."
+    } catch {
+      todoCalendarSyncMessage = error.localizedDescription
+    }
   }
 
   func sendCurrentInput() {
@@ -547,7 +664,8 @@ final class NativeChatStore: ObservableObject {
       "backgroundExecutionEnabled": backgroundExecutionEnabled,
       "backgroundDynamicIslandEnabled": backgroundDynamicIslandEnabled,
       "dynamicIslandPetEnabled": dynamicIslandPetEnabled,
-      "selectedDynamicIslandPet": selectedDynamicIslandPet.rawValue
+      "selectedDynamicIslandPet": selectedDynamicIslandPet.rawValue,
+      "todoCalendarSyncEnabled": todoCalendarSyncEnabled
     ]
     UserDefaults.standard.set(data, forKey: settingsKey)
   }
@@ -1210,6 +1328,117 @@ final class NativeChatStore: ObservableObject {
     }
   }
 
+  private func syncTodoItemsToCalendarIfNeeded() {
+    guard todoCalendarSyncEnabled else {
+      return
+    }
+    syncTodoItemsToCalendar()
+  }
+
+  private func deleteTodoCalendarEventIfNeeded(identifier: String?) {
+    guard todoCalendarSyncEnabled,
+          todoCalendarAuthorizationState.canSync,
+          let identifier,
+          let event = todoEventStore.event(withIdentifier: identifier)
+    else {
+      return
+    }
+
+    do {
+      try todoEventStore.remove(event, span: .futureEvents, commit: true)
+    } catch {
+      todoCalendarSyncMessage = error.localizedDescription
+    }
+  }
+
+  private func calendarEvent(for item: NativeTodoItem) -> EKEvent {
+    if let identifier = item.calendarEventIdentifier,
+       let existingEvent = todoEventStore.event(withIdentifier: identifier) {
+      return existingEvent
+    }
+    return EKEvent(eventStore: todoEventStore)
+  }
+
+  private func openEdgeTodoCalendar() throws -> EKCalendar {
+    if let identifier = UserDefaults.standard.string(forKey: todoCalendarIdentifierKey),
+       let calendar = todoEventStore.calendar(withIdentifier: identifier) {
+      return calendar
+    }
+
+    let calendar = EKCalendar(for: .event, eventStore: todoEventStore)
+    calendar.title = "Open Edge AI Todo"
+    calendar.cgColor = UIColor.black.cgColor
+
+    if let source = todoEventStore.defaultCalendarForNewEvents?.source
+      ?? todoEventStore.sources.first(where: { $0.sourceType == .local })
+      ?? todoEventStore.sources.first {
+      calendar.source = source
+    } else {
+      throw NativeTodoCalendarSyncError.noCalendarSource
+    }
+
+    try todoEventStore.saveCalendar(calendar, commit: true)
+    UserDefaults.standard.set(calendar.calendarIdentifier, forKey: todoCalendarIdentifierKey)
+    return calendar
+  }
+
+  private func todoStartDate(for item: NativeTodoItem) -> Date {
+    todoDate(on: item.dueDate, timelineHour: item.startHour)
+  }
+
+  private func todoEndDate(for item: NativeTodoItem) -> Date {
+    let startDate = todoStartDate(for: item)
+    let durationMinutes = Int((max(0.5, item.durationHours) * 60).rounded())
+    return Calendar.current.date(byAdding: .minute, value: durationMinutes, to: startDate)
+      ?? Calendar.current.date(byAdding: .hour, value: 1, to: startDate)
+      ?? startDate
+  }
+
+  private func todoDate(on baseDate: Date, timelineHour: Double) -> Date {
+    let boundedHour = min(max(timelineHour, 1), 23.5)
+    var hour = Int(floor(boundedHour))
+    var minute = Int(round((boundedHour - Double(hour)) * 60))
+    if minute == 60 {
+      hour += 1
+      minute = 0
+    }
+    return Calendar.current.date(bySettingHour: hour, minute: minute, second: 0, of: baseDate) ?? baseDate
+  }
+
+  private func recurrenceRules(for item: NativeTodoItem) -> [EKRecurrenceRule]? {
+    switch item.recurrenceRule {
+    case .none:
+      return nil
+    case .daily:
+      return [EKRecurrenceRule(recurrenceWith: .daily, interval: 1, end: nil)]
+    case .weekdays:
+      let weekdays = [
+        EKRecurrenceDayOfWeek(.monday),
+        EKRecurrenceDayOfWeek(.tuesday),
+        EKRecurrenceDayOfWeek(.wednesday),
+        EKRecurrenceDayOfWeek(.thursday),
+        EKRecurrenceDayOfWeek(.friday)
+      ]
+      return [
+        EKRecurrenceRule(
+          recurrenceWith: .weekly,
+          interval: 1,
+          daysOfTheWeek: weekdays,
+          daysOfTheMonth: nil,
+          monthsOfTheYear: nil,
+          weeksOfTheYear: nil,
+          daysOfTheYear: nil,
+          setPositions: nil,
+          end: nil
+        )
+      ]
+    case .weekly:
+      return [EKRecurrenceRule(recurrenceWith: .weekly, interval: 1, end: nil)]
+    case .monthly:
+      return [EKRecurrenceRule(recurrenceWith: .monthly, interval: 1, end: nil)]
+    }
+  }
+
   private func pruneEmptyDraftSessions(keeping keptSessionId: String? = nil) {
     sessions.removeAll { session in
       session.id != keptSessionId && !sessionHasContent(session)
@@ -1424,6 +1653,24 @@ final class NativeChatStore: ObservableObject {
     UserDefaults.standard.set(data, forKey: todoStorageKey)
   }
 
+  private func loadTodoLabels() {
+    guard let data = UserDefaults.standard.data(forKey: todoLabelsStorageKey),
+          let decoded = try? JSONDecoder().decode([NativeTodoLabel].self, from: data)
+    else {
+      todoLabels = []
+      return
+    }
+
+    todoLabels = decoded.sorted { $0.createdAt > $1.createdAt }
+  }
+
+  private func saveTodoLabels() {
+    guard let data = try? JSONEncoder().encode(todoLabels) else {
+      return
+    }
+    UserDefaults.standard.set(data, forKey: todoLabelsStorageKey)
+  }
+
   private func loadSettings() {
     let data = UserDefaults.standard.dictionary(forKey: settingsKey) ?? [:]
     let storedSettingsSchemaVersion = data["settingsSchemaVersion"] as? Int ?? 0
@@ -1449,6 +1696,7 @@ final class NativeChatStore: ObservableObject {
     }
     backgroundExecutionEnabled = boolSetting(data["backgroundExecutionEnabled"], default: false)
     backgroundDynamicIslandEnabled = boolSetting(data["backgroundDynamicIslandEnabled"], default: true)
+    todoCalendarSyncEnabled = boolSetting(data["todoCalendarSyncEnabled"], default: false)
     if storedSettingsSchemaVersion < currentSettingsSchemaVersion {
       backgroundDynamicIslandEnabled = true
     }
@@ -1511,4 +1759,15 @@ final class NativeChatStore: ObservableObject {
     return defaultValue
   }
 
+}
+
+private enum NativeTodoCalendarSyncError: LocalizedError {
+  case noCalendarSource
+
+  var errorDescription: String? {
+    switch self {
+    case .noCalendarSource:
+      return "사용 가능한 iOS 캘린더 소스를 찾을 수 없습니다."
+    }
+  }
 }

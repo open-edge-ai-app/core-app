@@ -234,6 +234,64 @@ enum NativeTodoRepeatRule: String, CaseIterable, Codable, Identifiable, Hashable
   }
 }
 
+struct NativeTodoLabel: Identifiable, Codable, Equatable, Hashable {
+  var id: String
+  var title: String
+  var colorHex: String
+  var createdAt: Date
+
+  init(
+    id: String = UUID().uuidString,
+    title: String,
+    colorHex: String = NativeTodoLabel.defaultColors[0],
+    createdAt: Date = Date()
+  ) {
+    self.id = id
+    self.title = title
+    self.colorHex = colorHex
+    self.createdAt = createdAt
+  }
+
+  static let defaultColors = [
+    "#111111",
+    "#FF3B30",
+    "#007AFF",
+    "#34C759",
+    "#FF9500",
+    "#AF52DE"
+  ]
+}
+
+enum NativeTodoCalendarAuthorizationState: String, Equatable {
+  case notDetermined
+  case denied
+  case restricted
+  case writeOnly
+  case fullAccess
+  case unknown
+
+  var title: String {
+    switch self {
+    case .notDetermined:
+      return "권한 필요"
+    case .denied:
+      return "권한 거부됨"
+    case .restricted:
+      return "제한됨"
+    case .writeOnly:
+      return "쓰기 권한"
+    case .fullAccess:
+      return "연동됨"
+    case .unknown:
+      return "확인 필요"
+    }
+  }
+
+  var canSync: Bool {
+    self == .fullAccess || self == .writeOnly
+  }
+}
+
 struct NativeTodoItem: Identifiable, Codable, Equatable, Hashable {
   var id: String
   var title: String
@@ -247,6 +305,7 @@ struct NativeTodoItem: Identifiable, Codable, Equatable, Hashable {
   var startHour: Double
   var durationHours: Double
   var repeatRule: NativeTodoRepeatRule?
+  var calendarEventIdentifier: String?
 
   init(
     id: String = UUID().uuidString,
@@ -260,7 +319,8 @@ struct NativeTodoItem: Identifiable, Codable, Equatable, Hashable {
     updatedAt: Date = Date(),
     startHour: Double = 13,
     durationHours: Double = 2,
-    repeatRule: NativeTodoRepeatRule = .none
+    repeatRule: NativeTodoRepeatRule = .none,
+    calendarEventIdentifier: String? = nil
   ) {
     self.id = id
     self.title = title
@@ -274,6 +334,7 @@ struct NativeTodoItem: Identifiable, Codable, Equatable, Hashable {
     self.startHour = startHour
     self.durationHours = durationHours
     self.repeatRule = repeatRule.isRepeating ? repeatRule : nil
+    self.calendarEventIdentifier = calendarEventIdentifier
   }
 
   var recurrenceRule: NativeTodoRepeatRule {

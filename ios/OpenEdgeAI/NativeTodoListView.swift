@@ -1,6 +1,6 @@
 import SwiftUI
 
-private enum NativeTodoTab {
+private enum NativeTodoTab: String {
   case all
   case calendar
 }
@@ -72,13 +72,6 @@ struct NativeTodoListView: View {
     return formatter.string(from: selectedDate)
   }
 
-  private var bottomDateTitle: String {
-    let formatter = DateFormatter()
-    formatter.locale = Locale(identifier: "en_US_POSIX")
-    formatter.dateFormat = "yyyy.MM.dd"
-    return formatter.string(from: selectedDate)
-  }
-
   var body: some View {
     ZStack(alignment: .bottom) {
       VStack(spacing: 0) {
@@ -147,6 +140,12 @@ struct NativeTodoListView: View {
 
         Spacer()
       }
+
+      Picker("Todo 보기", selection: $selectedTab) {
+        Text("리스트").tag(NativeTodoTab.all)
+        Text("캘린더").tag(NativeTodoTab.calendar)
+      }
+      .pickerStyle(.segmented)
     }
     .padding(.horizontal, nativeTodoHorizontalPadding)
     .padding(.top, 24)
@@ -266,53 +265,8 @@ struct NativeTodoListView: View {
   }
 
   private var bottomControls: some View {
-    HStack(alignment: .center, spacing: 14) {
-      Button {
-        withAnimation(.easeInOut(duration: 0.18)) {
-          selectedTab = selectedTab == .all ? .calendar : .all
-        }
-      } label: {
-        Image(systemName: selectedTab == .all ? "calendar" : "list.bullet")
-          .font(.system(size: 22, weight: .semibold))
-          .foregroundColor(.black)
-          .frame(width: 56, height: 56)
-          .background(Color.white.opacity(0.94))
-          .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-          .shadow(color: Color.black.opacity(0.08), radius: 18, x: 0, y: 8)
-      }
-      .buttonStyle(.plain)
-      .accessibilityLabel(selectedTab == .all ? "캘린더 보기" : "목록 보기")
-
-      HStack(spacing: 22) {
-        Button {
-          moveSelectedDate(byDays: -1)
-        } label: {
-          Image(systemName: "chevron.left")
-            .font(.system(size: 19, weight: .semibold))
-            .frame(width: 34, height: 44)
-        }
-        .buttonStyle(.plain)
-
-        Text(bottomDateTitle)
-          .font(.system(size: 16, weight: .bold))
-          .frame(minWidth: 104)
-
-        Button {
-          moveSelectedDate(byDays: 1)
-        } label: {
-          Image(systemName: "chevron.right")
-            .font(.system(size: 19, weight: .semibold))
-            .frame(width: 34, height: 44)
-        }
-        .buttonStyle(.plain)
-      }
-      .foregroundColor(.black)
-      .frame(maxWidth: .infinity)
-      .frame(height: 56)
-      .background(Color.white.opacity(0.96))
-      .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-      .shadow(color: Color.black.opacity(0.10), radius: 20, x: 0, y: 10)
-
+    HStack {
+      Spacer()
       Button {
         showingComposer = true
       } label: {

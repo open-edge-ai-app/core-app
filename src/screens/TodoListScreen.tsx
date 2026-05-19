@@ -2,9 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useEffect, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
-import AppIcon from '../components/AppIcon';
 import { ScaledText as Text } from '../theme/display';
-import { appIcons } from '../theme/icons';
 
 type TodoTab = 'all' | 'calendar';
 
@@ -94,22 +92,14 @@ export default function TodoListScreen() {
   const [hasLoadedTasks, setHasLoadedTasks] = useState(false);
   const [isOverdueExpanded, setOverdueExpanded] = useState(true);
   const [isTodayExpanded, setTodayExpanded] = useState(true);
-  const [selectedDate, setSelectedDate] = useState(() => new Date());
   const dateTitle = useMemo(
     () =>
       new Intl.DateTimeFormat('en-US', {
         day: '2-digit',
         month: 'long',
         weekday: 'short',
-      }).format(selectedDate),
-    [selectedDate],
-  );
-  const bottomDateTitle = useMemo(
-    () =>
-      `${selectedDate.getFullYear()}.${String(
-        selectedDate.getMonth() + 1,
-      ).padStart(2, '0')}.${String(selectedDate.getDate()).padStart(2, '0')}`,
-    [selectedDate],
+      }).format(new Date()),
+    [],
   );
   const visibleTasks = useMemo(
     () => tasks.filter(task => !task.isCompleted),
@@ -195,22 +185,46 @@ export default function TodoListScreen() {
       }),
     );
   };
-  const toggleViewMode = () => {
-    setTab(current => (current === 'all' ? 'calendar' : 'all'));
-  };
-  const moveSelectedDate = (days: number) => {
-    setSelectedDate(current => {
-      const next = new Date(current);
-      next.setDate(current.getDate() + days);
-      return next;
-    });
-  };
 
   return (
     <View style={styles.screen}>
       <View style={styles.header}>
         <View style={styles.headerRow}>
           <Text style={styles.dateTitle}>{dateTitle}</Text>
+        </View>
+        <View style={styles.segmentedControl}>
+          <Pressable
+            onPress={() => setTab('all')}
+            style={[
+              styles.segmentedButton,
+              tab === 'all' && styles.segmentedButtonActive,
+            ]}
+          >
+            <Text
+              style={[
+                styles.segmentedText,
+                tab === 'all' && styles.segmentedTextActive,
+              ]}
+            >
+              리스트
+            </Text>
+          </Pressable>
+          <Pressable
+            onPress={() => setTab('calendar')}
+            style={[
+              styles.segmentedButton,
+              tab === 'calendar' && styles.segmentedButtonActive,
+            ]}
+          >
+            <Text
+              style={[
+                styles.segmentedText,
+                tab === 'calendar' && styles.segmentedTextActive,
+              ]}
+            >
+              캘린더
+            </Text>
+          </Pressable>
         </View>
       </View>
 
@@ -310,22 +324,6 @@ export default function TodoListScreen() {
       )}
 
       <View style={styles.bottomBar}>
-        <Pressable onPress={toggleViewMode} style={styles.bottomButton}>
-          <AppIcon
-            color="#111111"
-            icon={tab === 'all' ? appIcons.menuScheduling : appIcons.todoList}
-            size={21}
-          />
-        </Pressable>
-        <View style={styles.monthPill}>
-          <Pressable onPress={() => moveSelectedDate(-1)}>
-            <Text style={styles.monthArrow}>‹</Text>
-          </Pressable>
-          <Text style={styles.monthText}>{bottomDateTitle}</Text>
-          <Pressable onPress={() => moveSelectedDate(1)}>
-            <Text style={styles.monthArrow}>›</Text>
-          </Pressable>
-        </View>
         <Pressable onPress={addTask} style={styles.bottomButton}>
           <Text style={styles.plusText}>+</Text>
         </Pressable>
@@ -460,7 +458,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     bottom: 24,
     flexDirection: 'row',
-    gap: 14,
+    justifyContent: 'flex-end',
     left: 24,
     position: 'absolute',
     right: 24,
@@ -590,7 +588,7 @@ const styles = StyleSheet.create({
   header: {
     borderBottomColor: 'rgba(17,17,17,0.08)',
     borderBottomWidth: StyleSheet.hairlineWidth,
-    paddingBottom: 26,
+    paddingBottom: 22,
     paddingHorizontal: 24,
     paddingTop: 28,
   },
@@ -633,32 +631,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
   },
-  monthArrow: {
-    color: '#111111',
-    fontSize: 24,
-    fontWeight: '600',
-  },
-  monthPill: {
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 14,
-    flex: 1,
-    flexDirection: 'row',
-    height: 56,
-    justifyContent: 'center',
-    shadowColor: '#000000',
-    shadowOffset: { height: 10, width: 0 },
-    shadowOpacity: 0.1,
-    shadowRadius: 20,
-  },
-  monthText: {
-    color: '#111111',
-    fontSize: 16,
-    fontWeight: '800',
-    marginHorizontal: 16,
-    minWidth: 92,
-    textAlign: 'center',
-  },
   overdueText: {
     color: '#D4413B',
   },
@@ -691,6 +663,35 @@ const styles = StyleSheet.create({
     color: '#111111',
     fontSize: 25,
     fontWeight: '800',
+  },
+  segmentedButton: {
+    alignItems: 'center',
+    borderRadius: 8,
+    flex: 1,
+    height: 31,
+    justifyContent: 'center',
+  },
+  segmentedButtonActive: {
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#000000',
+    shadowOffset: { height: 1, width: 0 },
+    shadowOpacity: 0.08,
+    shadowRadius: 2,
+  },
+  segmentedControl: {
+    backgroundColor: '#ECEDEF',
+    borderRadius: 10,
+    flexDirection: 'row',
+    marginTop: 18,
+    padding: 2,
+  },
+  segmentedText: {
+    color: 'rgba(17,17,17,0.54)',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  segmentedTextActive: {
+    color: '#111111',
   },
   starText: {
     color: 'rgba(17,17,17,0.48)',

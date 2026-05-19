@@ -66,10 +66,9 @@ export default function TodoListScreen() {
     <View style={styles.screen}>
       <View style={styles.header}>
         <View style={styles.headerRow}>
-          <Text style={styles.title}>{tab === 'calendar' ? 'Calendar' : 'All'}</Text>
+          <Text style={styles.dateTitle}>{dateTitle}</Text>
           <AppIcon color="#111111" icon={appIcons.modelManage} size={24} />
         </View>
-        <Text style={styles.dateTitle}>{dateTitle}</Text>
       </View>
 
       {tab === 'all' ? (
@@ -410,7 +409,6 @@ const styles = StyleSheet.create({
     fontSize: 31,
     fontWeight: '800',
     lineHeight: 38,
-    marginTop: 18,
   },
   dueText: {
     color: '#C55047',

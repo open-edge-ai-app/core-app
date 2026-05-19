@@ -87,6 +87,11 @@ struct NativeTodoListView: View {
   var body: some View {
     ZStack(alignment: .bottom) {
       VStack(spacing: 0) {
+        topBar
+
+        Divider()
+          .background(Color.black.opacity(0.08))
+
         header
 
         Divider()
@@ -106,12 +111,38 @@ struct NativeTodoListView: View {
     .toolbar(.hidden, for: .navigationBar)
   }
 
+  private var topBar: some View {
+    HStack(spacing: 12) {
+      Button {
+        dismiss()
+      } label: {
+        Image(systemName: "line.3.horizontal")
+          .font(.system(size: 18, weight: .semibold))
+          .frame(width: 36, height: 36)
+      }
+      .buttonStyle(.plain)
+      .accessibilityLabel("메뉴로 돌아가기")
+
+      Text("Todo List")
+        .font(.system(size: 15, weight: .semibold))
+        .lineLimit(1)
+
+      Spacer(minLength: 8)
+    }
+    .foregroundColor(.black)
+    .padding(.horizontal, 16)
+    .padding(.top, 6)
+    .padding(.bottom, 8)
+    .background(Color.white)
+  }
+
   private var header: some View {
     VStack(alignment: .leading, spacing: 18) {
       HStack(alignment: .center) {
-        Text(selectedTab == .calendar ? "Calendar" : "All")
-          .font(.system(size: 36, weight: .bold))
+        Text(dateTitle)
+          .font(.system(size: 31, weight: .bold))
           .foregroundColor(.black)
+          .lineLimit(1)
 
         Spacer()
 
@@ -125,14 +156,10 @@ struct NativeTodoListView: View {
         .buttonStyle(.plain)
         .accessibilityLabel("Todo 필터")
       }
-
-      Text(dateTitle)
-        .font(.system(size: 31, weight: .bold))
-        .foregroundColor(.black)
     }
     .padding(.horizontal, 24)
-    .padding(.top, 28)
-    .padding(.bottom, 26)
+    .padding(.top, 24)
+    .padding(.bottom, 24)
   }
 
   private var tabSwitcher: some View {

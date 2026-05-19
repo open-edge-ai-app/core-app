@@ -287,6 +287,9 @@ export const styles = StyleSheet.create({
   menuPrimaryList: {
     marginBottom: 34,
   },
+  menuTodoBlock: {
+    marginBottom: 34,
+  },
   menuSectionBlock: {
     marginTop: 0,
     paddingTop: 0,

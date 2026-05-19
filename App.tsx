@@ -35,6 +35,7 @@ import Settings, {
   type PersonalCustomizationSettings,
   type SettingsPanelId,
 } from './src/screens/Settings';
+import TodoListScreen from './src/screens/TodoListScreen';
 import {
   ChatSession,
   hydrateMessages,
@@ -130,7 +131,8 @@ function AppContent() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isModelMenuOpen, setIsModelMenuOpen] = useState(false);
   const [chatInstanceKey, setChatInstanceKey] = useState(0);
-  const [activeScreen, setActiveScreen] = useState<'chat' | 'settings'>('chat');
+  const [activeScreen, setActiveScreen] =
+    useState<'chat' | 'settings' | 'todo'>('chat');
   const [settingsPanel, setSettingsPanel] =
     useState<SettingsPanelId>('root');
   const [selectedModelId, setSelectedModelId] =
@@ -640,6 +642,16 @@ function AppContent() {
     setIsMenuOpen(false);
   };
 
+  const handleOpenTodoList = () => {
+    clearTitleAnimation(true);
+    setActiveScreen('todo');
+    setSettingsPanel('root');
+    activeSessionIdRef.current = null;
+    setActiveSessionId(null);
+    setSessionTitle('Todo List');
+    setIsMenuOpen(false);
+  };
+
   const handleChatMessagesChange = useCallback(
     (
       nextMessages: ChatMessage[],
@@ -982,11 +994,15 @@ function AppContent() {
             </View>
 
             <Text numberOfLines={1} style={styles.sessionTitle}>
-              {activeScreen === 'settings' ? t('settings.title') : sessionTitle}
+            {activeScreen === 'settings'
+              ? t('settings.title')
+              : activeScreen === 'todo'
+              ? 'Todo List'
+              : sessionTitle}
             </Text>
 
             <View style={[styles.headerSide, styles.headerSideRight]}>
-              {activeScreen === 'settings' ? null : (
+              {activeScreen !== 'chat' ? null : (
                 <Pressable
                   accessibilityLabel="모델 선택"
                   accessibilityRole="button"
@@ -1145,7 +1161,7 @@ function AppContent() {
                 selectedModelLabel={selectedModel.label}
                 sessionId={activeSessionId}
               />
-            ) : (
+            ) : activeScreen === 'settings' ? (
               <Settings
                 activePanel={settingsPanel}
                 onModelStateChange={handleModelStateChange}
@@ -1154,6 +1170,8 @@ function AppContent() {
                 personalCustomization={personalCustomization}
                 selectedModelId={selectedModel.id}
               />
+            ) : (
+              <TodoListScreen />
             )}
           </View>
 
@@ -1165,6 +1183,7 @@ function AppContent() {
             onMoveSessionToWorkFolder={handleMoveSessionToWorkFolder}
             onNewChat={handleNewChat}
             onOpenSettings={handleOpenSettings}
+            onOpenTodoList={handleOpenTodoList}
             onRenameSession={handleRenameSession}
             onRemoveSessionFromWorkFolder={handleRemoveSessionFromWorkFolder}
             onSelectSession={handleSelectSession}

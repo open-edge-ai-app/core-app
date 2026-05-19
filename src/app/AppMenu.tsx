@@ -63,6 +63,7 @@ export default function FullScreenMenu({
   onMoveSessionToWorkFolder,
   onNewChat,
   onOpenSettings,
+  onOpenTodoList,
   onRenameSession,
   onRemoveSessionFromWorkFolder,
   onSelectSession,
@@ -80,6 +81,7 @@ export default function FullScreenMenu({
   onMoveSessionToWorkFolder: (sessionId: string, workFolderId: string) => void;
   onNewChat: () => void;
   onOpenSettings: () => void;
+  onOpenTodoList: () => void;
   onRenameSession: (sessionId: string, title: string) => void;
   onRemoveSessionFromWorkFolder: (sessionId: string) => void;
   onSelectSession: (title: string, id?: string) => void;
@@ -763,6 +765,17 @@ export default function FullScreenMenu({
                     onPress={() => onSelectSession(row.label)}
                   />
                 ))}
+              </View>
+
+              <View style={styles.menuTodoBlock}>
+                <MenuRow
+                  icon={appIcons.todoList}
+                  label="Todo List"
+                  onPress={() => {
+                    closeFloatingActionMenus();
+                    onOpenTodoList();
+                  }}
+                />
               </View>
 
               <View style={styles.menuSectionBlock}>

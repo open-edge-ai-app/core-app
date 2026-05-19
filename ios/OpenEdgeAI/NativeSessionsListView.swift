@@ -6,6 +6,7 @@ struct NativeSessionsView: View {
   @Binding var showingAttachmentOptions: Bool
   @EnvironmentObject private var store: NativeChatStore
   @State private var isSearchPresented = false
+  @State private var isTodoListPresented = false
   @State private var isProjectCreatorPresented = false
   @State private var projectPath: [NativeProject] = []
   @State private var renameTarget: NativeRenameTarget?
@@ -25,6 +26,13 @@ struct NativeSessionsView: View {
 
   @ViewBuilder
   private var rootSessionsContent: some View {
+    Button {
+      isTodoListPresented = true
+    } label: {
+      NativeSessionsIconRow(systemImage: "checklist", title: "Todo List")
+    }
+    .buttonStyle(.plain)
+
     NativeSessionsSection(title: "프로젝트") {
       Button {
         isProjectCreatorPresented = true
@@ -208,6 +216,11 @@ struct NativeSessionsView: View {
       .presentationDetents([.large])
       .presentationDragIndicator(.visible)
     }
+    .sheet(isPresented: $isTodoListPresented) {
+      NativeTodoListView()
+        .presentationDetents([.large])
+        .presentationDragIndicator(.visible)
+    }
     .sheet(item: $renameTarget) { target in
       NativeRenameSheet(target: target)
         .environmentObject(store)
@@ -240,5 +253,38 @@ struct NativeSessionsView: View {
 
   private func navigateToProject(_ project: NativeProject) {
     projectPath = [project]
+  }
+}
+
+struct NativeTodoListView: View {
+  @Environment(\.dismiss) private var dismiss
+
+  var body: some View {
+    NavigationStack {
+      VStack(alignment: .leading, spacing: 0) {
+        Text("Todo List")
+          .font(.system(size: 28, weight: .bold))
+          .foregroundColor(.oeText)
+          .padding(.horizontal, 24)
+          .padding(.top, 28)
+
+        Spacer(minLength: 0)
+      }
+      .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+      .background(Color.oeBackground)
+      .toolbar {
+        ToolbarItem(placement: .topBarTrailing) {
+          Button {
+            dismiss()
+          } label: {
+            Image(systemName: "xmark")
+              .font(.system(size: 14, weight: .bold))
+              .foregroundColor(.oeText)
+          }
+          .buttonStyle(.plain)
+          .accessibilityLabel("Todo List 닫기")
+        }
+      }
+    }
   }
 }

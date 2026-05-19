@@ -1,6 +1,14 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
+import {
+  NativeScrollEvent,
+  NativeSyntheticEvent,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  useWindowDimensions,
+  View,
+} from 'react-native';
 
 import { ScaledText as Text } from '../theme/display';
 import { colors } from '../theme/tokens';
@@ -232,6 +240,21 @@ export default function TodoListScreen() {
     });
   };
 
+  const handleWeekStripScrollEnd = (
+    event: NativeSyntheticEvent<NativeScrollEvent>,
+  ) => {
+    const itemStride = DATE_CELL_WIDTH + DATE_CELL_GAP;
+    const selectedIndex = Math.min(
+      Math.max(Math.round(event.nativeEvent.contentOffset.x / itemStride), 0),
+      weekDays.length - 1,
+    );
+    const nextDate = weekDays[selectedIndex]?.date;
+
+    if (nextDate && !isSameCalendarDay(nextDate, selectedDate)) {
+      setSelectedDate(nextDate);
+    }
+  };
+
   const toggleTaskComplete = (taskId: string) => {
     setTasks(current =>
       current.map(task =>
@@ -281,6 +304,8 @@ export default function TodoListScreen() {
             contentContainerStyle={styles.weekStrip}
             decelerationRate="fast"
             horizontal
+            onMomentumScrollEnd={handleWeekStripScrollEnd}
+            onScrollEndDrag={handleWeekStripScrollEnd}
             showsHorizontalScrollIndicator={false}
             snapToAlignment="start"
             snapToInterval={DATE_CELL_WIDTH + DATE_CELL_GAP}

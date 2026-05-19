@@ -84,11 +84,14 @@ enum NativeDraftMode: String, Codable, Equatable {
 
 enum NativeToolName: String, CaseIterable, Equatable {
   case webSearch = "web_search"
+  case todo = "todo"
 
   var displayName: String {
     switch self {
     case .webSearch:
       return "웹 검색"
+    case .todo:
+      return "Todo"
     }
   }
 }
@@ -103,6 +106,27 @@ enum NativeToolRegistry {
   }
 
   static func promptSection(searchExecuted: Bool) -> String {
+    let todoToolSection = """
+    Todo app tools:
+    - todo_list(filter, date, include_completed): reads Todo tasks. filter is all, today, tomorrow, overdue, or date.
+    - todo_create(title, note, start_at, end_at, repeat, labels, starred): creates a Todo.
+    - todo_update(id or query, title, note, start_at, end_at, repeat, labels, starred): edits a Todo.
+    - todo_complete(id or query, date, completed): marks a Todo or one recurring occurrence complete/incomplete.
+    - todo_delete(id or query): deletes a Todo.
+    - todo_star(id or query, starred): changes important/starred state.
+    - todo_label_create(name), todo_label_delete(name), todo_label_assign(id or query, labels, mode): manages tags. mode is replace, add, or remove.
+    - todo_subtask_add(id or query, title), todo_subtask_toggle(id or query, subtask, completed), todo_subtask_delete(id or query, subtask): manages subtasks.
+    - todo_settings_update(hide_completed, show_tags, calendar_sync): updates Todo display/calendar settings.
+    Todo tool call format:
+    - When the user asks to change, create, delete, list, tag, schedule, or configure Todo items, include one fenced block exactly like:
+    ```openedge_tool
+    {"tool":"todo_create","arguments":{"title":"...","start_at":"2026-05-20 13:00","end_at":"2026-05-20 14:00","repeat":"none","labels":["..."]}}
+    ```
+    - You may include an array of calls in one block.
+    - Dates must use the user's local timezone in yyyy-MM-dd HH:mm format when possible.
+    - Keep any normal answer concise; the app will execute the tool and hide the JSON block from the user.
+    """
+
     if searchExecuted {
       return """
       App tool result:
@@ -112,6 +136,8 @@ enum NativeToolRegistry {
       - Never write phrases like "제가 현재 시점의 실시간 정보를 직접 제공해 드릴 수는 없지만" when search sources are available.
       - Do not describe the search context as information "provided by the user"; it was gathered by the app.
       - Cite search-backed claims inline with source numbers such as [1] or [2].
+
+      \(todoToolSection)
       """
     }
 
@@ -121,6 +147,8 @@ enum NativeToolRegistry {
     Tool policy:
     - The app executes web_search automatically before the model response when the request needs current, public, source-backed, or external web information.
     - The /search slash command is only a shortcut that forces web_search; users do not need to type it for search to work.
+
+    \(todoToolSection)
     """
   }
 

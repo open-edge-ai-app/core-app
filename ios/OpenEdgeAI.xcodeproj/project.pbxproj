@@ -90,6 +90,10 @@
 		A3E000000000000000000030 /* NativeWebSearchModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3F000000000000000000030 /* NativeWebSearchModels.swift */; };
 		A3E000000000000000000031 /* NativeWebSearchParsing.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3F000000000000000000031 /* NativeWebSearchParsing.swift */; };
 		A3E000000000000000000032 /* NativeWebSearchPlanning.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3F000000000000000000032 /* NativeWebSearchPlanning.swift */; };
+		A4E000000000000000000001 /* NativeTodoChatTools.swift in Sources */ = {isa = PBXBuildFile; fileRef = A4F000000000000000000001 /* NativeTodoChatTools.swift */; };
+		A4E000000000000000000002 /* NativeTodoChatToolHelpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = A4F000000000000000000002 /* NativeTodoChatToolHelpers.swift */; };
+		A4E000000000000000000003 /* NativeTodoChatToolFormatting.swift in Sources */ = {isa = PBXBuildFile; fileRef = A4F000000000000000000003 /* NativeTodoChatToolFormatting.swift */; };
+		A4E000000000000000000004 /* NativeTodoToolParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = A4F000000000000000000004 /* NativeTodoToolParser.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -207,6 +211,10 @@
 		A3F000000000000000000030 /* NativeWebSearchModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = NativeWebSearchModels.swift; path = OpenEdgeAI/NativeWebSearchModels.swift; sourceTree = "<group>"; };
 		A3F000000000000000000031 /* NativeWebSearchParsing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = NativeWebSearchParsing.swift; path = OpenEdgeAI/NativeWebSearchParsing.swift; sourceTree = "<group>"; };
 		A3F000000000000000000032 /* NativeWebSearchPlanning.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = NativeWebSearchPlanning.swift; path = OpenEdgeAI/NativeWebSearchPlanning.swift; sourceTree = "<group>"; };
+		A4F000000000000000000001 /* NativeTodoChatTools.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = NativeTodoChatTools.swift; path = OpenEdgeAI/NativeTodoChatTools.swift; sourceTree = "<group>"; };
+		A4F000000000000000000002 /* NativeTodoChatToolHelpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = NativeTodoChatToolHelpers.swift; path = OpenEdgeAI/NativeTodoChatToolHelpers.swift; sourceTree = "<group>"; };
+		A4F000000000000000000003 /* NativeTodoChatToolFormatting.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = NativeTodoChatToolFormatting.swift; path = OpenEdgeAI/NativeTodoChatToolFormatting.swift; sourceTree = "<group>"; };
+		A4F000000000000000000004 /* NativeTodoToolParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = NativeTodoToolParser.swift; path = OpenEdgeAI/NativeTodoToolParser.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -263,6 +271,10 @@
 				A3F000000000000000000009 /* NativeChatStoreSessions.swift */,
 				A3F00000000000000000000A /* NativeChatStoreStorage.swift */,
 				A3F00000000000000000000B /* NativeChatStoreTodo.swift */,
+				A4F000000000000000000001 /* NativeTodoChatTools.swift */,
+				A4F000000000000000000002 /* NativeTodoChatToolHelpers.swift */,
+				A4F000000000000000000003 /* NativeTodoChatToolFormatting.swift */,
+				A4F000000000000000000004 /* NativeTodoToolParser.swift */,
 				A3F00000000000000000000C /* NativeCitationTagRenderer.swift */,
 				A3F00000000000000000000D /* NativeContextCompressedNotice.swift */,
 				A3F00000000000000000000E /* NativeDynamicIslandModels.swift */,
@@ -549,6 +561,10 @@
 				A3E000000000000000000009 /* NativeChatStoreSessions.swift in Sources */,
 				A3E00000000000000000000A /* NativeChatStoreStorage.swift in Sources */,
 				A3E00000000000000000000B /* NativeChatStoreTodo.swift in Sources */,
+				A4E000000000000000000001 /* NativeTodoChatTools.swift in Sources */,
+				A4E000000000000000000002 /* NativeTodoChatToolHelpers.swift in Sources */,
+				A4E000000000000000000003 /* NativeTodoChatToolFormatting.swift in Sources */,
+				A4E000000000000000000004 /* NativeTodoToolParser.swift in Sources */,
 				A3E00000000000000000000C /* NativeCitationTagRenderer.swift in Sources */,
 				A3E00000000000000000000D /* NativeContextCompressedNotice.swift in Sources */,
 				A3E00000000000000000000E /* NativeDynamicIslandModels.swift in Sources */,

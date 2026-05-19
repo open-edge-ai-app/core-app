@@ -50,6 +50,9 @@ extension NativeChatStore {
     }
 
     sections.append(NativeToolRegistry.promptSection(searchExecuted: searchContext != nil))
+    if let todoToolState = makeTodoToolStateSection() {
+      sections.append(todoToolState)
+    }
 
     if let historySection = makeCompressedHistorySection(
       from: history,

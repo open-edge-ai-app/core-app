@@ -214,6 +214,10 @@ extension NativeChatStore {
       }
     }
 
+    if error?.isEmpty ?? true {
+      applyTodoToolCalls(to: assistantId, in: sessionId)
+    }
+
     isGenerating = false
     activeAssistantMessageId = nil
     activeRequestSessionId = nil

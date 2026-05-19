@@ -54,6 +54,15 @@ struct NativeTodoSettingsSheet: View {
         ),
         accentColor: store.accentColor.color
       )
+
+      NativeTodoSettingsToggleRow(
+        title: i18n.t(.todoShowLabelsOnTasks),
+        isOn: Binding(
+          get: { store.todoTagsVisibleOnTaskCards },
+          set: { store.setTodoTagsVisibleOnTaskCards($0) }
+        ),
+        accentColor: store.accentColor.color
+      )
     }
   }
 
@@ -64,15 +73,6 @@ struct NativeTodoSettingsSheet: View {
       Text(i18n.t(.todoLabels))
         .font(.system(size: 13, weight: .bold))
         .foregroundColor(Color.black.opacity(0.48))
-
-      NativeTodoSettingsToggleRow(
-        title: i18n.t(.todoShowLabelsOnTasks),
-        isOn: Binding(
-          get: { store.todoTagsVisibleOnTaskCards },
-          set: { store.setTodoTagsVisibleOnTaskCards($0) }
-        ),
-        accentColor: store.accentColor.color
-      )
 
       HStack(spacing: 10) {
         TextField(i18n.t(.todoNewLabelName), text: $newLabelTitle)

@@ -10,6 +10,8 @@ private enum NativeTodoCalendarMode {
   case day
 }
 
+private let nativeTodoHorizontalPadding: CGFloat = 24
+
 private struct NativeCalendarEvent: Identifiable {
   var id: String
   var title: String
@@ -162,7 +164,7 @@ struct NativeTodoListView: View {
         .accessibilityLabel(showingStarredOnly ? "중요 Todo만 보기 해제" : "중요 Todo만 보기")
       }
     }
-    .padding(.horizontal, 24)
+    .padding(.horizontal, nativeTodoHorizontalPadding)
     .padding(.top, 24)
     .padding(.bottom, 24)
   }
@@ -239,7 +241,7 @@ struct NativeTodoListView: View {
           }
         }
       }
-      .padding(.horizontal, 24)
+      .padding(.horizontal, nativeTodoHorizontalPadding)
       .padding(.top, 22)
       .padding(.bottom, 120)
     }
@@ -308,7 +310,6 @@ struct NativeTodoListView: View {
         }
         .buttonStyle(.plain)
       }
-      .padding(.horizontal, 24)
       .padding(.top, 20)
 
       NativeTodoWeekStrip(
@@ -317,17 +318,16 @@ struct NativeTodoListView: View {
         onNextWeek: { moveSelectedDate(byDays: 7) },
         onSelectDate: { date in selectedDate = date }
       )
-      .padding(.horizontal, 28)
       .padding(.top, 22)
       .padding(.bottom, 10)
 
       ScrollView(showsIndicators: false) {
         NativeTodoTimeline(events: calendarEvents)
           .frame(height: 720)
-          .padding(.horizontal, 24)
           .padding(.bottom, 132)
       }
     }
+    .padding(.horizontal, nativeTodoHorizontalPadding)
   }
 
   private var bottomControls: some View {
@@ -390,7 +390,7 @@ struct NativeTodoListView: View {
       .buttonStyle(.plain)
       .accessibilityLabel("Todo 추가")
     }
-    .padding(.horizontal, 24)
+    .padding(.horizontal, nativeTodoHorizontalPadding)
     .padding(.bottom, 24)
   }
 
@@ -607,12 +607,12 @@ private struct NativeTodoWeekStrip: View {
   }
 
   var body: some View {
-    HStack(spacing: 15) {
+    HStack(spacing: 0) {
       Button(action: onPreviousWeek) {
         Image(systemName: "chevron.left")
           .font(.system(size: 18, weight: .medium))
           .foregroundColor(Color.black.opacity(0.58))
-          .frame(width: 24, height: 44)
+          .frame(width: 24, height: 52)
       }
       .buttonStyle(.plain)
 
@@ -631,6 +631,7 @@ private struct NativeTodoWeekStrip: View {
           .background(Calendar.current.isDate(day, inSameDayAs: selectedDate) ? Color.black.opacity(0.07) : Color.clear)
           .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
         }
+        .frame(maxWidth: .infinity)
         .buttonStyle(.plain)
       }
 
@@ -638,10 +639,11 @@ private struct NativeTodoWeekStrip: View {
         Image(systemName: "chevron.right")
           .font(.system(size: 18, weight: .medium))
           .foregroundColor(Color.black.opacity(0.58))
-          .frame(width: 24, height: 44)
+          .frame(width: 24, height: 52)
       }
       .buttonStyle(.plain)
     }
+    .frame(maxWidth: .infinity)
   }
 
   private func dayLetter(for date: Date) -> String {

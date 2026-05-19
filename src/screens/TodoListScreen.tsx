@@ -290,10 +290,10 @@ export default function TodoListScreen() {
                 </View>
               ),
             )}
-            <CalendarBlock left={120} top={162} />
-            <CalendarBlock left={176} top={162} />
-            <CalendarBlock left={232} top={162} />
-            <CalendarBlock left={288} top={82} compact />
+            <CalendarBlock left={82} top={162} />
+            <CalendarBlock left={138} top={162} />
+            <CalendarBlock left={194} top={162} />
+            <CalendarBlock left={250} top={82} compact />
           </ScrollView>
         </View>
       )}
@@ -772,6 +772,8 @@ const styles = StyleSheet.create({
     color: 'rgba(17,17,17,0.58)',
     fontSize: 30,
     fontWeight: '300',
+    textAlign: 'center',
+    width: 24,
   },
   weekDay: {
     alignItems: 'center',
@@ -800,10 +802,10 @@ const styles = StyleSheet.create({
   weekStrip: {
     alignItems: 'center',
     flexDirection: 'row',
-    gap: 13,
-    justifyContent: 'center',
+    gap: 0,
+    justifyContent: 'space-between',
     paddingBottom: 10,
-    paddingHorizontal: 28,
+    paddingHorizontal: 24,
     paddingTop: 22,
   },
 });

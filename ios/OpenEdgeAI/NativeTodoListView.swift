@@ -814,6 +814,7 @@ private struct NativeTodoCalendarEventCard: View {
     }
     .padding(.horizontal, 8)
     .padding(.vertical, isCompact ? 5 : 11)
+    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     .background(accentColor.color)
     .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
     .shadow(color: accentColor.color.opacity(0.22), radius: 18, x: 0, y: 10)

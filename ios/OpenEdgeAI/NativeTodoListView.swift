@@ -12,11 +12,13 @@ struct NativeCalendarEvent: Identifiable {
   var id: String
   var task: NativeTodoItem
   var title: String
-  var accent: String
+  var note: String
+  var labels: [NativeTodoLabel]
   var startHour: CGFloat
   var duration: CGFloat
   var lane: Int
   var timeText: String
+  var isCompleted: Bool
 }
 
 struct NativeTodoListView: View {
@@ -55,12 +57,14 @@ struct NativeTodoListView: View {
       NativeCalendarEvent(
         id: item.id,
         task: item,
-        title: eventTitle(for: item.title),
-        accent: eventAccent(for: item.title),
+        title: item.title,
+        note: item.note.trimmingCharacters(in: .whitespacesAndNewlines),
+        labels: store.todoTagsVisibleOnTaskCards ? labels(for: item) : [],
         startHour: CGFloat(item.startHour),
         duration: CGFloat(max(0.5, item.durationHours)),
         lane: index % 4,
-        timeText: eventTimeText(for: item)
+        timeText: eventTimeText(for: item),
+        isCompleted: item.isCompleted(on: selectedDate, calendar: calendar)
       )
     }
   }
@@ -353,26 +357,10 @@ struct NativeTodoListView: View {
     selectedDate = calendar.date(byAdding: .day, value: days, to: selectedDate) ?? selectedDate
   }
 
-  private func eventTitle(for title: String) -> String {
-    title
-      .split(separator: " ")
-      .prefix(3)
-      .map(String.init)
-      .joined(separator: "\n")
-  }
-
-  private func eventAccent(for title: String) -> String {
-    title
-      .split(separator: " ")
-      .prefix(2)
-      .map(String.init)
-      .joined(separator: "-\n")
-  }
-
   private func eventTimeText(for item: NativeTodoItem) -> String {
     let start = item.startHour
     let end = min(24, item.startHour + item.durationHours)
-    return "\(hourText(start)) -\n\(hourText(end))"
+    return "\(hourText(start)) - \(hourText(end))"
   }
 
   private func hourText(_ hour: Double) -> String {

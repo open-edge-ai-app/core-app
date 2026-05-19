@@ -181,24 +181,51 @@ struct NativeTodoCalendarEventCard: View {
     event.duration <= 0.5
   }
 
+  private var showsDetails: Bool {
+    event.duration >= 1
+  }
+
+  private var showsTags: Bool {
+    event.duration >= 1.5 && !event.labels.isEmpty
+  }
+
   var body: some View {
-    VStack(alignment: .leading, spacing: isCompact ? 2 : 10) {
-      Text(event.title)
-        .font(.system(size: 11, weight: .bold))
-        .foregroundColor(accentColor.foregroundColor)
-        .lineLimit(isCompact ? 1 : 3)
+    VStack(alignment: .leading, spacing: isCompact ? 2 : 5) {
+      HStack(alignment: .top, spacing: 4) {
+        if event.isCompleted {
+          Image(systemName: "checkmark.circle.fill")
+            .font(.system(size: 9, weight: .bold))
+            .foregroundColor(accentColor.foregroundColor.opacity(0.78))
+            .padding(.top, 1)
+        }
+
+        Text(event.title)
+          .font(.system(size: 11, weight: .bold))
+          .foregroundColor(accentColor.foregroundColor)
+          .lineLimit(isCompact ? 1 : 3)
+          .strikethrough(event.isCompleted, color: accentColor.foregroundColor.opacity(0.72))
+          .multilineTextAlignment(.leading)
+      }
+
+      if showsDetails && !event.note.isEmpty {
+        Text(event.note)
+          .font(.system(size: 9, weight: .semibold))
+          .foregroundColor(accentColor.foregroundColor.opacity(0.72))
+          .lineLimit(event.duration >= 2 ? 2 : 1)
+          .multilineTextAlignment(.leading)
+      }
+
+      if showsTags {
+        NativeTodoCalendarTagRow(labels: event.labels, foregroundColor: accentColor.foregroundColor)
+      }
 
       if !isCompact {
-        Text(event.accent)
-          .font(.system(size: 11, weight: .bold))
-          .foregroundColor(accentColor.foregroundColor.opacity(0.72))
-          .lineLimit(2)
-
-        Spacer()
+        Spacer(minLength: 0)
 
         Text(event.timeText)
-          .font(.system(size: 11, weight: .bold))
+          .font(.system(size: 9, weight: .bold))
           .foregroundColor(accentColor.foregroundColor.opacity(0.82))
+          .lineLimit(1)
       }
     }
     .padding(.horizontal, 8)
@@ -206,5 +233,31 @@ struct NativeTodoCalendarEventCard: View {
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     .background(accentColor.color)
     .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+  }
+}
+
+struct NativeTodoCalendarTagRow: View {
+  var labels: [NativeTodoLabel]
+  var foregroundColor: Color
+
+  private var visibleLabels: [NativeTodoLabel] {
+    Array(labels.prefix(2))
+  }
+
+  var body: some View {
+    HStack(spacing: 5) {
+      ForEach(visibleLabels) { label in
+        HStack(spacing: 3) {
+          Circle()
+            .fill(Color(todoLabelHex: label.colorHex))
+            .frame(width: 5, height: 5)
+
+          Text(label.title)
+            .font(.system(size: 8, weight: .bold))
+            .lineLimit(1)
+        }
+        .foregroundColor(foregroundColor.opacity(0.7))
+      }
+    }
   }
 }

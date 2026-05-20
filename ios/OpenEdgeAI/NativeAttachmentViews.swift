@@ -1,9 +1,6 @@
 import SwiftUI
 
-import SwiftUI
-
 struct NativeAttachmentRow: View {
-  @EnvironmentObject private var store: NativeChatStore
   let attachments: [NativeAttachment]
 
   var body: some View {
@@ -15,10 +12,10 @@ struct NativeAttachmentRow: View {
             .font(.system(size: 13, weight: .medium))
             .lineLimit(1)
         }
-        .foregroundColor(store.accentColor.color)
+        .foregroundColor(.oeText)
         .padding(.horizontal, 10)
         .padding(.vertical, 8)
-        .background(store.accentColor.subtleColor)
+        .background(Color.oeSubtleFill)
         .clipShape(RoundedRectangle(cornerRadius: 10))
       }
     }

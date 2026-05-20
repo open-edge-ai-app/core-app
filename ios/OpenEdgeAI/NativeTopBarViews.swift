@@ -80,7 +80,7 @@ struct NativeModelMenu: View {
       .frame(height: 34)
       .overlay(
         RoundedRectangle(cornerRadius: 17)
-          .stroke(store.accentColor.color.opacity(0.28), lineWidth: 1)
+          .stroke(Color.oeBorder, lineWidth: 1)
       )
     }
   }

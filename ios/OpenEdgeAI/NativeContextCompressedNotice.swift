@@ -11,10 +11,10 @@ struct NativeContextCompressedNotice: View {
       Text(store.i18n.t(.chatContextCompressed))
         .font(.system(size: 12, weight: .semibold))
     }
-    .foregroundColor(store.accentColor.color)
+    .foregroundColor(.oeSecondaryText)
     .padding(.horizontal, 10)
     .padding(.vertical, 6)
-    .background(store.accentColor.color.opacity(0.08))
+    .background(Color.oeSubtleFill)
     .clipShape(Capsule())
     .accessibilityLabel(store.i18n.t(.chatContextCompressed))
   }

@@ -131,7 +131,7 @@ enum NativeAccentColor: String, CaseIterable, Identifiable {
   var title: String {
     switch self {
     case .black:
-      return "검정"
+      return "기본"
     case .blue:
       return "파랑"
     case .green:

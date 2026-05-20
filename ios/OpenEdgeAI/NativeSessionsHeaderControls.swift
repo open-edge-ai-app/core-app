@@ -10,7 +10,7 @@ struct NativeSessionsSearchPill: View {
       Button(action: onSearchPress) {
         Image(systemName: "magnifyingglass")
           .font(.system(size: 21, weight: .semibold))
-          .foregroundColor(store.accentColor.color)
+          .foregroundColor(.oeText)
       }
       .buttonStyle(.plain)
       .accessibilityLabel(store.i18n.t(.searchTitle))
@@ -18,7 +18,7 @@ struct NativeSessionsSearchPill: View {
       Button(action: onSettingsPress) {
         Image(systemName: "gearshape")
           .font(.system(size: 19, weight: .semibold))
-          .foregroundColor(store.accentColor.color)
+          .foregroundColor(.oeText)
           .frame(width: 32, height: 32)
       }
       .buttonStyle(.plain)

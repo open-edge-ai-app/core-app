@@ -18,10 +18,11 @@ struct NativeQueueView: View {
           } label: {
             Image(systemName: "xmark")
           }
+          .foregroundColor(.oeMutedText)
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
-        .background(store.accentColor.subtleColor)
+        .background(Color.oeSubtleFill)
         .clipShape(RoundedRectangle(cornerRadius: 12))
       }
     }

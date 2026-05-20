@@ -14,6 +14,20 @@ extension Color {
   static var oeSoftFill: Color { Color(uiColor: .tertiarySystemFill) }
   static var oeBorder: Color { Color(uiColor: .separator) }
   static var oeSeparator: Color { Color(uiColor: .separator) }
+  static var oeTaskCardSurface: Color {
+    Color(uiColor: UIColor { traits in
+      traits.userInterfaceStyle == .dark
+        ? .secondarySystemGroupedBackground
+        : .secondarySystemBackground
+    })
+  }
+  static var oeTaskCardBorder: Color {
+    Color(uiColor: UIColor { traits in
+      traits.userInterfaceStyle == .dark
+        ? .separator
+        : UIColor.separator.withAlphaComponent(0.34)
+    })
+  }
   static var oeControlFill: Color { Color(uiColor: .label) }
   static var oeControlText: Color { Color(uiColor: .systemBackground) }
   static var oeDestructive: Color { Color(uiColor: .systemRed) }

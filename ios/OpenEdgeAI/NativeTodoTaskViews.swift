@@ -169,7 +169,11 @@ struct NativeTodoTaskCard: View {
     }
     .padding(22)
     .frame(maxWidth: .infinity, alignment: .leading)
-    .background(Color.oeSurface)
+    .background(Color.oeTaskCardSurface)
+    .overlay(
+      RoundedRectangle(cornerRadius: 16, style: .continuous)
+        .stroke(Color.oeTaskCardBorder, lineWidth: 1)
+    )
     .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
     .contextMenu {
       Button(action: onEdit) {

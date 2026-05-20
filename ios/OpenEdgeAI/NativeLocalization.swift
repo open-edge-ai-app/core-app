@@ -70,7 +70,6 @@ enum NativeI18nKey: String, CaseIterable {
   case projectNew
   case projectCreate
   case projectList
-  case projectShare
   case projectChatTab
   case projectSourcesTab
   case projectNoChats

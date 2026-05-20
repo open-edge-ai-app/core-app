@@ -88,16 +88,6 @@ struct NativeProjectSessionsPage: View {
       Spacer(minLength: 8)
 
       Button {
-        store.copy(currentProject.title)
-      } label: {
-        Image(systemName: "square.and.arrow.up")
-          .font(.system(size: 18, weight: .semibold))
-          .frame(width: 36, height: 36)
-      }
-      .buttonStyle(.plain)
-      .accessibilityLabel(store.i18n.t(.projectShare))
-
-      Button {
         renameTarget = .project(currentProject)
       } label: {
         Image(systemName: "ellipsis")

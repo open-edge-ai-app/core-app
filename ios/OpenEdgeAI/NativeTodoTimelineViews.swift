@@ -108,20 +108,20 @@ struct NativeTodoTimeline: View {
 struct NativeTodoCurrentTimeLine: View {
   var timeText: String
 
-  private let indicatorColor = Color(red: 1, green: 0.23, blue: 0.18)
+  private let indicatorColor = Color.oeNowIndicator
 
   var body: some View {
     HStack(spacing: 5) {
       Text(timeText)
         .font(.system(size: 10, weight: .bold))
-        .foregroundColor(.white)
+        .foregroundColor(Color(uiColor: .white))
         .lineLimit(1)
         .frame(width: 48, height: 18)
         .background(indicatorColor)
         .clipShape(Capsule())
         .overlay(
           Capsule()
-            .stroke(Color.white, lineWidth: 1.5)
+            .stroke(Color.oeBackground, lineWidth: 1.5)
         )
 
       Circle()
@@ -129,12 +129,12 @@ struct NativeTodoCurrentTimeLine: View {
         .frame(width: 9, height: 9)
         .overlay(
           Circle()
-            .stroke(Color.white, lineWidth: 1.5)
+            .stroke(Color.oeBackground, lineWidth: 1.5)
         )
 
       ZStack {
         Rectangle()
-          .fill(Color.white)
+          .fill(Color.oeBackground)
           .frame(height: 4)
 
         Rectangle()
@@ -158,19 +158,19 @@ struct NativeTodoTimelineHourRow: View {
     HStack(alignment: .top, spacing: 16) {
       Text(i18n.timelineHour(hour))
         .font(.system(size: 11, weight: .bold))
-        .foregroundColor(Color.black.opacity(0.36))
+        .foregroundColor(.oeMutedText)
         .frame(width: 44, alignment: .leading)
         .padding(.top, 2)
 
       ZStack(alignment: .topLeading) {
         Rectangle()
-          .fill(Color.black.opacity(0.13))
+          .fill(Color.oeSeparator)
           .frame(height: 1)
           .offset(y: hourLineOffset)
 
         if hour < 24 {
           Rectangle()
-            .fill(Color.black.opacity(0.16))
+            .fill(Color.oeSeparator)
             .frame(width: 18, height: 1)
             .offset(y: hourLineOffset + height / 2)
         }

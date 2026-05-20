@@ -49,26 +49,26 @@ struct NativeTodoEditorSheet: View {
           VStack(alignment: .leading, spacing: 8) {
             Text(i18n.t(.todoTitleField))
               .font(.system(size: 13, weight: .bold))
-              .foregroundColor(Color.black.opacity(0.48))
+              .foregroundColor(.oeMutedText)
             TextField(i18n.t(.todoNewTaskPlaceholder), text: $title)
               .font(.system(size: 18, weight: .semibold))
               .textInputAutocapitalization(.sentences)
               .padding(.horizontal, 14)
               .frame(height: 50)
-              .background(Color.black.opacity(0.055))
+              .background(Color.oeSubtleFill)
               .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
           }
 
           VStack(alignment: .leading, spacing: 8) {
             Text(i18n.t(.todoNoteField))
               .font(.system(size: 13, weight: .bold))
-              .foregroundColor(Color.black.opacity(0.48))
+              .foregroundColor(.oeMutedText)
             TextField(i18n.t(.todoOptionalDetails), text: $note, axis: .vertical)
               .font(.system(size: 16, weight: .medium))
               .lineLimit(3...6)
               .padding(14)
               .frame(minHeight: 94, alignment: .topLeading)
-              .background(Color.black.opacity(0.055))
+              .background(Color.oeSubtleFill)
               .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
           }
 
@@ -82,7 +82,7 @@ struct NativeTodoEditorSheet: View {
           VStack(alignment: .leading, spacing: 8) {
             Text(i18n.t(.todoSchedule))
               .font(.system(size: 13, weight: .bold))
-              .foregroundColor(Color.black.opacity(0.48))
+              .foregroundColor(.oeMutedText)
 
             VStack(spacing: 10) {
               NativeTodoDateTimeField(
@@ -104,7 +104,7 @@ struct NativeTodoEditorSheet: View {
           HStack(spacing: 12) {
             Text(i18n.t(.todoRepeat))
               .font(.system(size: 13, weight: .bold))
-              .foregroundColor(Color.black.opacity(0.48))
+              .foregroundColor(.oeMutedText)
 
             Spacer()
 
@@ -118,14 +118,14 @@ struct NativeTodoEditorSheet: View {
           }
           .padding(.horizontal, 14)
           .frame(height: 50)
-          .background(Color.black.opacity(0.055))
+          .background(Color.oeSubtleFill)
           .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         }
         .padding(.horizontal, 22)
         .padding(.top, 18)
         .padding(.bottom, 30)
       }
-      .background(Color.white)
+      .background(Color.oeBackground)
       .scrollDismissesKeyboard(.interactively)
       .navigationTitle(isEditing ? i18n.t(.todoEditTitle) : i18n.t(.todoAddTitle))
       .navigationBarTitleDisplayMode(.inline)
@@ -220,24 +220,24 @@ struct NativeTodoLabelSelect: View {
     VStack(alignment: .leading, spacing: 8) {
       Text(i18n.t(.todoLabels))
         .font(.system(size: 13, weight: .bold))
-        .foregroundColor(Color.black.opacity(0.48))
+        .foregroundColor(.oeMutedText)
 
       HStack(spacing: 12) {
         Image(systemName: "tag")
           .font(.system(size: 16, weight: .semibold))
-          .foregroundColor(Color.black.opacity(0.48))
+          .foregroundColor(.oeMutedText)
           .frame(width: 22)
 
         Text(i18n.t(.todoLabels))
           .font(.system(size: 16, weight: .semibold))
-          .foregroundColor(.black)
+          .foregroundColor(.oeText)
 
         Spacer(minLength: 12)
 
         if labels.isEmpty {
           Text(i18n.t(.todoNoLabels))
             .font(.system(size: 14, weight: .semibold))
-            .foregroundColor(Color.black.opacity(0.42))
+            .foregroundColor(.oeMutedText)
         } else {
           if let selectedLabel {
             Circle()
@@ -257,7 +257,7 @@ struct NativeTodoLabelSelect: View {
       }
       .padding(.horizontal, 14)
       .frame(height: 54)
-      .background(Color.black.opacity(0.055))
+      .background(Color.oeSubtleFill)
       .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
     }
   }
@@ -282,12 +282,12 @@ struct NativeTodoDateTimeField: View {
     HStack(spacing: 12) {
       Image(systemName: systemImage)
         .font(.system(size: 16, weight: .semibold))
-        .foregroundColor(Color.black.opacity(0.48))
+        .foregroundColor(.oeMutedText)
         .frame(width: 22)
 
       Text(title)
         .font(.system(size: 16, weight: .semibold))
-        .foregroundColor(.black)
+        .foregroundColor(.oeText)
 
       Spacer(minLength: 12)
 
@@ -298,7 +298,7 @@ struct NativeTodoDateTimeField: View {
     }
     .padding(.horizontal, 14)
     .frame(height: 54)
-    .background(Color.black.opacity(0.055))
+    .background(Color.oeSubtleFill)
     .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
   }
 }

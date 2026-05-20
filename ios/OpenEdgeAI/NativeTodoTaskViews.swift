@@ -13,12 +13,12 @@ struct NativeTodoSectionHeader: View {
       HStack(spacing: 8) {
         Text(title)
           .font(.system(size: 25, weight: .bold))
-          .foregroundColor(.black)
+          .foregroundColor(.oeText)
           .frame(alignment: .leading)
 
         Image(systemName: "chevron.right")
           .font(.system(size: 20, weight: .medium))
-          .foregroundColor(Color.black.opacity(0.68))
+          .foregroundColor(.oeSecondaryText)
           .frame(width: 22, height: 22)
           .rotationEffect(.degrees(isExpanded ? 90 : 0))
           .animation(.spring(response: 0.34, dampingFraction: 0.86), value: isExpanded)
@@ -63,7 +63,7 @@ struct NativeTodoTaskCard: View {
         Button(action: onToggleComplete) {
           Image(systemName: isOccurrenceCompleted ? "checkmark.circle.fill" : "circle")
             .font(.system(size: 23, weight: .medium))
-            .foregroundColor(isOccurrenceCompleted ? .black : Color.black.opacity(0.56))
+            .foregroundColor(isOccurrenceCompleted ? .oeText : .oeSecondaryText)
             .frame(width: 25, height: 25)
             .padding(.top, 1)
         }
@@ -74,7 +74,7 @@ struct NativeTodoTaskCard: View {
           HStack(alignment: .top) {
             Text(task.title)
               .font(.system(size: 20, weight: .bold))
-              .foregroundColor(.black)
+              .foregroundColor(.oeText)
               .lineLimit(2)
 
             Spacer()
@@ -82,7 +82,7 @@ struct NativeTodoTaskCard: View {
             Button(action: onToggleExpanded) {
               Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
                 .font(.system(size: 17, weight: .semibold))
-                .foregroundColor(Color.black.opacity(0.52))
+                .foregroundColor(.oeSecondaryText)
                 .frame(width: 28, height: 28)
             }
             .buttonStyle(.plain)
@@ -92,7 +92,7 @@ struct NativeTodoTaskCard: View {
             if !task.note.isEmpty {
               Text(task.note)
                 .font(.system(size: 15, weight: .semibold))
-                .foregroundColor(Color.black.opacity(0.52))
+                .foregroundColor(.oeSecondaryText)
                 .lineSpacing(4)
                 .lineLimit(4)
             }
@@ -104,27 +104,27 @@ struct NativeTodoTaskCard: View {
 
               Text("•")
                 .font(.system(size: 14, weight: .bold))
-                .foregroundColor(Color.black.opacity(0.28))
+                .foregroundColor(.oeMutedText)
             }
 
             Text(i18n.dueLabel(for: occurrenceDate))
               .font(.system(size: 14, weight: .bold))
-              .foregroundColor(isOverdue ? .red.opacity(0.78) : .red.opacity(0.64))
+              .foregroundColor(Color.oeDestructive.opacity(isOverdue ? 0.9 : 0.74))
 
             Text("•")
               .font(.system(size: 14, weight: .bold))
-              .foregroundColor(Color.black.opacity(0.28))
+              .foregroundColor(.oeMutedText)
 
             Text(task.recurrenceRule.isRepeating ? task.recurrenceRule.localizedTitle(i18n) : i18n.t(.todoTasks))
               .font(.system(size: 14, weight: .semibold))
-              .foregroundColor(Color.black.opacity(0.42))
+              .foregroundColor(.oeMutedText)
 
             Spacer()
 
             Button(action: onToggleStar) {
               Image(systemName: task.isStarred ? "star.fill" : "star")
                 .font(.system(size: 18, weight: .regular))
-                .foregroundColor(task.isStarred ? .red.opacity(0.74) : Color.black.opacity(0.48))
+                .foregroundColor(task.isStarred ? Color.oeDestructive.opacity(0.84) : .oeSecondaryText)
                 .frame(width: 28, height: 28)
             }
             .buttonStyle(.plain)
@@ -142,12 +142,12 @@ struct NativeTodoTaskCard: View {
               HStack(alignment: .top, spacing: 14) {
                 Image(systemName: subtask.isComplete ? "checkmark.circle" : "circle")
                   .font(.system(size: 19, weight: .medium))
-                  .foregroundColor(Color.black.opacity(0.58))
+                  .foregroundColor(.oeSecondaryText)
                   .padding(.top, 1)
 
                 Text(subtask.title)
                   .font(.system(size: 13, weight: .bold))
-                  .foregroundColor(Color.black.opacity(0.68))
+                  .foregroundColor(.oeSecondaryText)
                   .lineLimit(2)
                   .multilineTextAlignment(.leading)
 
@@ -161,7 +161,7 @@ struct NativeTodoTaskCard: View {
             if subtask.id != task.subtasks.last?.id {
               Divider()
                 .padding(.leading, 46)
-                .background(Color.black.opacity(0.07))
+                .background(Color.oeSeparator)
             }
           }
         }
@@ -169,7 +169,7 @@ struct NativeTodoTaskCard: View {
     }
     .padding(22)
     .frame(maxWidth: .infinity, alignment: .leading)
-    .background(Color(red: 0.94, green: 0.945, blue: 0.95))
+    .background(Color.oeSurface)
     .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
     .contextMenu {
       Button(action: onEdit) {
@@ -242,11 +242,11 @@ struct NativeTodoInlineTagChip: View {
         .font(.system(size: 11, weight: .bold))
         .lineLimit(1)
     }
-    .foregroundColor(Color.black.opacity(0.62))
+    .foregroundColor(.oeSecondaryText)
     .padding(.horizontal, 7)
     .frame(maxWidth: 72)
     .frame(height: 22)
-    .background(Color.black.opacity(0.045))
+    .background(Color.oeSubtleFill)
     .clipShape(Capsule())
   }
 }
@@ -258,7 +258,7 @@ struct NativeTodoTagTaskGroupView<Content: View>: View {
 
   private var markerColor: Color {
     guard let colorHex else {
-      return Color.black.opacity(0.28)
+      return .oeMutedText
     }
     return Color(todoLabelHex: colorHex)
   }
@@ -272,7 +272,7 @@ struct NativeTodoTagTaskGroupView<Content: View>: View {
 
         Text(title)
           .font(.system(size: 17, weight: .bold))
-          .foregroundColor(Color.black.opacity(0.74))
+          .foregroundColor(.oeSecondaryText)
           .lineLimit(1)
 
         Spacer(minLength: 0)
@@ -295,11 +295,11 @@ struct NativeTodoEmptyRow: View {
   var body: some View {
     Text(title)
       .font(.system(size: 14, weight: .semibold))
-      .foregroundColor(Color.black.opacity(0.42))
+      .foregroundColor(.oeMutedText)
       .frame(maxWidth: .infinity, alignment: .leading)
       .padding(.horizontal, 18)
       .padding(.vertical, 16)
-    .background(Color.black.opacity(0.035))
+    .background(Color.oeSubtleFill)
     .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
   }
 }

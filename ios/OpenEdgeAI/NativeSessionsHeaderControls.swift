@@ -29,7 +29,7 @@ struct NativeSessionsSearchPill: View {
     .frame(height: 52)
     .background(Color.oeSurface)
     .clipShape(Capsule())
-    .shadow(color: Color.black.opacity(0.08), radius: 22, x: 0, y: 12)
+    .shadow(color: Color(uiColor: .black).opacity(0.08), radius: 22, x: 0, y: 12)
   }
 }
 

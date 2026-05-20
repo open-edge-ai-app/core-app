@@ -88,9 +88,9 @@ enum NativeDynamicIslandPet: String, CaseIterable, Identifiable {
   var eyeColor: Color {
     switch self {
     case .nullSignal:
-      return Color.white
+      return Color(uiColor: .white)
     case .flux:
-      return Color.white
+      return Color(uiColor: .white)
     default:
       return Color(red: 0.03, green: 0.05, blue: 0.07)
     }

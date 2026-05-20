@@ -25,7 +25,7 @@ struct NativeTodoSettingsSheet: View {
         .padding(.top, 18)
         .padding(.bottom, 34)
       }
-      .background(Color(red: 0.956, green: 0.958, blue: 0.965))
+      .background(Color.oeGroupedBackground)
       .navigationTitle(i18n.t(.todoSettings))
       .navigationBarTitleDisplayMode(.inline)
       .toolbar {
@@ -80,9 +80,9 @@ struct NativeTodoSettingsSheet: View {
       HStack(spacing: 10) {
         Image(systemName: "plus")
           .font(.system(size: 15, weight: .bold))
-          .foregroundColor(.black.opacity(0.54))
+          .foregroundColor(.oeSecondaryText)
           .frame(width: 28, height: 28)
-          .background(Color.black.opacity(0.055))
+          .background(Color.oeSubtleFill)
           .clipShape(Circle())
 
         TextField(i18n.t(.todoNewLabelName), text: $newLabelTitle)
@@ -94,10 +94,10 @@ struct NativeTodoSettingsSheet: View {
         Button(action: addLabel) {
           Text(i18n.t(.todoAddLabel))
             .font(.system(size: 13, weight: .bold))
-            .foregroundColor(canAddLabel ? .white : Color.black.opacity(0.34))
+            .foregroundColor(canAddLabel ? .oeControlText : .oeMutedText)
             .padding(.horizontal, 12)
             .frame(height: 32)
-            .background(canAddLabel ? Color.black : Color.black.opacity(0.06))
+            .background(canAddLabel ? Color.oeControlFill : Color.oeSubtleFill)
             .clipShape(Capsule())
         }
         .buttonStyle(.plain)
@@ -143,7 +143,7 @@ struct NativeTodoSettingsSheet: View {
           HStack(spacing: 8) {
             Text(i18n.t(.todoDefaultCalendarIntegration))
               .font(.system(size: 16, weight: .semibold))
-              .foregroundColor(.black)
+              .foregroundColor(.oeText)
 
             NativeTodoSettingsStatusPill(
               title: store.todoCalendarAuthorizationState.localizedTitle(i18n),
@@ -167,7 +167,7 @@ struct NativeTodoSettingsSheet: View {
         NativeTodoSettingsDivider()
         Text(message)
           .font(.system(size: 12, weight: .semibold))
-          .foregroundColor(Color.black.opacity(0.45))
+          .foregroundColor(.oeMutedText)
           .padding(.horizontal, 14)
           .padding(.vertical, 12)
       }
@@ -192,7 +192,7 @@ private struct NativeTodoSettingsHeader: View {
     VStack(alignment: .leading, spacing: 8) {
       Text(i18n.t(.todoSettings))
         .font(.system(size: 28, weight: .bold))
-        .foregroundColor(.black)
+        .foregroundColor(.oeText)
     }
     .frame(maxWidth: .infinity, alignment: .leading)
     .padding(.bottom, 4)
@@ -209,7 +209,7 @@ private struct NativeTodoSettingsGroup<Content: View>: View {
       HStack {
         Text(title)
           .font(.system(size: 12, weight: .bold))
-          .foregroundColor(Color.black.opacity(0.42))
+          .foregroundColor(.oeMutedText)
           .textCase(.uppercase)
 
         Spacer()
@@ -217,7 +217,7 @@ private struct NativeTodoSettingsGroup<Content: View>: View {
         if let trailingText {
           Text(trailingText)
             .font(.system(size: 12, weight: .bold))
-            .foregroundColor(Color.black.opacity(0.34))
+            .foregroundColor(.oeMutedText)
         }
       }
       .padding(.horizontal, 4)
@@ -225,11 +225,11 @@ private struct NativeTodoSettingsGroup<Content: View>: View {
       VStack(spacing: 0) {
         content
       }
-      .background(Color.white)
+      .background(Color.oeSurface)
       .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
       .overlay(
         RoundedRectangle(cornerRadius: 20, style: .continuous)
-          .stroke(Color.black.opacity(0.045), lineWidth: 1)
+          .stroke(Color.oeBorder, lineWidth: 1)
       )
     }
   }
@@ -247,7 +247,7 @@ private struct NativeTodoSettingsToggleRow: View {
 
       Text(title)
         .font(.system(size: 16, weight: .semibold))
-        .foregroundColor(.black)
+        .foregroundColor(.oeText)
 
       Spacer(minLength: 12)
 
@@ -266,9 +266,9 @@ private struct NativeTodoSettingsIcon: View {
   var body: some View {
     Image(systemName: systemName)
       .font(.system(size: 15, weight: .semibold))
-      .foregroundColor(.black)
+      .foregroundColor(.oeText)
       .frame(width: 34, height: 34)
-      .background(Color.black.opacity(0.055))
+      .background(Color.oeSubtleFill)
       .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
   }
 }
@@ -276,7 +276,7 @@ private struct NativeTodoSettingsIcon: View {
 private struct NativeTodoSettingsDivider: View {
   var body: some View {
     Divider()
-      .background(Color.black.opacity(0.05))
+      .background(Color.oeSeparator)
       .padding(.leading, 60)
   }
 }
@@ -291,7 +291,7 @@ private struct NativeTodoSettingsEmptyRow: View {
 
       Text(title)
         .font(.system(size: 14, weight: .semibold))
-        .foregroundColor(Color.black.opacity(0.46))
+        .foregroundColor(.oeMutedText)
 
       Spacer()
     }
@@ -307,10 +307,10 @@ private struct NativeTodoSettingsStatusPill: View {
   var body: some View {
     Text(title)
       .font(.system(size: 10, weight: .bold))
-      .foregroundColor(isActive ? .white : Color.black.opacity(0.52))
+      .foregroundColor(isActive ? .oeControlText : .oeSecondaryText)
       .padding(.horizontal, 8)
       .frame(height: 20)
-      .background(isActive ? Color.black : Color.black.opacity(0.07))
+      .background(isActive ? Color.oeControlFill : Color.oeSubtleFill)
       .clipShape(Capsule())
   }
 }
@@ -328,14 +328,14 @@ struct NativeTodoLabelRow: View {
 
       Text(label.title)
         .font(.system(size: 15, weight: .semibold))
-        .foregroundColor(.black)
+        .foregroundColor(.oeText)
 
       Spacer()
 
       Button(action: onDelete) {
         Image(systemName: "minus.circle.fill")
           .font(.system(size: 18, weight: .semibold))
-          .foregroundColor(Color.black.opacity(0.28))
+          .foregroundColor(.oeMutedText)
           .frame(width: 30, height: 30)
       }
       .buttonStyle(.plain)

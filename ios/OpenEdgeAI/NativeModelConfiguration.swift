@@ -163,9 +163,9 @@ enum NativeAccentColor: String, CaseIterable, Identifiable {
     case .black:
       return .oeControlText
     case .green, .orange:
-      return .black
+      return Color(uiColor: .black)
     case .blue, .purple:
-      return .white
+      return Color(uiColor: .white)
     }
   }
 

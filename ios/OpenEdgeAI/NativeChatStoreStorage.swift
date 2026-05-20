@@ -82,7 +82,7 @@ extension NativeChatStore {
 
     let calendar = EKCalendar(for: .event, eventStore: todoEventStore)
     calendar.title = "Open Edge AI Todo"
-    calendar.cgColor = UIColor.black.cgColor
+    calendar.cgColor = UIColor.label.cgColor
 
     if let source = todoEventStore.defaultCalendarForNewEvents?.source
       ?? todoEventStore.sources.first(where: { $0.sourceType == .local })

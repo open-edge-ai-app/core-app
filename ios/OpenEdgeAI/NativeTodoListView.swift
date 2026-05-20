@@ -110,12 +110,12 @@ struct NativeTodoListView: View {
         topBar
 
         Divider()
-          .background(Color.black.opacity(0.08))
+          .background(Color.oeSeparator)
 
         header
 
         Divider()
-          .background(Color.black.opacity(0.08))
+          .background(Color.oeSeparator)
 
         if selectedTab == .all {
           allTasksContent
@@ -123,11 +123,11 @@ struct NativeTodoListView: View {
           calendarContent
         }
       }
-      .background(Color.white)
+      .background(Color.oeBackground)
 
       bottomControls
     }
-    .background(Color.white.ignoresSafeArea())
+    .background(Color.oeBackground.ignoresSafeArea())
     .sheet(isPresented: $showingComposer) {
       NativeTodoEditorSheet(selectedDate: selectedDate)
         .environmentObject(store)
@@ -214,11 +214,11 @@ struct NativeTodoListView: View {
       .buttonStyle(.plain)
       .accessibilityLabel(i18n.t(.todoSettings))
     }
-    .foregroundColor(.black)
+    .foregroundColor(.oeText)
     .padding(.horizontal, 16)
     .padding(.top, 6)
     .padding(.bottom, 8)
-    .background(Color.white)
+    .background(Color.oeBackground)
   }
 
   private var header: some View {
@@ -228,7 +228,7 @@ struct NativeTodoListView: View {
       HStack(alignment: .center) {
         Text(dateTitle)
           .font(.system(size: 31, weight: .bold))
-          .foregroundColor(.black)
+          .foregroundColor(.oeText)
           .lineLimit(1)
 
         Spacer()
@@ -508,9 +508,9 @@ struct NativeTodoListView: View {
       } label: {
         Image(systemName: "plus")
           .font(.system(size: 31, weight: .light))
-          .foregroundColor(.white)
+          .foregroundColor(.oeControlText)
           .frame(width: 56, height: 56)
-          .background(Color.black)
+          .background(Color.oeControlFill)
           .clipShape(Circle())
       }
       .buttonStyle(.plain)

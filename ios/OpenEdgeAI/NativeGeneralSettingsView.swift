@@ -105,7 +105,7 @@ struct NativeDynamicIslandPetOption: View {
         size: 30
       )
       .frame(width: 42, height: 38)
-      .background(Color.black)
+      .background(Color(uiColor: .black))
       .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
 
       VStack(alignment: .leading, spacing: 3) {

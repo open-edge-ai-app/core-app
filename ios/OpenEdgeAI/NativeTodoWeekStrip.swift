@@ -32,7 +32,7 @@ struct NativeTodoWeekStrip: View {
       Button(action: onPreviousWeek) {
         Image(systemName: "chevron.left")
           .font(.system(size: 18, weight: .medium))
-          .foregroundColor(Color.black.opacity(0.58))
+          .foregroundColor(.oeSecondaryText)
           .frame(width: 24, height: 52)
       }
       .buttonStyle(.plain)
@@ -57,11 +57,11 @@ struct NativeTodoWeekStrip: View {
                 Text(i18n.dayNumber(for: day))
                   .font(.system(size: 12, weight: .semibold))
                 Circle()
-                  .fill(Color.black)
+                  .fill(Color.oeText)
                   .frame(width: 4, height: 4)
                   .opacity(isToday ? 1 : 0)
               }
-              .foregroundColor(isSelected ? accentColor.color : Color.black.opacity(0.60))
+              .foregroundColor(isSelected ? accentColor.color : .oeSecondaryText)
               .frame(width: dayCellWidth, height: 52)
               .background(isSelected ? accentColor.subtleColor : Color.clear)
               .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
@@ -115,7 +115,7 @@ struct NativeTodoWeekStrip: View {
       Button(action: onNextWeek) {
         Image(systemName: "chevron.right")
           .font(.system(size: 18, weight: .medium))
-          .foregroundColor(Color.black.opacity(0.58))
+          .foregroundColor(.oeSecondaryText)
           .frame(width: 24, height: 52)
       }
       .buttonStyle(.plain)

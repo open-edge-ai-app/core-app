@@ -132,7 +132,7 @@ struct NativeDynamicIslandPetView: View {
       if motion == .sleeping {
         Text("Z")
           .font(.system(size: 9, weight: .black, design: .monospaced))
-          .foregroundColor(.white.opacity(0.78))
+          .foregroundColor(Color(uiColor: .white).opacity(0.78))
           .offset(x: 7, y: -6)
       }
     }

@@ -6,7 +6,7 @@ struct NativeTodoSectionHeader: View {
 
   var body: some View {
     Button {
-      withAnimation(.easeInOut(duration: 0.18)) {
+      withAnimation(.spring(response: 0.34, dampingFraction: 0.86)) {
         isExpanded.toggle()
       }
     } label: {
@@ -16,10 +16,12 @@ struct NativeTodoSectionHeader: View {
           .foregroundColor(.black)
           .frame(alignment: .leading)
 
-        Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
+        Image(systemName: "chevron.right")
           .font(.system(size: 20, weight: .medium))
           .foregroundColor(Color.black.opacity(0.68))
           .frame(width: 22, height: 22)
+          .rotationEffect(.degrees(isExpanded ? 90 : 0))
+          .animation(.spring(response: 0.34, dampingFraction: 0.86), value: isExpanded)
 
         Spacer(minLength: 0)
       }

@@ -258,13 +258,12 @@ struct NativeTodoListView: View {
         )
 
         if isOverdueExpanded {
-          if overdueTodos.isEmpty {
-            NativeTodoEmptyRow(title: i18n.t(.todoNoOverdue))
-          } else {
-            ForEach(overdueTodos) { task in
-              todoCard(for: task, occurrenceDate: task.dueDate)
-            }
-          }
+          todoSectionContent(
+            tasks: overdueTodos,
+            occurrenceDate: nil,
+            emptyTitle: i18n.t(.todoNoOverdue)
+          )
+          .transition(todoSectionTransition)
         }
 
         NativeTodoSectionHeader(
@@ -273,19 +272,45 @@ struct NativeTodoListView: View {
         )
 
         if isTodayExpanded {
-          if selectedDateTodos.isEmpty {
-            NativeTodoEmptyRow(title: i18n.t(.todoNoTasksForDate))
-          } else {
-            ForEach(selectedDateTodos) { task in
-              todoCard(for: task, occurrenceDate: selectedDate)
-            }
-          }
+          todoSectionContent(
+            tasks: selectedDateTodos,
+            occurrenceDate: selectedDate,
+            emptyTitle: i18n.t(.todoNoTasksForDate)
+          )
+          .transition(todoSectionTransition)
         }
       }
       .padding(.horizontal, nativeTodoHorizontalPadding)
       .padding(.top, 22)
       .padding(.bottom, 120)
+      .animation(.spring(response: 0.36, dampingFraction: 0.9), value: isOverdueExpanded)
+      .animation(.spring(response: 0.36, dampingFraction: 0.9), value: isTodayExpanded)
     }
+  }
+
+  private var todoSectionTransition: AnyTransition {
+    .asymmetric(
+      insertion: .opacity.combined(with: .move(edge: .top)),
+      removal: .opacity.combined(with: .scale(scale: 0.98, anchor: .top))
+    )
+  }
+
+  @ViewBuilder
+  private func todoSectionContent(
+    tasks: [NativeTodoItem],
+    occurrenceDate: Date?,
+    emptyTitle: String
+  ) -> some View {
+    VStack(alignment: .leading, spacing: 12) {
+      if tasks.isEmpty {
+        NativeTodoEmptyRow(title: emptyTitle)
+      } else {
+        ForEach(tasks) { task in
+          todoCard(for: task, occurrenceDate: occurrenceDate ?? task.dueDate)
+        }
+      }
+    }
+    .frame(maxWidth: .infinity, alignment: .leading)
   }
 
   private func todoCard(for task: NativeTodoItem, occurrenceDate: Date) -> some View {

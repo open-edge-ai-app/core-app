@@ -251,34 +251,22 @@ struct NativeTodoListView: View {
     let i18n = store.i18n
 
     return ScrollView(showsIndicators: false) {
-      VStack(alignment: .leading, spacing: 24) {
-        NativeTodoSectionHeader(
+      VStack(alignment: .leading, spacing: 26) {
+        todoListSection(
           title: i18n.t(.todoOverdue),
-          isExpanded: $isOverdueExpanded
+          isExpanded: $isOverdueExpanded,
+          tasks: overdueTodos,
+          occurrenceDate: nil,
+          emptyTitle: i18n.t(.todoNoOverdue)
         )
 
-        if isOverdueExpanded {
-          todoSectionContent(
-            tasks: overdueTodos,
-            occurrenceDate: nil,
-            emptyTitle: i18n.t(.todoNoOverdue)
-          )
-          .transition(todoSectionTransition)
-        }
-
-        NativeTodoSectionHeader(
+        todoListSection(
           title: selectedTodoSectionTitle,
-          isExpanded: $isTodayExpanded
+          isExpanded: $isTodayExpanded,
+          tasks: selectedDateTodos,
+          occurrenceDate: selectedDate,
+          emptyTitle: i18n.t(.todoNoTasksForDate)
         )
-
-        if isTodayExpanded {
-          todoSectionContent(
-            tasks: selectedDateTodos,
-            occurrenceDate: selectedDate,
-            emptyTitle: i18n.t(.todoNoTasksForDate)
-          )
-          .transition(todoSectionTransition)
-        }
       }
       .padding(.horizontal, nativeTodoHorizontalPadding)
       .padding(.top, 22)
@@ -289,10 +277,33 @@ struct NativeTodoListView: View {
   }
 
   private var todoSectionTransition: AnyTransition {
-    .asymmetric(
-      insertion: .opacity.combined(with: .move(edge: .top)),
-      removal: .opacity.combined(with: .scale(scale: 0.98, anchor: .top))
-    )
+    .opacity
+  }
+
+  @ViewBuilder
+  private func todoListSection(
+    title: String,
+    isExpanded: Binding<Bool>,
+    tasks: [NativeTodoItem],
+    occurrenceDate: Date?,
+    emptyTitle: String
+  ) -> some View {
+    VStack(alignment: .leading, spacing: isExpanded.wrappedValue ? 12 : 0) {
+      NativeTodoSectionHeader(
+        title: title,
+        isExpanded: isExpanded
+      )
+
+      if isExpanded.wrappedValue {
+        todoSectionContent(
+          tasks: tasks,
+          occurrenceDate: occurrenceDate,
+          emptyTitle: emptyTitle
+        )
+        .transition(todoSectionTransition)
+      }
+    }
+    .frame(maxWidth: .infinity, alignment: .leading)
   }
 
   @ViewBuilder

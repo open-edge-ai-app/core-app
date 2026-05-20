@@ -168,6 +168,7 @@ struct NativeTodoTaskCard: View {
       }
     }
     .padding(22)
+    .frame(maxWidth: .infinity, alignment: .leading)
     .background(Color(red: 0.94, green: 0.945, blue: 0.95))
     .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
     .contextMenu {

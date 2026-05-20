@@ -130,40 +130,77 @@ extension NativeChatStore {
     }
   }
 
+  func todoToolListSummary(filter: String, targetDate: Date, count: Int) -> String {
+    switch filter {
+    case "today":
+      return "오늘은 할 일이 \(count)개 있어요."
+    case "tomorrow":
+      return "내일은 할 일이 \(count)개 있어요."
+    case "overdue":
+      return "기한 지난 할 일이 \(count)개 있어요."
+    case "date":
+      return "\(todoToolReadableDate(targetDate))에는 할 일이 \(count)개 있어요."
+    default:
+      return "Todo가 \(count)개 있어요."
+    }
+  }
+
   func todoToolSortKey(for item: NativeTodoItem, on occurrenceDate: Date) -> Double {
     let priorityOffset = item.isStarred ? -20_000_000_000 : 0
     let overdueOffset = item.isOverdue() ? -10_000_000_000 : 0
     return Double(priorityOffset + overdueOffset) + todoToolOccurrenceStartDate(for: item, on: occurrenceDate).timeIntervalSince1970
   }
 
-  func todoToolReadableSummary(_ item: NativeTodoItem, index: Int, occurrenceDate: Date) -> String {
-    let status = item.isCompleted(on: occurrenceDate) ? "완료" : "미완료"
-    let titlePrefix = item.isStarred ? "중요 " : ""
+  func todoToolReadableSummary(
+    _ item: NativeTodoItem,
+    index: Int,
+    occurrenceDate: Date,
+    showsDate: Bool
+  ) -> String {
+    let titlePrefix = item.isStarred ? "중요 · " : ""
     var lines = [
-      "\(index). \(titlePrefix)\(item.title)",
-      "   - 시간: \(todoToolReadableTimeRange(for: item, on: occurrenceDate))",
-      "   - 상태: \(status)"
+      "\(index). **\(titlePrefix)\(item.title)**"
     ]
+
+    let metadata = todoToolReadableMetadata(for: item, on: occurrenceDate, showsDate: showsDate)
+    if !metadata.isEmpty {
+      lines.append("   \(metadata)")
+    }
+
+    let trimmedNote = item.note.trimmingCharacters(in: .whitespacesAndNewlines)
+    if !trimmedNote.isEmpty {
+      let note = NativePromptCompressor.clippedMessageBody(item.note, maxEstimatedTokens: 40)
+      lines.append("   \(note)")
+    }
+
+    return lines.joined(separator: "\n")
+  }
+
+  func todoToolReadableMetadata(for item: NativeTodoItem, on occurrenceDate: Date, showsDate: Bool) -> String {
+    var parts = [todoToolReadableTimeRange(for: item, on: occurrenceDate, showsDate: showsDate)]
+
+    if item.isCompleted(on: occurrenceDate) {
+      parts.append("완료")
+    } else if item.isOverdue() {
+      parts.append("기한 지남")
+    }
 
     let labels = todoLabels
       .filter { item.labelIds.contains($0.id) }
       .map(\.title)
       .joined(separator: ", ")
     if !labels.isEmpty {
-      lines.append("   - 태그: \(labels)")
-    }
-    if item.recurrenceRule.isRepeating {
-      lines.append("   - 반복: \(item.recurrenceRule.title)")
-    }
-    if !item.note.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-      let note = NativePromptCompressor.clippedMessageBody(item.note, maxEstimatedTokens: 40)
-      lines.append("   - 메모: \(note)")
+      parts.append(labels)
     }
 
-    return lines.joined(separator: "\n")
+    if item.recurrenceRule.isRepeating {
+      parts.append(item.recurrenceRule.title)
+    }
+
+    return parts.joined(separator: " · ")
   }
 
-  func todoToolReadableTimeRange(for item: NativeTodoItem, on occurrenceDate: Date) -> String {
+  func todoToolReadableTimeRange(for item: NativeTodoItem, on occurrenceDate: Date, showsDate: Bool) -> String {
     let startDate = todoToolOccurrenceStartDate(for: item, on: occurrenceDate)
     let endDate = Calendar.current.date(
       byAdding: .minute,
@@ -171,7 +208,8 @@ extension NativeChatStore {
       to: startDate
     ) ?? todoEndDate(for: item)
 
-    return "\(todoToolReadableDate(startDate)) \(todoToolReadableTime(startDate))-\(todoToolReadableTime(endDate))"
+    let prefix = showsDate ? "\(todoToolReadableDate(startDate)) " : ""
+    return "\(prefix)\(todoToolReadableTimeRangeText(startDate: startDate, endDate: endDate))"
   }
 
   func todoToolOccurrenceStartDate(for item: NativeTodoItem, on occurrenceDate: Date) -> Date {
@@ -209,5 +247,30 @@ extension NativeChatStore {
     formatter.timeZone = .current
     formatter.dateFormat = selectedLanguage == .korean ? "a h:mm" : "h:mm a"
     return formatter.string(from: date)
+  }
+
+  func todoToolReadableTimeRangeText(startDate: Date, endDate: Date) -> String {
+    guard Calendar.current.isDate(startDate, inSameDayAs: endDate) else {
+      return "\(todoToolReadableTime(startDate))-\(todoToolReadableTime(endDate))"
+    }
+
+    if selectedLanguage == .korean {
+      let periodFormatter = DateFormatter()
+      periodFormatter.locale = Locale(identifier: "ko_KR")
+      periodFormatter.timeZone = .current
+      periodFormatter.dateFormat = "a"
+
+      let startPeriod = periodFormatter.string(from: startDate)
+      let endPeriod = periodFormatter.string(from: endDate)
+      if startPeriod == endPeriod {
+        let timeFormatter = DateFormatter()
+        timeFormatter.locale = Locale(identifier: "ko_KR")
+        timeFormatter.timeZone = .current
+        timeFormatter.dateFormat = "h:mm"
+        return "\(startPeriod) \(timeFormatter.string(from: startDate))-\(timeFormatter.string(from: endDate))"
+      }
+    }
+
+    return "\(todoToolReadableTime(startDate))-\(todoToolReadableTime(endDate))"
   }
 }

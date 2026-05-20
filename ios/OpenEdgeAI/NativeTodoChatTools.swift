@@ -124,10 +124,15 @@ extension NativeChatStore {
       return "\(todoToolListTitle(filter: filter, targetDate: targetDate))에 등록된 할 일이 없습니다."
     }
 
-    let title = todoToolListTitle(filter: filter, targetDate: targetDate)
-    let countText = "\(title)은 \(items.count)개입니다."
+    let countText = todoToolListSummary(filter: filter, targetDate: targetDate, count: items.count)
+    let shouldShowDate = !["today", "tomorrow"].contains(filter)
     let itemLines = items.enumerated().map { index, item in
-      todoToolReadableSummary(item, index: index + 1, occurrenceDate: referenceDate)
+      todoToolReadableSummary(
+        item,
+        index: index + 1,
+        occurrenceDate: referenceDate,
+        showsDate: shouldShowDate
+      )
     }
     return ([countText, ""] + itemLines).joined(separator: "\n")
   }

@@ -26,6 +26,13 @@ private struct NativeRecurringTodoDeleteRequest {
   var occurrenceDate: Date
 }
 
+private struct NativeTodoTagTaskGroup: Identifiable {
+  var id: String
+  var title: String
+  var colorHex: String?
+  var tasks: [NativeTodoItem]
+}
+
 struct NativeTodoListView: View {
   @Environment(\.dismiss) private var dismiss
   @EnvironmentObject private var store: NativeChatStore
@@ -265,7 +272,8 @@ struct NativeTodoListView: View {
           isExpanded: $isTodayExpanded,
           tasks: selectedDateTodos,
           occurrenceDate: selectedDate,
-          emptyTitle: i18n.t(.todoNoTasksForDate)
+          emptyTitle: i18n.t(.todoNoTasksForDate),
+          separatesTags: store.todoTagsVisibleOnTaskCards
         )
       }
       .padding(.horizontal, nativeTodoHorizontalPadding)
@@ -286,7 +294,8 @@ struct NativeTodoListView: View {
     isExpanded: Binding<Bool>,
     tasks: [NativeTodoItem],
     occurrenceDate: Date?,
-    emptyTitle: String
+    emptyTitle: String,
+    separatesTags: Bool = false
   ) -> some View {
     VStack(alignment: .leading, spacing: isExpanded.wrappedValue ? 12 : 0) {
       NativeTodoSectionHeader(
@@ -298,7 +307,8 @@ struct NativeTodoListView: View {
         todoSectionContent(
           tasks: tasks,
           occurrenceDate: occurrenceDate,
-          emptyTitle: emptyTitle
+          emptyTitle: emptyTitle,
+          separatesTags: separatesTags
         )
         .transition(todoSectionTransition)
       }
@@ -310,11 +320,27 @@ struct NativeTodoListView: View {
   private func todoSectionContent(
     tasks: [NativeTodoItem],
     occurrenceDate: Date?,
-    emptyTitle: String
+    emptyTitle: String,
+    separatesTags: Bool = false
   ) -> some View {
     VStack(alignment: .leading, spacing: 12) {
       if tasks.isEmpty {
         NativeTodoEmptyRow(title: emptyTitle)
+      } else if separatesTags {
+        ForEach(todoTagGroups(for: tasks)) { group in
+          NativeTodoTagTaskGroupView(
+            title: group.title,
+            colorHex: group.colorHex
+          ) {
+            ForEach(group.tasks) { task in
+              todoCard(
+                for: task,
+                occurrenceDate: occurrenceDate ?? task.dueDate,
+                showsLabels: false
+              )
+            }
+          }
+        }
       } else {
         ForEach(tasks) { task in
           todoCard(for: task, occurrenceDate: occurrenceDate ?? task.dueDate)
@@ -324,14 +350,18 @@ struct NativeTodoListView: View {
     .frame(maxWidth: .infinity, alignment: .leading)
   }
 
-  private func todoCard(for task: NativeTodoItem, occurrenceDate: Date) -> some View {
+  private func todoCard(
+    for task: NativeTodoItem,
+    occurrenceDate: Date,
+    showsLabels: Bool = true
+  ) -> some View {
     NativeTodoTaskCard(
       i18n: store.i18n,
       task: task,
       occurrenceDate: occurrenceDate,
       labels: labels(for: task),
       availableLabels: store.todoLabels,
-      showsLabels: store.todoTagsVisibleOnTaskCards,
+      showsLabels: showsLabels && store.todoTagsVisibleOnTaskCards,
       isExpanded: expandedTaskIds.contains(task.id),
       onToggleComplete: {
         withAnimation(.easeInOut(duration: 0.18)) {
@@ -395,6 +425,46 @@ struct NativeTodoListView: View {
 
   private func labels(for task: NativeTodoItem) -> [NativeTodoLabel] {
     Array(store.todoLabels.filter { task.labelIds.contains($0.id) }.prefix(1))
+  }
+
+  private func todoTagGroups(for tasks: [NativeTodoItem]) -> [NativeTodoTagTaskGroup] {
+    var tasksByLabelId: [String: [NativeTodoItem]] = [:]
+    var untaggedTasks: [NativeTodoItem] = []
+    let labelIds = Set(store.todoLabels.map(\.id))
+
+    for task in tasks {
+      if let labelId = task.labelIds.first, labelIds.contains(labelId) {
+        tasksByLabelId[labelId, default: []].append(task)
+      } else {
+        untaggedTasks.append(task)
+      }
+    }
+
+    var groups = store.todoLabels.compactMap { label -> NativeTodoTagTaskGroup? in
+      guard let tasks = tasksByLabelId[label.id], !tasks.isEmpty else {
+        return nil
+      }
+
+      return NativeTodoTagTaskGroup(
+        id: label.id,
+        title: label.title,
+        colorHex: label.colorHex,
+        tasks: tasks
+      )
+    }
+
+    if !untaggedTasks.isEmpty {
+      groups.append(
+        NativeTodoTagTaskGroup(
+          id: "native-todo-untagged",
+          title: store.i18n.t(.todoNoLabel),
+          colorHex: nil,
+          tasks: untaggedTasks
+        )
+      )
+    }
+
+    return groups
   }
 
   private var calendarContent: some View {

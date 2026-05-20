@@ -251,6 +251,44 @@ struct NativeTodoInlineTagChip: View {
   }
 }
 
+struct NativeTodoTagTaskGroupView<Content: View>: View {
+  var title: String
+  var colorHex: String?
+  @ViewBuilder var content: Content
+
+  private var markerColor: Color {
+    guard let colorHex else {
+      return Color.black.opacity(0.28)
+    }
+    return Color(todoLabelHex: colorHex)
+  }
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 10) {
+      HStack(spacing: 7) {
+        Circle()
+          .fill(markerColor)
+          .frame(width: 7, height: 7)
+
+        Text(title)
+          .font(.system(size: 14, weight: .bold))
+          .foregroundColor(Color.black.opacity(0.58))
+          .lineLimit(1)
+
+        Spacer(minLength: 0)
+      }
+      .padding(.horizontal, 4)
+      .padding(.top, 2)
+
+      VStack(alignment: .leading, spacing: 10) {
+        content
+      }
+      .frame(maxWidth: .infinity, alignment: .leading)
+    }
+    .frame(maxWidth: .infinity, alignment: .leading)
+  }
+}
+
 struct NativeTodoEmptyRow: View {
   var title: String
 

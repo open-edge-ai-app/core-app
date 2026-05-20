@@ -131,6 +131,7 @@ export type MultimodalMessage = {
     useRag?: boolean;
     stream?: boolean;
     forceWebSearch?: boolean;
+    disableRetrieval?: boolean;
   };
 };
 
@@ -144,6 +145,7 @@ export type AIResponseStreamOptions = {
   chatSessionId?: string;
   modelId?: ModelId | string;
   forceWebSearch?: boolean;
+  disableRetrieval?: boolean;
 };
 
 export type AIResponse = {
@@ -759,6 +761,7 @@ export const AIEngine = {
               modelId: options.modelId,
               stream: true,
               forceWebSearch: options.forceWebSearch,
+              disableRetrieval: options.disableRetrieval,
             },
             text: prompt,
           })
@@ -786,6 +789,7 @@ export const AIEngine = {
           chatSessionId: options.chatSessionId,
           modelId: options.modelId,
           forceWebSearch: options.forceWebSearch,
+          disableRetrieval: options.disableRetrieval,
         },
         text: prompt,
       });

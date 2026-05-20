@@ -797,6 +797,7 @@ class AIEngineModule(
             stream = options?.getOptionalBoolean("stream") ?: false,
             chatSessionId = options?.getOptionalString("chatSessionId"),
             forceWebSearch = options?.getOptionalBoolean("forceWebSearch") ?: false,
+            disableRetrieval = options?.getOptionalBoolean("disableRetrieval") ?: false,
         )
     }
 

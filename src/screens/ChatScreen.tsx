@@ -461,6 +461,7 @@ function ChatScreen({
         {
           attachments: attachmentsForPrompt,
           chatSessionId: resolvedSessionId ?? undefined,
+          disableRetrieval: todoToolRelevant && !searchModeActive,
           forceWebSearch: searchModeActive,
           modelId: selectedModelId,
         },

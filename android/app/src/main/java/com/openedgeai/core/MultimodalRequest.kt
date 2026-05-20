@@ -13,5 +13,6 @@ data class MultimodalRequest(
     val stream: Boolean,
     val chatSessionId: String?,
     val forceWebSearch: Boolean = false,
+    val disableRetrieval: Boolean = false,
     val nativeTools: OpenEdgeAiToolSet? = null,
 )

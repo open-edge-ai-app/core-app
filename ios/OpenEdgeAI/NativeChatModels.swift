@@ -129,6 +129,8 @@ enum NativeToolRegistry {
     - Todo, schedule, reminder, meeting, and appointment requests have priority over web_search unless the user explicitly asks to search the web.
     - Named people, companies, venues, or places inside a Todo sentence are usually Todo title/note content, not a reason to search.
     - Korean declarative schedule statements such as "오늘 오후 4시부터 5시까지 대한상공회의소 미팅 가신데" mean create a Todo/schedule item unless the sentence is clearly a question.
+    - If the date/time and event content are sufficient, do not ask "등록해 드릴까요?" or similar confirmation questions; emit todo_create immediately.
+    - If the assistant previously asked whether to register a Todo/schedule and the user replies yes/okay/알겠어/네/응, use the previous user schedule statement and emit todo_create immediately.
     - You may include an array of calls in one block.
     - Dates must use the user's local timezone in yyyy-MM-dd HH:mm format when possible.
     - Keep any normal answer concise; the app will execute the tool and hide the JSON block from the user.
@@ -185,7 +187,7 @@ enum NativeToolRegistry {
     return explicitTriggers.contains { normalized.contains($0) }
   }
 
-  private static func shouldUseTodoTool(_ text: String) -> Bool {
+  static func shouldUseTodoTool(_ text: String) -> Bool {
     let normalized = text.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
     guard !normalized.isEmpty else {
       return false

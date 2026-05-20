@@ -173,7 +173,7 @@ private struct NativePendingAttachmentChip: View {
       Image(systemName: iconName)
         .font(.system(size: 11, weight: .semibold))
 
-      Text(attachment.name)
+      Text(verbatim: attachment.compactDisplayName)
         .lineLimit(1)
 
       Button(action: onRemove) {
@@ -190,6 +190,7 @@ private struct NativePendingAttachmentChip: View {
     .frame(height: 29)
     .background(Color.oeSubtleFill)
     .clipShape(Capsule(style: .continuous))
+    .accessibilityLabel(Text(verbatim: attachment.name))
   }
 
   private var iconName: String {

@@ -8,6 +8,26 @@ struct NativeAttachment: Identifiable, Codable, Equatable {
   var mimeType: String
   var sizeBytes: Int64?
   var url: String
+
+  var compactDisplayName: String {
+    Self.compactFileName(name)
+  }
+
+  private static func compactFileName(_ fileName: String) -> String {
+    let trimmed = fileName.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard trimmed.count > 18 else {
+      return trimmed.isEmpty ? fileName : trimmed
+    }
+
+    let nsName = trimmed as NSString
+    let fileExtension = nsName.pathExtension
+    let baseName = nsName.deletingPathExtension
+    let prefix = String((baseName.isEmpty ? trimmed : baseName).prefix(9))
+    guard !fileExtension.isEmpty else {
+      return "\(prefix)..."
+    }
+    return "\(prefix)...\(fileExtension)"
+  }
 }
 
 struct NativeSearchSourceReference: Identifiable, Codable, Equatable {

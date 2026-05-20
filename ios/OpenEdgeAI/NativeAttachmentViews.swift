@@ -8,10 +8,11 @@ struct NativeAttachmentRow: View {
       ForEach(attachments) { attachment in
         HStack(spacing: 8) {
           Image(systemName: icon(for: attachment.type))
-          Text(attachment.name)
+          Text(verbatim: attachment.compactDisplayName)
             .font(.system(size: 13, weight: .medium))
             .lineLimit(1)
         }
+        .accessibilityLabel(Text(verbatim: attachment.name))
         .foregroundColor(.oeText)
         .padding(.horizontal, 10)
         .padding(.vertical, 8)

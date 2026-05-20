@@ -35,6 +35,7 @@ struct NativeTodoTimeline: View {
         ForEach(events) { event in
           NativeTodoCalendarEventCard(accentColor: accentColor, event: event)
             .frame(width: laneWidth, height: eventHeight(for: event))
+            .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
             .contextMenu {
               Button {
                 onEditEvent(event.task)
@@ -197,6 +198,20 @@ struct NativeTodoCalendarEventCard: View {
   }
 
   var body: some View {
+    ZStack(alignment: .topLeading) {
+      RoundedRectangle(cornerRadius: 9, style: .continuous)
+        .fill(accentColor.color)
+
+      cardContent
+        .padding(.horizontal, 8)
+        .padding(.vertical, isCompact ? 5 : 11)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .clipped()
+    }
+    .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+  }
+
+  private var cardContent: some View {
     VStack(alignment: .leading, spacing: isCompact ? 2 : 5) {
       HStack(alignment: .top, spacing: 4) {
         if event.isCompleted {
@@ -235,11 +250,6 @@ struct NativeTodoCalendarEventCard: View {
           .lineLimit(1)
       }
     }
-    .padding(.horizontal, 8)
-    .padding(.vertical, isCompact ? 5 : 11)
-    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-    .background(accentColor.color)
-    .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
   }
 }
 

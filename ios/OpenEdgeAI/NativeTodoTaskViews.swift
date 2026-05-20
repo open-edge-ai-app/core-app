@@ -265,20 +265,20 @@ struct NativeTodoTagTaskGroupView<Content: View>: View {
 
   var body: some View {
     VStack(alignment: .leading, spacing: 10) {
-      HStack(spacing: 7) {
+      HStack(spacing: 8) {
         Circle()
           .fill(markerColor)
-          .frame(width: 7, height: 7)
+          .frame(width: 9, height: 9)
 
         Text(title)
-          .font(.system(size: 14, weight: .bold))
-          .foregroundColor(Color.black.opacity(0.58))
+          .font(.system(size: 17, weight: .bold))
+          .foregroundColor(Color.black.opacity(0.74))
           .lineLimit(1)
 
         Spacer(minLength: 0)
       }
       .padding(.horizontal, 4)
-      .padding(.top, 2)
+      .padding(.top, 4)
 
       VStack(alignment: .leading, spacing: 10) {
         content

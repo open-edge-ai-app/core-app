@@ -44,8 +44,8 @@ struct NativeInputBar: View {
       }
 
       VStack(alignment: .leading, spacing: 6) {
-        if !store.pendingAttachments.isEmpty {
-          NativePendingAttachmentStrip()
+        if isSearchMode || !store.pendingAttachments.isEmpty {
+          NativePendingAttachmentStrip(showsSearchMode: isSearchMode)
             .environmentObject(store)
             .padding(.top, 2)
         }
@@ -65,12 +65,6 @@ struct NativeInputBar: View {
           }
           .buttonStyle(.plain)
           .accessibilityLabel(store.i18n.t(.chatAttachFile))
-
-          if isSearchMode {
-            NativeSearchModeChip()
-              .environmentObject(store)
-              .transition(.opacity.combined(with: .scale(scale: 0.96)))
-          }
 
           Spacer(minLength: 8)
 
@@ -148,10 +142,16 @@ struct NativeComposerSubmitIcon: View {
 
 struct NativePendingAttachmentStrip: View {
   @EnvironmentObject private var store: NativeChatStore
+  var showsSearchMode: Bool = false
 
   var body: some View {
     ScrollView(.horizontal, showsIndicators: false) {
       HStack(spacing: 8) {
+        if showsSearchMode {
+          NativeSearchModeChip()
+            .environmentObject(store)
+        }
+
         ForEach(store.pendingAttachments) { attachment in
           NativePendingAttachmentChip(attachment: attachment) {
             store.removePendingAttachment(attachment)

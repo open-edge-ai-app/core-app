@@ -163,30 +163,6 @@ struct NativeTodoSettingsSheet: View {
       }
       .padding(14)
 
-      NativeTodoSettingsDivider()
-
-      HStack(spacing: 10) {
-        if !canSync {
-          NativeTodoSettingsActionButton(
-            title: i18n.t(.todoAllowPermission),
-            isPrimary: true,
-            isEnabled: true
-          ) {
-            store.requestTodoCalendarAccess()
-          }
-        }
-
-        NativeTodoSettingsActionButton(
-          title: i18n.t(.todoSyncNow),
-          isPrimary: false,
-          isEnabled: canSync
-        ) {
-          store.syncTodoItemsToCalendar()
-        }
-      }
-      .padding(.horizontal, 14)
-      .padding(.vertical, 12)
-
       if let message = store.todoCalendarSyncMessage {
         NativeTodoSettingsDivider()
         Text(message)
@@ -336,41 +312,6 @@ private struct NativeTodoSettingsStatusPill: View {
       .frame(height: 20)
       .background(isActive ? Color.black : Color.black.opacity(0.07))
       .clipShape(Capsule())
-  }
-}
-
-private struct NativeTodoSettingsActionButton: View {
-  var title: String
-  var isPrimary: Bool
-  var isEnabled: Bool
-  var action: () -> Void
-
-  var body: some View {
-    Button(action: action) {
-      Text(title)
-        .font(.system(size: 14, weight: .bold))
-        .foregroundColor(foregroundColor)
-        .frame(height: 42)
-        .frame(maxWidth: .infinity)
-        .background(backgroundColor)
-        .clipShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
-    }
-    .buttonStyle(.plain)
-    .disabled(!isEnabled)
-  }
-
-  private var foregroundColor: Color {
-    if isPrimary {
-      return .white
-    }
-    return isEnabled ? .black : Color.black.opacity(0.32)
-  }
-
-  private var backgroundColor: Color {
-    if isPrimary {
-      return .black
-    }
-    return Color.black.opacity(isEnabled ? 0.06 : 0.035)
   }
 }
 

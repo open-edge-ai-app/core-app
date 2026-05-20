@@ -167,8 +167,6 @@ enum NativeI18nKey: String, CaseIterable {
   case todoDeleteLabel
   case todoIosCalendar
   case todoDefaultCalendarIntegration
-  case todoAllowPermission
-  case todoSyncNow
   case todoTitleField
   case todoNewTaskPlaceholder
   case todoNoteField

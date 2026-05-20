@@ -35,6 +35,14 @@
 	</dict>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Open Edge AI uses your location only when you choose to include local context.</string>
+	<key>NSCalendarsFullAccessUsageDescription</key>
+	<string>Open Edge AI syncs Todo items with the iOS Calendar app when you enable calendar integration.</string>
+	<key>NSCalendarsUsageDescription</key>
+	<string>Open Edge AI syncs Todo items with the iOS Calendar app when you enable calendar integration.</string>
+	<key>NSCalendarsWriteOnlyAccessUsageDescription</key>
+	<string>Open Edge AI adds Todo items to the iOS Calendar app when you enable calendar integration.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Open Edge AI needs photo library access when you choose images or videos to attach to a chat.</string>
 	<key>NSSupportsLiveActivities</key>
 	<true/>
 	<key>UILaunchStoryboardName</key>

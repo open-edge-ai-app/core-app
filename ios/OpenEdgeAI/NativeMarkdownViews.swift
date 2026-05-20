@@ -28,6 +28,7 @@ struct NativeMarkdownBlock: Identifiable {
     case unorderedList([String])
     case orderedList([String])
     case quote(String)
+    case table(headers: [String], rows: [[String]])
     case code(language: String?, text: String)
     case divider
   }
@@ -84,6 +85,13 @@ enum NativeMarkdownParser {
         flushParagraph()
         blocks.append(.init(kind: .heading(level: heading.level, text: heading.text)))
         index += 1
+        continue
+      }
+
+      if let table = table(startingAt: index, in: lines) {
+        flushParagraph()
+        blocks.append(.init(kind: .table(headers: table.headers, rows: table.rows)))
+        index = table.nextIndex
         continue
       }
 
@@ -216,6 +224,104 @@ enum NativeMarkdownParser {
 
     return trimmed.dropFirst().trimmingCharacters(in: .whitespaces)
   }
+
+  private static func table(
+    startingAt index: Int,
+    in lines: [String]
+  ) -> (headers: [String], rows: [[String]], nextIndex: Int)? {
+    guard index + 1 < lines.count else {
+      return nil
+    }
+
+    let headerCells = tableCells(in: lines[index])
+    let separatorCells = tableCells(in: lines[index + 1])
+    guard headerCells.count >= 2,
+          separatorCells.count == headerCells.count,
+          separatorCells.allSatisfy(isTableSeparatorCell)
+    else {
+      return nil
+    }
+
+    var rows: [[String]] = []
+    var cursor = index + 2
+    while cursor < lines.count {
+      let cells = tableCells(in: lines[cursor])
+      guard cells.count >= 2 else {
+        break
+      }
+      rows.append(normalizedTableRow(cells, columnCount: headerCells.count))
+      cursor += 1
+    }
+
+    return (
+      headers: normalizedTableRow(headerCells, columnCount: headerCells.count),
+      rows: rows,
+      nextIndex: cursor
+    )
+  }
+
+  private static func tableCells(in line: String) -> [String] {
+    let trimmed = line.trimmingCharacters(in: .whitespaces)
+    guard trimmed.contains("|") else {
+      return []
+    }
+
+    var content = trimmed
+    if content.hasPrefix("|") {
+      content.removeFirst()
+    }
+    if content.hasSuffix("|") {
+      content.removeLast()
+    }
+
+    var cells: [String] = []
+    var cell = ""
+    var isEscaped = false
+
+    for character in content {
+      if isEscaped {
+        cell.append(character)
+        isEscaped = false
+        continue
+      }
+
+      if character == "\\" {
+        isEscaped = true
+        continue
+      }
+
+      if character == "|" {
+        cells.append(cell.trimmingCharacters(in: .whitespaces))
+        cell.removeAll()
+      } else {
+        cell.append(character)
+      }
+    }
+
+    cells.append(cell.trimmingCharacters(in: .whitespaces))
+    return cells
+  }
+
+  private static func isTableSeparatorCell(_ cell: String) -> Bool {
+    let trimmed = cell.trimmingCharacters(in: .whitespaces)
+    guard trimmed.contains("-") else {
+      return false
+    }
+
+    let stripped = trimmed.replacingOccurrences(of: ":", with: "")
+    guard stripped.count >= 3 else {
+      return false
+    }
+    return stripped.allSatisfy { $0 == "-" }
+  }
+
+  private static func normalizedTableRow(_ cells: [String], columnCount: Int) -> [String] {
+    var normalized = Array(cells.prefix(columnCount))
+    if normalized.count < columnCount {
+      normalized.append(contentsOf: Array(repeating: "", count: columnCount - normalized.count))
+    }
+    return normalized
+  }
 }
 
 struct NativeMarkdownBlockView: View {
@@ -280,6 +386,14 @@ struct NativeMarkdownBlockView: View {
           .fixedSize(horizontal: false, vertical: true)
       }
 
+    case .table(let headers, let rows):
+      NativeMarkdownTableView(
+        headers: headers,
+        rows: rows,
+        sources: sources,
+        onOpenSource: onOpenSource
+      )
+
     case .code(let language, let text):
       NativeMarkdownCodeBlock(language: language, code: text)
 
@@ -320,5 +434,108 @@ struct NativeMarkdownBlockView: View {
     default:
       return base + 1
     }
+  }
+}
+
+private struct NativeMarkdownTableView: View {
+  @EnvironmentObject private var store: NativeChatStore
+  let headers: [String]
+  let rows: [[String]]
+  let sources: [NativeSearchSourceReference]
+  let onOpenSource: (Int) -> Void
+
+  private var columnWidth: CGFloat {
+    max(116, min(168, store.fontSizeSetting.bodySize * 8.6))
+  }
+
+  var body: some View {
+    ScrollView(.horizontal, showsIndicators: false) {
+      VStack(alignment: .leading, spacing: 0) {
+        NativeMarkdownTableRowView(
+          cells: headers,
+          isHeader: true,
+          columnWidth: columnWidth,
+          sources: sources,
+          onOpenSource: onOpenSource
+        )
+
+        ForEach(Array(rows.enumerated()), id: \.offset) { index, row in
+          NativeMarkdownTableRowView(
+            cells: row,
+            isHeader: false,
+            columnWidth: columnWidth,
+            sources: sources,
+            onOpenSource: onOpenSource
+          )
+          .background(index.isMultiple(of: 2) ? Color.clear : Color.oeSubtleFill.opacity(0.45))
+        }
+      }
+      .overlay(
+        RoundedRectangle(cornerRadius: 12, style: .continuous)
+          .stroke(Color.oeBorder, lineWidth: 1)
+      )
+      .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+    }
+    .frame(maxWidth: .infinity, alignment: .leading)
+  }
+}
+
+private struct NativeMarkdownTableRowView: View {
+  @EnvironmentObject private var store: NativeChatStore
+  let cells: [String]
+  let isHeader: Bool
+  let columnWidth: CGFloat
+  let sources: [NativeSearchSourceReference]
+  let onOpenSource: (Int) -> Void
+
+  var body: some View {
+    HStack(alignment: .top, spacing: 0) {
+      ForEach(Array(cells.enumerated()), id: \.offset) { index, cell in
+        NativeMarkdownTableCellView(
+          text: cell,
+          isHeader: isHeader,
+          width: columnWidth,
+          sources: sources,
+          onOpenSource: onOpenSource
+        )
+        .overlay(alignment: .trailing) {
+          if index < cells.count - 1 {
+            Rectangle()
+              .fill(Color.oeBorder)
+              .frame(width: 1)
+          }
+        }
+      }
+    }
+    .background(isHeader ? Color.oeSubtleFill : Color.oeElevatedSurface)
+    .overlay(alignment: .bottom) {
+      Rectangle()
+        .fill(Color.oeBorder)
+        .frame(height: 1)
+    }
+  }
+}
+
+private struct NativeMarkdownTableCellView: View {
+  @EnvironmentObject private var store: NativeChatStore
+  let text: String
+  let isHeader: Bool
+  let width: CGFloat
+  let sources: [NativeSearchSourceReference]
+  let onOpenSource: (Int) -> Void
+
+  var body: some View {
+    NativeInlineMarkdownText(
+      text: text,
+      sources: sources,
+      fontSize: max(12, store.fontSizeSetting.bodySize - 1),
+      fontWeight: isHeader ? .semibold : .regular,
+      textColor: isHeader ? .oeText : .oeSecondaryText,
+      onOpenSource: onOpenSource
+    )
+    .fixedSize(horizontal: false, vertical: true)
+    .padding(.horizontal, 10)
+    .padding(.vertical, 9)
+    .frame(width: width, alignment: .leading)
   }
 }

@@ -50,14 +50,7 @@ struct NativeInputBar: View {
             .padding(.top, 2)
         }
 
-        NativePromptEditor(
-          text: $store.inputText,
-          placeholder: store.i18n.t(.chatInputPlaceholder),
-          focused: $focused
-        )
-        .environmentObject(store)
-
-        HStack(alignment: .center, spacing: 8) {
+        HStack(alignment: .bottom, spacing: 8) {
           Button {
             showingAttachmentOptions = true
           } label: {
@@ -66,7 +59,13 @@ struct NativeInputBar: View {
           .buttonStyle(.plain)
           .accessibilityLabel(store.i18n.t(.chatAttachFile))
 
-          Spacer(minLength: 8)
+          NativePromptEditor(
+            text: $store.inputText,
+            placeholder: store.i18n.t(.chatInputPlaceholder),
+            focused: $focused
+          )
+          .environmentObject(store)
+          .layoutPriority(1)
 
           Button {
             if showsStopButton {

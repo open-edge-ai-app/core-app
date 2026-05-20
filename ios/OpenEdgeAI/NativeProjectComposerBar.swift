@@ -49,14 +49,7 @@ struct NativeProjectComposerBar: View {
             .padding(.top, 2)
         }
 
-        NativePromptEditor(
-          text: $store.inputText,
-          placeholder: store.i18n.t(.projectMessagePlaceholder, ["name": project.title]),
-          focused: $focused
-        )
-        .environmentObject(store)
-
-        HStack(alignment: .center, spacing: 8) {
+        HStack(alignment: .bottom, spacing: 8) {
           Button {
             showingAttachmentOptions = true
           } label: {
@@ -65,7 +58,13 @@ struct NativeProjectComposerBar: View {
           .buttonStyle(.plain)
           .accessibilityLabel(store.i18n.t(.chatAttachFile))
 
-          Spacer(minLength: 8)
+          NativePromptEditor(
+            text: $store.inputText,
+            placeholder: store.i18n.t(.projectMessagePlaceholder, ["name": project.title]),
+            focused: $focused
+          )
+          .environmentObject(store)
+          .layoutPriority(1)
 
           Button(action: send) {
             NativeComposerSubmitIcon(

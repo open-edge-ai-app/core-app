@@ -1,5 +1,7 @@
 import SwiftUI
 
+let nativePromptInputCornerRadius: CGFloat = 24
+
 struct NativeInputBar: View {
   @EnvironmentObject private var store: NativeChatStore
   @Binding var showingAttachmentOptions: Bool
@@ -35,91 +37,75 @@ struct NativeInputBar: View {
         NativeQueueView()
       }
 
-      if !store.pendingAttachments.isEmpty {
-        ScrollView(.horizontal, showsIndicators: false) {
-          HStack(spacing: 8) {
-            ForEach(store.pendingAttachments) { attachment in
-              HStack(spacing: 6) {
-                Text(attachment.name)
-                  .lineLimit(1)
-                Button {
-                  store.removePendingAttachment(attachment)
-                } label: {
-                  Image(systemName: "xmark")
-                }
-              }
-              .font(.system(size: 12, weight: .medium))
-              .foregroundColor(store.accentColor.color)
-              .padding(.horizontal, 10)
-              .padding(.vertical, 7)
-              .background(store.accentColor.subtleColor)
-              .clipShape(Capsule())
-            }
-          }
-        }
-      }
-
       if showsSlashCommands {
         NativeSlashCommandMenu(commands: slashCommands, onSelect: performSlashCommand)
           .environmentObject(store)
           .transition(.move(edge: .bottom).combined(with: .opacity))
       }
 
-      HStack(alignment: .bottom, spacing: 8) {
-        Button {
-          showingAttachmentOptions = true
-        } label: {
-          Image(systemName: "plus")
-            .font(.system(size: 18, weight: .medium))
-            .foregroundColor(.oeText)
-            .frame(width: 34, height: 34)
-            .background(Color.oeSubtleFill)
-            .clipShape(Circle())
+      VStack(alignment: .leading, spacing: 6) {
+        if !store.pendingAttachments.isEmpty {
+          NativePendingAttachmentStrip()
+            .environmentObject(store)
+            .padding(.top, 2)
         }
-        .buttonStyle(.plain)
-        .accessibilityLabel(store.i18n.t(.chatAttachFile))
 
-        VStack(alignment: .leading, spacing: 6) {
-          if isSearchMode {
-            NativeSearchModeChip()
-              .environmentObject(store)
-            .transition(.opacity.combined(with: .scale(scale: 0.96)))
+        HStack(alignment: .bottom, spacing: 8) {
+          Button {
+            showingAttachmentOptions = true
+          } label: {
+            Image(systemName: "plus")
+              .font(.system(size: 18, weight: .medium))
+              .foregroundColor(.oeText)
+              .frame(width: 34, height: 34)
+              .background(Color.oeSubtleFill)
+              .clipShape(Circle())
+          }
+          .buttonStyle(.plain)
+          .accessibilityLabel(store.i18n.t(.chatAttachFile))
+
+          VStack(alignment: .leading, spacing: 6) {
+            if isSearchMode {
+              NativeSearchModeChip()
+                .environmentObject(store)
+                .transition(.opacity.combined(with: .scale(scale: 0.96)))
+            }
+
+            NativePromptEditor(
+              text: $store.inputText,
+              placeholder: store.i18n.t(.chatInputPlaceholder),
+              focused: $focused
+            )
+            .environmentObject(store)
           }
 
-          NativePromptEditor(
-            text: $store.inputText,
-            placeholder: store.i18n.t(.chatInputPlaceholder),
-            focused: $focused
-          )
-          .environmentObject(store)
-        }
-
-        Button {
-          if showsStopButton {
-            store.cancelGeneration()
-          } else {
-            store.sendCurrentInput()
+          Button {
+            if showsStopButton {
+              store.cancelGeneration()
+            } else {
+              store.sendCurrentInput()
+            }
+          } label: {
+            Image(systemName: showsStopButton ? "stop.fill" : "arrow.up")
+              .font(.system(size: 15, weight: .bold))
+              .foregroundColor(submitButtonIsActive ? store.accentColor.foregroundColor : .oeMutedText)
+              .frame(width: 34, height: 34)
+              .background(submitButtonIsActive ? store.accentColor.color : Color.oeSubtleFill)
+              .clipShape(Circle())
           }
-        } label: {
-          Image(systemName: showsStopButton ? "stop.fill" : "arrow.up")
-            .font(.system(size: 15, weight: .bold))
-            .foregroundColor(submitButtonIsActive ? store.accentColor.foregroundColor : .oeMutedText)
-            .frame(width: 34, height: 34)
-            .background(submitButtonIsActive ? store.accentColor.color : Color.oeSubtleFill)
-            .clipShape(Circle())
+          .buttonStyle(.plain)
+          .disabled(!showsStopButton && !hasDraftInput)
+          .accessibilityLabel(showsStopButton ? store.i18n.t(.chatStopResponse) : store.i18n.t(.chatSendMessage))
         }
-        .buttonStyle(.plain)
-        .disabled(!showsStopButton && !hasDraftInput)
-        .accessibilityLabel(showsStopButton ? store.i18n.t(.chatStopResponse) : store.i18n.t(.chatSendMessage))
       }
       .padding(.horizontal, 8)
       .padding(.vertical, 6)
       .background(Color.oeElevatedSurface)
       .overlay(
-        Capsule(style: .continuous)
+        RoundedRectangle(cornerRadius: nativePromptInputCornerRadius, style: .continuous)
           .stroke(Color.oeBorder.opacity(focused ? 1 : 0.75), lineWidth: 1)
       )
-      .clipShape(Capsule(style: .continuous))
+      .clipShape(RoundedRectangle(cornerRadius: nativePromptInputCornerRadius, style: .continuous))
     }
     .padding(.horizontal, 12)
     .padding(.top, 6)
@@ -134,6 +120,66 @@ struct NativeInputBar: View {
     if command == .search {
       store.inputText = "\(command.trigger) "
       focused = true
+    }
+  }
+}
+
+struct NativePendingAttachmentStrip: View {
+  @EnvironmentObject private var store: NativeChatStore
+
+  var body: some View {
+    ScrollView(.horizontal, showsIndicators: false) {
+      HStack(spacing: 8) {
+        ForEach(store.pendingAttachments) { attachment in
+          NativePendingAttachmentChip(attachment: attachment) {
+            store.removePendingAttachment(attachment)
+          }
+        }
+      }
+      .padding(.horizontal, 2)
+    }
+    .frame(maxWidth: .infinity, alignment: .leading)
+  }
+}
+
+private struct NativePendingAttachmentChip: View {
+  var attachment: NativeAttachment
+  var onRemove: () -> Void
+
+  var body: some View {
+    HStack(spacing: 6) {
+      Image(systemName: iconName)
+        .font(.system(size: 11, weight: .semibold))
+
+      Text(attachment.name)
+        .lineLimit(1)
+
+      Button(action: onRemove) {
+        Image(systemName: "xmark")
+          .font(.system(size: 10, weight: .bold))
+          .frame(width: 16, height: 16)
+      }
+      .buttonStyle(.plain)
+    }
+    .font(.system(size: 12, weight: .medium))
+    .foregroundColor(Color.oeText)
+    .padding(.leading, 9)
+    .padding(.trailing, 6)
+    .frame(height: 29)
+    .background(Color.oeSubtleFill)
+    .clipShape(Capsule(style: .continuous))
+  }
+
+  private var iconName: String {
+    switch attachment.type {
+    case "image":
+      return "photo"
+    case "audio":
+      return "waveform"
+    case "video":
+      return "film"
+    default:
+      return "doc"
     }
   }
 }

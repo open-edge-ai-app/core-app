@@ -49,7 +49,6 @@ struct NativeTodoSettingsSheet: View {
       NativeTodoSettingsToggleRow(
         icon: "checkmark.circle",
         title: i18n.t(.todoHideCompletedTasks),
-        subtitle: i18n.t(.todoHideCompletedTasksDescription),
         isOn: Binding(
           get: { store.todoHideCompletedTasks },
           set: { store.setTodoHideCompletedTasks($0) }
@@ -62,7 +61,6 @@ struct NativeTodoSettingsSheet: View {
       NativeTodoSettingsToggleRow(
         icon: "tag",
         title: i18n.t(.todoShowLabelsOnTasks),
-        subtitle: i18n.t(.todoShowLabelsOnTasksDescription),
         isOn: Binding(
           get: { store.todoTagsVisibleOnTaskCards },
           set: { store.setTodoTagsVisibleOnTaskCards($0) }
@@ -152,12 +150,6 @@ struct NativeTodoSettingsSheet: View {
               isActive: canSync
             )
           }
-
-          Text(i18n.t(.todoCalendarIntegrationDescription))
-            .font(.system(size: 12, weight: .semibold))
-            .foregroundColor(Color.black.opacity(0.46))
-            .lineLimit(3)
-            .lineSpacing(2)
         }
 
         Spacer(minLength: 10)
@@ -225,11 +217,6 @@ private struct NativeTodoSettingsHeader: View {
       Text(i18n.t(.todoSettings))
         .font(.system(size: 28, weight: .bold))
         .foregroundColor(.black)
-
-      Text(i18n.t(.todoSettingsSubtitle))
-        .font(.system(size: 14, weight: .semibold))
-        .foregroundColor(Color.black.opacity(0.48))
-        .lineSpacing(3)
     }
     .frame(maxWidth: .infinity, alignment: .leading)
     .padding(.bottom, 4)
@@ -275,7 +262,6 @@ private struct NativeTodoSettingsGroup<Content: View>: View {
 private struct NativeTodoSettingsToggleRow: View {
   var icon: String
   var title: String
-  var subtitle: String
   @Binding var isOn: Bool
   var accentColor: Color
 
@@ -283,16 +269,9 @@ private struct NativeTodoSettingsToggleRow: View {
     HStack(alignment: .center, spacing: 12) {
       NativeTodoSettingsIcon(systemName: icon)
 
-      VStack(alignment: .leading, spacing: 3) {
-        Text(title)
-          .font(.system(size: 16, weight: .semibold))
-          .foregroundColor(.black)
-
-        Text(subtitle)
-          .font(.system(size: 12, weight: .semibold))
-          .foregroundColor(Color.black.opacity(0.44))
-          .lineLimit(2)
-      }
+      Text(title)
+        .font(.system(size: 16, weight: .semibold))
+        .foregroundColor(.black)
 
       Spacer(minLength: 12)
 
@@ -301,7 +280,7 @@ private struct NativeTodoSettingsToggleRow: View {
         .tint(accentColor)
     }
     .padding(.horizontal, 14)
-    .padding(.vertical, 13)
+    .frame(height: 60)
   }
 }
 

@@ -130,6 +130,7 @@ export type MultimodalMessage = {
     modelId?: ModelId | string;
     useRag?: boolean;
     stream?: boolean;
+    forceWebSearch?: boolean;
   };
 };
 
@@ -142,6 +143,7 @@ export type AIResponseStreamOptions = {
   attachments?: MultimodalAttachment[];
   chatSessionId?: string;
   modelId?: ModelId | string;
+  forceWebSearch?: boolean;
 };
 
 export type AIResponse = {
@@ -756,6 +758,7 @@ export const AIEngine = {
               chatSessionId: options.chatSessionId,
               modelId: options.modelId,
               stream: true,
+              forceWebSearch: options.forceWebSearch,
             },
             text: prompt,
           })
@@ -782,6 +785,7 @@ export const AIEngine = {
         options: {
           chatSessionId: options.chatSessionId,
           modelId: options.modelId,
+          forceWebSearch: options.forceWebSearch,
         },
         text: prompt,
       });

@@ -1,11 +1,13 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  Modal,
   NativeScrollEvent,
   NativeSyntheticEvent,
   Pressable,
   ScrollView,
   StyleSheet,
+  Switch,
+  TextInput,
   useWindowDimensions,
   View,
 } from 'react-native';
@@ -19,37 +21,42 @@ import type {
 } from '../i18n';
 import { ScaledText as Text } from '../theme/display';
 import { colors } from '../theme/tokens';
+import {
+  DEFAULT_TODO_SETTINGS,
+  TODO_LABEL_COLORS,
+  createId,
+  ensureTodoStoreLoaded,
+  getLabels as getStoreLabels,
+  getTasks as getStoreTasks,
+  removeTask,
+  setLabels as setStoreLabels,
+  setSettings as setStoreSettings,
+  setTasks as setStoreTasks,
+  subscribeTodoStore,
+  toggleTaskCompletionOn,
+  upsertTask,
+  type TodoLabel,
+  type TodoRepeatRule,
+  type TodoSettings,
+  type TodoTask,
+} from '../state/todoStore';
+import { removeTaskFromCalendar, syncTaskToCalendar } from '../native/calendarSync';
+
+const REPEAT_RULES: TodoRepeatRule[] = [
+  'none',
+  'daily',
+  'weekdays',
+  'weekly',
+  'monthly',
+];
 
 type TodoTab = 'all' | 'calendar';
-type TodoRepeatRule = 'none' | 'daily' | 'weekdays' | 'weekly' | 'monthly';
-
-type TodoSubtask = {
-  id: string;
-  isComplete: boolean;
-  title: string;
-};
-
-type TodoTask = {
-  dueDateISO?: string;
-  dueLabel: string;
-  id: string;
-  durationHours?: number;
-  isCompleted?: boolean;
-  isOverdue?: boolean;
-  isStarred?: boolean;
-  note: string;
-  repeatRule?: TodoRepeatRule;
-  startHour?: number;
-  subtasks?: TodoSubtask[];
-  title: string;
-};
 
 type Translate = (
   key: I18nKey,
   values?: Record<string, string | number>,
 ) => string;
 
-const TODO_STORAGE_KEY = 'open-edge-ai.todo-list.v1';
 const CALENDAR_START_HOUR = 1;
 const HOUR_ROW_HEIGHT = 58;
 const HOUR_LINE_OFFSET = 9;
@@ -143,7 +150,10 @@ export default function TodoListScreen() {
   const lastAutoScrolledCalendarDayRef = useRef<string | null>(null);
   const [tab, setTab] = useState<TodoTab>('all');
   const [tasks, setTasks] = useState<TodoTask[]>(initialTasks);
-  const [hasLoadedTasks, setHasLoadedTasks] = useState(false);
+  const [labels, setLabels] = useState<TodoLabel[]>([]);
+  const [settings, setSettings] = useState<TodoSettings>(DEFAULT_TODO_SETTINGS);
+  const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
+  const [showSettings, setShowSettings] = useState(false);
   const [isOverdueExpanded, setOverdueExpanded] = useState(true);
   const [isTodayExpanded, setTodayExpanded] = useState(true);
   const [selectedDate, setSelectedDate] = useState(() => new Date());
@@ -176,8 +186,12 @@ export default function TodoListScreen() {
     [screenWidth],
   );
   const visibleTasks = useMemo(
-    () => tasks.filter(task => !task.isCompleted),
-    [tasks],
+    () => (settings.hideCompleted ? tasks.filter(task => !task.isCompleted) : tasks),
+    [settings.hideCompleted, tasks],
+  );
+  const editingTask = useMemo(
+    () => tasks.find(task => task.id === editingTaskId) ?? null,
+    [editingTaskId, tasks],
   );
   const overdueTasks = useMemo(
     () => visibleTasks.filter(task => task.isOverdue && taskRepeatRule(task) === 'none'),
@@ -205,22 +219,24 @@ export default function TodoListScreen() {
 
   useEffect(() => {
     let isMounted = true;
-    AsyncStorage.getItem(TODO_STORAGE_KEY)
-      .then(value => {
-        if (!isMounted) {
-          return;
-        }
-        if (value) {
-          setTasks(JSON.parse(value) as TodoTask[]);
-        }
-      })
-      .finally(() => {
-        if (isMounted) {
-          setHasLoadedTasks(true);
-        }
-      });
+    const unsubscribe = subscribeTodoStore(state => {
+      if (isMounted) {
+        setTasks(state.tasks);
+        setLabels(state.labels);
+        setSettings(state.settings);
+      }
+    });
+    ensureTodoStoreLoaded().then(() => {
+      if (!isMounted) {
+        return;
+      }
+      if (getStoreTasks().length === 0) {
+        setStoreTasks(initialTasks);
+      }
+    });
     return () => {
       isMounted = false;
+      unsubscribe();
     };
   }, []);
 
@@ -260,13 +276,6 @@ export default function TodoListScreen() {
   }, [currentTimeHour, selectedDate, tab]);
 
   useEffect(() => {
-    if (!hasLoadedTasks) {
-      return;
-    }
-    AsyncStorage.setItem(TODO_STORAGE_KEY, JSON.stringify(tasks)).catch(() => {});
-  }, [hasLoadedTasks, tasks]);
-
-  useEffect(() => {
     const timeoutId = setTimeout(() => {
       weekStripRef.current?.scrollTo({
         animated: false,
@@ -289,7 +298,8 @@ export default function TodoListScreen() {
       startHour,
       title: t('todo.newTodo'),
     };
-    setTasks(current => [nextTask, ...current]);
+    upsertTask(nextTask);
+    syncTaskToCalendar(nextTask).catch(() => undefined);
   };
 
   const moveSelectedDate = (days: number) => {
@@ -316,37 +326,32 @@ export default function TodoListScreen() {
   };
 
   const toggleTaskComplete = (taskId: string) => {
-    setTasks(current =>
-      current.map(task =>
-        task.id === taskId ? { ...task, isCompleted: !task.isCompleted } : task,
-      ),
-    );
+    const task = getStoreTasks().find(item => item.id === taskId);
+    if (task) {
+      upsertTask(toggleTaskCompletionOn(task, selectedDate));
+    }
   };
 
   const toggleTaskStar = (taskId: string) => {
-    setTasks(current =>
-      current.map(task =>
-        task.id === taskId ? { ...task, isStarred: !task.isStarred } : task,
-      ),
-    );
+    const task = getStoreTasks().find(item => item.id === taskId);
+    if (task) {
+      upsertTask({ ...task, isStarred: !task.isStarred });
+    }
   };
 
   const toggleSubtask = (taskId: string, subtaskId: string) => {
-    setTasks(current =>
-      current.map(task => {
-        if (task.id !== taskId || !task.subtasks) {
-          return task;
-        }
-        return {
-          ...task,
-          subtasks: task.subtasks.map(subtask =>
-            subtask.id === subtaskId
-              ? { ...subtask, isComplete: !subtask.isComplete }
-              : subtask,
-          ),
-        };
-      }),
-    );
+    const task = getStoreTasks().find(item => item.id === taskId);
+    if (!task || !task.subtasks) {
+      return;
+    }
+    upsertTask({
+      ...task,
+      subtasks: task.subtasks.map(subtask =>
+        subtask.id === subtaskId
+          ? { ...subtask, isComplete: !subtask.isComplete }
+          : subtask,
+      ),
+    });
   };
 
   return (
@@ -354,6 +359,13 @@ export default function TodoListScreen() {
       <View style={styles.header}>
         <View style={styles.headerRow}>
           <Text style={styles.dateTitle}>{dateTitle}</Text>
+          <View style={styles.flexSpacer} />
+          <Pressable
+            onPress={() => setShowSettings(true)}
+            style={styles.settingsButton}
+          >
+            <Text style={styles.settingsIcon}>⚙</Text>
+          </Pressable>
         </View>
         <View style={styles.weekStripContainer}>
           <Pressable onPress={() => moveSelectedDate(-7)}>
@@ -456,6 +468,9 @@ export default function TodoListScreen() {
                   onToggleComplete={() => toggleTaskComplete(task.id)}
                   onToggleStar={() => toggleTaskStar(task.id)}
                   onToggleSubtask={subtaskId => toggleSubtask(task.id, subtaskId)}
+                  onEdit={() => setEditingTaskId(task.id)}
+                  cardLabels={resolveTaskLabels(task, labels)}
+                  showTags={settings.showTags}
                   dueLabel={formatTaskDueLabel(task, locale, t)}
                   repeatText={repeatLabel(task.repeatRule, t)}
                   task={task}
@@ -474,6 +489,9 @@ export default function TodoListScreen() {
                   onToggleComplete={() => toggleTaskComplete(task.id)}
                   onToggleStar={() => toggleTaskStar(task.id)}
                   onToggleSubtask={subtaskId => toggleSubtask(task.id, subtaskId)}
+                  onEdit={() => setEditingTaskId(task.id)}
+                  cardLabels={resolveTaskLabels(task, labels)}
+                  showTags={settings.showTags}
                   dueLabel={formatTaskDueLabel(task, locale, t)}
                   repeatText={repeatLabel(task.repeatRule, t)}
                   task={task}
@@ -531,7 +549,320 @@ export default function TodoListScreen() {
           <Text style={styles.plusText}>+</Text>
         </Pressable>
       </View>
+
+      <TodoSettingsModal
+        onChange={setStoreSettings}
+        onClose={() => setShowSettings(false)}
+        settings={settings}
+        t={t}
+        visible={showSettings}
+      />
+      <TodoEditorModal
+        labels={labels}
+        onClose={() => setEditingTaskId(null)}
+        onDelete={taskId => {
+          const target = getStoreTasks().find(item => item.id === taskId);
+          if (target) {
+            removeTaskFromCalendar(target).catch(() => undefined);
+          }
+          removeTask(taskId);
+          setEditingTaskId(null);
+        }}
+        onSave={task => {
+          upsertTask(task);
+          syncTaskToCalendar(task).catch(() => undefined);
+        }}
+        t={t}
+        task={editingTask}
+      />
     </View>
+  );
+}
+
+function resolveTaskLabels(task: TodoTask, labels: TodoLabel[]): TodoLabel[] {
+  return (task.labelIds ?? [])
+    .map(id => labels.find(label => label.id === id))
+    .filter((label): label is TodoLabel => label !== undefined);
+}
+
+function TodoSettingsModal({
+  onChange,
+  onClose,
+  settings,
+  t,
+  visible,
+}: {
+  onChange: (next: TodoSettings) => void;
+  onClose: () => void;
+  settings: TodoSettings;
+  t: Translate;
+  visible: boolean;
+}) {
+  const rows: { key: keyof TodoSettings; label: string }[] = [
+    { key: 'hideCompleted', label: t('todo.settings.hideCompleted') },
+    { key: 'showTags', label: t('todo.settings.showTags') },
+    { key: 'calendarSync', label: t('todo.settings.calendarSync') },
+  ];
+
+  return (
+    <Modal
+      animationType="slide"
+      onRequestClose={onClose}
+      transparent
+      visible={visible}
+    >
+      <Pressable onPress={onClose} style={styles.modalBackdrop}>
+        <Pressable onPress={() => {}} style={styles.sheet}>
+          <View style={styles.sheetHeader}>
+            <Text style={styles.sheetTitle}>{t('todo.settings')}</Text>
+            <Pressable onPress={onClose}>
+              <Text style={styles.sheetClose}>✕</Text>
+            </Pressable>
+          </View>
+          {rows.map(row => (
+            <View key={row.key} style={styles.settingsRow}>
+              <Text style={styles.settingsLabel}>{row.label}</Text>
+              <Switch
+                onValueChange={value => onChange({ ...settings, [row.key]: value })}
+                value={settings[row.key]}
+              />
+            </View>
+          ))}
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+}
+
+function TodoEditorModal({
+  labels,
+  onClose,
+  onDelete,
+  onSave,
+  t,
+  task,
+}: {
+  labels: TodoLabel[];
+  onClose: () => void;
+  onDelete: (taskId: string) => void;
+  onSave: (task: TodoTask) => void;
+  t: Translate;
+  task: TodoTask | null;
+}) {
+  const [draft, setDraft] = useState<TodoTask | null>(task);
+  const [newLabel, setNewLabel] = useState('');
+  const [newSubtask, setNewSubtask] = useState('');
+
+  useEffect(() => {
+    setDraft(task);
+    setNewLabel('');
+    setNewSubtask('');
+  }, [task]);
+
+  if (!draft) {
+    return null;
+  }
+
+  const update = (patch: Partial<TodoTask>) => {
+    setDraft(current =>
+      current ? { ...current, ...patch, updatedAtISO: new Date().toISOString() } : current,
+    );
+  };
+
+  const commit = (next: TodoTask) => {
+    onSave(next);
+  };
+
+  const toggleLabel = (labelId: string) => {
+    const current = draft.labelIds ?? [];
+    update({ labelIds: current.includes(labelId) ? [] : [labelId] });
+  };
+
+  const addLabel = () => {
+    const title = newLabel.trim();
+    if (!title) {
+      return;
+    }
+    const label: TodoLabel = {
+      id: createId('label'),
+      title,
+      colorHex: TODO_LABEL_COLORS[labels.length % TODO_LABEL_COLORS.length],
+      createdAtISO: new Date().toISOString(),
+    };
+    setStoreLabels([...getStoreLabels(), label]);
+    update({ labelIds: [label.id] });
+    setNewLabel('');
+  };
+
+  const addSubtask = () => {
+    const title = newSubtask.trim();
+    if (!title) {
+      return;
+    }
+    update({
+      subtasks: [
+        ...(draft.subtasks ?? []),
+        { id: createId('subtask'), title, isComplete: false },
+      ],
+    });
+    setNewSubtask('');
+  };
+
+  const toggleSubtask = (subtaskId: string) => {
+    update({
+      subtasks: (draft.subtasks ?? []).map(item =>
+        item.id === subtaskId ? { ...item, isComplete: !item.isComplete } : item,
+      ),
+    });
+  };
+
+  const deleteSubtask = (subtaskId: string) => {
+    update({
+      subtasks: (draft.subtasks ?? []).filter(item => item.id !== subtaskId),
+    });
+  };
+
+  return (
+    <Modal
+      animationType="slide"
+      onRequestClose={onClose}
+      transparent
+      visible={task !== null}
+    >
+      <Pressable onPress={onClose} style={styles.modalBackdrop}>
+        <Pressable onPress={() => {}} style={styles.sheet}>
+          <View style={styles.sheetHeader}>
+            <Text style={styles.sheetTitle}>{t('todo.edit')}</Text>
+            <Pressable
+              onPress={() => {
+                commit(draft);
+                onClose();
+              }}
+            >
+              <Text style={styles.sheetDone}>{t('common.save')}</Text>
+            </Pressable>
+          </View>
+          <ScrollView style={styles.editorScroll}>
+            <Text style={styles.fieldLabel}>{t('todo.field.title')}</Text>
+            <TextInput
+              onChangeText={value => update({ title: value })}
+              style={styles.input}
+              value={draft.title}
+            />
+
+            <Text style={styles.fieldLabel}>{t('todo.field.note')}</Text>
+            <TextInput
+              multiline
+              onChangeText={value => update({ note: value })}
+              style={[styles.input, styles.inputMultiline]}
+              value={draft.note}
+            />
+
+            <Text style={styles.fieldLabel}>{t('todo.field.repeat')}</Text>
+            <View style={styles.optionRow}>
+              {REPEAT_RULES.map(rule => {
+                const active = (draft.repeatRule ?? 'none') === rule;
+                return (
+                  <Pressable
+                    key={rule}
+                    onPress={() => update({ repeatRule: rule })}
+                    style={[styles.option, active && styles.optionActive]}
+                  >
+                    <Text
+                      style={[
+                        styles.optionText,
+                        active && styles.optionTextActive,
+                      ]}
+                    >
+                      {repeatLabel(rule, t)}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+
+            <Text style={styles.fieldLabel}>{t('todo.field.label')}</Text>
+            <View style={styles.optionRow}>
+              {labels.map(label => {
+                const active = (draft.labelIds ?? []).includes(label.id);
+                return (
+                  <Pressable
+                    key={label.id}
+                    onPress={() => toggleLabel(label.id)}
+                    style={[
+                      styles.chip,
+                      { backgroundColor: active ? label.colorHex : colors.muted },
+                    ]}
+                  >
+                    <Text
+                      style={active ? styles.chipText : styles.chipTextInactive}
+                    >
+                      {label.title}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+            <View style={styles.inlineAddRow}>
+              <TextInput
+                onChangeText={setNewLabel}
+                onSubmitEditing={addLabel}
+                placeholder={t('todo.newLabel')}
+                style={[styles.input, styles.inlineInput]}
+                value={newLabel}
+              />
+              <Pressable onPress={addLabel} style={styles.inlineAddButton}>
+                <Text style={styles.inlineAddText}>＋</Text>
+              </Pressable>
+            </View>
+
+            <Text style={styles.fieldLabel}>{t('todo.field.subtasks')}</Text>
+            {(draft.subtasks ?? []).map(subtask => (
+              <View key={subtask.id} style={styles.subtaskEditRow}>
+                <Pressable onPress={() => toggleSubtask(subtask.id)}>
+                  <Text style={styles.subtaskCheck}>
+                    {subtask.isComplete ? '◉' : '○'}
+                  </Text>
+                </Pressable>
+                <Text style={styles.subtaskEditText}>{subtask.title}</Text>
+                <Pressable onPress={() => deleteSubtask(subtask.id)}>
+                  <Text style={styles.subtaskDelete}>✕</Text>
+                </Pressable>
+              </View>
+            ))}
+            <View style={styles.inlineAddRow}>
+              <TextInput
+                onChangeText={setNewSubtask}
+                onSubmitEditing={addSubtask}
+                placeholder={t('todo.addSubtask')}
+                style={[styles.input, styles.inlineInput]}
+                value={newSubtask}
+              />
+              <Pressable onPress={addSubtask} style={styles.inlineAddButton}>
+                <Text style={styles.inlineAddText}>＋</Text>
+              </Pressable>
+            </View>
+
+            <View style={styles.editorActions}>
+              <Pressable
+                onPress={() => update({ isStarred: !draft.isStarred })}
+                style={styles.editorActionButton}
+              >
+                <Text style={styles.editorActionText}>
+                  {draft.isStarred ? '★' : '☆'} {t('todo.important')}
+                </Text>
+              </Pressable>
+              <Pressable
+                onPress={() => onDelete(draft.id)}
+                style={[styles.editorActionButton, styles.editorDeleteButton]}
+              >
+                <Text style={styles.editorDeleteText}>{t('todo.delete')}</Text>
+              </Pressable>
+            </View>
+          </ScrollView>
+        </Pressable>
+      </Pressable>
+    </Modal>
   );
 }
 
@@ -553,18 +884,24 @@ function SectionHeader({
 }
 
 function TodoCard({
+  cardLabels,
   dueLabel,
+  onEdit,
   onToggleComplete,
   onToggleStar,
   onToggleSubtask,
   repeatText,
+  showTags,
   task,
 }: {
+  cardLabels: TodoLabel[];
   dueLabel: string;
+  onEdit: () => void;
   onToggleComplete: () => void;
   onToggleStar: () => void;
   onToggleSubtask: (subtaskId: string) => void;
   repeatText: string;
+  showTags: boolean;
   task: TodoTask;
 }) {
   return (
@@ -574,11 +911,27 @@ function TodoCard({
           onPress={onToggleComplete}
           style={[styles.checkCircle, task.isCompleted && styles.checkCircleActive]}
         />
-        <View style={styles.cardBody}>
+        <Pressable style={styles.cardBody} onPress={onEdit}>
           <View style={styles.cardTitleRow}>
-            <Text style={styles.cardTitle}>{task.title}</Text>
+            <Text
+              style={[styles.cardTitle, task.isCompleted && styles.cardTitleDone]}
+            >
+              {task.title}
+            </Text>
             <Text style={styles.cardChevron}>⌃</Text>
           </View>
+          {showTags && cardLabels.length > 0 ? (
+            <View style={styles.chipRow}>
+              {cardLabels.map(label => (
+                <View
+                  key={label.id}
+                  style={[styles.chip, { backgroundColor: label.colorHex }]}
+                >
+                  <Text style={styles.chipText}>{label.title}</Text>
+                </View>
+              ))}
+            </View>
+          ) : null}
           {task.note ? <Text style={styles.cardNote}>{task.note}</Text> : null}
           <View style={styles.cardMetaRow}>
             <Text
@@ -603,7 +956,7 @@ function TodoCard({
               </Text>
             </Pressable>
           </View>
-        </View>
+        </Pressable>
       </View>
 
       {task.subtasks ? (
@@ -841,6 +1194,186 @@ function getCalendarEventWidth(screenWidth: number) {
 }
 
 const styles = StyleSheet.create({
+  settingsButton: {
+    padding: 8,
+  },
+  settingsIcon: {
+    color: colors.mutedForeground,
+    fontSize: 20,
+  },
+  cardTitleDone: {
+    color: colors.mutedForeground,
+    textDecorationLine: 'line-through',
+  },
+  chipRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginTop: 6,
+  },
+  chip: {
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  chipText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  chipTextInactive: {
+    color: colors.mutedForeground,
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  modalBackdrop: {
+    backgroundColor: 'rgba(0, 0, 0, 0.35)',
+    flex: 1,
+    justifyContent: 'flex-end',
+  },
+  sheet: {
+    backgroundColor: colors.card,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    maxHeight: '85%',
+    padding: 20,
+  },
+  sheetHeader: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+  },
+  sheetTitle: {
+    color: colors.foreground,
+    fontSize: 18,
+    fontWeight: '700',
+  },
+  sheetClose: {
+    color: colors.mutedForeground,
+    fontSize: 18,
+  },
+  sheetDone: {
+    color: colors.primary,
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  settingsRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingVertical: 12,
+  },
+  settingsLabel: {
+    color: colors.foreground,
+    fontSize: 16,
+  },
+  editorScroll: {
+    marginTop: 4,
+  },
+  fieldLabel: {
+    color: colors.mutedForeground,
+    fontSize: 13,
+    fontWeight: '600',
+    marginBottom: 6,
+    marginTop: 14,
+  },
+  input: {
+    backgroundColor: colors.muted,
+    borderRadius: 10,
+    color: colors.foreground,
+    fontSize: 15,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  inputMultiline: {
+    minHeight: 64,
+    textAlignVertical: 'top',
+  },
+  optionRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 4,
+  },
+  option: {
+    backgroundColor: colors.muted,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  optionActive: {
+    backgroundColor: colors.primary,
+  },
+  optionText: {
+    color: colors.foreground,
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  optionTextActive: {
+    color: colors.primaryForeground,
+  },
+  inlineAddRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 8,
+  },
+  inlineInput: {
+    flex: 1,
+  },
+  inlineAddButton: {
+    alignItems: 'center',
+    backgroundColor: colors.muted,
+    borderRadius: 10,
+    height: 38,
+    justifyContent: 'center',
+    width: 38,
+  },
+  inlineAddText: {
+    color: colors.foreground,
+    fontSize: 18,
+  },
+  subtaskEditRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 10,
+    paddingVertical: 6,
+  },
+  subtaskEditText: {
+    color: colors.foreground,
+    flex: 1,
+    fontSize: 14,
+  },
+  subtaskDelete: {
+    color: colors.mutedForeground,
+    fontSize: 14,
+  },
+  editorActions: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 20,
+  },
+  editorActionButton: {
+    alignItems: 'center',
+    backgroundColor: colors.muted,
+    borderRadius: 12,
+    flex: 1,
+    paddingVertical: 12,
+  },
+  editorActionText: {
+    color: colors.foreground,
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  editorDeleteButton: {
+    backgroundColor: '#FCE8E8',
+  },
+  editorDeleteText: {
+    color: colors.destructive,
+    fontSize: 14,
+    fontWeight: '600',
+  },
   bottomBar: {
     alignItems: 'center',
     bottom: 24,

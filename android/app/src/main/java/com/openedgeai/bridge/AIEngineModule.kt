@@ -796,6 +796,7 @@ class AIEngineModule(
             useRag = options?.getOptionalBoolean("useRag"),
             stream = options?.getOptionalBoolean("stream") ?: false,
             chatSessionId = options?.getOptionalString("chatSessionId"),
+            forceWebSearch = options?.getOptionalBoolean("forceWebSearch") ?: false,
         )
     }
 

@@ -62,7 +62,7 @@ class QueryRouter(
             question = normalized,
             force = request.useRag == true,
         )
-        if (localRagPlan.shouldUse) {
+        if (localRagPlan.shouldUse && !request.forceWebSearch) {
             val ragRequest = requestWithHistory.copy(
                 text = buildRagPrompt(
                     question = normalized,
@@ -75,7 +75,7 @@ class QueryRouter(
             return response.withCitationFooter(routerCitationsFor(localRagPlan))
         }
 
-        if (shouldUseWebSearch(normalized)) {
+        if (request.forceWebSearch || shouldUseWebSearch(normalized)) {
             val webContext = webSearchManager.search(
                 query = normalized,
                 useLocalLlmSanitizer = true,
@@ -153,7 +153,7 @@ class QueryRouter(
                 question = normalized,
                 force = request.useRag == true,
             )
-            if (localRagPlan.shouldUse) {
+            if (localRagPlan.shouldUse && !request.forceWebSearch) {
                 val ragRequest = requestWithHistory.copy(
                     text = buildRagPrompt(
                         question = normalized,
@@ -173,7 +173,7 @@ class QueryRouter(
                 )
             }
 
-            if (shouldUseWebSearch(normalized)) {
+            if (request.forceWebSearch || shouldUseWebSearch(normalized)) {
                 val webContext = webSearchManager.search(
                     query = normalized,
                     useLocalLlmSanitizer = true,

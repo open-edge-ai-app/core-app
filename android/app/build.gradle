@@ -125,6 +125,11 @@ dependencies {
     implementation("com.google.mediapipe:tasks-genai:0.20230731")
     implementation("com.google.mediapipe:tasks-text:0.20230731")
     implementation("com.google.mediapipe:tasks-vision:0.20230731")
+    // On-device OCR for image attachments (mirrors iOS Vision text recognition).
+    implementation("com.google.mlkit:text-recognition:16.0.1")
+    implementation("com.google.mlkit:text-recognition-korean:16.0.1")
+    // androidx.core (ContextCompat / notifications) for the native bridge modules.
+    implementation("androidx.core:core-ktx:1.13.1")
 
     if (hermesEnabled.toBoolean()) {
         implementation("com.facebook.react:hermes-android")

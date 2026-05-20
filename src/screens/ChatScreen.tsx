@@ -27,6 +27,18 @@ import AIEngine, {
   MultimodalAttachment,
 } from '../native/AIEngine';
 import { pickAttachment } from '../native/FilePicker';
+import {
+  applyTodoToolCalls,
+  buildTodoToolPromptSection,
+  buildTodoToolStateSection,
+  shouldUseTodoTool,
+} from '../native/todoTools';
+import { ensureTodoStoreLoaded } from '../state/todoStore';
+import {
+  hideGenerationProgress,
+  showGenerationProgress,
+} from '../native/progressNotification';
+import { buildAttachmentOcrContext } from '../native/knowledge';
 import { ScaledText as Text } from '../theme/display';
 import { appIcons } from '../theme/icons';
 import { colors } from '../theme/tokens';
@@ -243,7 +255,12 @@ function ChatScreen({
   }, [isGenerating, isStoppingGeneration]);
 
   const runChatRequest = useCallback(async (request: QueuedChatRequest) => {
-    const prompt = request.prompt.trim();
+    const rawPrompt = request.prompt.trim();
+    const isSearchSlash = /^\/search(\s|$)/i.test(rawPrompt);
+    const searchModeActive = selectedMode === 'search' || isSearchSlash;
+    const prompt = isSearchSlash
+      ? rawPrompt.replace(/^\/search\s*/i, '').trim()
+      : rawPrompt;
     const attachmentsForPrompt = request.attachments;
 
     const promptForModel = prompt || t('chat.analyzeAttachedFile');
@@ -257,6 +274,7 @@ function ChatScreen({
     );
     const assistantMessage = createMessage('assistant', '', responseModelName);
     const messagesWithUserPrompt = [...conversationMessages, userMessage];
+    let baseMessages = messagesWithUserPrompt;
     const nextSessionTitle = !hasUserMessages ? PENDING_CHAT_TITLE : undefined;
     const shouldGenerateSessionTitle = !hasUserMessages;
 
@@ -320,19 +338,55 @@ function ChatScreen({
     setIsGenerating(true);
     setIsStoppingGeneration(false);
     setIsAwaitingFirstChunk(true);
+    showGenerationProgress(
+      t('chat.loadingResponse', { model: responseModelName }),
+    ).catch(() => undefined);
 
     let streamedResponse = '';
     try {
       await messagesChange.persisted?.catch(() => undefined);
 
       if (resolvedSessionId) {
-        await AIEngine.compactChatSession(resolvedSessionId, 'auto').catch(
-          () => undefined,
-        );
+        const compaction = await AIEngine.compactChatSession(
+          resolvedSessionId,
+          'auto',
+        ).catch(() => null);
+        if (compaction?.compacted) {
+          baseMessages = [
+            ...messagesWithUserPrompt,
+            createMessage('system', t('chat.contextCompacted')),
+          ];
+        }
       }
+
+      const todoToolRelevant = shouldUseTodoTool(promptForModel);
+      if (todoToolRelevant) {
+        await ensureTodoStoreLoaded();
+      }
+      const todoStateSection = todoToolRelevant
+        ? buildTodoToolStateSection()
+        : null;
+      const todoToolMessages: AIChatMessage[] = todoToolRelevant
+        ? [
+            { content: buildTodoToolPromptSection(), role: 'system' },
+            ...(todoStateSection
+              ? [{ content: todoStateSection, role: 'system' } as AIChatMessage]
+              : []),
+          ]
+        : [];
+
+      const ocrContext =
+        attachmentsForPrompt.length > 0
+          ? await buildAttachmentOcrContext(attachmentsForPrompt)
+          : '';
+      const ocrMessages: AIChatMessage[] = ocrContext
+        ? [{ content: ocrContext, role: 'system' }]
+        : [];
 
       const requestHistory = [
         ...systemHistory,
+        ...todoToolMessages,
+        ...ocrMessages,
         ...(shouldIncludeRuntimeContext(promptForModel)
           ? [createRuntimeContextMessage()]
           : []),
@@ -349,7 +403,7 @@ function ChatScreen({
 
         onMessagesChange(
           [
-            ...messagesWithUserPrompt,
+            ...baseMessages,
             {
               ...assistantMessage,
               reasoning: assistantMessage.reasoning,
@@ -372,7 +426,7 @@ function ChatScreen({
         assistantMessage.reasoning = reasoning;
         onMessagesChange(
           [
-            ...messagesWithUserPrompt,
+            ...baseMessages,
             {
               ...assistantMessage,
               reasoning,
@@ -407,6 +461,7 @@ function ChatScreen({
         {
           attachments: attachmentsForPrompt,
           chatSessionId: resolvedSessionId ?? undefined,
+          forceWebSearch: searchModeActive,
           modelId: selectedModelId,
         },
       );
@@ -418,16 +473,36 @@ function ChatScreen({
         return;
       }
 
-      if (response !== streamedResponse) {
-        updateAssistantMessage(response);
+      let finalText = response;
+      const responseHasToolBlock =
+        /```(?:openedge[_-]tool|openedge_tool_call|todo_tool)/.test(response);
+      if (todoToolRelevant || responseHasToolBlock) {
+        await ensureTodoStoreLoaded();
+        const todoOutcome = applyTodoToolCalls(response);
+        if (todoOutcome.results.length > 0) {
+          const parts: string[] = [];
+          if (todoOutcome.cleanedText) {
+            parts.push(todoOutcome.cleanedText);
+          }
+          if (todoOutcome.listText) {
+            parts.push(todoOutcome.listText);
+          } else if (todoOutcome.didMutate) {
+            parts.push(todoOutcome.results.join('\n'));
+          }
+          finalText = parts.join('\n\n').trim() || response;
+        }
+      }
+
+      if (finalText !== streamedResponse) {
+        updateAssistantMessage(finalText);
       }
 
       const finalMessages = [
-        ...messagesWithUserPrompt,
+        ...baseMessages,
         {
           ...assistantMessage,
           reasoning: assistantMessage.reasoning,
-          text: response,
+          text: finalText,
         },
       ];
       await onMessagesChange(finalMessages, nextSessionTitle).persisted?.catch(
@@ -435,7 +510,7 @@ function ChatScreen({
       );
 
       if (shouldGenerateSessionTitle) {
-        AIEngine.generateChatTitle(userMessageText || promptForModel, response)
+        AIEngine.generateChatTitle(userMessageText || promptForModel, finalText)
           .then(title => {
             const normalizedTitle = title.trim();
             if (normalizedTitle) {
@@ -462,7 +537,7 @@ function ChatScreen({
 
       onMessagesChange(
         [
-          ...messagesWithUserPrompt,
+          ...baseMessages,
           ...(streamedResponse
             ? [{ ...assistantMessage, text: streamedResponse }]
             : []),
@@ -471,6 +546,7 @@ function ChatScreen({
         nextSessionTitle,
       );
     } finally {
+      hideGenerationProgress().catch(() => undefined);
       if (generationTokenRef.current === generationToken) {
         setIsGenerating(false);
         setIsStoppingGeneration(false);
@@ -483,6 +559,7 @@ function ChatScreen({
     messages,
     onMessagesChange,
     onSessionTitleChange,
+    selectedMode,
     selectedModelLabel,
     selectedModelId,
     sessionId,

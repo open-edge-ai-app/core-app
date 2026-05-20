@@ -103,13 +103,111 @@ extension NativeChatStore {
     return formatter.string(from: date)
   }
 
-  func todoToolSummary(_ item: NativeTodoItem) -> String {
-    let status = item.isCompleted ? "완료" : "미완료"
+  func todoToolListReferenceDate(filter: String, targetDate: Date) -> Date {
+    let calendar = Calendar.current
+    switch filter {
+    case "today":
+      return Date()
+    case "tomorrow":
+      return calendar.date(byAdding: .day, value: 1, to: Date()) ?? targetDate
+    default:
+      return targetDate
+    }
+  }
+
+  func todoToolListTitle(filter: String, targetDate: Date) -> String {
+    switch filter {
+    case "today":
+      return "오늘 할 일"
+    case "tomorrow":
+      return "내일 할 일"
+    case "overdue":
+      return "기한 지난 할 일"
+    case "date":
+      return "\(todoToolReadableDate(targetDate)) 할 일"
+    default:
+      return "Todo 목록"
+    }
+  }
+
+  func todoToolSortKey(for item: NativeTodoItem, on occurrenceDate: Date) -> Double {
+    let priorityOffset = item.isStarred ? -20_000_000_000 : 0
+    let overdueOffset = item.isOverdue() ? -10_000_000_000 : 0
+    return Double(priorityOffset + overdueOffset) + todoToolOccurrenceStartDate(for: item, on: occurrenceDate).timeIntervalSince1970
+  }
+
+  func todoToolReadableSummary(_ item: NativeTodoItem, index: Int, occurrenceDate: Date) -> String {
+    let status = item.isCompleted(on: occurrenceDate) ? "완료" : "미완료"
+    let titlePrefix = item.isStarred ? "중요 " : ""
+    var lines = [
+      "\(index). \(titlePrefix)\(item.title)",
+      "   - 시간: \(todoToolReadableTimeRange(for: item, on: occurrenceDate))",
+      "   - 상태: \(status)"
+    ]
+
     let labels = todoLabels
       .filter { item.labelIds.contains($0.id) }
       .map(\.title)
       .joined(separator: ", ")
-    let labelText = labels.isEmpty ? "" : ", 태그: \(labels)"
-    return "- \(item.title) (\(status), \(todoToolDateTimeText(todoStartDate(for: item)))\(labelText), id: \(item.id))"
+    if !labels.isEmpty {
+      lines.append("   - 태그: \(labels)")
+    }
+    if item.recurrenceRule.isRepeating {
+      lines.append("   - 반복: \(item.recurrenceRule.title)")
+    }
+    if !item.note.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+      let note = NativePromptCompressor.clippedMessageBody(item.note, maxEstimatedTokens: 40)
+      lines.append("   - 메모: \(note)")
+    }
+
+    return lines.joined(separator: "\n")
+  }
+
+  func todoToolReadableTimeRange(for item: NativeTodoItem, on occurrenceDate: Date) -> String {
+    let startDate = todoToolOccurrenceStartDate(for: item, on: occurrenceDate)
+    let endDate = Calendar.current.date(
+      byAdding: .minute,
+      value: Int((item.durationHours * 60).rounded()),
+      to: startDate
+    ) ?? todoEndDate(for: item)
+
+    return "\(todoToolReadableDate(startDate)) \(todoToolReadableTime(startDate))-\(todoToolReadableTime(endDate))"
+  }
+
+  func todoToolOccurrenceStartDate(for item: NativeTodoItem, on occurrenceDate: Date) -> Date {
+    let calendar = Calendar.current
+    let baseDate = item.occurs(on: occurrenceDate) ? occurrenceDate : item.dueDate
+    let hour = Int(floor(item.startHour))
+    let minute = Int(round((item.startHour - Double(hour)) * 60))
+    return calendar.date(
+      bySettingHour: min(max(hour, 0), 23),
+      minute: min(max(minute, 0), 59),
+      second: 0,
+      of: baseDate
+    ) ?? todoStartDate(for: item)
+  }
+
+  func todoToolReadableDate(_ date: Date) -> String {
+    let calendar = Calendar.current
+    if calendar.isDateInToday(date) {
+      return "오늘"
+    }
+    if calendar.isDateInTomorrow(date) {
+      return "내일"
+    }
+
+    let formatter = DateFormatter()
+    formatter.locale = Locale(identifier: selectedLanguage == .korean ? "ko_KR" : "en_US_POSIX")
+    formatter.timeZone = .current
+    formatter.dateFormat = selectedLanguage == .korean ? "M월 d일 EEEE" : "MMM d, EEEE"
+    return formatter.string(from: date)
+  }
+
+  func todoToolReadableTime(_ date: Date) -> String {
+    let formatter = DateFormatter()
+    formatter.locale = Locale(identifier: selectedLanguage == .korean ? "ko_KR" : "en_US_POSIX")
+    formatter.timeZone = .current
+    formatter.dateFormat = selectedLanguage == .korean ? "a h:mm" : "h:mm a"
+    return formatter.string(from: date)
   }
 }

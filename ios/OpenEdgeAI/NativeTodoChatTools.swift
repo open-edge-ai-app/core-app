@@ -37,13 +37,19 @@ extension NativeChatStore {
       return
     }
 
-    let results = parsed.calls.map(executeTodoToolCall)
-    let resultSection = results.map { "- \($0)" }.joined(separator: "\n")
+    let results = parsed.calls.map { call in
+      (name: call.name, text: executeTodoToolCall(call))
+    }
     let finalText: String
-    if parsed.cleanedText.isEmpty {
-      finalText = "Todo 작업을 처리했습니다.\n\(resultSection)"
+    if parsed.calls.allSatisfy({ $0.name == "todo_list" }) {
+      finalText = results.map(\.text).joined(separator: "\n\n")
     } else {
-      finalText = "\(parsed.cleanedText)\n\nTodo 작업 결과:\n\(resultSection)"
+      let resultSection = results.map { "- \($0.text)" }.joined(separator: "\n")
+      if parsed.cleanedText.isEmpty {
+        finalText = "요청한 Todo 작업을 완료했습니다.\n\(resultSection)"
+      } else {
+        finalText = "\(parsed.cleanedText)\n\n\(resultSection)"
+      }
     }
 
     mutateSession(sessionId) { session in
@@ -92,6 +98,7 @@ extension NativeChatStore {
     let filter = args.todoString("filter")?.lowercased() ?? "all"
     let targetDate = todoToolDate(from: args.todoString("date")) ?? Date()
     let includeCompleted = args.todoBool("include_completed") ?? !todoHideCompletedTasks
+    let referenceDate = todoToolListReferenceDate(filter: filter, targetDate: targetDate)
     let items = todoItems.filter { item in
       switch filter {
       case "today":
@@ -107,13 +114,22 @@ extension NativeChatStore {
         return true
       }
     }
-      .filter { includeCompleted || !$0.isCompleted(on: targetDate) }
+      .filter { includeCompleted || !$0.isCompleted(on: referenceDate) }
+      .sorted { lhs, rhs in
+        todoToolSortKey(for: lhs, on: referenceDate) < todoToolSortKey(for: rhs, on: referenceDate)
+      }
       .prefix(12)
 
     guard !items.isEmpty else {
-      return "조회 결과가 없습니다."
+      return "\(todoToolListTitle(filter: filter, targetDate: targetDate))에 등록된 할 일이 없습니다."
     }
-    return "조회 결과:\n" + items.map(todoToolSummary).joined(separator: "\n")
+
+    let title = todoToolListTitle(filter: filter, targetDate: targetDate)
+    let countText = "\(title)은 \(items.count)개입니다."
+    let itemLines = items.enumerated().map { index, item in
+      todoToolReadableSummary(item, index: index + 1, occurrenceDate: referenceDate)
+    }
+    return ([countText, ""] + itemLines).joined(separator: "\n")
   }
 
   private func executeTodoCreate(_ args: [String: Any]) -> String {

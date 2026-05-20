@@ -131,6 +131,8 @@ enum NativeToolRegistry {
     - Korean declarative schedule statements such as "오늘 오후 4시부터 5시까지 대한상공회의소 미팅 가신데" mean create a Todo/schedule item unless the sentence is clearly a question.
     - If the date/time and event content are sufficient, do not ask "등록해 드릴까요?" or similar confirmation questions; emit todo_create immediately.
     - If the assistant previously asked whether to register a Todo/schedule and the user replies yes/okay/알겠어/네/응, use the previous user schedule statement and emit todo_create immediately.
+    - When the user asks about today's tasks, priorities, or "오늘 할 일", call todo_list with filter="today" instead of filter="all".
+    - For todo_list, do not include internal ids in visible prose; the app formats the list for the user.
     - You may include an array of calls in one block.
     - Dates must use the user's local timezone in yyyy-MM-dd HH:mm format when possible.
     - Keep any normal answer concise; the app will execute the tool and hide the JSON block from the user.

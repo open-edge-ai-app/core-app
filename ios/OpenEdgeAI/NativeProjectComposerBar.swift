@@ -49,42 +49,36 @@ struct NativeProjectComposerBar: View {
             .padding(.top, 2)
         }
 
-        HStack(alignment: .bottom, spacing: 8) {
+        NativePromptEditor(
+          text: $store.inputText,
+          placeholder: store.i18n.t(.projectMessagePlaceholder, ["name": project.title]),
+          focused: $focused
+        )
+        .environmentObject(store)
+
+        HStack(alignment: .center, spacing: 8) {
           Button {
             showingAttachmentOptions = true
           } label: {
-            Image(systemName: "plus")
-              .font(.system(size: 18, weight: .medium))
-              .foregroundColor(.oeText)
-              .frame(width: 34, height: 34)
-              .background(Color.oeSubtleFill)
-              .clipShape(Circle())
+            NativeComposerCircleButtonIcon(systemName: "plus")
           }
           .buttonStyle(.plain)
           .accessibilityLabel(store.i18n.t(.chatAttachFile))
 
-          VStack(alignment: .leading, spacing: 6) {
-            if isSearchMode {
-              NativeSearchModeChip()
-                .environmentObject(store)
-                .transition(.opacity.combined(with: .scale(scale: 0.96)))
-            }
-
-            NativePromptEditor(
-              text: $store.inputText,
-              placeholder: store.i18n.t(.projectMessagePlaceholder, ["name": project.title]),
-              focused: $focused
-            )
-            .environmentObject(store)
+          if isSearchMode {
+            NativeSearchModeChip()
+              .environmentObject(store)
+              .transition(.opacity.combined(with: .scale(scale: 0.96)))
           }
 
+          Spacer(minLength: 8)
+
           Button(action: send) {
-            Image(systemName: showsStopButton ? "stop.fill" : "arrow.up")
-              .font(.system(size: 15, weight: .bold))
-              .foregroundColor(submitButtonIsActive ? store.accentColor.foregroundColor : .oeMutedText)
-              .frame(width: 34, height: 34)
-              .background(submitButtonIsActive ? store.accentColor.color : Color.oeSubtleFill)
-              .clipShape(Circle())
+            NativeComposerSubmitIcon(
+              systemName: showsStopButton ? "stop.fill" : "arrow.up",
+              isActive: submitButtonIsActive
+            )
+            .environmentObject(store)
           }
           .buttonStyle(.plain)
           .disabled(!showsStopButton && !hasDraftInput)

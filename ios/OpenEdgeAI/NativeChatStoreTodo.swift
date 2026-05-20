@@ -143,6 +143,18 @@ extension NativeChatStore {
     deleteTodoCalendarEventIfNeeded(identifier: item.calendarEventIdentifier)
   }
 
+  func deleteTodoOccurrence(_ item: NativeTodoItem, occurrenceDate: Date) {
+    guard item.recurrenceRule.isRepeating else {
+      deleteTodo(item)
+      return
+    }
+
+    mutateTodoItem(item.id) { todo in
+      todo.deleteOccurrence(on: occurrenceDate)
+    }
+    syncTodoItemsToCalendarIfNeeded()
+  }
+
   func createTodoLabel(title: String) {
     let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !trimmedTitle.isEmpty else {

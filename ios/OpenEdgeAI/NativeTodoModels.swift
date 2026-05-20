@@ -114,6 +114,7 @@ struct NativeTodoItem: Identifiable, Codable, Equatable, Hashable {
   var repeatRule: NativeTodoRepeatRule?
   var calendarEventIdentifier: String?
   var completedOccurrenceDayKeys: Set<String>
+  var deletedOccurrenceDayKeys: Set<String>
   var labelIds: [String]
 
   init(
@@ -131,6 +132,7 @@ struct NativeTodoItem: Identifiable, Codable, Equatable, Hashable {
     repeatRule: NativeTodoRepeatRule = .none,
     calendarEventIdentifier: String? = nil,
     completedOccurrenceDayKeys: Set<String> = [],
+    deletedOccurrenceDayKeys: Set<String> = [],
     labelIds: [String] = []
   ) {
     self.id = id
@@ -147,6 +149,7 @@ struct NativeTodoItem: Identifiable, Codable, Equatable, Hashable {
     self.repeatRule = repeatRule.isRepeating ? repeatRule : nil
     self.calendarEventIdentifier = calendarEventIdentifier
     self.completedOccurrenceDayKeys = completedOccurrenceDayKeys
+    self.deletedOccurrenceDayKeys = deletedOccurrenceDayKeys
     self.labelIds = Self.uniqueLabelIds(labelIds)
   }
 
@@ -165,6 +168,7 @@ struct NativeTodoItem: Identifiable, Codable, Equatable, Hashable {
     case repeatRule
     case calendarEventIdentifier
     case completedOccurrenceDayKeys
+    case deletedOccurrenceDayKeys
     case labelIds
   }
 
@@ -186,6 +190,7 @@ struct NativeTodoItem: Identifiable, Codable, Equatable, Hashable {
     isCompleted = decodedRepeatRule.isRepeating ? false : decodedIsCompleted
     calendarEventIdentifier = try container.decodeIfPresent(String.self, forKey: .calendarEventIdentifier)
     completedOccurrenceDayKeys = try container.decodeIfPresent(Set<String>.self, forKey: .completedOccurrenceDayKeys) ?? []
+    deletedOccurrenceDayKeys = try container.decodeIfPresent(Set<String>.self, forKey: .deletedOccurrenceDayKeys) ?? []
     labelIds = Self.uniqueLabelIds(try container.decodeIfPresent([String].self, forKey: .labelIds) ?? [])
   }
 
@@ -204,6 +209,9 @@ struct NativeTodoItem: Identifiable, Codable, Equatable, Hashable {
     let targetDay = calendar.startOfDay(for: date)
     let anchorDay = calendar.startOfDay(for: dueDate)
     guard targetDay >= anchorDay else {
+      return false
+    }
+    guard !isDeleted(on: date, calendar: calendar) else {
       return false
     }
 
@@ -230,7 +238,14 @@ struct NativeTodoItem: Identifiable, Codable, Equatable, Hashable {
   }
 
   func isVisible(on date: Date, calendar: Calendar = .current) -> Bool {
-    occurs(on: date, calendar: calendar) && !isCompleted(on: date, calendar: calendar)
+    occurs(on: date, calendar: calendar) && !isDeleted(on: date, calendar: calendar) && !isCompleted(on: date, calendar: calendar)
+  }
+
+  func isDeleted(on date: Date, calendar: Calendar = .current) -> Bool {
+    guard recurrenceRule.isRepeating else {
+      return false
+    }
+    return deletedOccurrenceDayKeys.contains(Self.occurrenceDayKey(for: date, calendar: calendar))
   }
 
   mutating func toggleCompletion(on date: Date, calendar: Calendar = .current) {
@@ -245,6 +260,17 @@ struct NativeTodoItem: Identifiable, Codable, Equatable, Hashable {
     } else {
       completedOccurrenceDayKeys.insert(key)
     }
+  }
+
+  mutating func deleteOccurrence(on date: Date, calendar: Calendar = .current) {
+    guard recurrenceRule.isRepeating else {
+      isCompleted = true
+      return
+    }
+
+    let key = Self.occurrenceDayKey(for: date, calendar: calendar)
+    deletedOccurrenceDayKeys.insert(key)
+    completedOccurrenceDayKeys.remove(key)
   }
 
   static func occurrenceDayKey(for date: Date, calendar: Calendar = .current) -> String {

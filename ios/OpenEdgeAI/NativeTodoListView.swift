@@ -21,6 +21,11 @@ struct NativeCalendarEvent: Identifiable {
   var isCompleted: Bool
 }
 
+private struct NativeRecurringTodoDeleteRequest {
+  var task: NativeTodoItem
+  var occurrenceDate: Date
+}
+
 struct NativeTodoListView: View {
   @Environment(\.dismiss) private var dismiss
   @EnvironmentObject private var store: NativeChatStore
@@ -34,6 +39,7 @@ struct NativeTodoListView: View {
   @State private var showingSettings = false
   @State private var editingTodo: NativeTodoItem?
   @State private var expandedTaskIds: Set<String> = []
+  @State private var recurringDeleteRequest: NativeRecurringTodoDeleteRequest?
 
   private var calendar: Calendar {
     Calendar.current
@@ -134,6 +140,36 @@ struct NativeTodoListView: View {
         .environmentObject(store)
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
+    }
+    .confirmationDialog(
+      store.i18n.t(.todoDeleteRepeatTitle),
+      isPresented: isShowingRecurringDeleteDialog,
+      titleVisibility: .visible
+    ) {
+      if let recurringDeleteRequest {
+        Button(store.i18n.t(.todoDeleteThisOccurrence)) {
+          withAnimation(.easeInOut(duration: 0.18)) {
+            store.deleteTodoOccurrence(
+              recurringDeleteRequest.task,
+              occurrenceDate: recurringDeleteRequest.occurrenceDate
+            )
+          }
+          self.recurringDeleteRequest = nil
+        }
+
+        Button(store.i18n.t(.todoDeleteEntireSeries), role: .destructive) {
+          withAnimation(.easeInOut(duration: 0.18)) {
+            store.deleteTodo(recurringDeleteRequest.task)
+          }
+          self.recurringDeleteRequest = nil
+        }
+      }
+
+      Button(store.i18n.t(.commonCancel), role: .cancel) {
+        recurringDeleteRequest = nil
+      }
+    } message: {
+      Text(store.i18n.t(.todoDeleteRepeatMessage))
     }
     .onReceive(Timer.publish(every: 60, on: .main, in: .common).autoconnect()) { date in
       currentDate = date
@@ -284,11 +320,33 @@ struct NativeTodoListView: View {
         editingTodo = task
       },
       onDelete: {
-        withAnimation(.easeInOut(duration: 0.18)) {
-          store.deleteTodo(task)
+        requestDelete(task, occurrenceDate: occurrenceDate)
+      }
+    )
+  }
+
+  private var isShowingRecurringDeleteDialog: Binding<Bool> {
+    Binding(
+      get: { recurringDeleteRequest != nil },
+      set: { isPresented in
+        if !isPresented {
+          recurringDeleteRequest = nil
         }
       }
     )
+  }
+
+  private func requestDelete(_ task: NativeTodoItem, occurrenceDate: Date) {
+    if task.recurrenceRule.isRepeating {
+      recurringDeleteRequest = NativeRecurringTodoDeleteRequest(
+        task: task,
+        occurrenceDate: occurrenceDate
+      )
+    } else {
+      withAnimation(.easeInOut(duration: 0.18)) {
+        store.deleteTodo(task)
+      }
+    }
   }
 
   private func toggleExpandedTask(_ task: NativeTodoItem) {
@@ -316,6 +374,9 @@ struct NativeTodoListView: View {
             i18n: i18n,
             onEditEvent: { task in
               editingTodo = task
+            },
+            onDeleteEvent: { task in
+              requestDelete(task, occurrenceDate: selectedDate)
             }
           )
             .padding(.bottom, 132)

@@ -6,6 +6,7 @@ struct NativeTodoTimeline: View {
   var currentTimeHour: CGFloat?
   var i18n: NativeI18n
   var onEditEvent: (NativeTodoItem) -> Void
+  var onDeleteEvent: (NativeTodoItem) -> Void
 
   private let timelineStart: CGFloat = 1
   private let timelineEnd: CGFloat = 24
@@ -39,6 +40,12 @@ struct NativeTodoTimeline: View {
                 onEditEvent(event.task)
               } label: {
                 Label(i18n.t(.todoEdit), systemImage: "pencil")
+              }
+
+              Button(role: .destructive) {
+                onDeleteEvent(event.task)
+              } label: {
+                Label(i18n.t(.todoDelete), systemImage: "trash")
               }
             }
             .offset(

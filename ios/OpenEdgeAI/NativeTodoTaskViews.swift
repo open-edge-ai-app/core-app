@@ -222,7 +222,7 @@ struct NativeTodoInlineTagGroup: View {
       }
 
     }
-    .frame(maxWidth: 150, alignment: .leading)
+    .fixedSize(horizontal: true, vertical: false)
   }
 }
 

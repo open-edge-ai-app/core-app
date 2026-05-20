@@ -152,6 +152,10 @@ enum NativeI18nKey: String, CaseIterable {
   case todoUnstar
   case todoEdit
   case todoDelete
+  case todoDeleteRepeatTitle
+  case todoDeleteRepeatMessage
+  case todoDeleteThisOccurrence
+  case todoDeleteEntireSeries
   case todoDisplay
   case todoHideCompletedTasks
   case todoLabels

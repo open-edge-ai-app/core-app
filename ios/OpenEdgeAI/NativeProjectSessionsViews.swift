@@ -1,17 +1,11 @@
 import SwiftUI
 
-enum NativeProjectPageTab {
-  case chats
-  case sources
-}
-
 struct NativeProjectSessionsPage: View {
   @Environment(\.dismiss) private var dismiss
   @EnvironmentObject private var store: NativeChatStore
   var project: NativeProject
   @Binding var showingAttachmentOptions: Bool
   var onSelectSession: (NativeChatSession) -> Void
-  @State private var selectedTab: NativeProjectPageTab = .chats
   @State private var renameTarget: NativeRenameTarget?
 
   private var currentProject: NativeProject {
@@ -34,14 +28,7 @@ struct NativeProjectSessionsPage: View {
       ZStack(alignment: .bottom) {
         ScrollView(showsIndicators: false) {
           VStack(alignment: .leading, spacing: 0) {
-            tabBar
-              .padding(.bottom, 28)
-
-            if selectedTab == .chats {
-              chatList
-            } else {
-              sourcesPlaceholder
-            }
+            chatList
           }
           .padding(.horizontal, 28)
           .padding(.top, 22)
@@ -104,29 +91,6 @@ struct NativeProjectSessionsPage: View {
     .background(Color.oeBackground)
   }
 
-  private var tabBar: some View {
-    HStack(spacing: 12) {
-      projectTabButton(store.i18n.t(.projectChatTab), tab: .chats)
-      projectTabButton(store.i18n.t(.projectSourcesTab), tab: .sources)
-      Spacer()
-    }
-  }
-
-  private func projectTabButton(_ title: String, tab: NativeProjectPageTab) -> some View {
-    Button {
-      selectedTab = tab
-    } label: {
-      Text(title)
-        .font(.system(size: 14, weight: selectedTab == tab ? .semibold : .medium))
-        .foregroundColor(selectedTab == tab ? .oeText : .oeMutedText)
-        .padding(.horizontal, 16)
-        .frame(height: 38)
-        .background(selectedTab == tab ? Color.oeSubtleFill : Color.clear)
-        .clipShape(Capsule())
-    }
-    .buttonStyle(.plain)
-  }
-
   private var chatList: some View {
     VStack(alignment: .leading, spacing: 20) {
       if projectSessions.isEmpty {
@@ -154,19 +118,6 @@ struct NativeProjectSessionsPage: View {
         }
       }
     }
-  }
-
-  private var sourcesPlaceholder: some View {
-    VStack(alignment: .leading, spacing: 8) {
-      Text(store.i18n.t(.projectNoSources))
-        .font(.system(size: 15, weight: .semibold))
-        .foregroundColor(.oeText)
-
-      Text(store.i18n.t(.projectSourcesPlaceholder))
-        .font(.system(size: 13, weight: .regular))
-        .foregroundColor(.oeMutedText)
-    }
-    .padding(.top, 6)
   }
 
   private func sessionSubtitle(for session: NativeChatSession) -> String {

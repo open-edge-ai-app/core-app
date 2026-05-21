@@ -1,9 +1,13 @@
 import {
   ensureTodoStoreLoaded,
+  getSettings,
   getTasks,
   occurrenceDayKey,
+  removeTaskOccurrence,
   setLabels,
+  setSettings,
   setTasks,
+  taskIsDeletedOn,
   taskOccursOn,
   toggleTaskCompletionOn,
   type TodoTask,
@@ -22,6 +26,7 @@ beforeAll(async () => {
 beforeEach(() => {
   setTasks([]);
   setLabels([]);
+  setSettings({ hideCompleted: true, showTags: false, calendarSync: false });
 });
 
 describe('parseTodoToolCalls', () => {
@@ -43,8 +48,7 @@ describe('parseTodoToolCalls', () => {
   });
 
   it('ignores non-todo tools', () => {
-    const text =
-      '```openedge_tool\n{"tool":"web_search","arguments":{}}\n```';
+    const text = '```openedge_tool\n{"tool":"web_search","arguments":{}}\n```';
     const { calls } = parseTodoToolCalls(text);
     expect(calls).toHaveLength(0);
   });
@@ -97,6 +101,14 @@ describe('applyTodoToolCalls end to end', () => {
 });
 
 describe('recurrence helpers', () => {
+  it('uses Android parity defaults for Todo settings', () => {
+    expect(getSettings()).toEqual({
+      calendarSync: false,
+      hideCompleted: true,
+      showTags: false,
+    });
+  });
+
   it('weekly task occurs only on the matching weekday', () => {
     const anchor = new Date(2026, 4, 20);
     const task: TodoTask = {
@@ -124,6 +136,48 @@ describe('recurrence helpers', () => {
     const day = new Date(2026, 4, 22);
     task = toggleTaskCompletionOn(task, day);
     expect(task.completedOccurrenceDayKeys).toContain(occurrenceDayKey(day));
+  });
+
+  it('deletes a single recurring occurrence without removing the series', () => {
+    const anchor = new Date(2026, 4, 20);
+    const task: TodoTask = {
+      id: 't',
+      title: 'Daily',
+      note: '',
+      dueLabel: 'Tasks',
+      dueDateISO: anchor.toISOString(),
+      repeatRule: 'daily',
+    };
+    setTasks([task]);
+
+    const deletedDay = new Date(2026, 4, 22);
+    const updated = removeTaskOccurrence(task.id, deletedDay);
+
+    expect(updated).not.toBeNull();
+    expect(getTasks()).toHaveLength(1);
+    expect(taskIsDeletedOn(getTasks()[0], deletedDay)).toBe(true);
+    expect(taskOccursOn(getTasks()[0], new Date(2026, 4, 23))).toBe(true);
+  });
+
+  it('todo_delete can remove one recurring occurrence when date is provided', () => {
+    const anchor = new Date(2026, 4, 20);
+    const task: TodoTask = {
+      id: 'recurring-delete',
+      title: 'Daily',
+      note: '',
+      dueLabel: 'Tasks',
+      dueDateISO: anchor.toISOString(),
+      repeatRule: 'daily',
+    };
+    setTasks([task]);
+
+    executeTodoToolCall({
+      name: 'todo_delete',
+      arguments: { id: task.id, date: '2026-05-22' },
+    });
+
+    expect(getTasks()).toHaveLength(1);
+    expect(taskIsDeletedOn(getTasks()[0], new Date(2026, 4, 22))).toBe(true);
   });
 });
 

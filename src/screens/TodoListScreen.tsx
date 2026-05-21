@@ -12,14 +12,11 @@ import {
   View,
 } from 'react-native';
 
-import {
-  useI18n,
-} from '../i18n';
-import type {
-  I18nKey,
-  LocaleCode,
-} from '../i18n';
+import AppIcon from '../components/AppIcon';
+import { useI18n } from '../i18n';
+import type { I18nKey, LocaleCode } from '../i18n';
 import { ScaledText as Text } from '../theme/display';
+import { appIcons } from '../theme/icons';
 import { colors } from '../theme/tokens';
 import {
   DEFAULT_TODO_SETTINGS,
@@ -28,11 +25,17 @@ import {
   ensureTodoStoreLoaded,
   getLabels as getStoreLabels,
   getTasks as getStoreTasks,
-  removeTask,
+  removeTaskOccurrence,
   setLabels as setStoreLabels,
   setSettings as setStoreSettings,
   setTasks as setStoreTasks,
   subscribeTodoStore,
+  taskAnchorDate,
+  taskIsCompletedOn,
+  taskIsOverdue,
+  taskIsVisibleOn,
+  taskOccursOn,
+  taskRepeatRule,
   toggleTaskCompletionOn,
   upsertTask,
   type TodoLabel,
@@ -40,7 +43,13 @@ import {
   type TodoSettings,
   type TodoTask,
 } from '../state/todoStore';
-import { removeTaskFromCalendar, syncTaskToCalendar } from '../native/calendarSync';
+import {
+  getCalendarPermissionStatus,
+  requestCalendarPermission,
+  removeTaskFromCalendar,
+  syncTaskToCalendar,
+  type CalendarPermissionStatus,
+} from '../native/calendarSync';
 
 const REPEAT_RULES: TodoRepeatRule[] = [
   'none',
@@ -51,6 +60,11 @@ const REPEAT_RULES: TodoRepeatRule[] = [
 ];
 
 type TodoTab = 'all' | 'calendar';
+
+type RecurringDeleteRequest = {
+  occurrenceDate: Date;
+  task: TodoTask;
+};
 
 type Translate = (
   key: I18nKey,
@@ -99,8 +113,7 @@ const initialTasks: TodoTask[] = [
     durationHours: 1,
     id: 'seed-email-james',
     isStarred: true,
-    note:
-      'Email Mrs. James for the new intern we have next week from Alex Carter, a marketing student from Brookfield University. Confirm their start date, schedule, and onboarding needs.',
+    note: 'Email Mrs. James for the new intern we have next week from Alex Carter, a marketing student from Brookfield University. Confirm their start date, schedule, and onboarding needs.',
     startHour: 19,
     title: 'Email Back Mrs James',
   },
@@ -152,10 +165,17 @@ export default function TodoListScreen() {
   const [tasks, setTasks] = useState<TodoTask[]>(initialTasks);
   const [labels, setLabels] = useState<TodoLabel[]>([]);
   const [settings, setSettings] = useState<TodoSettings>(DEFAULT_TODO_SETTINGS);
+  const [calendarPermissionStatus, setCalendarPermissionStatus] =
+    useState<CalendarPermissionStatus>('unknown');
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
+  const [recurringDeleteRequest, setRecurringDeleteRequest] =
+    useState<RecurringDeleteRequest | null>(null);
   const [showSettings, setShowSettings] = useState(false);
   const [isOverdueExpanded, setOverdueExpanded] = useState(true);
   const [isTodayExpanded, setTodayExpanded] = useState(true);
+  const [expandedTaskIds, setExpandedTaskIds] = useState<
+    Record<string, boolean>
+  >({});
   const [selectedDate, setSelectedDate] = useState(() => new Date());
   const [currentDate, setCurrentDate] = useState(() => new Date());
   const dateTitle = useMemo(
@@ -167,16 +187,7 @@ export default function TodoListScreen() {
       }).format(selectedDate),
     [locale, selectedDate],
   );
-  const selectedSectionTitle = useMemo(
-    () =>
-      isSameCalendarDay(selectedDate, new Date())
-        ? t('todo.today')
-        : new Intl.DateTimeFormat(locale, {
-            day: 'numeric',
-            month: 'short',
-          }).format(selectedDate),
-    [locale, selectedDate, t],
-  );
+  const selectedSectionTitle = useMemo(() => t('todo.tasks'), [t]);
   const weekDays = useMemo(
     () => buildWeekDays(selectedDate, locale),
     [locale, selectedDate],
@@ -185,24 +196,31 @@ export default function TodoListScreen() {
     () => getCalendarEventWidth(screenWidth),
     [screenWidth],
   );
-  const visibleTasks = useMemo(
-    () => (settings.hideCompleted ? tasks.filter(task => !task.isCompleted) : tasks),
-    [settings.hideCompleted, tasks],
-  );
+  const visibleTasks = useMemo(() => tasks, [tasks]);
   const editingTask = useMemo(
     () => tasks.find(task => task.id === editingTaskId) ?? null,
     [editingTaskId, tasks],
   );
   const overdueTasks = useMemo(
-    () => visibleTasks.filter(task => task.isOverdue && taskRepeatRule(task) === 'none'),
-    [visibleTasks],
+    () =>
+      visibleTasks.filter(
+        task =>
+          taskIsOverdue(task) &&
+          (!settings.hideCompleted ||
+            !taskIsCompletedOn(task, taskAnchorDate(task))),
+      ),
+    [settings.hideCompleted, visibleTasks],
   );
   const selectedDateTasks = useMemo(
     () =>
       visibleTasks.filter(
-        task => !task.isOverdue && taskOccursOnDate(task, selectedDate),
+        task =>
+          !taskIsOverdue(task) &&
+          (settings.hideCompleted
+            ? taskIsVisibleOn(task, selectedDate)
+            : taskOccursOn(task, selectedDate)),
       ),
-    [selectedDate, visibleTasks],
+    [selectedDate, settings.hideCompleted, visibleTasks],
   );
   const calendarTasks = useMemo(
     () => selectedDateTasks.filter(task => task.dueLabel !== 'Yesterday'),
@@ -286,9 +304,31 @@ export default function TodoListScreen() {
     return () => clearTimeout(timeoutId);
   }, [selectedDate]);
 
+  useEffect(() => {
+    if (!showSettings) {
+      return;
+    }
+    getCalendarPermissionStatus()
+      .then(setCalendarPermissionStatus)
+      .catch(() => setCalendarPermissionStatus('unknown'));
+  }, [showSettings]);
+
+  const updateTodoSettings = async (next: TodoSettings) => {
+    if (next.calendarSync && !settings.calendarSync) {
+      const status = await requestCalendarPermission();
+      setCalendarPermissionStatus(status);
+      setStoreSettings({
+        ...next,
+        calendarSync: status === 'granted',
+      });
+      return;
+    }
+    setStoreSettings(next);
+  };
+
   const addTask = () => {
     const startHour = 13 + (selectedDateTasks.length % 5);
-      const nextTask: TodoTask = {
+    const nextTask: TodoTask = {
       dueDateISO: dateOnSelectedDay(selectedDate, startHour),
       dueLabel: isSameCalendarDay(selectedDate, new Date()) ? 'Today' : 'Tasks',
       durationHours: 1,
@@ -308,6 +348,13 @@ export default function TodoListScreen() {
       next.setDate(next.getDate() + days);
       return next;
     });
+  };
+
+  const toggleTaskExpanded = (taskId: string) => {
+    setExpandedTaskIds(current => ({
+      ...current,
+      [taskId]: !current[taskId],
+    }));
   };
 
   const handleWeekStripScrollEnd = (
@@ -354,6 +401,59 @@ export default function TodoListScreen() {
     });
   };
 
+  const createLabel = (title: string) => {
+    const trimmedTitle = title.trim();
+    if (!trimmedTitle) {
+      return;
+    }
+    const currentLabels = getStoreLabels();
+    const colorHex =
+      TODO_LABEL_COLORS[currentLabels.length % TODO_LABEL_COLORS.length];
+    setStoreLabels([
+      {
+        colorHex,
+        createdAtISO: new Date().toISOString(),
+        id: createId('label'),
+        title: trimmedTitle,
+      },
+      ...currentLabels,
+    ]);
+  };
+
+  const deleteLabel = (labelId: string) => {
+    setStoreLabels(getStoreLabels().filter(label => label.id !== labelId));
+    setStoreTasks(
+      getStoreTasks().map(task => ({
+        ...task,
+        labelIds: (task.labelIds ?? []).filter(id => id !== labelId),
+      })),
+    );
+  };
+
+  const deleteTaskSeries = (task: TodoTask) => {
+    removeTaskFromCalendar(task).catch(() => undefined);
+    setStoreTasks(getStoreTasks().filter(item => item.id !== task.id));
+  };
+
+  const requestDeleteTask = (taskId: string) => {
+    const target = getStoreTasks().find(item => item.id === taskId);
+    if (!target) {
+      return;
+    }
+
+    if (taskRepeatRule(target) !== 'none') {
+      setRecurringDeleteRequest({
+        occurrenceDate: selectedDate,
+        task: target,
+      });
+      setEditingTaskId(null);
+      return;
+    }
+
+    deleteTaskSeries(target);
+    setEditingTaskId(null);
+  };
+
   return (
     <View style={styles.screen}>
       <View style={styles.header}>
@@ -361,10 +461,16 @@ export default function TodoListScreen() {
           <Text style={styles.dateTitle}>{dateTitle}</Text>
           <View style={styles.flexSpacer} />
           <Pressable
+            accessibilityLabel="설정"
+            accessibilityRole="button"
             onPress={() => setShowSettings(true)}
             style={styles.settingsButton}
           >
-            <Text style={styles.settingsIcon}>⚙</Text>
+            <AppIcon
+              color={colors.foreground}
+              icon={appIcons.settings}
+              size={18}
+            />
           </Pressable>
         </View>
         <View style={styles.weekStripContainer}>
@@ -387,10 +493,7 @@ export default function TodoListScreen() {
               <Pressable
                 key={day.id}
                 onPress={() => setSelectedDate(day.date)}
-                style={[
-                  styles.weekDay,
-                  day.isSelected && styles.weekDayActive,
-                ]}
+                style={[styles.weekDay, day.isSelected && styles.weekDayActive]}
               >
                 <Text
                   style={[
@@ -465,9 +568,14 @@ export default function TodoListScreen() {
             ? overdueTasks.map(task => (
                 <TodoCard
                   key={task.id}
+                  isExpanded={Boolean(expandedTaskIds[task.id])}
+                  isCompleted={taskIsCompletedOn(task, taskAnchorDate(task))}
                   onToggleComplete={() => toggleTaskComplete(task.id)}
+                  onToggleExpanded={() => toggleTaskExpanded(task.id)}
                   onToggleStar={() => toggleTaskStar(task.id)}
-                  onToggleSubtask={subtaskId => toggleSubtask(task.id, subtaskId)}
+                  onToggleSubtask={subtaskId =>
+                    toggleSubtask(task.id, subtaskId)
+                  }
                   onEdit={() => setEditingTaskId(task.id)}
                   cardLabels={resolveTaskLabels(task, labels)}
                   showTags={settings.showTags}
@@ -477,6 +585,9 @@ export default function TodoListScreen() {
                 />
               ))
             : null}
+          {isOverdueExpanded && overdueTasks.length === 0 ? (
+            <Text style={styles.emptySectionText}>{t('todo.noOverdue')}</Text>
+          ) : null}
           <SectionHeader
             expanded={isTodayExpanded}
             onPress={() => setTodayExpanded(current => !current)}
@@ -486,9 +597,14 @@ export default function TodoListScreen() {
             ? selectedDateTasks.map(task => (
                 <TodoCard
                   key={task.id}
+                  isExpanded={Boolean(expandedTaskIds[task.id])}
+                  isCompleted={taskIsCompletedOn(task, selectedDate)}
                   onToggleComplete={() => toggleTaskComplete(task.id)}
+                  onToggleExpanded={() => toggleTaskExpanded(task.id)}
                   onToggleStar={() => toggleTaskStar(task.id)}
-                  onToggleSubtask={subtaskId => toggleSubtask(task.id, subtaskId)}
+                  onToggleSubtask={subtaskId =>
+                    toggleSubtask(task.id, subtaskId)
+                  }
                   onEdit={() => setEditingTaskId(task.id)}
                   cardLabels={resolveTaskLabels(task, labels)}
                   showTags={settings.showTags}
@@ -498,6 +614,11 @@ export default function TodoListScreen() {
                 />
               ))
             : null}
+          {isTodayExpanded && selectedDateTasks.length === 0 ? (
+            <Text style={styles.emptySectionText}>
+              {t('todo.noTasksForDate')}
+            </Text>
+          ) : null}
         </ScrollView>
       ) : (
         <View style={styles.calendarContent}>
@@ -507,25 +628,29 @@ export default function TodoListScreen() {
             showsVerticalScrollIndicator={false}
           >
             {CALENDAR_HOURS.map(hour => (
-                <View key={hour} style={styles.hourRow}>
-                  <Text style={styles.hourText}>{formatTimelineHour(hour, locale)}</Text>
-                  <View style={styles.hourGuide}>
-                    <View style={styles.hourLine} />
-                    {hour < 24 ? <View style={styles.halfHourTick} /> : null}
-                  </View>
+              <View key={hour} style={styles.hourRow}>
+                <Text style={styles.hourText}>
+                  {formatTimelineHour(hour, locale)}
+                </Text>
+                <View style={styles.hourGuide}>
+                  <View style={styles.hourLine} />
+                  {hour < 24 ? <View style={styles.halfHourTick} /> : null}
                 </View>
-              ))}
-            {calendarTasks.length > 0 ? (
-              calendarTasks.slice(0, 4).map((task, index) => (
-                <CalendarBlock
-                  eventWidth={calendarEventWidth}
-                  key={task.id}
-                  lane={index}
-                  locale={locale}
-                  task={task}
-                />
-              ))
-            ) : null}
+              </View>
+            ))}
+            {calendarTasks.length > 0
+              ? calendarTasks
+                  .slice(0, 4)
+                  .map((task, index) => (
+                    <CalendarBlock
+                      eventWidth={calendarEventWidth}
+                      key={task.id}
+                      lane={index}
+                      locale={locale}
+                      task={task}
+                    />
+                  ))
+              : null}
             {currentTimeHour !== null ? (
               <View
                 style={[
@@ -546,12 +671,22 @@ export default function TodoListScreen() {
 
       <View style={styles.bottomBar}>
         <Pressable onPress={addTask} style={styles.bottomButton}>
-          <Text style={styles.plusText}>+</Text>
+          <AppIcon
+            color={colors.primaryForeground}
+            icon={appIcons.plus}
+            size={22}
+          />
         </Pressable>
       </View>
 
       <TodoSettingsModal
-        onChange={setStoreSettings}
+        calendarPermissionStatus={calendarPermissionStatus}
+        labels={labels}
+        onCreateLabel={createLabel}
+        onDeleteLabel={deleteLabel}
+        onChange={next => {
+          updateTodoSettings(next).catch(() => undefined);
+        }}
         onClose={() => setShowSettings(false)}
         settings={settings}
         t={t}
@@ -560,20 +695,33 @@ export default function TodoListScreen() {
       <TodoEditorModal
         labels={labels}
         onClose={() => setEditingTaskId(null)}
-        onDelete={taskId => {
-          const target = getStoreTasks().find(item => item.id === taskId);
-          if (target) {
-            removeTaskFromCalendar(target).catch(() => undefined);
-          }
-          removeTask(taskId);
-          setEditingTaskId(null);
-        }}
+        onDelete={requestDeleteTask}
         onSave={task => {
           upsertTask(task);
           syncTaskToCalendar(task).catch(() => undefined);
         }}
         t={t}
         task={editingTask}
+      />
+      <RecurringDeleteModal
+        onClose={() => setRecurringDeleteRequest(null)}
+        onDeleteOccurrence={() => {
+          if (recurringDeleteRequest) {
+            removeTaskOccurrence(
+              recurringDeleteRequest.task.id,
+              recurringDeleteRequest.occurrenceDate,
+            );
+          }
+          setRecurringDeleteRequest(null);
+        }}
+        onDeleteSeries={() => {
+          if (recurringDeleteRequest) {
+            deleteTaskSeries(recurringDeleteRequest.task);
+          }
+          setRecurringDeleteRequest(null);
+        }}
+        t={t}
+        visible={recurringDeleteRequest != null}
       />
     </View>
   );
@@ -586,23 +734,39 @@ function resolveTaskLabels(task: TodoTask, labels: TodoLabel[]): TodoLabel[] {
 }
 
 function TodoSettingsModal({
+  calendarPermissionStatus,
+  labels,
   onChange,
   onClose,
+  onCreateLabel,
+  onDeleteLabel,
   settings,
   t,
   visible,
 }: {
+  calendarPermissionStatus: CalendarPermissionStatus;
+  labels: TodoLabel[];
   onChange: (next: TodoSettings) => void;
   onClose: () => void;
+  onCreateLabel: (title: string) => void;
+  onDeleteLabel: (labelId: string) => void;
   settings: TodoSettings;
   t: Translate;
   visible: boolean;
 }) {
+  const [newLabelTitle, setNewLabelTitle] = useState('');
   const rows: { key: keyof TodoSettings; label: string }[] = [
     { key: 'hideCompleted', label: t('todo.settings.hideCompleted') },
     { key: 'showTags', label: t('todo.settings.showTags') },
     { key: 'calendarSync', label: t('todo.settings.calendarSync') },
   ];
+  const submitLabel = () => {
+    if (!newLabelTitle.trim()) {
+      return;
+    }
+    onCreateLabel(newLabelTitle);
+    setNewLabelTitle('');
+  };
 
   return (
     <Modal
@@ -623,15 +787,141 @@ function TodoSettingsModal({
             <View key={row.key} style={styles.settingsRow}>
               <Text style={styles.settingsLabel}>{row.label}</Text>
               <Switch
-                onValueChange={value => onChange({ ...settings, [row.key]: value })}
+                onValueChange={value =>
+                  onChange({ ...settings, [row.key]: value })
+                }
                 value={settings[row.key]}
               />
             </View>
           ))}
+          <Text style={styles.settingsHelp}>
+            {calendarSettingsMessage(calendarPermissionStatus)}
+          </Text>
+          <View style={styles.settingsSectionDivider} />
+          <Text style={styles.settingsSectionTitle}>
+            {t('todo.field.label')}
+          </Text>
+          <View style={styles.labelInputRow}>
+            <TextInput
+              accessibilityLabel={t('todo.newLabel')}
+              onChangeText={setNewLabelTitle}
+              onSubmitEditing={submitLabel}
+              placeholder={t('todo.newLabel')}
+              placeholderTextColor={colors.mutedForeground}
+              returnKeyType="done"
+              style={styles.labelInput}
+              value={newLabelTitle}
+            />
+            <Pressable
+              accessibilityRole="button"
+              disabled={!newLabelTitle.trim()}
+              onPress={submitLabel}
+              style={[
+                styles.labelAddButton,
+                !newLabelTitle.trim() && styles.labelAddButtonDisabled,
+              ]}
+            >
+              <Text style={styles.labelAddButtonText}>추가</Text>
+            </Pressable>
+          </View>
+          {labels.length === 0 ? (
+            <Text style={styles.labelEmptyText}>{t('todo.noLabel')}</Text>
+          ) : (
+            labels.map(label => (
+              <View key={label.id} style={styles.labelManageRow}>
+                <View
+                  style={[
+                    styles.labelColorDot,
+                    { backgroundColor: label.colorHex },
+                  ]}
+                />
+                <Text numberOfLines={1} style={styles.labelManageTitle}>
+                  {label.title}
+                </Text>
+                <Pressable
+                  accessibilityLabel={`${label.title} ${t('todo.delete')}`}
+                  accessibilityRole="button"
+                  onPress={() => onDeleteLabel(label.id)}
+                  style={styles.labelDeleteButton}
+                >
+                  <Text style={styles.labelDeleteButtonText}>
+                    {t('todo.delete')}
+                  </Text>
+                </Pressable>
+              </View>
+            ))
+          )}
         </Pressable>
       </Pressable>
     </Modal>
   );
+}
+
+function RecurringDeleteModal({
+  onClose,
+  onDeleteOccurrence,
+  onDeleteSeries,
+  t,
+  visible,
+}: {
+  onClose: () => void;
+  onDeleteOccurrence: () => void;
+  onDeleteSeries: () => void;
+  t: Translate;
+  visible: boolean;
+}) {
+  return (
+    <Modal
+      animationType="fade"
+      onRequestClose={onClose}
+      transparent
+      visible={visible}
+    >
+      <Pressable onPress={onClose} style={styles.modalBackdrop}>
+        <Pressable onPress={() => {}} style={styles.confirmSheet}>
+          <Text style={styles.sheetTitle}>반복 Todo 삭제</Text>
+          <Text style={styles.confirmMessage}>
+            이 반복 Todo를 어떻게 삭제할까요?
+          </Text>
+          <Pressable
+            accessibilityRole="button"
+            onPress={onDeleteOccurrence}
+            style={styles.confirmAction}
+          >
+            <Text style={styles.confirmActionText}>이번 항목만 삭제</Text>
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            onPress={onDeleteSeries}
+            style={[styles.confirmAction, styles.confirmDestructiveAction]}
+          >
+            <Text style={styles.confirmDestructiveText}>전체 반복 삭제</Text>
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            onPress={onClose}
+            style={styles.confirmAction}
+          >
+            <Text style={styles.confirmCancelText}>{t('common.cancel')}</Text>
+          </Pressable>
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+}
+
+function calendarSettingsMessage(status: CalendarPermissionStatus): string {
+  switch (status) {
+    case 'granted':
+      return 'Android 캘린더 동기화는 예약된 Todo를 기기 캘린더의 단일 이벤트로 저장합니다. 반복 일정은 아직 완전 동기화되지 않습니다.';
+    case 'denied':
+      return '캘린더 권한이 없습니다. 동기화를 켜면 Android 캘린더 권한을 요청합니다.';
+    case 'unavailable':
+      return '이 실행 환경에서는 캘린더 동기화를 사용할 수 없습니다.';
+    case 'unknown':
+    default:
+      return '캘린더 권한 상태를 확인할 수 없습니다. Android 동기화는 단일 이벤트 저장 기준으로 동작합니다.';
+  }
 }
 
 function TodoEditorModal({
@@ -665,7 +955,9 @@ function TodoEditorModal({
 
   const update = (patch: Partial<TodoTask>) => {
     setDraft(current =>
-      current ? { ...current, ...patch, updatedAtISO: new Date().toISOString() } : current,
+      current
+        ? { ...current, ...patch, updatedAtISO: new Date().toISOString() }
+        : current,
     );
   };
 
@@ -711,7 +1003,9 @@ function TodoEditorModal({
   const toggleSubtask = (subtaskId: string) => {
     update({
       subtasks: (draft.subtasks ?? []).map(item =>
-        item.id === subtaskId ? { ...item, isComplete: !item.isComplete } : item,
+        item.id === subtaskId
+          ? { ...item, isComplete: !item.isComplete }
+          : item,
       ),
     });
   };
@@ -791,7 +1085,9 @@ function TodoEditorModal({
                     onPress={() => toggleLabel(label.id)}
                     style={[
                       styles.chip,
-                      { backgroundColor: active ? label.colorHex : colors.muted },
+                      {
+                        backgroundColor: active ? label.colorHex : colors.muted,
+                      },
                     ]}
                   >
                     <Text
@@ -878,7 +1174,18 @@ function SectionHeader({
   return (
     <Pressable onPress={onPress} style={styles.sectionHeader}>
       <Text style={styles.sectionTitle}>{title}</Text>
-      <Text style={styles.sectionChevron}>{expanded ? '⌄' : '›'}</Text>
+      <View
+        style={[
+          styles.sectionChevronIcon,
+          expanded && styles.sectionChevronIconExpanded,
+        ]}
+      >
+        <AppIcon
+          color="rgba(17,17,17,0.68)"
+          icon={appIcons.openPrompt}
+          size={18}
+        />
+      </View>
     </Pressable>
   );
 }
@@ -886,8 +1193,11 @@ function SectionHeader({
 function TodoCard({
   cardLabels,
   dueLabel,
+  isCompleted,
+  isExpanded,
   onEdit,
   onToggleComplete,
+  onToggleExpanded,
   onToggleStar,
   onToggleSubtask,
   repeatText,
@@ -896,8 +1206,11 @@ function TodoCard({
 }: {
   cardLabels: TodoLabel[];
   dueLabel: string;
+  isCompleted: boolean;
+  isExpanded: boolean;
   onEdit: () => void;
   onToggleComplete: () => void;
+  onToggleExpanded: () => void;
   onToggleStar: () => void;
   onToggleSubtask: (subtaskId: string) => void;
   repeatText: string;
@@ -909,16 +1222,32 @@ function TodoCard({
       <View style={styles.cardHeader}>
         <Pressable
           onPress={onToggleComplete}
-          style={[styles.checkCircle, task.isCompleted && styles.checkCircleActive]}
+          style={[styles.checkCircle, isCompleted && styles.checkCircleActive]}
         />
-        <Pressable style={styles.cardBody} onPress={onEdit}>
+        <Pressable
+          accessibilityRole="button"
+          onLongPress={onEdit}
+          onPress={onToggleExpanded}
+          style={styles.cardBody}
+        >
           <View style={styles.cardTitleRow}>
             <Text
-              style={[styles.cardTitle, task.isCompleted && styles.cardTitleDone]}
+              style={[styles.cardTitle, isCompleted && styles.cardTitleDone]}
             >
               {task.title}
             </Text>
-            <Text style={styles.cardChevron}>⌃</Text>
+            <View
+              style={[
+                styles.cardChevronIcon,
+                isExpanded && styles.cardChevronIconExpanded,
+              ]}
+            >
+              <AppIcon
+                color="rgba(17,17,17,0.52)"
+                icon={appIcons.chevronDown}
+                size={14}
+              />
+            </View>
           </View>
           {showTags && cardLabels.length > 0 ? (
             <View style={styles.chipRow}>
@@ -932,13 +1261,12 @@ function TodoCard({
               ))}
             </View>
           ) : null}
-          {task.note ? <Text style={styles.cardNote}>{task.note}</Text> : null}
+          {isExpanded && task.note ? (
+            <Text style={styles.cardNote}>{task.note}</Text>
+          ) : null}
           <View style={styles.cardMetaRow}>
             <Text
-              style={[
-                styles.dueText,
-                task.isOverdue && styles.overdueText,
-              ]}
+              style={[styles.dueText, task.isOverdue && styles.overdueText]}
             >
               {dueLabel}
             </Text>
@@ -959,17 +1287,17 @@ function TodoCard({
         </Pressable>
       </View>
 
-      {task.subtasks ? (
+      {isExpanded && task.subtasks ? (
         <View style={styles.subtaskList}>
           {task.subtasks.map(subtask => (
             <Pressable
               key={subtask.id}
               onPress={() => onToggleSubtask(subtask.id)}
-              style={[
-                styles.subtaskRow,
-              ]}
+              style={[styles.subtaskRow]}
             >
-              <Text style={styles.subtaskCheck}>{subtask.isComplete ? '◉' : '○'}</Text>
+              <Text style={styles.subtaskCheck}>
+                {subtask.isComplete ? '◉' : '○'}
+              </Text>
               <Text style={styles.subtaskText}>{subtask.title}</Text>
             </Pressable>
           ))}
@@ -994,7 +1322,11 @@ function CalendarBlock({
   const durationHours = task.durationHours ?? 1;
   const top =
     HOUR_LINE_OFFSET +
-    Math.max(0, (Math.min(Math.max(startHour, 1), 23.5) - CALENDAR_START_HOUR) * HOUR_ROW_HEIGHT);
+    Math.max(
+      0,
+      (Math.min(Math.max(startHour, 1), 23.5) - CALENDAR_START_HOUR) *
+        HOUR_ROW_HEIGHT,
+    );
   const left = CALENDAR_LANE_START + lane * (eventWidth + CALENDAR_LANE_GAP);
   const height = Math.max(0.5, durationHours) * HOUR_ROW_HEIGHT;
   const endHour = Math.min(24, startHour + durationHours);
@@ -1008,13 +1340,18 @@ function CalendarBlock({
         { height, left, top, width: eventWidth },
       ]}
     >
-      <Text style={styles.calendarBlockTitle}>{formatCalendarTitle(task.title)}</Text>
+      <Text style={styles.calendarBlockTitle}>
+        {formatCalendarTitle(task.title)}
+      </Text>
       {isCompact ? null : (
         <>
-          <Text style={styles.calendarBlockAccent}>{formatCalendarAccent(task.title)}</Text>
+          <Text style={styles.calendarBlockAccent}>
+            {formatCalendarAccent(task.title)}
+          </Text>
           <View style={styles.flexSpacer} />
           <Text style={styles.calendarBlockTime}>
-            {formatHour(startHour, locale)} -{'\n'}{formatHour(endHour, locale)}
+            {formatHour(startHour, locale)} -{'\n'}
+            {formatHour(endHour, locale)}
           </Text>
         </>
       )}
@@ -1023,7 +1360,9 @@ function CalendarBlock({
 }
 
 function formatCalendarTitle(title: string) {
-  return title.split(/\s+/).filter(Boolean).slice(0, 3).join('\n') || 'New\nTodo';
+  return (
+    title.split(/\s+/).filter(Boolean).slice(0, 3).join('\n') || 'New\nTodo'
+  );
 }
 
 function formatCalendarAccent(title: string) {
@@ -1037,7 +1376,10 @@ function formatHour(hour: number, locale: LocaleCode) {
   if (minute === 0) {
     return formatTimelineHour(wholeHour, locale);
   }
-  return `${String(wholeHour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
+  return `${String(wholeHour).padStart(2, '0')}:${String(minute).padStart(
+    2,
+    '0',
+  )}`;
 }
 
 function formatTimelineHour(hour: number, locale: LocaleCode = 'ko') {
@@ -1053,7 +1395,9 @@ function formatCurrentTimeLabel(hour: number) {
     wholeHour += 1;
     minute = 0;
   }
-  return `${String(Math.min(wholeHour, 24)).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
+  return `${String(Math.min(wholeHour, 24)).padStart(2, '0')}:${String(
+    minute,
+  ).padStart(2, '0')}`;
 }
 
 function getCurrentTimeLineTop(hour: number) {
@@ -1074,7 +1418,9 @@ function buildWeekDays(selectedDate: Date, locale: LocaleCode) {
     date.setDate(startDate.getDate() + index);
     return {
       date,
-      dayLabel: new Intl.DateTimeFormat(locale, { weekday: 'narrow' }).format(date),
+      dayLabel: new Intl.DateTimeFormat(locale, { weekday: 'narrow' }).format(
+        date,
+      ),
       id: date.toISOString(),
       isSelected: isSameCalendarDay(date, selectedDate),
       numberLabel: String(date.getDate()).padStart(2, '0'),
@@ -1088,55 +1434,6 @@ function isSameCalendarDay(left: Date, right: Date) {
     left.getMonth() === right.getMonth() &&
     left.getDate() === right.getDate()
   );
-}
-
-function taskDate(task: TodoTask) {
-  if (task.dueDateISO) {
-    return new Date(task.dueDateISO);
-  }
-
-  const date = new Date();
-  if (task.dueLabel === 'Yesterday') {
-    date.setDate(date.getDate() - 1);
-  } else if (task.dueLabel === 'Tomorrow') {
-    date.setDate(date.getDate() + 1);
-  }
-  return date;
-}
-
-function taskRepeatRule(task: TodoTask): TodoRepeatRule {
-  return task.repeatRule ?? 'none';
-}
-
-function taskOccursOnDate(task: TodoTask, selectedDate: Date) {
-  const anchorDate = taskDate(task);
-  const selectedDay = startOfCalendarDay(selectedDate);
-  const anchorDay = startOfCalendarDay(anchorDate);
-  if (selectedDay.getTime() < anchorDay.getTime()) {
-    return false;
-  }
-
-  switch (taskRepeatRule(task)) {
-    case 'daily':
-      return true;
-    case 'weekdays': {
-      const weekday = selectedDay.getDay();
-      return weekday >= 1 && weekday <= 5;
-    }
-    case 'weekly':
-      return selectedDay.getDay() === anchorDay.getDay();
-    case 'monthly':
-      return selectedDay.getDate() === anchorDay.getDate();
-    case 'none':
-    default:
-      return isSameCalendarDay(anchorDay, selectedDay);
-  }
-}
-
-function startOfCalendarDay(date: Date) {
-  const value = new Date(date);
-  value.setHours(0, 0, 0, 0);
-  return value;
 }
 
 function repeatLabel(repeatRule: TodoRepeatRule | undefined, t: Translate) {
@@ -1155,12 +1452,8 @@ function repeatLabel(repeatRule: TodoRepeatRule | undefined, t: Translate) {
   }
 }
 
-function formatTaskDueLabel(
-  task: TodoTask,
-  locale: LocaleCode,
-  t: Translate,
-) {
-  const dueDate = taskDate(task);
+function formatTaskDueLabel(task: TodoTask, locale: LocaleCode, t: Translate) {
+  const dueDate = taskAnchorDate(task);
   const today = new Date();
 
   if (isSameCalendarDay(dueDate, today)) {
@@ -1189,17 +1482,18 @@ function formatTaskDueLabel(
 function getCalendarEventWidth(screenWidth: number) {
   const contentWidth = Math.max(0, screenWidth - 48);
   const availableWidth =
-    contentWidth - CALENDAR_LANE_START - CALENDAR_LANE_GAP * (CALENDAR_LANE_COUNT - 1);
+    contentWidth -
+    CALENDAR_LANE_START -
+    CALENDAR_LANE_GAP * (CALENDAR_LANE_COUNT - 1);
   return Math.max(44, Math.floor(availableWidth / CALENDAR_LANE_COUNT));
 }
 
 const styles = StyleSheet.create({
   settingsButton: {
-    padding: 8,
-  },
-  settingsIcon: {
-    color: colors.mutedForeground,
-    fontSize: 20,
+    alignItems: 'center',
+    height: 36,
+    justifyContent: 'center',
+    width: 36,
   },
   cardTitleDone: {
     color: colors.mutedForeground,
@@ -1225,6 +1519,14 @@ const styles = StyleSheet.create({
     color: colors.mutedForeground,
     fontSize: 12,
     fontWeight: '600',
+  },
+  emptySectionText: {
+    color: colors.mutedForeground,
+    fontSize: 14,
+    fontWeight: '600',
+    lineHeight: 20,
+    paddingBottom: 6,
+    paddingTop: 2,
   },
   modalBackdrop: {
     backgroundColor: 'rgba(0, 0, 0, 0.35)',
@@ -1267,6 +1569,126 @@ const styles = StyleSheet.create({
   settingsLabel: {
     color: colors.foreground,
     fontSize: 16,
+  },
+  settingsHelp: {
+    color: colors.mutedForeground,
+    fontSize: 13,
+    lineHeight: 18,
+    marginTop: 8,
+  },
+  settingsSectionDivider: {
+    backgroundColor: colors.border,
+    height: StyleSheet.hairlineWidth,
+    marginTop: 18,
+  },
+  settingsSectionTitle: {
+    color: colors.mutedForeground,
+    fontSize: 12,
+    fontWeight: '800',
+    marginTop: 18,
+    textTransform: 'uppercase',
+  },
+  labelInputRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 10,
+  },
+  labelInput: {
+    backgroundColor: colors.muted,
+    borderRadius: 10,
+    color: colors.foreground,
+    flex: 1,
+    fontSize: 15,
+    minHeight: 44,
+    paddingHorizontal: 12,
+  },
+  labelAddButton: {
+    alignItems: 'center',
+    backgroundColor: colors.foreground,
+    borderRadius: 999,
+    height: 36,
+    justifyContent: 'center',
+    paddingHorizontal: 14,
+  },
+  labelAddButtonDisabled: {
+    opacity: 0.36,
+  },
+  labelAddButtonText: {
+    color: colors.primaryForeground,
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  labelEmptyText: {
+    color: colors.mutedForeground,
+    fontSize: 13,
+    fontWeight: '600',
+    marginTop: 12,
+  },
+  labelManageRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    minHeight: 42,
+    marginTop: 6,
+  },
+  labelColorDot: {
+    borderRadius: 5,
+    height: 10,
+    marginRight: 10,
+    width: 10,
+  },
+  labelManageTitle: {
+    color: colors.foreground,
+    flex: 1,
+    fontSize: 15,
+    fontWeight: '600',
+    minWidth: 0,
+  },
+  labelDeleteButton: {
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+  },
+  labelDeleteButtonText: {
+    color: colors.destructive,
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  confirmSheet: {
+    backgroundColor: colors.card,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    padding: 20,
+  },
+  confirmMessage: {
+    color: colors.mutedForeground,
+    fontSize: 15,
+    lineHeight: 21,
+    marginTop: 8,
+    marginBottom: 14,
+  },
+  confirmAction: {
+    alignItems: 'center',
+    borderRadius: 12,
+    minHeight: 44,
+    justifyContent: 'center',
+  },
+  confirmDestructiveAction: {
+    marginTop: 4,
+  },
+  confirmActionText: {
+    color: colors.foreground,
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  confirmDestructiveText: {
+    color: colors.destructive,
+    fontSize: 15,
+    fontWeight: '800',
+  },
+  confirmCancelText: {
+    color: colors.mutedForeground,
+    fontSize: 15,
+    fontWeight: '700',
   },
   editorScroll: {
     marginTop: 4,
@@ -1432,10 +1854,14 @@ const styles = StyleSheet.create({
   cardBody: {
     flex: 1,
   },
-  cardChevron: {
-    color: 'rgba(17,17,17,0.52)',
-    fontSize: 17,
-    fontWeight: '700',
+  cardChevronIcon: {
+    alignItems: 'center',
+    height: 28,
+    justifyContent: 'center',
+    width: 28,
+  },
+  cardChevronIconExpanded: {
+    transform: [{ rotate: '180deg' }],
   },
   cardHeader: {
     alignItems: 'flex-start',
@@ -1586,11 +2012,6 @@ const styles = StyleSheet.create({
   overdueText: {
     color: '#D4413B',
   },
-  plusText: {
-    color: '#FFFFFF',
-    fontSize: 34,
-    fontWeight: '200',
-  },
   screen: {
     backgroundColor: '#FFFFFF',
     flex: 1,
@@ -1601,10 +2022,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     paddingTop: 22,
   },
-  sectionChevron: {
-    color: 'rgba(17,17,17,0.68)',
-    fontSize: 24,
-    fontWeight: '500',
+  sectionChevronIcon: {
+    alignItems: 'center',
+    height: 24,
+    justifyContent: 'center',
+    width: 24,
+  },
+  sectionChevronIconExpanded: {
+    transform: [{ rotate: '90deg' }],
   },
   sectionHeader: {
     alignItems: 'center',

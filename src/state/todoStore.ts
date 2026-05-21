@@ -4,7 +4,12 @@ export const TODO_STORAGE_KEY = 'open-edge-ai.todo-list.v1';
 export const TODO_LABELS_STORAGE_KEY = 'open-edge-ai.todo-labels.v1';
 export const TODO_SETTINGS_STORAGE_KEY = 'open-edge-ai.todo-settings.v1';
 
-export type TodoRepeatRule = 'none' | 'daily' | 'weekdays' | 'weekly' | 'monthly';
+export type TodoRepeatRule =
+  | 'none'
+  | 'daily'
+  | 'weekdays'
+  | 'weekly'
+  | 'monthly';
 
 export type TodoSubtask = {
   id: string;
@@ -56,8 +61,8 @@ export const TODO_LABEL_COLORS = [
 ] as const;
 
 export const DEFAULT_TODO_SETTINGS: TodoSettings = {
-  hideCompleted: false,
-  showTags: true,
+  hideCompleted: true,
+  showTags: false,
   calendarSync: false,
 };
 
@@ -123,7 +128,9 @@ export function taskIsCompletedOn(task: TodoTask, date: Date): boolean {
   if (!isRepeating(taskRepeatRule(task))) {
     return Boolean(task.isCompleted);
   }
-  return (task.completedOccurrenceDayKeys ?? []).includes(occurrenceDayKey(date));
+  return (task.completedOccurrenceDayKeys ?? []).includes(
+    occurrenceDayKey(date),
+  );
 }
 
 export function taskOccursOn(task: TodoTask, date: Date): boolean {
@@ -173,7 +180,11 @@ export function taskIsOverdue(task: TodoTask, now: Date = new Date()): boolean {
 
 export function toggleTaskCompletionOn(task: TodoTask, date: Date): TodoTask {
   if (!isRepeating(taskRepeatRule(task))) {
-    return { ...task, isCompleted: !task.isCompleted, updatedAtISO: new Date().toISOString() };
+    return {
+      ...task,
+      isCompleted: !task.isCompleted,
+      updatedAtISO: new Date().toISOString(),
+    };
   }
   const key = occurrenceDayKey(date);
   const keys = new Set(task.completedOccurrenceDayKeys ?? []);
@@ -195,7 +206,11 @@ export function setTaskCompletionOn(
   completed: boolean,
 ): TodoTask {
   if (!isRepeating(taskRepeatRule(task))) {
-    return { ...task, isCompleted: completed, updatedAtISO: new Date().toISOString() };
+    return {
+      ...task,
+      isCompleted: completed,
+      updatedAtISO: new Date().toISOString(),
+    };
   }
   const key = occurrenceDayKey(date);
   const keys = new Set(task.completedOccurrenceDayKeys ?? []);
@@ -207,6 +222,26 @@ export function setTaskCompletionOn(
   return {
     ...task,
     completedOccurrenceDayKeys: Array.from(keys),
+    updatedAtISO: new Date().toISOString(),
+  };
+}
+
+export function deleteTaskOccurrenceOn(
+  task: TodoTask,
+  date: Date,
+): TodoTask | null {
+  if (!isRepeating(taskRepeatRule(task))) {
+    return null;
+  }
+  const key = occurrenceDayKey(date);
+  const deletedKeys = new Set(task.deletedOccurrenceDayKeys ?? []);
+  deletedKeys.add(key);
+  const completedKeys = new Set(task.completedOccurrenceDayKeys ?? []);
+  completedKeys.delete(key);
+  return {
+    ...task,
+    completedOccurrenceDayKeys: Array.from(completedKeys),
+    deletedOccurrenceDayKeys: Array.from(deletedKeys),
     updatedAtISO: new Date().toISOString(),
   };
 }
@@ -235,8 +270,10 @@ function normalizeTask(raw: TodoTask): TodoTask {
     subtasks: raw.subtasks ?? [],
     completedOccurrenceDayKeys: raw.completedOccurrenceDayKeys ?? [],
     deletedOccurrenceDayKeys: raw.deletedOccurrenceDayKeys ?? [],
-    createdAtISO: raw.createdAtISO ?? raw.dueDateISO ?? new Date().toISOString(),
-    updatedAtISO: raw.updatedAtISO ?? raw.createdAtISO ?? new Date().toISOString(),
+    createdAtISO:
+      raw.createdAtISO ?? raw.dueDateISO ?? new Date().toISOString(),
+    updatedAtISO:
+      raw.updatedAtISO ?? raw.createdAtISO ?? new Date().toISOString(),
   };
 }
 
@@ -321,11 +358,16 @@ export function subscribeTodoStore(listener: Listener): () => void {
 }
 
 function persistTasks(): void {
-  AsyncStorage.setItem(TODO_STORAGE_KEY, JSON.stringify(state.tasks)).catch(() => {});
+  AsyncStorage.setItem(TODO_STORAGE_KEY, JSON.stringify(state.tasks)).catch(
+    () => {},
+  );
 }
 
 function persistLabels(): void {
-  AsyncStorage.setItem(TODO_LABELS_STORAGE_KEY, JSON.stringify(state.labels)).catch(() => {});
+  AsyncStorage.setItem(
+    TODO_LABELS_STORAGE_KEY,
+    JSON.stringify(state.labels),
+  ).catch(() => {});
 }
 
 function persistSettings(): void {
@@ -388,4 +430,21 @@ export function removeTask(taskId: string): boolean {
   }
   setTasks(next);
   return true;
+}
+
+export function removeTaskOccurrence(
+  taskId: string,
+  date: Date,
+): TodoTask | null {
+  const task = state.tasks.find(item => item.id === taskId);
+  if (!task) {
+    return null;
+  }
+  const nextTask = deleteTaskOccurrenceOn(task, date);
+  if (!nextTask) {
+    removeTask(taskId);
+    return null;
+  }
+  upsertTask(nextTask);
+  return nextTask;
 }

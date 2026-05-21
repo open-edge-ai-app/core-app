@@ -55,6 +55,10 @@ class QueryRouter(
             )
         }
 
+        request.unsupportedAndroidModelResponse()?.let { response ->
+            return response
+        }
+
         nativeTools.beginRequest()
         val modalities = request.attachments.map { attachment -> attachment.type }.distinct()
         val requestWithHistory = request.withBackendContext(normalized)
@@ -119,6 +123,13 @@ class QueryRouter(
                     route = "invalid",
                     modalities = emptyList(),
                 ),
+            )
+            return false
+        }
+
+        request.unsupportedAndroidModelResponse()?.let { response ->
+            onComplete(
+                response,
             )
             return false
         }
@@ -218,6 +229,38 @@ class QueryRouter(
             text = normalizedPrompt,
             history = historyMessages,
             nativeTools = nativeTools,
+        )
+    }
+
+    private fun MultimodalRequest.unsupportedAndroidModelResponse(): AIResponse? {
+        val normalizedModelId = modelId?.trim()?.lowercase(Locale.US).orEmpty()
+        if (normalizedModelId.isEmpty() || normalizedModelId in ANDROID_GEMMA_MODEL_IDS) {
+            return null
+        }
+
+        val modalities = attachments.map { attachment -> attachment.type }.distinct()
+        if (normalizedModelId == APPLE_FOUNDATION_MODEL_ID) {
+            return AIResponse(
+                type = "error",
+                message = IOS_SYSTEM_MODEL_ANDROID_ERROR,
+                route = "invalid",
+                modalities = modalities,
+                modelId = APPLE_FOUNDATION_MODEL_ID,
+                modelName = "Unsupported system model",
+                provider = "system",
+                requestedModelId = normalizedModelId,
+            )
+        }
+
+        return AIResponse(
+            type = "error",
+            message = "Model '$normalizedModelId' is not supported on Android. Supported Android runtime is Gemma 4.",
+            route = "invalid",
+            modalities = modalities,
+            modelId = normalizedModelId,
+            modelName = normalizedModelId,
+            provider = "unknown",
+            requestedModelId = normalizedModelId,
         )
     }
 
@@ -593,6 +636,16 @@ class QueryRouter(
         private const val LOG_QUERY_CHARS = 80
         private const val SOURCE_DOCUMENT = "document"
         private const val MIN_QUERY_TERM_LENGTH = 2
+        private const val APPLE_FOUNDATION_MODEL_ID = "apple-foundation"
+        private const val IOS_SYSTEM_MODEL_ANDROID_ERROR =
+            "Requested iOS system model is not available on Android. Android uses the Gemma runtime."
+        private val ANDROID_GEMMA_MODEL_IDS = setOf(
+            "",
+            "auto",
+            "gemma-4",
+            "gemma-lite",
+            "gemma-deep",
+        )
         private val TOKEN_REGEX = Regex("""[0-9A-Za-z가-힣]+""")
         private val LOCAL_MEMORY_HINTS = listOf(
             "document",

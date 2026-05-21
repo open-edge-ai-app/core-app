@@ -9,9 +9,7 @@ export const createCommonSystemPrompt = (
       ? `개인 시스템 프롬프트:\n${trimPrompt(personalSystemPrompt)}`
       : '',
     trimPrompt(workFolderMemory)
-      ? `작업 폴더 시스템 프롬프트(메모리):\n${trimPrompt(
-          workFolderMemory,
-        )}`
+      ? `프로젝트 시스템 프롬프트(메모리):\n${trimPrompt(workFolderMemory)}`
       : '',
   ]
     .filter(Boolean)

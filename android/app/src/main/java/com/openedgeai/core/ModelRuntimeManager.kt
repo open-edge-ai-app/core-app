@@ -73,7 +73,7 @@ object ModelRuntimeManager {
         nativeTools: OpenEdgeAiToolSet? = null,
     ): AIResponse = lock.withLock {
         val currentEngine = engine
-            ?: return AIResponse(
+            ?: return gemmaResponse(
                 type = "error",
                 message = "Model runtime is not loaded.",
                 route = "invalid",
@@ -82,7 +82,7 @@ object ModelRuntimeManager {
         memoryPressureMessage()?.let { message ->
             closeEngineLocked()
             lastError = message
-            return AIResponse(
+            return gemmaResponse(
                 type = "error",
                 message = message,
                 route = "invalid",
@@ -95,7 +95,7 @@ object ModelRuntimeManager {
             text = message,
             nativeTools = nativeTools,
         )
-        AIResponse(
+        gemmaResponse(
             type = "text",
             message = response.message,
             route = if (useRag) "rag" else "direct",
@@ -110,20 +110,22 @@ object ModelRuntimeManager {
         modalities: List<String>,
     ): AIResponse = lock.withLock {
         val currentEngine = engine
-            ?: return AIResponse(
+            ?: return gemmaResponse(
                 type = "error",
                 message = "Model runtime is not loaded.",
                 route = "invalid",
                 modalities = modalities,
+                request = request,
             )
         memoryPressureMessage()?.let { message ->
             closeEngineLocked()
             lastError = message
-            return AIResponse(
+            return gemmaResponse(
                 type = "error",
                 message = message,
                 route = "invalid",
                 modalities = modalities,
+                request = request,
             )
         }
 
@@ -131,12 +133,13 @@ object ModelRuntimeManager {
             currentEngine as LiteRtLmReflector.EngineHandle,
             request,
         )
-        AIResponse(
+        gemmaResponse(
             type = "text",
             message = response.message,
             route = if (useRag) "rag" else "direct",
             modalities = modalities,
             reasoning = response.reasoning,
+            request = request,
         )
     }
 
@@ -156,11 +159,12 @@ object ModelRuntimeManager {
         }
         if (blockedReason != null) {
             onComplete(
-                AIResponse(
+                gemmaResponse(
                     type = "error",
                     message = blockedReason,
                     route = "invalid",
                     modalities = modalities,
+                    request = request,
                 ),
             )
             return false
@@ -169,11 +173,12 @@ object ModelRuntimeManager {
         val currentEngine = lock.withLock { engine }
             ?: run {
                 onComplete(
-                    AIResponse(
+                    gemmaResponse(
                         type = "error",
                         message = "Model runtime is not loaded.",
                         route = "invalid",
                         modalities = modalities,
+                        request = request,
                     ),
                 )
                 return false
@@ -186,12 +191,13 @@ object ModelRuntimeManager {
                 onPartial = onPartial,
                 onComplete = { response ->
                     onComplete(
-                        AIResponse(
+                        gemmaResponse(
                             type = "text",
                             message = response.message,
                             route = if (useRag) "rag" else "direct",
                             modalities = modalities,
                             reasoning = response.reasoning,
+                            request = request,
                         ),
                     )
                 },
@@ -218,6 +224,33 @@ object ModelRuntimeManager {
         currentEngine.cancelActiveConversation()
         return true
     }
+
+    private fun gemmaResponse(
+        type: String,
+        message: String,
+        route: String,
+        modalities: List<String>,
+        reasoning: String? = null,
+        request: MultimodalRequest? = null,
+    ): AIResponse =
+        AIResponse(
+            type = type,
+            message = message,
+            route = route,
+            modalities = modalities,
+            reasoning = reasoning,
+            modelId = ModelFileManager.MODEL_ID,
+            modelName = ModelFileManager.MODEL_NAME,
+            provider = "google",
+            requestedModelId = request?.requestedModelIdForResponse(),
+        )
+
+    private fun MultimodalRequest.requestedModelIdForResponse(): String? =
+        modelId
+            ?.trim()
+            ?.takeIf { requestedModelId ->
+                requestedModelId.isNotEmpty() && requestedModelId != ModelFileManager.MODEL_ID
+            }
 
     private fun closeEngineLocked() {
         try {

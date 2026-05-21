@@ -2,11 +2,18 @@ import { IconDefinition } from '@fortawesome/fontawesome-svg-core';
 import { Platform } from 'react-native';
 
 import { FloatingSelectOption } from '../components/FloatingSelect';
-import { defaultPersonalityPresetId, resolvePersonalityPrompt } from '../config/personalityPresets';
+import {
+  defaultPersonalityPresetId,
+  resolvePersonalityPrompt,
+} from '../config/personalityPresets';
 import { ModelId, ModelStatus, RuntimeStatus } from '../native/AIEngine';
 import { createInitialChatMessages } from '../screens/ChatScreen';
 import type { PersonalCustomizationSettings } from '../screens/Settings';
-import { ChatSession, PersistedChatMessage, serializeMessages } from '../state/chatStorage';
+import {
+  ChatSession,
+  PersistedChatMessage,
+  serializeMessages,
+} from '../state/chatStorage';
 import { appIcons } from '../theme/icons';
 
 export type MenuRowProps = {
@@ -14,12 +21,6 @@ export type MenuRowProps = {
   iconColor?: string;
   label: string;
   onPress?: () => void;
-};
-
-export type MenuIconRow = {
-  icon: IconDefinition;
-  iconColor?: string;
-  label: string;
 };
 
 export type ModelOption = {
@@ -32,12 +33,11 @@ export type ModelOption = {
 
 export type WorkFolderIconId =
   | 'folder'
-  | 'briefcase'
-  | 'idea'
+  | 'ai'
   | 'code'
-  | 'chart'
-  | 'book'
-  | 'palette';
+  | 'document'
+  | 'memory'
+  | 'chart';
 
 export type WorkFolder = {
   iconId?: WorkFolderIconId;
@@ -55,6 +55,7 @@ export type ModelStateSnapshot = {
 export type MenuSearchResult = {
   iconId?: WorkFolderIconId;
   id: string;
+  subtitle?: string;
   title: string;
   type: 'folder' | 'session';
 };
@@ -122,13 +123,14 @@ export const RECENT_ACTION_MENU_HEIGHT = 160;
 export const WORK_FOLDER_ACTION_MENU_HEIGHT = 84;
 export const WORK_FOLDER_SESSION_ACTION_MENU_HEIGHT = 122;
 
-export const defaultPersonalCustomizationSettings: PersonalCustomizationSettings = {
-  customInstructions: '',
-  memoryEnabled: true,
-  personality: defaultPersonalityPresetId,
-  savedMemories: [],
-  userName: '',
-};
+export const defaultPersonalCustomizationSettings: PersonalCustomizationSettings =
+  {
+    customInstructions: '',
+    memoryEnabled: true,
+    personality: defaultPersonalityPresetId,
+    savedMemories: [],
+    userName: '',
+  };
 
 export const modelOptions: ModelOption[] = [
   {
@@ -170,7 +172,9 @@ export const modelOptions: ModelOption[] = [
   },
 ];
 
-export const modelManageOption = modelOptions.find(model => model.id === 'manage')!;
+export const modelManageOption = modelOptions.find(
+  model => model.id === 'manage',
+)!;
 export const defaultDownloadableModelOption = modelOptions.find(
   model => model.id === 'gemma-4',
 )!;
@@ -219,58 +223,38 @@ export const normalizeSelectedModelId = (modelId: ModelOption['id']) =>
     ? modelId
     : defaultSelectedModelId;
 
-export const mainMenuRows: MenuIconRow[] = [
-  {
-    icon: appIcons.menuDocumentImage,
-    label: '문서 및 이미지',
-  },
-  {
-    icon: appIcons.menuScheduling,
-    label: '스케줄링',
-  },
-  {
-    icon: appIcons.menuCodex,
-    label: '코드 작성',
-  },
-];
-
 export const DEFAULT_WORK_FOLDER_ICON_ID: WorkFolderIconId = 'folder';
 
 export const workFolderIconOptions: FloatingSelectOption<WorkFolderIconId>[] = [
   {
     icon: appIcons.folder,
-    label: '기본',
+    label: '폴더',
     value: 'folder',
   },
   {
-    icon: appIcons.workFolderBriefcase,
-    label: '업무',
-    value: 'briefcase',
+    icon: appIcons.chatAssistant,
+    label: 'AI',
+    value: 'ai',
   },
   {
-    icon: appIcons.workFolderIdea,
-    label: '아이디어',
-    value: 'idea',
-  },
-  {
-    icon: appIcons.workFolderCode,
-    label: '개발',
+    icon: appIcons.menuCodex,
+    label: '코드',
     value: 'code',
+  },
+  {
+    icon: appIcons.info,
+    label: '문서',
+    value: 'document',
+  },
+  {
+    icon: appIcons.memory,
+    label: '메모리',
+    value: 'memory',
   },
   {
     icon: appIcons.workFolderChart,
     label: '분석',
     value: 'chart',
-  },
-  {
-    icon: appIcons.workFolderBook,
-    label: '문서',
-    value: 'book',
-  },
-  {
-    icon: appIcons.workFolderPalette,
-    label: '디자인',
-    value: 'palette',
   },
 ];
 
@@ -312,12 +296,24 @@ export const hydrateWorkFolders = (
     )
     .map(folder => ({
       ...folder,
-      iconId: isWorkFolderIconId(folder.iconId)
-        ? folder.iconId
-        : DEFAULT_WORK_FOLDER_ICON_ID,
+      iconId: normalizeWorkFolderIconId(folder.iconId),
       memory: typeof folder.memory === 'string' ? folder.memory : '',
     }));
 };
+
+const legacyWorkFolderIconMap: Partial<Record<string, WorkFolderIconId>> = {
+  book: 'document',
+  briefcase: 'folder',
+  idea: 'ai',
+  palette: 'folder',
+};
+
+const normalizeWorkFolderIconId = (
+  iconId: string | undefined,
+): WorkFolderIconId =>
+  isWorkFolderIconId(iconId)
+    ? iconId
+    : legacyWorkFolderIconMap[iconId ?? ''] ?? DEFAULT_WORK_FOLDER_ICON_ID;
 
 export const hydratePersonalCustomization = (
   settings: unknown,
@@ -410,7 +406,7 @@ export const parseStoredAppState = (
   }
 };
 
-export const omitRecordKey = <Value,>(
+export const omitRecordKey = <Value>(
   record: Record<string, Value>,
   key: string,
 ): Record<string, Value> => {

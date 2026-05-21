@@ -1,10 +1,5 @@
 import { IconDefinition } from '@fortawesome/fontawesome-svg-core';
-import React, {
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import type { GestureResponderEvent, LayoutChangeEvent } from 'react-native';
 import {
   Animated,
@@ -18,13 +13,17 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import {
+  SafeAreaView,
+  useSafeAreaInsets,
+} from 'react-native-safe-area-context';
 
 import AppIcon from '../components/AppIcon';
 import FloatingSelect, {
   FloatingSelectOption,
 } from '../components/FloatingSelect';
 import { brandAssets } from '../config/branding';
+import type { ChatMessage } from '../screens/chat/chatTypes';
 import { ChatSession } from '../state/chatStorage';
 import { ScaledText as Text } from '../theme/display';
 import { appIcons } from '../theme/icons';
@@ -39,8 +38,6 @@ import {
   WORK_FOLDER_ACTION_MENU_HEIGHT,
   WORK_FOLDER_SESSION_ACTION_MENU_HEIGHT,
   getWorkFolderIcon,
-  mainMenuRows,
-  omitRecordKey,
   workFolderIconOptions,
   type MenuRowProps,
   type MenuSearchResult,
@@ -55,7 +52,51 @@ import {
 } from './appConfig';
 import { styles } from './appStyles';
 
+const normalizeSearchValue = (value: string) => value.trim().toLowerCase();
+
+const clippedSearchText = (text: string, fallback: string) => {
+  const cleaned = text.replace(/\s+/g, ' ').trim();
+  if (!cleaned) {
+    return fallback;
+  }
+
+  return cleaned.length > 92 ? `${cleaned.slice(0, 92)}...` : cleaned;
+};
+
+const getSessionSubtitle = (
+  session: ChatSession,
+  messages: ChatMessage[] | undefined,
+) => {
+  const latestMessage = messages
+    ?.slice()
+    .reverse()
+    .find(message => message.text.trim() || message.attachments?.length);
+  const attachmentName = latestMessage?.attachments?.find(attachment =>
+    attachment.name?.trim(),
+  )?.name;
+
+  return clippedSearchText(
+    latestMessage?.text ?? attachmentName ?? '',
+    session.title,
+  );
+};
+
+const sessionMatchesQuery = (
+  session: ChatSession,
+  messages: ChatMessage[] | undefined,
+  query: string,
+) =>
+  normalizeSearchValue(session.title).includes(query) ||
+  (messages ?? []).some(
+    message =>
+      normalizeSearchValue(message.text).includes(query) ||
+      message.attachments?.some(attachment =>
+        normalizeSearchValue(attachment.name ?? '').includes(query),
+      ),
+  );
+
 export default function FullScreenMenu({
+  chatMessagesBySessionId,
   onClose,
   onCreateWorkFolder,
   onDeleteWorkFolder,
@@ -67,6 +108,7 @@ export default function FullScreenMenu({
   onRenameSession,
   onRemoveSessionFromWorkFolder,
   onSelectSession,
+  onStartWorkFolderChat,
   onTogglePinnedSession,
   onUpdateWorkFolder,
   recentSessions,
@@ -74,8 +116,13 @@ export default function FullScreenMenu({
   workFolders,
   workFolderSessions,
 }: {
+  chatMessagesBySessionId: Record<string, ChatMessage[]>;
   onClose: () => void;
-  onCreateWorkFolder: (title: string, iconId: WorkFolderIconId) => void;
+  onCreateWorkFolder: (
+    title: string,
+    iconId: WorkFolderIconId,
+    memory: string,
+  ) => void;
   onDeleteWorkFolder: (folderId: string) => void;
   onDeleteSession: (sessionId: string) => void;
   onMoveSessionToWorkFolder: (sessionId: string, workFolderId: string) => void;
@@ -85,6 +132,7 @@ export default function FullScreenMenu({
   onRenameSession: (sessionId: string, title: string) => void;
   onRemoveSessionFromWorkFolder: (sessionId: string) => void;
   onSelectSession: (title: string, id?: string) => void;
+  onStartWorkFolderChat: (folderId: string) => void;
   onTogglePinnedSession: (sessionId: string) => void;
   onUpdateWorkFolder: (
     folderId: string,
@@ -127,6 +175,7 @@ export default function FullScreenMenu({
   const [renameDraft, setRenameDraft] = useState('');
   const [isWorkFolderDialogOpen, setIsWorkFolderDialogOpen] = useState(false);
   const [workFolderDraft, setWorkFolderDraft] = useState('');
+  const [workFolderMemoryDraft, setWorkFolderMemoryDraft] = useState('');
   const [selectedWorkFolderIconId, setSelectedWorkFolderIconId] =
     useState<WorkFolderIconId>(DEFAULT_WORK_FOLDER_ICON_ID);
   const [isWorkFolderIconMenuOpen, setIsWorkFolderIconMenuOpen] =
@@ -137,9 +186,9 @@ export default function FullScreenMenu({
   const [isWorkFolderSelectOpen, setIsWorkFolderSelectOpen] = useState(false);
   const [isSearchDialogOpen, setIsSearchDialogOpen] = useState(false);
   const [searchDraft, setSearchDraft] = useState('');
-  const [collapsedWorkFolderIds, setCollapsedWorkFolderIds] = useState<
-    Record<string, boolean>
-  >({});
+  const [selectedWorkFolderRouteId, setSelectedWorkFolderRouteId] = useState<
+    string | null
+  >(null);
   const [workFolderActionDialog, setWorkFolderActionDialog] =
     useState<WorkFolderActionDialog | null>(null);
   const [workFolderActionTitleDraft, setWorkFolderActionTitleDraft] =
@@ -180,49 +229,94 @@ export default function FullScreenMenu({
       ),
     [workFolderSessions],
   );
+  const menuSessions = useMemo(() => {
+    const seenSessionIds = new Set<string>();
+
+    return [...workFolderSessions, ...recentSessions].filter(session => {
+      if (seenSessionIds.has(session.id)) {
+        return false;
+      }
+
+      seenSessionIds.add(session.id);
+      return true;
+    });
+  }, [recentSessions, workFolderSessions]);
+  const selectedWorkFolderRoute = useMemo(
+    () =>
+      workFolders.find(folder => folder.id === selectedWorkFolderRouteId) ??
+      null,
+    [selectedWorkFolderRouteId, workFolders],
+  );
+  const selectedWorkFolderSessions = selectedWorkFolderRoute
+    ? workFolderSessionsByFolderId[selectedWorkFolderRoute.id] ?? []
+    : [];
 
   const searchResults = useMemo(() => {
-    const query = searchDraft.trim().toLowerCase();
-    const candidates: MenuSearchResult[] = [
-      ...workFolders.map(folder => ({
-        iconId: folder.iconId ?? DEFAULT_WORK_FOLDER_ICON_ID,
-        id: folder.id,
-        title: folder.title,
-        type: 'folder' as const,
-      })),
-      ...workFolderSessions.map(session => ({
-        id: session.id,
-        title: session.title,
-        type: 'session' as const,
-      })),
-      ...recentSessions.map(session => ({
-        id: session.id,
-        title: session.title,
-        type: 'session' as const,
-      })),
-    ];
+    const query = normalizeSearchValue(searchDraft);
 
     if (!query) {
-      return candidates;
+      return recentSessions.slice(0, 8).map(session => ({
+        id: session.id,
+        subtitle: getSessionSubtitle(
+          session,
+          chatMessagesBySessionId[session.id],
+        ),
+        title: session.title,
+        type: 'session' as const,
+      }));
     }
 
-    return candidates.filter(candidate =>
-      candidate.title.toLowerCase().includes(query),
-    );
-  }, [recentSessions, searchDraft, workFolders, workFolderSessions]);
+    const projectCandidates: MenuSearchResult[] = workFolders
+      .filter(folder => {
+        const memory = folder.memory ?? '';
+        return (
+          normalizeSearchValue(folder.title).includes(query) ||
+          normalizeSearchValue(memory).includes(query)
+        );
+      })
+      .map(folder => ({
+        iconId: folder.iconId ?? DEFAULT_WORK_FOLDER_ICON_ID,
+        id: folder.id,
+        subtitle: clippedSearchText(folder.memory ?? '', '프로젝트'),
+        title: folder.title,
+        type: 'folder' as const,
+      }));
+
+    const sessionCandidates: MenuSearchResult[] = menuSessions
+      .filter(session =>
+        sessionMatchesQuery(
+          session,
+          chatMessagesBySessionId[session.id],
+          query,
+        ),
+      )
+      .map(session => ({
+        id: session.id,
+        subtitle: getSessionSubtitle(
+          session,
+          chatMessagesBySessionId[session.id],
+        ),
+        title: session.title,
+        type: 'session' as const,
+      }));
+
+    return [...projectCandidates, ...sessionCandidates];
+  }, [
+    chatMessagesBySessionId,
+    menuSessions,
+    recentSessions,
+    searchDraft,
+    workFolders,
+  ]);
 
   useEffect(() => {
-    setCollapsedWorkFolderIds(current => {
-      const nextCollapsedFolderIds: Record<string, boolean> = {};
-      workFolders.forEach(folder => {
-        if (current[folder.id]) {
-          nextCollapsedFolderIds[folder.id] = true;
-        }
-      });
-
-      return nextCollapsedFolderIds;
-    });
-  }, [workFolders]);
+    if (
+      selectedWorkFolderRouteId &&
+      !workFolders.some(folder => folder.id === selectedWorkFolderRouteId)
+    ) {
+      setSelectedWorkFolderRouteId(null);
+    }
+  }, [selectedWorkFolderRouteId, workFolders]);
 
   useEffect(() => {
     if (recentDialog?.type !== 'move') {
@@ -305,12 +399,14 @@ export default function FullScreenMenu({
     setRenameDraft('');
     setIsWorkFolderDialogOpen(false);
     setWorkFolderDraft('');
+    setWorkFolderMemoryDraft('');
     setSelectedWorkFolderIconId(DEFAULT_WORK_FOLDER_ICON_ID);
     setIsWorkFolderIconMenuOpen(false);
     setSelectedWorkFolderId(null);
     setIsWorkFolderSelectOpen(false);
     setIsSearchDialogOpen(false);
     setSearchDraft('');
+    setSelectedWorkFolderRouteId(null);
     setWorkFolderActionDialog(null);
     setWorkFolderActionTitleDraft('');
     setWorkFolderActionMemoryDraft('');
@@ -504,6 +600,25 @@ export default function FullScreenMenu({
     setIsRendered(false);
   };
 
+  const handleOpenWorkFolderRoute = (folderId: string) => {
+    closeFloatingActionMenus();
+    setSelectedWorkFolderRouteId(folderId);
+  };
+
+  const handleCloseWorkFolderRoute = () => {
+    closeFloatingActionMenus();
+    setSelectedWorkFolderRouteId(null);
+  };
+
+  const handleStartSelectedWorkFolderChat = () => {
+    if (!selectedWorkFolderRoute) {
+      return;
+    }
+
+    closeFloatingActionMenus();
+    onStartWorkFolderChat(selectedWorkFolderRoute.id);
+  };
+
   const handleOpenRecentDialog = (
     type: RecentSessionDialog['type'],
     session: ChatSession,
@@ -537,7 +652,7 @@ export default function FullScreenMenu({
   const handleSelectSearchResult = (result: MenuSearchResult) => {
     handleCloseSearchDialog();
     if (result.type === 'folder') {
-      setCollapsedWorkFolderIds(current => omitRecordKey(current, result.id));
+      setSelectedWorkFolderRouteId(result.id);
       return;
     }
 
@@ -547,6 +662,7 @@ export default function FullScreenMenu({
   const handleOpenWorkFolderDialog = () => {
     closeFloatingActionMenus();
     setSelectedWorkFolderIconId(DEFAULT_WORK_FOLDER_ICON_ID);
+    setWorkFolderMemoryDraft('');
     setIsWorkFolderIconMenuOpen(false);
     setIsWorkFolderDialogOpen(true);
   };
@@ -554,6 +670,7 @@ export default function FullScreenMenu({
   const handleCloseWorkFolderDialog = () => {
     setIsWorkFolderDialogOpen(false);
     setWorkFolderDraft('');
+    setWorkFolderMemoryDraft('');
     setSelectedWorkFolderIconId(DEFAULT_WORK_FOLDER_ICON_ID);
     setIsWorkFolderIconMenuOpen(false);
   };
@@ -564,16 +681,12 @@ export default function FullScreenMenu({
       return;
     }
 
-    onCreateWorkFolder(nextTitle, selectedWorkFolderIconId);
+    onCreateWorkFolder(
+      nextTitle,
+      selectedWorkFolderIconId,
+      workFolderMemoryDraft,
+    );
     handleCloseWorkFolderDialog();
-  };
-
-  const handleToggleWorkFolderCollapsed = (folderId: string) => {
-    closeFloatingActionMenus();
-    setCollapsedWorkFolderIds(current => ({
-      ...current,
-      [folderId]: !current[folderId],
-    }));
   };
 
   const handleOpenWorkFolderActionDialog = (
@@ -621,9 +734,9 @@ export default function FullScreenMenu({
     }
 
     onDeleteWorkFolder(workFolderActionDialog.folder.id);
-    setCollapsedWorkFolderIds(current =>
-      omitRecordKey(current, workFolderActionDialog.folder.id),
-    );
+    if (selectedWorkFolderRouteId === workFolderActionDialog.folder.id) {
+      setSelectedWorkFolderRouteId(null);
+    }
     handleCloseWorkFolderActionDialog();
   };
 
@@ -666,8 +779,8 @@ export default function FullScreenMenu({
     workFolderActionDialog?.type === 'settings' &&
     !workFolderActionTitleDraft.trim();
   const menuSafeAreaStyle = {
-    paddingBottom: Platform.OS === 'ios' ? insets.bottom : 0,
-    paddingTop: Platform.OS === 'ios' ? insets.top : 0,
+    paddingBottom: insets.bottom,
+    paddingTop: insets.top,
   };
 
   return (
@@ -698,217 +811,305 @@ export default function FullScreenMenu({
           >
             <View style={styles.menuBackground} />
 
-            <View style={styles.menuHeader}>
-              <Pressable
-                accessibilityLabel="새 채팅 시작"
-                accessibilityRole="button"
-                hitSlop={8}
-                onPress={onNewChat}
-                style={({ pressed }) => [
-                  styles.menuHeaderLogoButton,
-                  pressed && styles.menuButtonPressed,
-                ]}
-              >
-                <Image
-                  accessible={false}
-                  accessibilityIgnoresInvertColors
-                  resizeMode="contain"
-                  source={brandAssets.logo}
-                  style={styles.menuHeaderLogo}
-                />
-              </Pressable>
-              <View style={styles.menuHeaderActions}>
-                <Pressable
-                  accessibilityLabel="검색"
-                  accessibilityRole="button"
-                  onPress={handleOpenSearchDialog}
-                  style={({ pressed }) => [
-                    styles.menuSearchButton,
-                    pressed && styles.menuButtonPressed,
-                  ]}
-                >
-                  <AppIcon
-                    color={colors.foreground}
-                    icon={appIcons.search}
-                    size={MENU_HEADER_ICON_SIZE}
-                  />
-                </Pressable>
-                <Pressable
-                  accessibilityLabel="설정"
-                  accessibilityRole="button"
-                  onPress={handleOpenSettingsFromMenu}
-                  style={({ pressed }) => [
-                    styles.menuSettingsButton,
-                    pressed && styles.menuButtonPressed,
-                  ]}
-                >
-                  <AppIcon
-                    color={colors.foreground}
-                    icon={appIcons.settings}
-                    size={MENU_HEADER_ICON_SIZE}
-                  />
-                </Pressable>
-              </View>
-            </View>
-
-            <ScrollView
-              contentContainerStyle={styles.menuScrollContent}
-              onScrollBeginDrag={closeFloatingActionMenus}
-              showsVerticalScrollIndicator={false}
-            >
-              <View style={styles.menuPrimaryList}>
-                {mainMenuRows.map(row => (
-                  <MenuRow
-                    icon={row.icon}
-                    key={row.label}
-                    label={row.label}
-                    onPress={() => onSelectSession(row.label)}
-                  />
-                ))}
-              </View>
-
-              <View style={styles.menuTodoBlock}>
-                <MenuRow
-                  icon={appIcons.todoList}
-                  label="Todo List"
-                  onPress={() => {
-                    closeFloatingActionMenus();
-                    onOpenTodoList();
-                  }}
-                />
-              </View>
-
-              <View style={styles.menuSectionBlock}>
-                <View style={styles.menuSectionHeader}>
-                  <Text
-                    style={[
-                      styles.menuSectionTitle,
-                      styles.menuSectionHeaderTitle,
-                    ]}
-                  >
-                    작업 폴더
-                  </Text>
+            {selectedWorkFolderRoute ? (
+              <View style={styles.projectPage}>
+                <View style={styles.projectTopBar}>
                   <Pressable
-                    accessibilityLabel="새 작업 폴더"
+                    accessibilityLabel="프로젝트 목록"
                     accessibilityRole="button"
-                    onPress={handleOpenWorkFolderDialog}
+                    onPress={handleCloseWorkFolderRoute}
                     style={({ pressed }) => [
-                      styles.menuSectionAddButton,
+                      styles.projectTopBarButton,
                       pressed && styles.menuButtonPressed,
                     ]}
                   >
                     <AppIcon
                       color={colors.foreground}
-                      icon={appIcons.plus}
-                      size={15}
+                      icon={appIcons.navigationMenu}
+                      size={17}
+                    />
+                  </Pressable>
+                  <Pressable
+                    accessibilityRole="button"
+                    onPress={() =>
+                      handleOpenWorkFolderActionDialog(
+                        'settings',
+                        selectedWorkFolderRoute,
+                      )
+                    }
+                    style={({ pressed }) => [
+                      styles.projectTopBarTitleButton,
+                      pressed && styles.menuButtonPressed,
+                    ]}
+                  >
+                    <Text numberOfLines={1} style={styles.projectTopBarTitle}>
+                      {selectedWorkFolderRoute.title}
+                    </Text>
+                  </Pressable>
+                  <Pressable
+                    accessibilityLabel="프로젝트 설정"
+                    accessibilityRole="button"
+                    onPress={() =>
+                      handleOpenWorkFolderActionDialog(
+                        'settings',
+                        selectedWorkFolderRoute,
+                      )
+                    }
+                    style={({ pressed }) => [
+                      styles.projectTopBarButton,
+                      pressed && styles.menuButtonPressed,
+                    ]}
+                  >
+                    <AppIcon
+                      color={colors.foreground}
+                      icon={appIcons.settings}
+                      size={17}
                     />
                   </Pressable>
                 </View>
-                <View style={styles.workFolderTree}>
-                  {workFolders.map(folder => {
-                    const folderSessions =
-                      workFolderSessionsByFolderId[folder.id] ?? [];
-                    const isExpanded = !collapsedWorkFolderIds[folder.id];
-                    const isActionMenuOpen =
-                      workFolderActionSheetFolder?.id === folder.id;
-
-                    return (
-                      <View key={folder.id} style={styles.workFolderTreeItem}>
-                        <WorkFolderTreeRow
-                          expanded={isExpanded}
-                          folder={folder}
-                          isActionMenuOpen={isActionMenuOpen}
-                          onLongPress={event =>
-                            handleOpenWorkFolderActionMenu(event, folder)
-                          }
-                          onPress={() =>
-                            handleToggleWorkFolderCollapsed(folder.id)
-                          }
-                          sessionCount={folderSessions.length}
-                        />
-                        {isExpanded && folderSessions.length > 0 ? (
-                          <View style={styles.workFolderTreeChildren}>
-                            {folderSessions.map(session => (
-                              <TreeSessionRow
-                                isActionMenuOpen={
-                                  actionSheetScope === 'workFolder' &&
-                                  actionSheetSession?.id === session.id
-                                }
-                                key={session.id}
-                                label={session.title}
-                                onLongPress={event =>
-                                  handleOpenRecentActionMenu(
-                                    event,
-                                    session,
-                                    'workFolder',
-                                  )
-                                }
-                                onPress={() => {
-                                  closeFloatingActionMenus();
-                                  onSelectSession(session.title, session.id);
-                                }}
-                              />
-                            ))}
-                          </View>
-                        ) : null}
-                      </View>
-                    );
-                  })}
-                </View>
-                {workFolderSessions
-                  .filter(session => !session.workFolderId)
-                  .map(session => (
-                    <MenuRow
-                      icon={appIcons.session}
-                      iconColor={colors.mutedForeground}
+                <View style={styles.projectPageDivider} />
+                <ScrollView
+                  contentContainerStyle={styles.projectPageScrollContent}
+                  onScrollBeginDrag={closeFloatingActionMenus}
+                  showsVerticalScrollIndicator={false}
+                >
+                  {selectedWorkFolderSessions.length === 0 ? (
+                    <Text style={styles.projectEmptyText}>
+                      프로젝트에 채팅이 없습니다.
+                    </Text>
+                  ) : null}
+                  {selectedWorkFolderSessions.map(session => (
+                    <TreeSessionRow
+                      isActionMenuOpen={
+                        actionSheetScope === 'workFolder' &&
+                        actionSheetSession?.id === session.id
+                      }
                       key={session.id}
                       label={session.title}
-                      onPress={() => onSelectSession(session.title, session.id)}
+                      onLongPress={event =>
+                        handleOpenRecentActionMenu(event, session, 'workFolder')
+                      }
+                      onPress={() => {
+                        closeFloatingActionMenus();
+                        onSelectSession(session.title, session.id);
+                      }}
+                      subtitle={getSessionSubtitle(
+                        session,
+                        chatMessagesBySessionId[session.id],
+                      )}
                     />
                   ))}
+                </ScrollView>
+                {!recentDialog &&
+                !isSearchDialogOpen &&
+                !workFolderActionDialog ? (
+                  <Pressable
+                    accessibilityLabel="새 프로젝트 채팅"
+                    accessibilityRole="button"
+                    onPress={handleStartSelectedWorkFolderChat}
+                    style={({ pressed }) => [
+                      styles.projectNewChatButton,
+                      pressed && styles.menuButtonPressed,
+                    ]}
+                  >
+                    <AppIcon
+                      color={colors.primaryForeground}
+                      icon={appIcons.newChat}
+                      size={15}
+                    />
+                    <Text style={styles.newChatFloatingText}>
+                      새 프로젝트 채팅
+                    </Text>
+                  </Pressable>
+                ) : null}
               </View>
+            ) : (
+              <>
+                <View style={styles.menuHeader}>
+                  <Pressable
+                    accessibilityLabel="새 채팅 시작"
+                    accessibilityRole="button"
+                    hitSlop={8}
+                    onPress={onNewChat}
+                    style={({ pressed }) => [
+                      styles.menuHeaderLogoButton,
+                      pressed && styles.menuButtonPressed,
+                    ]}
+                  >
+                    <Image
+                      accessible={false}
+                      accessibilityIgnoresInvertColors
+                      resizeMode="contain"
+                      source={brandAssets.logo}
+                      style={styles.menuHeaderLogo}
+                    />
+                  </Pressable>
+                  <View style={styles.menuHeaderActions}>
+                    <Pressable
+                      accessibilityLabel="검색"
+                      accessibilityRole="button"
+                      onPress={handleOpenSearchDialog}
+                      style={({ pressed }) => [
+                        styles.menuSearchButton,
+                        pressed && styles.menuButtonPressed,
+                      ]}
+                    >
+                      <AppIcon
+                        color={colors.foreground}
+                        icon={appIcons.search}
+                        size={MENU_HEADER_ICON_SIZE}
+                      />
+                    </Pressable>
+                    <Pressable
+                      accessibilityLabel="설정"
+                      accessibilityRole="button"
+                      onPress={handleOpenSettingsFromMenu}
+                      style={({ pressed }) => [
+                        styles.menuSettingsButton,
+                        pressed && styles.menuButtonPressed,
+                      ]}
+                    >
+                      <AppIcon
+                        color={colors.foreground}
+                        icon={appIcons.settings}
+                        size={MENU_HEADER_ICON_SIZE}
+                      />
+                    </Pressable>
+                  </View>
+                </View>
 
-              <View style={[styles.menuSectionBlock, styles.menuRecentSection]}>
-                <Text style={styles.menuSectionTitle}>최근</Text>
-                {recentSessions.map(session => {
-                  const isActionMenuOpen =
-                    actionSheetScope === 'recent' &&
-                    actionSheetSession?.id === session.id;
+                <ScrollView
+                  contentContainerStyle={styles.menuScrollContent}
+                  onScrollBeginDrag={closeFloatingActionMenus}
+                  showsVerticalScrollIndicator={false}
+                >
+                  <View style={styles.menuTodoBlock}>
+                    <MenuRow
+                      icon={appIcons.todoList}
+                      label="Todo List"
+                      onPress={() => {
+                        closeFloatingActionMenus();
+                        onOpenTodoList();
+                      }}
+                    />
+                  </View>
 
-                  return (
-                    <View key={session.id} style={styles.menuRecentItem}>
-                      <Pressable
-                        accessibilityRole="button"
-                        delayLongPress={360}
-                        onLongPress={event =>
-                          handleOpenRecentActionMenu(event, session)
-                        }
-                        onPress={() => {
-                          closeRecentActionMenu();
-                          onSelectSession(session.title, session.id);
-                        }}
-                        style={({ pressed }) => [
-                          styles.menuRecentRow,
-                          isActionMenuOpen && styles.menuRecentRowActive,
-                          pressed && styles.menuRowPressed,
+                  <View style={styles.menuSectionBlock}>
+                    <View style={styles.menuSectionHeader}>
+                      <Text
+                        style={[
+                          styles.menuSectionTitle,
+                          styles.menuSectionHeaderTitle,
                         ]}
                       >
-                        <Text numberOfLines={1} style={styles.menuRecentLabel}>
-                          {session.title}
-                        </Text>
-                        {session.pinned ? (
-                          <AppIcon
-                            color={colors.primary}
-                            icon={appIcons.pin}
-                            size={14}
-                          />
-                        ) : null}
-                      </Pressable>
+                        프로젝트
+                      </Text>
                     </View>
-                  );
-                })}
-              </View>
-            </ScrollView>
+                    <MenuRow
+                      icon={appIcons.newFolder}
+                      label="새 프로젝트"
+                      onPress={handleOpenWorkFolderDialog}
+                    />
+                    <View style={styles.workFolderTree}>
+                      {workFolders.length === 0 ? (
+                        <Text style={styles.menuEmptyText}>
+                          아직 프로젝트가 없습니다.
+                        </Text>
+                      ) : null}
+                      {workFolders.map(folder => {
+                        const folderSessions =
+                          workFolderSessionsByFolderId[folder.id] ?? [];
+                        const isActionMenuOpen =
+                          workFolderActionSheetFolder?.id === folder.id;
+
+                        return (
+                          <View
+                            key={folder.id}
+                            style={styles.workFolderTreeItem}
+                          >
+                            <WorkFolderTreeRow
+                              folder={folder}
+                              isActionMenuOpen={isActionMenuOpen}
+                              onLongPress={event =>
+                                handleOpenWorkFolderActionMenu(event, folder)
+                              }
+                              onPress={() =>
+                                handleOpenWorkFolderRoute(folder.id)
+                              }
+                              sessionCount={folderSessions.length}
+                            />
+                          </View>
+                        );
+                      })}
+                    </View>
+                    {workFolderSessions
+                      .filter(session => !session.workFolderId)
+                      .map(session => (
+                        <MenuRow
+                          icon={appIcons.session}
+                          iconColor={colors.mutedForeground}
+                          key={session.id}
+                          label={session.title}
+                          onPress={() =>
+                            onSelectSession(session.title, session.id)
+                          }
+                        />
+                      ))}
+                  </View>
+
+                  <View
+                    style={[styles.menuSectionBlock, styles.menuRecentSection]}
+                  >
+                    <Text style={styles.menuSectionTitle}>최근</Text>
+                    {recentSessions.length === 0 ? (
+                      <Text style={styles.menuEmptyText}>
+                        최근 채팅이 없습니다.
+                      </Text>
+                    ) : null}
+                    {recentSessions.map(session => {
+                      const isActionMenuOpen =
+                        actionSheetScope === 'recent' &&
+                        actionSheetSession?.id === session.id;
+
+                      return (
+                        <View key={session.id} style={styles.menuRecentItem}>
+                          <Pressable
+                            accessibilityRole="button"
+                            delayLongPress={360}
+                            onLongPress={event =>
+                              handleOpenRecentActionMenu(event, session)
+                            }
+                            onPress={() => {
+                              closeRecentActionMenu();
+                              onSelectSession(session.title, session.id);
+                            }}
+                            style={({ pressed }) => [
+                              styles.menuRecentRow,
+                              isActionMenuOpen && styles.menuRecentRowActive,
+                              pressed && styles.menuRowPressed,
+                            ]}
+                          >
+                            <Text
+                              numberOfLines={1}
+                              style={styles.menuRecentLabel}
+                            >
+                              {session.title}
+                            </Text>
+                            {session.pinned ? (
+                              <AppIcon
+                                color={colors.primary}
+                                icon={appIcons.pin}
+                                size={14}
+                              />
+                            ) : null}
+                          </Pressable>
+                        </View>
+                      );
+                    })}
+                  </View>
+                </ScrollView>
+              </>
+            )}
 
             {actionSheetSession && actionSheetPosition ? (
               <View pointerEvents="box-none" style={styles.recentActionLayer}>
@@ -951,7 +1152,7 @@ export default function FullScreenMenu({
                   {actionSheetScope === 'workFolder' ? (
                     <RecentActionButton
                       icon={appIcons.moveToFolder}
-                      label="작업 폴더에서 제거"
+                      label="프로젝트에서 제거"
                       onPress={() => {
                         onRemoveSessionFromWorkFolder(actionSheetSession.id);
                         closeRecentActionMenu();
@@ -960,7 +1161,7 @@ export default function FullScreenMenu({
                   ) : (
                     <RecentActionButton
                       icon={appIcons.moveToFolder}
-                      label="작업 폴더로 이동"
+                      label="프로젝트로 이동"
                       onPress={() =>
                         handleOpenRecentDialog('move', actionSheetSession)
                       }
@@ -981,7 +1182,7 @@ export default function FullScreenMenu({
             {workFolderActionSheetFolder && workFolderActionSheetPosition ? (
               <View pointerEvents="box-none" style={styles.recentActionLayer}>
                 <Pressable
-                  accessibilityLabel="작업 폴더 메뉴 닫기"
+                  accessibilityLabel="프로젝트 메뉴 닫기"
                   onPress={closeWorkFolderActionMenu}
                   style={styles.recentActionBackdrop}
                 />
@@ -997,7 +1198,7 @@ export default function FullScreenMenu({
                 >
                   <RecentActionButton
                     icon={appIcons.settings}
-                    label="작업 폴더 설정"
+                    label="프로젝트 설정"
                     onPress={() =>
                       handleOpenWorkFolderActionDialog(
                         'settings',
@@ -1020,7 +1221,8 @@ export default function FullScreenMenu({
               </View>
             ) : null}
 
-            {!isWorkFolderDialogOpen &&
+            {!selectedWorkFolderRoute &&
+            !isWorkFolderDialogOpen &&
             !recentDialog &&
             !isSearchDialogOpen &&
             !workFolderActionDialog ? (
@@ -1060,10 +1262,10 @@ export default function FullScreenMenu({
                       size={15}
                     />
                     <RNTextInput
-                      accessibilityLabel="폴더와 채팅 세션 검색"
+                      accessibilityLabel="프로젝트와 채팅 검색"
                       autoFocus
                       onChangeText={setSearchDraft}
-                      placeholder="폴더, 채팅 세션 검색"
+                      placeholder="프로젝트, 채팅 검색"
                       placeholderTextColor={colors.mutedForeground}
                       returnKeyType="search"
                       style={styles.searchInput}
@@ -1105,9 +1307,10 @@ export default function FullScreenMenu({
                               {result.title}
                             </Text>
                             <Text style={styles.searchResultMeta}>
-                              {result.type === 'folder'
-                                ? '작업 폴더'
-                                : '채팅 세션'}
+                              {result.subtitle ??
+                                (result.type === 'folder'
+                                  ? '프로젝트'
+                                  : '채팅 세션')}
                             </Text>
                           </View>
                         </Pressable>
@@ -1123,14 +1326,14 @@ export default function FullScreenMenu({
             {isWorkFolderDialogOpen ? (
               <View style={styles.recentDialogLayer}>
                 <Pressable
-                  accessibilityLabel="작업 폴더 만들기 닫기"
+                  accessibilityLabel="프로젝트 만들기 닫기"
                   onPress={handleCloseWorkFolderDialog}
                   style={styles.recentDialogBackdrop}
                 />
                 <View style={styles.recentDialogCard}>
-                  <Text style={styles.recentDialogTitle}>새 작업 폴더</Text>
+                  <Text style={styles.recentDialogTitle}>새 프로젝트</Text>
                   <FloatingSelect
-                    accessibilityLabel="작업 폴더 아이콘 변경"
+                    accessibilityLabel="프로젝트 아이콘 변경"
                     expanded={isWorkFolderIconMenuOpen}
                     onExpandedChange={setIsWorkFolderIconMenuOpen}
                     onValueChange={setSelectedWorkFolderIconId}
@@ -1140,10 +1343,10 @@ export default function FullScreenMenu({
                     variant="compact"
                   >
                     <RNTextInput
-                      accessibilityLabel="작업 폴더 이름"
+                      accessibilityLabel="프로젝트 이름"
                       autoFocus
                       onChangeText={setWorkFolderDraft}
-                      placeholder="작업 폴더 이름"
+                      placeholder="예: Atlas"
                       placeholderTextColor={colors.mutedForeground}
                       returnKeyType="done"
                       style={[
@@ -1153,6 +1356,22 @@ export default function FullScreenMenu({
                       value={workFolderDraft}
                     />
                   </FloatingSelect>
+                  <Text style={styles.workFolderSettingsLabel}>
+                    시스템 프롬프트(메모리)
+                  </Text>
+                  <RNTextInput
+                    accessibilityLabel="프로젝트 메모리"
+                    multiline
+                    onChangeText={setWorkFolderMemoryDraft}
+                    placeholder="이 프로젝트에서 항상 적용할 지침을 입력하세요."
+                    placeholderTextColor={colors.mutedForeground}
+                    style={[
+                      styles.recentDialogInput,
+                      styles.workFolderMemoryInput,
+                    ]}
+                    textAlignVertical="top"
+                    value={workFolderMemoryDraft}
+                  />
                   <View style={styles.recentDialogActions}>
                     <Pressable
                       accessibilityRole="button"
@@ -1186,15 +1405,15 @@ export default function FullScreenMenu({
             {workFolderActionDialog ? (
               <View style={styles.recentDialogLayer}>
                 <Pressable
-                  accessibilityLabel="작업 폴더 작업 닫기"
+                  accessibilityLabel="프로젝트 작업 닫기"
                   onPress={handleCloseWorkFolderActionDialog}
                   style={styles.recentDialogBackdrop}
                 />
                 <View style={styles.recentDialogCard}>
                   <Text style={styles.recentDialogTitle}>
                     {workFolderActionDialog.type === 'settings'
-                      ? '작업 폴더 설정'
-                      : '작업 폴더 삭제'}
+                      ? '프로젝트 설정'
+                      : '프로젝트 삭제'}
                   </Text>
                   {workFolderActionDialog.type === 'settings' ? (
                     <View>
@@ -1202,7 +1421,7 @@ export default function FullScreenMenu({
                         이름과 아이콘
                       </Text>
                       <FloatingSelect
-                        accessibilityLabel="작업 폴더 아이콘 변경"
+                        accessibilityLabel="프로젝트 아이콘 변경"
                         expanded={isWorkFolderActionIconMenuOpen}
                         onExpandedChange={setIsWorkFolderActionIconMenuOpen}
                         onValueChange={setWorkFolderActionIconId}
@@ -1212,11 +1431,11 @@ export default function FullScreenMenu({
                         variant="compact"
                       >
                         <RNTextInput
-                          accessibilityLabel="작업 폴더 이름"
+                          accessibilityLabel="프로젝트 이름"
                           autoFocus
                           onChangeText={setWorkFolderActionTitleDraft}
                           onSubmitEditing={handleSubmitWorkFolderSettings}
-                          placeholder="작업 폴더 이름"
+                          placeholder="예: Atlas"
                           placeholderTextColor={colors.mutedForeground}
                           returnKeyType="done"
                           style={[
@@ -1230,10 +1449,10 @@ export default function FullScreenMenu({
                         시스템 프롬프트(메모리)
                       </Text>
                       <RNTextInput
-                        accessibilityLabel="작업 폴더 메모리"
+                        accessibilityLabel="프로젝트 메모리"
                         multiline
                         onChangeText={setWorkFolderActionMemoryDraft}
-                        placeholder="이 작업 폴더의 모든 채팅에 추가로 적용할 시스템 프롬프트"
+                        placeholder="이 프로젝트의 모든 채팅에 추가로 적용할 시스템 프롬프트"
                         placeholderTextColor={colors.mutedForeground}
                         style={[
                           styles.recentDialogInput,
@@ -1244,13 +1463,13 @@ export default function FullScreenMenu({
                       />
                       <Text style={styles.workFolderSettingsHelp}>
                         개인 시스템 프롬프트가 먼저 적용되고, 이 내용은 그
-                        아래에 작업 폴더 지침으로 전달됩니다.
+                        아래에 프로젝트 지침으로 전달됩니다.
                       </Text>
                     </View>
                   ) : (
                     <Text style={styles.recentDialogMessage}>
-                      이 작업 폴더를 삭제할까요? 폴더 안의 채팅은 최근 목록으로
-                      이동합니다.
+                      이 프로젝트를 삭제할까요? 프로젝트 안의 채팅도 함께
+                      삭제됩니다.
                     </Text>
                   )}
                   <View style={styles.recentDialogActions}>
@@ -1305,7 +1524,7 @@ export default function FullScreenMenu({
                     {recentDialog.type === 'rename'
                       ? '이름 바꾸기'
                       : recentDialog.type === 'move'
-                      ? '작업 폴더로 이동'
+                      ? '프로젝트로 이동'
                       : '채팅 삭제'}
                   </Text>
                   {recentDialog.type === 'rename' ? (
@@ -1323,27 +1542,27 @@ export default function FullScreenMenu({
                   ) : recentDialog.type === 'move' ? (
                     <View>
                       <Text style={styles.recentDialogMessage}>
-                        최근 목록에서 제거하고 선택한 작업 폴더에 추가합니다.
+                        최근 목록에서 제거하고 선택한 프로젝트에 추가합니다.
                       </Text>
                       <View style={styles.workFolderSelectBlock}>
                         <Text style={styles.workFolderSelectLabel}>
-                          이동할 작업 폴더
+                          이동할 프로젝트
                         </Text>
                         <FloatingSelect
-                          accessibilityLabel="작업 폴더 선택"
+                          accessibilityLabel="프로젝트 선택"
                           disabled={workFolders.length === 0}
                           expanded={isWorkFolderSelectOpen}
                           menuStyle={styles.workFolderSelectMenu}
                           onExpandedChange={setIsWorkFolderSelectOpen}
                           onValueChange={setSelectedWorkFolderId}
                           options={workFolderSelectOptions}
-                          placeholder="작업 폴더 없음"
+                          placeholder="프로젝트 없음"
                           placeholderIcon={appIcons.folder}
                           selectedValue={selectedWorkFolderId}
                         />
                         {workFolders.length === 0 ? (
                           <Text style={styles.workFolderSelectHelp}>
-                            새 작업 폴더를 먼저 만들어주세요.
+                            새 프로젝트를 먼저 만들어주세요.
                           </Text>
                         ) : null}
                       </View>
@@ -1442,14 +1661,12 @@ function RecentActionButton({
 }
 
 function WorkFolderTreeRow({
-  expanded,
   folder,
   isActionMenuOpen,
   onLongPress,
   onPress,
   sessionCount,
 }: {
-  expanded: boolean;
   folder: WorkFolder;
   isActionMenuOpen: boolean;
   onLongPress: (event: GestureResponderEvent) => void;
@@ -1458,9 +1675,8 @@ function WorkFolderTreeRow({
 }) {
   return (
     <Pressable
-      accessibilityLabel={`${folder.title} 작업 폴더`}
+      accessibilityLabel={`${folder.title} 프로젝트`}
       accessibilityRole="button"
-      accessibilityState={{ expanded }}
       delayLongPress={360}
       onLongPress={onLongPress}
       onPress={onPress}
@@ -1471,13 +1687,6 @@ function WorkFolderTreeRow({
       ]}
     >
       <View style={styles.workFolderTreeIconSlot}>
-        <View style={styles.workFolderTreeChevron}>
-          <AppIcon
-            color={colors.mutedForeground}
-            icon={expanded ? appIcons.chevronDown : appIcons.openPrompt}
-            size={12}
-          />
-        </View>
         <View style={styles.workFolderTreeIcon}>
           <AppIcon
             color={colors.foreground}
@@ -1492,6 +1701,11 @@ function WorkFolderTreeRow({
       {sessionCount > 0 ? (
         <Text style={styles.workFolderTreeCount}>{sessionCount}</Text>
       ) : null}
+      <AppIcon
+        color={colors.mutedForeground}
+        icon={appIcons.openPrompt}
+        size={12}
+      />
     </Pressable>
   );
 }
@@ -1501,11 +1715,13 @@ function TreeSessionRow({
   label,
   onLongPress,
   onPress,
+  subtitle,
 }: {
   isActionMenuOpen: boolean;
   label: string;
   onLongPress: (event: GestureResponderEvent) => void;
   onPress: () => void;
+  subtitle?: string;
 }) {
   return (
     <Pressable
@@ -1527,9 +1743,16 @@ function TreeSessionRow({
           size={15}
         />
       </View>
-      <Text numberOfLines={1} style={styles.workFolderChildLabel}>
-        {label}
-      </Text>
+      <View style={styles.workFolderChildCopy}>
+        <Text numberOfLines={1} style={styles.workFolderChildLabel}>
+          {label}
+        </Text>
+        {subtitle ? (
+          <Text numberOfLines={1} style={styles.workFolderChildSubtitle}>
+            {subtitle}
+          </Text>
+        ) : null}
+      </View>
     </Pressable>
   );
 }

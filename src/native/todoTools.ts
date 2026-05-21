@@ -9,6 +9,7 @@ import {
   getSettings,
   getTasks,
   occurrenceDayKey,
+  removeTaskOccurrence,
   removeTask,
   setLabels,
   setSettings,
@@ -44,10 +45,13 @@ export function parseTodoToolCalls(text: string): {
   calls: TodoToolCall[];
 } {
   const calls: TodoToolCall[] = [];
-  const cleanedText = text.replace(TOOL_FENCE_PATTERN, (_match, payload: string) => {
-    calls.push(...parsePayload(payload));
-    return '';
-  });
+  const cleanedText = text.replace(
+    TOOL_FENCE_PATTERN,
+    (_match, payload: string) => {
+      calls.push(...parsePayload(payload));
+      return '';
+    },
+  );
   return { cleanedText: cleanedText.trim(), calls };
 }
 
@@ -61,14 +65,18 @@ function parsePayload(payload: string): TodoToolCall[] {
   }
 
   if (Array.isArray(json)) {
-    return json.map(makeCall).filter((call): call is TodoToolCall => call !== null);
+    return json
+      .map(makeCall)
+      .filter((call): call is TodoToolCall => call !== null);
   }
 
   if (json && typeof json === 'object') {
     const record = json as Record<string, unknown>;
     const nested = record.calls ?? record.tool_calls;
     if (Array.isArray(nested)) {
-      return nested.map(makeCall).filter((call): call is TodoToolCall => call !== null);
+      return nested
+        .map(makeCall)
+        .filter((call): call is TodoToolCall => call !== null);
     }
     const single = makeCall(record);
     return single ? [single] : [];
@@ -83,7 +91,9 @@ function makeCall(value: unknown): TodoToolCall | null {
   }
   const record = value as Record<string, unknown>;
   const rawName =
-    asString(record.tool) ?? asString(record.name) ?? asString(record.tool_name);
+    asString(record.tool) ??
+    asString(record.name) ??
+    asString(record.tool_name);
   const name = rawName?.trim();
   if (!name || !name.startsWith('todo_')) {
     return null;
@@ -191,7 +201,9 @@ function argStringArray(
 
 // --- date / repeat parsing ---
 
-function parseRepeatRule(value: string | undefined): TodoRepeatRule | undefined {
+function parseRepeatRule(
+  value: string | undefined,
+): TodoRepeatRule | undefined {
   if (!value) {
     return undefined;
   }
@@ -365,33 +377,66 @@ export function executeTodoToolCall(call: TodoToolCall): {
     case 'todo_update':
       return { message: executeTodoUpdate(args), mutated: true, isList: false };
     case 'todo_complete':
-      return { message: executeTodoComplete(args), mutated: true, isList: false };
+      return {
+        message: executeTodoComplete(args),
+        mutated: true,
+        isList: false,
+      };
     case 'todo_delete':
       return { message: executeTodoDelete(args), mutated: true, isList: false };
     case 'todo_star':
       return { message: executeTodoStar(args), mutated: true, isList: false };
     case 'todo_label_create':
-      return { message: executeLabelCreate(args), mutated: true, isList: false };
+      return {
+        message: executeLabelCreate(args),
+        mutated: true,
+        isList: false,
+      };
     case 'todo_label_delete':
-      return { message: executeLabelDelete(args), mutated: true, isList: false };
+      return {
+        message: executeLabelDelete(args),
+        mutated: true,
+        isList: false,
+      };
     case 'todo_label_assign':
-      return { message: executeLabelAssign(args), mutated: true, isList: false };
+      return {
+        message: executeLabelAssign(args),
+        mutated: true,
+        isList: false,
+      };
     case 'todo_subtask_add':
       return { message: executeSubtaskAdd(args), mutated: true, isList: false };
     case 'todo_subtask_toggle':
-      return { message: executeSubtaskToggle(args), mutated: true, isList: false };
+      return {
+        message: executeSubtaskToggle(args),
+        mutated: true,
+        isList: false,
+      };
     case 'todo_subtask_delete':
-      return { message: executeSubtaskDelete(args), mutated: true, isList: false };
+      return {
+        message: executeSubtaskDelete(args),
+        mutated: true,
+        isList: false,
+      };
     case 'todo_settings_update':
-      return { message: executeSettingsUpdate(args), mutated: true, isList: false };
+      return {
+        message: executeSettingsUpdate(args),
+        mutated: true,
+        isList: false,
+      };
     default:
-      return { message: `Unknown tool: ${call.name}`, mutated: false, isList: false };
+      return {
+        message: `Unknown tool: ${call.name}`,
+        mutated: false,
+        isList: false,
+      };
   }
 }
 
 function executeTodoList(args: Record<string, unknown>): string {
   const filter = (argString(args, 'filter') ?? 'all').toLowerCase();
-  const includeCompleted = argBool(args, 'include_completed') ?? !getSettings().hideCompleted;
+  const includeCompleted =
+    argBool(args, 'include_completed') ?? !getSettings().hideCompleted;
   const targetDate = parseTodoDate(argString(args, 'date'))?.date ?? new Date();
   const now = new Date();
   const tasks = getTasks();
@@ -412,7 +457,8 @@ function executeTodoList(args: Record<string, unknown>): string {
         task =>
           taskRepeatRuleIsNone(task) &&
           !task.isCompleted &&
-          startOfDay(taskAnchorDate(task)).getTime() < startOfDay(now).getTime(),
+          startOfDay(taskAnchorDate(task)).getTime() <
+            startOfDay(now).getTime(),
       );
       break;
     case 'date':
@@ -454,10 +500,15 @@ function executeTodoCreate(args: Record<string, unknown>): string {
   if (!title) {
     return 'Todo를 만들려면 제목이 필요합니다.';
   }
-  const start = parseTodoDate(argString(args, 'start_at', 'start', 'due_at', 'date'));
+  const start = parseTodoDate(
+    argString(args, 'start_at', 'start', 'due_at', 'date'),
+  );
   const end = parseTodoDate(argString(args, 'end_at', 'end'));
-  const repeat = parseRepeatRule(argString(args, 'repeat', 'repeat_rule')) ?? 'none';
-  const labelIds = resolveLabelIds(argStringArray(args, 'labels', 'label_names', 'tags') ?? []);
+  const repeat =
+    parseRepeatRule(argString(args, 'repeat', 'repeat_rule')) ?? 'none';
+  const labelIds = resolveLabelIds(
+    argStringArray(args, 'labels', 'label_names', 'tags') ?? [],
+  );
   const starred = argBool(args, 'starred', 'important') ?? false;
 
   const startDate = start?.date ?? new Date();
@@ -501,7 +552,9 @@ function executeTodoUpdate(args: Record<string, unknown>): string {
   if (note !== undefined) {
     next.note = note;
   }
-  const start = parseTodoDate(argString(args, 'start_at', 'start', 'due_at', 'date'));
+  const start = parseTodoDate(
+    argString(args, 'start_at', 'start', 'due_at', 'date'),
+  );
   if (start) {
     next.dueDateISO = start.date.toISOString();
     if (start.hasTime) {
@@ -512,7 +565,10 @@ function executeTodoUpdate(args: Record<string, unknown>): string {
   if (end && next.dueDateISO) {
     const startMs = new Date(next.dueDateISO).getTime();
     if (end.date.getTime() > startMs) {
-      next.durationHours = Math.max(0.5, (end.date.getTime() - startMs) / 3_600_000);
+      next.durationHours = Math.max(
+        0.5,
+        (end.date.getTime() - startMs) / 3_600_000,
+      );
     }
   }
   const repeat = parseRepeatRule(argString(args, 'repeat', 'repeat_rule'));
@@ -541,13 +597,20 @@ function executeTodoComplete(args: Record<string, unknown>): string {
   const date = parseTodoDate(argString(args, 'date'))?.date ?? new Date();
   const completed = argBool(args, 'completed') ?? true;
   upsertTask(setTaskCompletionOn(task, date, completed));
-  return `${task.title} 항목을 ${completed ? '완료' : '미완료'}로 표시했습니다.`;
+  return `${task.title} 항목을 ${
+    completed ? '완료' : '미완료'
+  }로 표시했습니다.`;
 }
 
 function executeTodoDelete(args: Record<string, unknown>): string {
   const task = findTask(args);
   if (!task) {
     return '삭제할 Todo를 찾지 못했습니다.';
+  }
+  const occurrenceDate = parseTodoDate(argString(args, 'date'))?.date;
+  if (!taskRepeatRuleIsNone(task) && occurrenceDate) {
+    removeTaskOccurrence(task.id, occurrenceDate);
+    return `반복 Todo의 해당 날짜 항목을 삭제했습니다: ${task.title}`;
   }
   removeTaskFromCalendar(task).catch(() => undefined);
   removeTask(task.id);
@@ -560,8 +623,14 @@ function executeTodoStar(args: Record<string, unknown>): string {
     return '중요 표시할 Todo를 찾지 못했습니다.';
   }
   const starred = argBool(args, 'starred', 'important') ?? !task.isStarred;
-  upsertTask({ ...task, isStarred: starred, updatedAtISO: new Date().toISOString() });
-  return `${task.title} 항목의 중요 표시를 ${starred ? '켰습니다' : '껐습니다'}.`;
+  upsertTask({
+    ...task,
+    isStarred: starred,
+    updatedAtISO: new Date().toISOString(),
+  });
+  return `${task.title} 항목의 중요 표시를 ${
+    starred ? '켰습니다' : '껐습니다'
+  }.`;
 }
 
 function executeLabelCreate(args: Record<string, unknown>): string {
@@ -621,7 +690,11 @@ function executeSubtaskAdd(args: Record<string, unknown>): string {
   if (!title) {
     return '하위 작업 제목이 필요합니다.';
   }
-  const subtask: TodoSubtask = { id: createId('subtask'), title, isComplete: false };
+  const subtask: TodoSubtask = {
+    id: createId('subtask'),
+    title,
+    isComplete: false,
+  };
   upsertTask({ ...task, subtasks: [...(task.subtasks ?? []), subtask] });
   return `하위 작업을 추가했습니다: ${title}`;
 }
@@ -642,7 +715,9 @@ function executeSubtaskToggle(args: Record<string, unknown>): string {
       item.id === subtask.id ? { ...item, isComplete: completed } : item,
     ),
   });
-  return `하위 작업을 ${completed ? '완료' : '미완료'}로 표시했습니다: ${subtask.title}`;
+  return `하위 작업을 ${completed ? '완료' : '미완료'}로 표시했습니다: ${
+    subtask.title
+  }`;
 }
 
 function executeSubtaskDelete(args: Record<string, unknown>): string {
@@ -761,11 +836,15 @@ export function buildTodoToolStateSection(): string | null {
     const status = task.isCompleted ? 'completed' : 'open';
     const labels = (task.labelIds ?? []).map(labelTitle).join(', ') || 'none';
     const due = task.dueDateISO ?? task.dueLabel;
-    return `- id=${task.id} | "${task.title}" | ${status} | due=${due} | repeat=${
+    return `- id=${task.id} | "${
+      task.title
+    }" | ${status} | due=${due} | repeat=${
       task.repeatRule ?? 'none'
     } | tags=${labels}`;
   });
-  return `Current Todo items (use the id when updating/deleting):\n${lines.join('\n')}`;
+  return `Current Todo items (use the id when updating/deleting):\n${lines.join(
+    '\n',
+  )}`;
 }
 
 export function buildTodoToolPromptSection(now: Date = new Date()): string {
@@ -776,7 +855,7 @@ export function buildTodoToolPromptSection(now: Date = new Date()): string {
     '- todo_create(title, note, start_at, end_at, repeat, labels, starred): creates a Todo. Use at most one label.',
     '- todo_update(id or query, title, note, start_at, end_at, repeat, labels, starred): edits a Todo. Use at most one label.',
     '- todo_complete(id or query, date, completed): marks a Todo or one recurring occurrence complete/incomplete.',
-    '- todo_delete(id or query): deletes a Todo.',
+    '- todo_delete(id or query, date): deletes a Todo. For a recurring Todo, include date to delete only that occurrence.',
     '- todo_star(id or query, starred): changes important/starred state.',
     '- todo_label_create(name), todo_label_delete(name), todo_label_assign(id or query, labels, mode): manages tags. Each Todo can have only one tag; mode is replace or remove.',
     '- todo_subtask_add(id or query, title), todo_subtask_toggle(id or query, subtask, completed), todo_subtask_delete(id or query, subtask): manages subtasks.',

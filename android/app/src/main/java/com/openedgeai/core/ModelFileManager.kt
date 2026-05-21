@@ -15,6 +15,7 @@ class ModelFileManager(
         val file = modelFile
         val downloadedBytes = if (file.exists()) file.length() else 0L
         return ModelStatus(
+            modelId = MODEL_ID,
             modelName = MODEL_NAME,
             installed = downloadedBytes == MODEL_SIZE_BYTES,
             isDownloading = ModelDownloader.isDownloading,
@@ -27,6 +28,9 @@ class ModelFileManager(
             localPath = file.absolutePath,
             downloadUrl = MODEL_DOWNLOAD_URL,
             error = ModelDownloader.lastError,
+            provider = "google",
+            runnable = true,
+            systemManaged = false,
         )
     }
 
@@ -63,6 +67,7 @@ class ModelFileManager(
     }
 
     companion object {
+        const val MODEL_ID = "gemma-4"
         const val MODEL_NAME = "gemma-4-E2B-it"
         const val MODEL_FILE_NAME = "gemma-4-E2B-it.litertlm"
         const val MODEL_SIZE_BYTES = 2_588_147_712L

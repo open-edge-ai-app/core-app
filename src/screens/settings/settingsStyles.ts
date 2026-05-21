@@ -6,31 +6,31 @@ export const SETTINGS_CONTENT_BOTTOM_PADDING = 42;
 
 export const styles = StyleSheet.create({
   scroll: {
-    backgroundColor: '#F4F5F8',
+    backgroundColor: '#F2F2F7',
   },
   container: {
     paddingBottom: SETTINGS_CONTENT_BOTTOM_PADDING,
-    paddingHorizontal: 24,
-    paddingTop: 26,
+    paddingHorizontal: 18,
+    paddingTop: 18,
   },
   profileHeader: {
     alignItems: 'center',
-    marginBottom: 22,
+    marginBottom: 18,
     paddingTop: 2,
   },
   profileLogo: {
-    height: 34,
-    opacity: 0.54,
-    width: 152,
+    height: 31,
+    opacity: 0.58,
+    width: 138,
   },
   header: {
-    marginBottom: 28,
+    marginBottom: 20,
   },
   title: {
     ...typography.title,
     color: colors.foreground,
-    fontSize: 28,
-    lineHeight: 34,
+    fontSize: 26,
+    lineHeight: 32,
   },
   description: {
     ...typography.body,
@@ -40,20 +40,21 @@ export const styles = StyleSheet.create({
     marginTop: 10,
   },
   settingsSection: {
-    marginBottom: 24,
+    marginBottom: 20,
   },
   settingsSectionTitle: {
     ...typography.label,
     color: '#93969D',
-    fontSize: 17,
+    fontSize: 13,
     fontWeight: '600',
-    marginBottom: 8,
-    paddingHorizontal: 16,
+    letterSpacing: 0,
+    marginBottom: 7,
+    paddingHorizontal: 14,
   },
   settingsCard: {
     backgroundColor: colors.card,
-    borderColor: 'rgba(21,25,34,0.04)',
-    borderRadius: 18,
+    borderColor: 'rgba(21,25,34,0.06)',
+    borderRadius: 13,
     borderWidth: StyleSheet.hairlineWidth,
     overflow: 'hidden',
   },
@@ -106,10 +107,10 @@ export const styles = StyleSheet.create({
   },
   section: {
     backgroundColor: colors.card,
-    borderColor: 'rgba(21,25,34,0.05)',
-    borderRadius: 20,
+    borderColor: 'rgba(21,25,34,0.06)',
+    borderRadius: 13,
     borderWidth: StyleSheet.hairlineWidth,
-    marginBottom: 28,
+    marginBottom: 18,
     padding: 16,
   },
   sectionHeader: {
@@ -138,9 +139,11 @@ export const styles = StyleSheet.create({
     marginTop: 16,
   },
   textSizeList: {
-    borderTopColor: colors.border,
-    borderTopWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
     marginTop: 18,
+    overflow: 'hidden',
   },
   textSizeRow: {
     alignItems: 'center',
@@ -148,7 +151,14 @@ export const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
     flexDirection: 'row',
     minHeight: 62,
+    paddingHorizontal: 12,
     paddingVertical: 10,
+  },
+  textSizeRowSelected: {
+    backgroundColor: colors.accent,
+  },
+  textSizeRowLast: {
+    borderBottomWidth: 0,
   },
   rowPressed: {
     opacity: 0.58,
@@ -189,9 +199,9 @@ export const styles = StyleSheet.create({
   },
   settingsTextInput: {
     ...typography.body,
-    backgroundColor: colors.muted,
+    backgroundColor: '#F7F7F9',
     borderColor: colors.input,
-    borderRadius: 12,
+    borderRadius: 10,
     borderWidth: StyleSheet.hairlineWidth,
     color: colors.foreground,
     fontSize: 15,
@@ -283,9 +293,9 @@ export const styles = StyleSheet.create({
   },
   languageSelectTrigger: {
     alignItems: 'center',
-    backgroundColor: colors.muted,
+    backgroundColor: '#F7F7F9',
     borderColor: colors.input,
-    borderRadius: 12,
+    borderRadius: 10,
     borderWidth: StyleSheet.hairlineWidth,
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -376,7 +386,56 @@ export const styles = StyleSheet.create({
     paddingVertical: 14,
   },
   separator: {
-    marginVertical: 14,
+    marginVertical: 12,
+  },
+  modelOptionList: {
+    borderColor: colors.border,
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+    marginTop: 16,
+    overflow: 'hidden',
+  },
+  modelOptionRow: {
+    alignItems: 'center',
+    borderBottomColor: colors.border,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    flexDirection: 'row',
+    minHeight: 82,
+    paddingHorizontal: 12,
+    paddingVertical: 11,
+  },
+  modelOptionRowSelected: {
+    backgroundColor: colors.accent,
+  },
+  modelOptionRowLast: {
+    borderBottomWidth: 0,
+  },
+  modelOptionCopy: {
+    flex: 1,
+    minWidth: 0,
+    paddingRight: 12,
+  },
+  modelOptionTitle: {
+    ...typography.body,
+    color: colors.foreground,
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  modelOptionTitleSelected: {
+    color: colors.primary,
+    fontWeight: '800',
+  },
+  modelOptionDescription: {
+    ...typography.caption,
+    color: colors.mutedForeground,
+    lineHeight: 16,
+    marginTop: 4,
+  },
+  modelOptionStatus: {
+    ...typography.caption,
+    color: colors.mutedForeground,
+    lineHeight: 16,
+    marginTop: 5,
   },
   progressTrack: {
     backgroundColor: colors.border,
@@ -405,7 +464,11 @@ export const styles = StyleSheet.create({
     marginTop: 4,
   },
   modelButton: {
-    paddingHorizontal: 0,
+    borderColor: colors.border,
+    borderRadius: 10,
+    borderWidth: StyleSheet.hairlineWidth,
+    minHeight: 36,
+    paddingHorizontal: 12,
   },
   statusRow: {
     alignItems: 'center',

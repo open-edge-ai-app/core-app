@@ -1,4 +1,4 @@
-import { NativeModules } from 'react-native';
+import { NativeModules, Platform } from 'react-native';
 
 import {
   getSettings,
@@ -21,14 +21,78 @@ type CalendarNativeModule = {
   deleteEvent?: (eventId: string) => Promise<boolean>;
 };
 
+type NativePermissionsAndroidModule = {
+  requestMultiplePermissions?: (
+    permissions: string[],
+  ) => Promise<Record<string, string>>;
+};
+
+export type CalendarPermissionStatus =
+  | 'unavailable'
+  | 'granted'
+  | 'denied'
+  | 'unknown';
+
 const nativeModule = NativeModules.CalendarSync as
   | CalendarNativeModule
   | undefined;
+const nativePermissionsAndroid = NativeModules.PermissionsAndroid as
+  | NativePermissionsAndroidModule
+  | undefined;
+
+const androidCalendarPermissions = [
+  'android.permission.READ_CALENDAR',
+  'android.permission.WRITE_CALENDAR',
+] as const;
+
+const androidPermissionResults = {
+  GRANTED: 'granted',
+} as const;
 
 export const isCalendarSyncAvailable = (): boolean =>
   Boolean(nativeModule?.upsertEvent);
 
-function taskEventWindow(task: TodoTask): { startMs: number; endMs: number } | null {
+export async function getCalendarPermissionStatus(): Promise<CalendarPermissionStatus> {
+  if (!isCalendarSyncAvailable()) {
+    return 'unavailable';
+  }
+  try {
+    if (nativeModule?.hasPermission) {
+      return (await nativeModule.hasPermission()) ? 'granted' : 'denied';
+    }
+  } catch {
+    return 'unknown';
+  }
+  return 'unknown';
+}
+
+export async function requestCalendarPermission(): Promise<CalendarPermissionStatus> {
+  if (!isCalendarSyncAvailable()) {
+    return 'unavailable';
+  }
+  if (Platform.OS !== 'android') {
+    return getCalendarPermissionStatus();
+  }
+  try {
+    if (!nativePermissionsAndroid?.requestMultiplePermissions) {
+      return 'unknown';
+    }
+    const results = await nativePermissionsAndroid.requestMultiplePermissions([
+      ...androidCalendarPermissions,
+    ]);
+    return androidCalendarPermissions.every(
+      permission => results[permission] === androidPermissionResults.GRANTED,
+    )
+      ? 'granted'
+      : 'denied';
+  } catch {
+    return 'unknown';
+  }
+}
+
+function taskEventWindow(
+  task: TodoTask,
+): { startMs: number; endMs: number } | null {
   if (!task.dueDateISO) {
     return null;
   }
@@ -49,9 +113,9 @@ function taskEventWindow(task: TodoTask): { startMs: number; endMs: number } | n
   return { startMs: start.getTime(), endMs };
 }
 
-// Mirrors iOS EventKit sync: writes scheduled todos to the system calendar when
-// the calendar-sync setting is enabled. No-op when the native module is absent
-// (e.g. iOS, web preview, or tests) or sync is disabled.
+// Best-effort Android calendar sync: writes scheduled todos as single system
+// calendar events when enabled. No-op when the native module is absent or sync
+// is disabled.
 export async function syncTaskToCalendar(task: TodoTask): Promise<void> {
   if (!isCalendarSyncAvailable() || !getSettings().calendarSync) {
     return;

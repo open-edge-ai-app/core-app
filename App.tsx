@@ -14,19 +14,12 @@ import {
   TextInput as RNTextInput,
   View,
 } from 'react-native';
-import {
-  SafeAreaProvider,
-  SafeAreaView,
-} from 'react-native-safe-area-context';
+import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 
 import AppIcon from './src/components/AppIcon';
-import type {
-  FloatingSelectOption,
-} from './src/components/FloatingSelect';
+import type { FloatingSelectOption } from './src/components/FloatingSelect';
 import PastelBackground from './src/components/PastelBackground';
-import AIEngine, {
-  ModelStatus,
-} from './src/native/AIEngine';
+import AIEngine, { ModelStatus } from './src/native/AIEngine';
 import ChatScreen, {
   ChatMessage,
   createInitialChatMessages,
@@ -101,6 +94,7 @@ inputDefaults.defaultProps = {
 function AppContent() {
   const { t } = useI18n();
   const activeSessionIdRef = useRef<string | null>(null);
+  const pendingWorkFolderIdRef = useRef<string | null>(null);
   const titleAnimationTimerRef = useRef<ReturnType<typeof setInterval> | null>(
     null,
   );
@@ -118,6 +112,9 @@ function AppContent() {
     [],
   );
   const [workFolders, setWorkFolders] = useState<WorkFolder[]>([]);
+  const [pendingWorkFolderId, setPendingWorkFolderId] = useState<string | null>(
+    null,
+  );
   const [chatMessagesBySessionId, setChatMessagesBySessionId] = useState<
     Record<string, ChatMessage[]>
   >({});
@@ -131,16 +128,16 @@ function AppContent() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isModelMenuOpen, setIsModelMenuOpen] = useState(false);
   const [chatInstanceKey, setChatInstanceKey] = useState(0);
-  const [activeScreen, setActiveScreen] =
-    useState<'chat' | 'settings' | 'todo'>('chat');
-  const [settingsPanel, setSettingsPanel] =
-    useState<SettingsPanelId>('root');
-  const [selectedModelId, setSelectedModelId] =
-    useState<ModelOption['id']>(defaultSelectedModelId);
+  const [activeScreen, setActiveScreen] = useState<
+    'chat' | 'settings' | 'todo'
+  >('chat');
+  const [settingsPanel, setSettingsPanel] = useState<SettingsPanelId>('root');
+  const [selectedModelId, setSelectedModelId] = useState<ModelOption['id']>(
+    defaultSelectedModelId,
+  );
   const [modelStatus, setModelStatus] = useState<ModelStatus | null>(null);
   const [modelStatuses, setModelStatuses] = useState<ModelStatus[]>([]);
-  const [isModelDownloadStarting, setIsModelDownloadStarting] =
-    useState(false);
+  const [isModelDownloadStarting, setIsModelDownloadStarting] = useState(false);
 
   const handleModelStateChange = useCallback(
     ({
@@ -152,8 +149,7 @@ function AppContent() {
         setModelStatuses(nextModelStatuses);
       } else if (nextModelStatus) {
         setModelStatuses(currentStatuses => {
-          const nextModelId =
-            nextModelStatus.modelId ?? selectedModelId;
+          const nextModelId = nextModelStatus.modelId ?? selectedModelId;
           const remainingStatuses = currentStatuses.filter(
             status => status.modelId !== nextModelId,
           );
@@ -181,8 +177,7 @@ function AppContent() {
     () =>
       modelOptions.find(
         model => model.id === selectedModelId && model.action !== 'settings',
-      ) ??
-      modelOptions[0],
+      ) ?? modelOptions[0],
     [selectedModelId],
   );
   const headerSelectedModelId = selectedModel.id;
@@ -190,39 +185,39 @@ function AppContent() {
   const isSettingsDetailPanel =
     activeScreen === 'settings' && settingsPanel !== 'root';
 
-  const handleDownloadModelFromMenu = useCallback(async (modelId: ModelOption['id']) => {
-    const status = getModelStatusForId(modelStatuses, modelId);
+  const handleDownloadModelFromMenu = useCallback(
+    async (modelId: ModelOption['id']) => {
+      const status = getModelStatusForId(modelStatuses, modelId);
 
-    if (
-      modelId === 'manage' ||
-      modelId === 'auto' ||
-      isSystemManagedModel(modelId, status) ||
-      isModelDownloadStarting ||
-      status?.installed ||
-      status?.isDownloading
-    ) {
-      return;
-    }
+      if (
+        modelId === 'manage' ||
+        modelId === 'auto' ||
+        isSystemManagedModel(modelId, status) ||
+        isModelDownloadStarting ||
+        status?.installed ||
+        status?.isDownloading
+      ) {
+        return;
+      }
 
-    setIsModelDownloadStarting(true);
+      setIsModelDownloadStarting(true);
 
-    try {
-      const nextModelStatus = await AIEngine.downloadModel(modelId);
-      setModelStatus(nextModelStatus);
-      setModelStatuses(currentStatuses => {
-        const nextModelId = nextModelStatus.modelId ?? modelId;
-        const remainingStatuses = currentStatuses.filter(
-          currentStatus => currentStatus.modelId !== nextModelId,
-        );
-        return [...remainingStatuses, nextModelStatus];
-      });
-    } finally {
-      setIsModelDownloadStarting(false);
-    }
-  }, [
-    isModelDownloadStarting,
-    modelStatuses,
-  ]);
+      try {
+        const nextModelStatus = await AIEngine.downloadModel(modelId);
+        setModelStatus(nextModelStatus);
+        setModelStatuses(currentStatuses => {
+          const nextModelId = nextModelStatus.modelId ?? modelId;
+          const remainingStatuses = currentStatuses.filter(
+            currentStatus => currentStatus.modelId !== nextModelId,
+          );
+          return [...remainingStatuses, nextModelStatus];
+        });
+      } finally {
+        setIsModelDownloadStarting(false);
+      }
+    },
+    [isModelDownloadStarting, modelStatuses],
+  );
 
   const modelSelectOptions = useMemo<
     FloatingSelectOption<ModelOption['id']>[]
@@ -253,10 +248,7 @@ function AppContent() {
         value: model.id,
       };
     });
-  }, [
-    modelStatus,
-    modelStatuses,
-  ]);
+  }, [modelStatus, modelStatuses]);
   const handleModelMenuExpandedChange = useCallback((expanded: boolean) => {
     if (expanded) {
       setIsMenuOpen(false);
@@ -431,12 +423,11 @@ function AppContent() {
         setWorkFolders(storedState?.workFolders ?? []);
         setSelectedModelId(storedState?.selectedModelId ?? 'gemma-4');
         setPersonalCustomization(
-          storedState?.personalCustomization ?? defaultPersonalCustomizationSettings,
+          storedState?.personalCustomization ??
+            defaultPersonalCustomizationSettings,
         );
         setChatMessagesBySessionId(hydratedMessagesBySessionId);
-        setDraftChatMessages(
-          hydrateMessages(storedState?.draftChatMessages),
-        );
+        setDraftChatMessages(hydrateMessages(storedState?.draftChatMessages));
       } finally {
         if (!isCancelled) {
           setIsAppStateHydrated(true);
@@ -514,13 +505,10 @@ function AppContent() {
   }, [activeSessionId, chatMessagesBySessionId, draftChatMessages]);
 
   const activeWorkFolderMemory = useMemo(() => {
-    if (!activeSessionId) {
-      return '';
-    }
-
-    const activeWorkFolderId = workFolderSessions.find(
-      session => session.id === activeSessionId,
-    )?.workFolderId;
+    const activeWorkFolderId = activeSessionId
+      ? workFolderSessions.find(session => session.id === activeSessionId)
+          ?.workFolderId
+      : pendingWorkFolderId;
 
     if (!activeWorkFolderId) {
       return '';
@@ -531,7 +519,7 @@ function AppContent() {
         .find(folder => folder.id === activeWorkFolderId)
         ?.memory?.trim() ?? ''
     );
-  }, [activeSessionId, workFolders, workFolderSessions]);
+  }, [activeSessionId, pendingWorkFolderId, workFolders, workFolderSessions]);
 
   const activeSystemPrompt = useMemo(
     () =>
@@ -552,11 +540,7 @@ function AppContent() {
   }, []);
 
   const applySessionTitle = useCallback(
-    (
-      sessionId: string,
-      title: string,
-      options: { persist?: boolean } = {},
-    ) => {
+    (sessionId: string, title: string, options: { persist?: boolean } = {}) => {
       if (activeSessionIdRef.current === sessionId) {
         setSessionTitle(title);
       }
@@ -604,6 +588,27 @@ function AppContent() {
 
   const handleNewChat = () => {
     clearTitleAnimation(true);
+    pendingWorkFolderIdRef.current = null;
+    setPendingWorkFolderId(null);
+    setActiveScreen('chat');
+    setSettingsPanel('root');
+    activeSessionIdRef.current = null;
+    setActiveSessionId(null);
+    setSessionTitle('새 채팅');
+    setDraftChatMessages(createInitialChatMessages());
+    setChatInstanceKey(current => current + 1);
+    setIsMenuOpen(false);
+  };
+
+  const handleStartWorkFolderChat = (folderId: string) => {
+    const folder = workFolders.find(candidate => candidate.id === folderId);
+    if (!folder) {
+      return;
+    }
+
+    clearTitleAnimation(true);
+    pendingWorkFolderIdRef.current = folderId;
+    setPendingWorkFolderId(folderId);
     setActiveScreen('chat');
     setSettingsPanel('root');
     activeSessionIdRef.current = null;
@@ -616,6 +621,8 @@ function AppContent() {
 
   const handleSelectSession = (title: string, id?: string) => {
     clearTitleAnimation(true);
+    pendingWorkFolderIdRef.current = null;
+    setPendingWorkFolderId(null);
     const isChatSession =
       id != null &&
       (recentSessions.some(session => session.id === id) ||
@@ -635,6 +642,8 @@ function AppContent() {
 
   const handleOpenSettings = () => {
     clearTitleAnimation(true);
+    pendingWorkFolderIdRef.current = null;
+    setPendingWorkFolderId(null);
     setActiveScreen('settings');
     setSettingsPanel('root');
     activeSessionIdRef.current = null;
@@ -644,6 +653,8 @@ function AppContent() {
 
   const handleOpenTodoList = () => {
     clearTitleAnimation(true);
+    pendingWorkFolderIdRef.current = null;
+    setPendingWorkFolderId(null);
     setActiveScreen('todo');
     setSettingsPanel('root');
     activeSessionIdRef.current = null;
@@ -688,6 +699,7 @@ function AppContent() {
         return { sessionId: null };
       }
 
+      const targetWorkFolderId = pendingWorkFolderIdRef.current;
       const nextSessionId = createChatSessionId();
       const nextSessionTitle =
         sessionTitleCandidate?.trim() || sessionTitle || '새 채팅';
@@ -700,15 +712,28 @@ function AppContent() {
         : undefined;
 
       activeSessionIdRef.current = nextSessionId;
+      pendingWorkFolderIdRef.current = null;
       setActiveSessionId(nextSessionId);
+      setPendingWorkFolderId(null);
       setSessionTitle(nextSessionTitle);
-      setRecentSessions(current => [
-        {
-          id: nextSessionId,
-          title: nextSessionTitle,
-        },
-        ...current,
-      ]);
+      if (targetWorkFolderId) {
+        setWorkFolderSessions(current => [
+          {
+            id: nextSessionId,
+            title: nextSessionTitle,
+            workFolderId: targetWorkFolderId,
+          },
+          ...current,
+        ]);
+      } else {
+        setRecentSessions(current => [
+          {
+            id: nextSessionId,
+            title: nextSessionTitle,
+          },
+          ...current,
+        ]);
+      }
       setChatMessagesBySessionId(current => ({
         ...current,
         [nextSessionId]: nextMessages,
@@ -735,7 +760,11 @@ function AppContent() {
       }
 
       const isActiveSession = targetSessionId === activeSessionIdRef.current;
-      if (!options.animated || !isActiveSession || normalizedTitle.length <= 1) {
+      if (
+        !options.animated ||
+        !isActiveSession ||
+        normalizedTitle.length <= 1
+      ) {
         clearTitleAnimation(true);
         applySessionTitle(targetSessionId, normalizedTitle);
         return;
@@ -844,6 +873,7 @@ function AppContent() {
   const handleCreateWorkFolder = (
     title: string,
     iconId: WorkFolderIconId = DEFAULT_WORK_FOLDER_ICON_ID,
+    memory = '',
   ) => {
     const nextTitle = title.trim();
     if (!nextTitle) {
@@ -855,7 +885,7 @@ function AppContent() {
       {
         iconId,
         id: `work-folder-${Date.now()}`,
-        memory: '',
+        memory: memory.trim(),
         title: nextTitle,
       },
     ]);
@@ -882,26 +912,43 @@ function AppContent() {
   };
 
   const handleDeleteWorkFolder = (folderId: string) => {
-    const restoredSessions = workFolderSessions
+    const deletedSessionIds = workFolderSessions
       .filter(session => session.workFolderId === folderId)
-      .map(session => ({
-        id: session.id,
-        pinned: false,
-        title: session.title,
-      }));
+      .map(session => session.id);
+    const deletedSessionIdSet = new Set(deletedSessionIds);
 
     setWorkFolders(current => current.filter(folder => folder.id !== folderId));
     setWorkFolderSessions(current =>
       current.filter(session => session.workFolderId !== folderId),
     );
-    setRecentSessions(current => {
-      const existingSessionIds = new Set(current.map(session => session.id));
-      const nextRestoredSessions = restoredSessions.filter(
-        session => !existingSessionIds.has(session.id),
-      );
+    setChatMessagesBySessionId(current => {
+      if (deletedSessionIds.length === 0) {
+        return current;
+      }
 
-      return [...nextRestoredSessions, ...current];
+      return Object.fromEntries(
+        Object.entries(current).filter(
+          ([sessionId]) => !deletedSessionIdSet.has(sessionId),
+        ),
+      );
     });
+    deletedSessionIds.forEach(sessionId => {
+      AIEngine.deleteChatSession(sessionId).catch(() => undefined);
+    });
+
+    if (pendingWorkFolderIdRef.current === folderId) {
+      pendingWorkFolderIdRef.current = null;
+      setPendingWorkFolderId(null);
+    }
+
+    if (activeSessionId && deletedSessionIdSet.has(activeSessionId)) {
+      clearTitleAnimation(false);
+      activeSessionIdRef.current = null;
+      setActiveSessionId(null);
+      setSessionTitle('새 채팅');
+      setDraftChatMessages(createInitialChatMessages());
+      setChatInstanceKey(current => current + 1);
+    }
   };
 
   const handleRemoveSessionFromWorkFolder = (sessionId: string) => {
@@ -953,247 +1000,239 @@ function AppContent() {
 
   return (
     <DisplaySettingsProvider>
-      <StatusBar
-        barStyle="dark-content"
-        backgroundColor={colors.background}
-      />
+      <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
       <SafeAreaView edges={['top', 'left', 'right']} style={styles.safeArea}>
         <PastelBackground />
 
-          <View style={styles.header}>
-            <View style={styles.headerSide}>
-              <Pressable
-                accessibilityLabel={
-                  isSettingsDetailPanel ? '설정 목록으로 돌아가기' : '메뉴 열기'
+        <View style={styles.header}>
+          <View style={styles.headerSide}>
+            <Pressable
+              accessibilityLabel={
+                isSettingsDetailPanel ? '설정 목록으로 돌아가기' : '메뉴 열기'
+              }
+              accessibilityRole="button"
+              onPress={() => {
+                if (isSettingsDetailPanel) {
+                  setSettingsPanel('root');
+                  return;
                 }
-                accessibilityRole="button"
-                onPress={() => {
-                  if (isSettingsDetailPanel) {
-                    setSettingsPanel('root');
-                    return;
-                  }
 
-                  setIsModelMenuOpen(false);
-                  setIsMenuOpen(true);
-                }}
-                style={({ pressed }) => [
-                  styles.menuButton,
-                  pressed && styles.menuButtonPressed,
-                ]}
-              >
-                <AppIcon
-                  color={colors.foreground}
-                  icon={
-                    isSettingsDetailPanel
-                      ? appIcons.back
-                      : appIcons.navigationMenu
-                  }
-                  size={isSettingsDetailPanel ? 18 : 20}
-                />
-              </Pressable>
-            </View>
+                setIsModelMenuOpen(false);
+                setIsMenuOpen(true);
+              }}
+              style={({ pressed }) => [
+                styles.menuButton,
+                pressed && styles.menuButtonPressed,
+              ]}
+            >
+              <AppIcon
+                color={colors.foreground}
+                icon={
+                  isSettingsDetailPanel
+                    ? appIcons.back
+                    : appIcons.navigationMenu
+                }
+                size={isSettingsDetailPanel ? 18 : 20}
+              />
+            </Pressable>
+          </View>
 
-            <Text numberOfLines={1} style={styles.sessionTitle}>
+          <Text numberOfLines={1} style={styles.sessionTitle}>
             {activeScreen === 'settings'
               ? t('settings.title')
               : activeScreen === 'todo'
               ? 'Todo List'
               : sessionTitle}
-            </Text>
+          </Text>
 
-            <View style={[styles.headerSide, styles.headerSideRight]}>
-              {activeScreen !== 'chat' ? null : (
+          <View style={[styles.headerSide, styles.headerSideRight]}>
+            {activeScreen !== 'chat' ? null : (
+              <Pressable
+                accessibilityLabel="모델 선택"
+                accessibilityRole="button"
+                accessibilityState={{ expanded: isModelMenuOpen }}
+                onPress={() => handleModelMenuExpandedChange(!isModelMenuOpen)}
+                style={({ pressed }) => [
+                  styles.modelSelector,
+                  isModelMenuOpen && styles.modelSelectorActive,
+                  pressed && styles.menuButtonPressed,
+                ]}
+              >
+                <Text numberOfLines={1} style={styles.modelSelectorText}>
+                  {headerModelLabel}
+                </Text>
+                <AppIcon
+                  color={colors.mutedForeground}
+                  icon={appIcons.chevronDown}
+                  size={9}
+                />
+              </Pressable>
+            )}
+          </View>
+        </View>
+
+        {isModelMenuOpen ? (
+          <Pressable
+            accessibilityLabel="모델 메뉴 닫기"
+            onPress={() => setIsModelMenuOpen(false)}
+            style={styles.modelMenuBackdrop}
+          />
+        ) : null}
+
+        {isModelMenuOpen ? (
+          <View style={styles.modelMenuOverlay}>
+            {modelSelectOptions.map(option => {
+              const optionStatus = getModelStatusForId(
+                modelStatuses,
+                option.value,
+              );
+              const isSelected = option.value === headerSelectedModelId;
+              const isDownloadableMissingModel =
+                option.value === defaultDownloadableModelOption.id &&
+                !optionStatus?.installed &&
+                !isSystemManagedModel(option.value, optionStatus);
+              const isDownloadInProgress =
+                isDownloadableMissingModel &&
+                (optionStatus?.isDownloading || isModelDownloadStarting);
+              const optionDownloadProgress =
+                optionStatus == null || optionStatus.totalBytes <= 0
+                  ? 0
+                  : Math.min(
+                      1,
+                      optionStatus.bytesDownloaded / optionStatus.totalBytes,
+                    );
+
+              return (
                 <Pressable
-                  accessibilityLabel="모델 선택"
+                  accessibilityLabel={`${option.label} 선택`}
                   accessibilityRole="button"
-                  accessibilityState={{ expanded: isModelMenuOpen }}
-                  onPress={() =>
-                    handleModelMenuExpandedChange(!isModelMenuOpen)
-                  }
+                  accessibilityState={{
+                    disabled: option.disabled,
+                    selected: isSelected,
+                  }}
+                  disabled={option.disabled}
+                  key={option.value}
+                  onPress={() => handleHeaderModelOptionPress(option)}
                   style={({ pressed }) => [
-                    styles.modelSelector,
-                    isModelMenuOpen && styles.modelSelectorActive,
+                    styles.modelMenuOption,
+                    isDownloadableMissingModel &&
+                      styles.modelMenuOptionDownloadable,
+                    option.dividerBefore && styles.modelMenuOptionDivider,
+                    isSelected && styles.modelMenuOptionSelected,
+                    option.disabled && styles.modelMenuOptionDisabled,
                     pressed && styles.menuButtonPressed,
                   ]}
                 >
-                  <Text numberOfLines={1} style={styles.modelSelectorText}>
-                    {headerModelLabel}
-                  </Text>
-                  <AppIcon
-                    color={colors.mutedForeground}
-                    icon={appIcons.chevronDown}
-                    size={9}
-                  />
-                </Pressable>
-              )}
-            </View>
-          </View>
-
-          {isModelMenuOpen ? (
-            <Pressable
-              accessibilityLabel="모델 메뉴 닫기"
-              onPress={() => setIsModelMenuOpen(false)}
-              style={styles.modelMenuBackdrop}
-            />
-          ) : null}
-
-          {isModelMenuOpen ? (
-            <View style={styles.modelMenuOverlay}>
-              {modelSelectOptions.map(option => {
-                const optionStatus = getModelStatusForId(
-                  modelStatuses,
-                  option.value,
-                );
-                const isSelected = option.value === headerSelectedModelId;
-                const isDownloadableMissingModel =
-                  option.value === defaultDownloadableModelOption.id &&
-                  !optionStatus?.installed &&
-                  !isSystemManagedModel(option.value, optionStatus);
-                const isDownloadInProgress =
-                  isDownloadableMissingModel &&
-                  (optionStatus?.isDownloading || isModelDownloadStarting);
-                const optionDownloadProgress =
-                  optionStatus == null || optionStatus.totalBytes <= 0
-                    ? 0
-                    : Math.min(
-                        1,
-                        optionStatus.bytesDownloaded / optionStatus.totalBytes,
-                      );
-
-                return (
-                  <Pressable
-                    accessibilityLabel={`${option.label} 선택`}
-                    accessibilityRole="button"
-                    accessibilityState={{
-                      disabled: option.disabled,
-                      selected: isSelected,
-                    }}
-                    disabled={option.disabled}
-                    key={option.value}
-                    onPress={() => handleHeaderModelOptionPress(option)}
-                    style={({ pressed }) => [
-                      styles.modelMenuOption,
-                      isDownloadableMissingModel &&
-                        styles.modelMenuOptionDownloadable,
-                      option.dividerBefore && styles.modelMenuOptionDivider,
-                      isSelected && styles.modelMenuOptionSelected,
-                      option.disabled && styles.modelMenuOptionDisabled,
-                      pressed && styles.menuButtonPressed,
-                    ]}
-                  >
-                    <View style={styles.modelMenuOptionValue}>
-                      <View style={styles.modelMenuOptionCopy}>
+                  <View style={styles.modelMenuOptionValue}>
+                    <View style={styles.modelMenuOptionCopy}>
+                      <Text
+                        numberOfLines={1}
+                        style={[
+                          styles.modelMenuOptionLabel,
+                          isDownloadableMissingModel &&
+                            styles.modelMenuOptionLabelDownloadable,
+                        ]}
+                      >
+                        {option.label}
+                      </Text>
+                      {option.description ? (
                         <Text
                           numberOfLines={1}
-                          style={[
-                            styles.modelMenuOptionLabel,
-                            isDownloadableMissingModel &&
-                              styles.modelMenuOptionLabelDownloadable,
-                          ]}
+                          style={styles.modelMenuOptionDescription}
                         >
-                          {option.label}
+                          {option.description}
                         </Text>
-                        {option.description ? (
-                          <Text
-                            numberOfLines={1}
-                            style={styles.modelMenuOptionDescription}
-                          >
-                            {option.description}
-                          </Text>
-                        ) : null}
-                        {isDownloadInProgress ? (
-                          <View style={styles.modelMenuProgressTrack}>
-                            <View
-                              style={[
-                                styles.modelMenuProgressFill,
-                                { width: `${optionDownloadProgress * 100}%` },
-                              ]}
-                            />
-                          </View>
-                        ) : null}
-                      </View>
+                      ) : null}
+                      {isDownloadInProgress ? (
+                        <View style={styles.modelMenuProgressTrack}>
+                          <View
+                            style={[
+                              styles.modelMenuProgressFill,
+                              { width: `${optionDownloadProgress * 100}%` },
+                            ]}
+                          />
+                        </View>
+                      ) : null}
                     </View>
-                    {isDownloadInProgress ? (
-                      <View style={styles.modelMenuDownloadPill}>
-                        <ActivityIndicator
-                          color={colors.primary}
-                          size="small"
-                        />
-                        <Text style={styles.modelMenuDownloadPillText}>
-                          받는 중
-                        </Text>
-                      </View>
-                    ) : option.trailingIcon ? (
-                      <View style={styles.modelMenuDownloadPill}>
-                        <Text style={styles.modelMenuDownloadPillText}>
-                          받기
-                        </Text>
-                        <AppIcon
-                          color={option.trailingIconColor ?? colors.primary}
-                          icon={option.trailingIcon}
-                          size={14}
-                        />
-                      </View>
-                    ) : isSelected ? (
-                      <View style={styles.modelMenuTrailingCircle}>
-                        <AppIcon
-                          color={colors.primary}
-                          icon={appIcons.selected}
-                          size={14}
-                        />
-                      </View>
-                    ) : null}
-                  </Pressable>
-                );
-              })}
-            </View>
-          ) : null}
-
-          <View style={styles.content}>
-            {activeScreen === 'chat' ? (
-              <ChatScreen
-                commonSystemPrompt={activeSystemPrompt}
-                key={`chat-${chatInstanceKey}`}
-                messages={activeMessages}
-                onMessagesChange={handleChatMessagesChange}
-                onSessionTitleChange={handleActiveSessionTitleChange}
-                selectedModelId={selectedModel.id}
-                selectedModelLabel={selectedModel.label}
-                sessionId={activeSessionId}
-              />
-            ) : activeScreen === 'settings' ? (
-              <Settings
-                activePanel={settingsPanel}
-                onModelStateChange={handleModelStateChange}
-                onPanelChange={setSettingsPanel}
-                onPersonalCustomizationChange={setPersonalCustomization}
-                personalCustomization={personalCustomization}
-                selectedModelId={selectedModel.id}
-              />
-            ) : (
-              <TodoListScreen />
-            )}
+                  </View>
+                  {isDownloadInProgress ? (
+                    <View style={styles.modelMenuDownloadPill}>
+                      <ActivityIndicator color={colors.primary} size="small" />
+                      <Text style={styles.modelMenuDownloadPillText}>
+                        받는 중
+                      </Text>
+                    </View>
+                  ) : option.trailingIcon ? (
+                    <View style={styles.modelMenuDownloadPill}>
+                      <Text style={styles.modelMenuDownloadPillText}>받기</Text>
+                      <AppIcon
+                        color={option.trailingIconColor ?? colors.primary}
+                        icon={option.trailingIcon}
+                        size={14}
+                      />
+                    </View>
+                  ) : isSelected ? (
+                    <View style={styles.modelMenuTrailingCircle}>
+                      <AppIcon
+                        color={colors.primary}
+                        icon={appIcons.selected}
+                        size={14}
+                      />
+                    </View>
+                  ) : null}
+                </Pressable>
+              );
+            })}
           </View>
+        ) : null}
 
-          <FullScreenMenu
-            onCreateWorkFolder={handleCreateWorkFolder}
-            onDeleteWorkFolder={handleDeleteWorkFolder}
-            onDeleteSession={handleDeleteSession}
-            onClose={() => setIsMenuOpen(false)}
-            onMoveSessionToWorkFolder={handleMoveSessionToWorkFolder}
-            onNewChat={handleNewChat}
-            onOpenSettings={handleOpenSettings}
-            onOpenTodoList={handleOpenTodoList}
-            onRenameSession={handleRenameSession}
-            onRemoveSessionFromWorkFolder={handleRemoveSessionFromWorkFolder}
-            onSelectSession={handleSelectSession}
-            onTogglePinnedSession={handleTogglePinnedSession}
-            onUpdateWorkFolder={handleUpdateWorkFolder}
-            recentSessions={sortedRecentSessions}
-            visible={isMenuOpen}
-            workFolders={workFolders}
-            workFolderSessions={workFolderSessions}
-          />
+        <View style={styles.content}>
+          {activeScreen === 'chat' ? (
+            <ChatScreen
+              commonSystemPrompt={activeSystemPrompt}
+              key={`chat-${chatInstanceKey}`}
+              messages={activeMessages}
+              onMessagesChange={handleChatMessagesChange}
+              onSessionTitleChange={handleActiveSessionTitleChange}
+              selectedModelId={selectedModel.id}
+              selectedModelLabel={selectedModel.label}
+              sessionId={activeSessionId}
+            />
+          ) : activeScreen === 'settings' ? (
+            <Settings
+              activePanel={settingsPanel}
+              onModelStateChange={handleModelStateChange}
+              onPanelChange={setSettingsPanel}
+              onPersonalCustomizationChange={setPersonalCustomization}
+              personalCustomization={personalCustomization}
+              selectedModelId={selectedModel.id}
+            />
+          ) : (
+            <TodoListScreen />
+          )}
+        </View>
+
+        <FullScreenMenu
+          chatMessagesBySessionId={chatMessagesBySessionId}
+          onCreateWorkFolder={handleCreateWorkFolder}
+          onDeleteWorkFolder={handleDeleteWorkFolder}
+          onDeleteSession={handleDeleteSession}
+          onClose={() => setIsMenuOpen(false)}
+          onMoveSessionToWorkFolder={handleMoveSessionToWorkFolder}
+          onNewChat={handleNewChat}
+          onOpenSettings={handleOpenSettings}
+          onOpenTodoList={handleOpenTodoList}
+          onRenameSession={handleRenameSession}
+          onRemoveSessionFromWorkFolder={handleRemoveSessionFromWorkFolder}
+          onSelectSession={handleSelectSession}
+          onStartWorkFolderChat={handleStartWorkFolderChat}
+          onTogglePinnedSession={handleTogglePinnedSession}
+          onUpdateWorkFolder={handleUpdateWorkFolder}
+          recentSessions={sortedRecentSessions}
+          visible={isMenuOpen}
+          workFolders={workFolders}
+          workFolderSessions={workFolderSessions}
+        />
       </SafeAreaView>
     </DisplaySettingsProvider>
   );

@@ -150,6 +150,28 @@ npm test -- --runInBand
 More setup and troubleshooting notes are available in
 [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md).
 
+## Installable Build Artifacts
+
+Use the installer packaging script when you need local files that can be shared
+or installed outside the development commands:
+
+```sh
+# Build Android debug APKs and the iOS simulator app archive.
+npm run build:installers
+
+# Android only. Outputs APK files under dist/installers/.
+npm run build:android:apk
+
+# iOS simulator only. Outputs a zipped .app under dist/installers/.
+npm run build:ios:simulator
+```
+
+Generated files are written to `dist/installers/`, which is intentionally
+ignored by Git. Android debug APKs can be installed with `adb install`. iOS
+simulator `.app` archives can be installed into a simulator with `xcrun simctl
+install`. A signed iPhone `.ipa` requires Apple signing credentials and should
+be exported from an Xcode archive or CI signing workflow.
+
 ## Branding
 
 Brand-facing names and assets are centralized through

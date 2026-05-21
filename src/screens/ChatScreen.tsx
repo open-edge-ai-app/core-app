@@ -27,6 +27,18 @@ import AIEngine, {
   MultimodalAttachment,
 } from '../native/AIEngine';
 import { pickAttachment } from '../native/FilePicker';
+import {
+  applyTodoToolCalls,
+  buildTodoToolPromptSection,
+  buildTodoToolStateSection,
+  shouldUseTodoTool,
+} from '../native/todoTools';
+import { ensureTodoStoreLoaded } from '../state/todoStore';
+import {
+  hideGenerationProgress,
+  showGenerationProgress,
+} from '../native/progressNotification';
+import { buildAttachmentOcrContext } from '../native/knowledge';
 import { ScaledText as Text } from '../theme/display';
 import { appIcons } from '../theme/icons';
 import { colors } from '../theme/tokens';
@@ -89,9 +101,7 @@ function ChatScreen({
   >([]);
   const [attachmentError, setAttachmentError] = useState<string | null>(null);
   const [selectedMode, setSelectedMode] = useState<ChatMode['id']>('chat');
-  const [queuedRequests, setQueuedRequests] = useState<QueuedChatRequest[]>(
-    [],
-  );
+  const [queuedRequests, setQueuedRequests] = useState<QueuedChatRequest[]>([]);
   const [editingQueuedRequestId, setEditingQueuedRequestId] = useState<
     string | null
   >(null);
@@ -116,7 +126,7 @@ function ChatScreen({
   const canSubmit = draft.trim().length > 0 || selectedAttachments.length > 0;
   const shouldShowStopButton = isGenerationBusy && !canSubmit;
 
-  const bottomSafeAreaInset = Platform.OS === 'ios' ? insets.bottom : 0;
+  const bottomSafeAreaInset = insets.bottom;
   const composerBottomOffset =
     keyboardHeight > 0 ? keyboardHeight : bottomSafeAreaInset;
   const composerOffsetStyle = useMemo(
@@ -128,9 +138,7 @@ function ChatScreen({
   );
   const scrollToBottomButtonOffsetStyle = useMemo(
     () => ({
-      bottom:
-        SCROLL_TO_BOTTOM_BUTTON_OFFSET +
-        composerBottomOffset,
+      bottom: SCROLL_TO_BOTTOM_BUTTON_OFFSET + composerBottomOffset,
     }),
     [composerBottomOffset],
   );
@@ -242,253 +250,337 @@ function ChatScreen({
       });
   }, [isGenerating, isStoppingGeneration]);
 
-  const runChatRequest = useCallback(async (request: QueuedChatRequest) => {
-    const prompt = request.prompt.trim();
-    const attachmentsForPrompt = request.attachments;
+  const runChatRequest = useCallback(
+    async (request: QueuedChatRequest) => {
+      const rawPrompt = request.prompt.trim();
+      const isSearchSlash = /^\/search(\s|$)/i.test(rawPrompt);
+      const searchModeActive = selectedMode === 'search' || isSearchSlash;
+      const prompt = isSearchSlash
+        ? rawPrompt.replace(/^\/search\s*/i, '').trim()
+        : rawPrompt;
+      const attachmentsForPrompt = request.attachments;
 
-    const promptForModel = prompt || t('chat.analyzeAttachedFile');
-    const userMessageText = prompt || promptForModel;
-    const responseModelName = selectedModelLabel;
-    const userMessage = createMessage(
-      'user',
-      userMessageText,
-      undefined,
-      attachmentsForPrompt,
-    );
-    const assistantMessage = createMessage('assistant', '', responseModelName);
-    const messagesWithUserPrompt = [...conversationMessages, userMessage];
-    const nextSessionTitle = !hasUserMessages ? PENDING_CHAT_TITLE : undefined;
-    const shouldGenerateSessionTitle = !hasUserMessages;
-
-    if (prompt === '/compact') {
-      setIsGenerating(true);
-      setIsStoppingGeneration(false);
-      const pendingAssistant = createMessage(
+      const promptForModel = prompt || t('chat.analyzeAttachedFile');
+      const userMessageText = prompt || promptForModel;
+      const responseModelName = selectedModelLabel;
+      const userMessage = createMessage(
+        'user',
+        userMessageText,
+        undefined,
+        attachmentsForPrompt,
+      );
+      const assistantMessage = createMessage(
         'assistant',
-        'Compacting context...',
+        '',
         responseModelName,
       );
-      onMessagesChange([...messagesWithUserPrompt, pendingAssistant]);
+      const messagesWithUserPrompt = [...conversationMessages, userMessage];
+      let baseMessages = messagesWithUserPrompt;
+      const nextSessionTitle = !hasUserMessages
+        ? PENDING_CHAT_TITLE
+        : undefined;
+      const shouldGenerateSessionTitle = !hasUserMessages;
 
-      try {
-        if (!sessionId) {
-          throw new Error(
-            'A saved chat session is required before compacting.',
-          );
-        }
-
-        const result = await AIEngine.compactChatSession(sessionId, 'manual');
-        onMessagesChange([
-          ...messagesWithUserPrompt,
-          {
-            ...pendingAssistant,
-            text: result.compacted
-              ? `Context compacted. Token estimate ${result.beforeTokenEstimate} -> ${result.afterTokenEstimate}.`
-              : result.message,
-          },
-        ]);
-      } catch (error) {
-        const message =
-          error instanceof Error ? error.message : 'Context compact failed.';
-        onMessagesChange([
-          ...messagesWithUserPrompt,
-          {
-            ...pendingAssistant,
-            text: `Context compact failed: ${message}`,
-          },
-        ]);
-      } finally {
-        setIsGenerating(false);
+      if (prompt === '/compact') {
+        setIsGenerating(true);
         setIsStoppingGeneration(false);
-      }
-      return;
-    }
-
-    const messagesChange = onMessagesChange(
-      [...messagesWithUserPrompt, assistantMessage],
-      nextSessionTitle,
-    );
-    const resolvedSessionId = messagesChange.sessionId ?? sessionId;
-    if (!hasUserMessages) {
-      onSessionTitleChange?.(PENDING_CHAT_TITLE, {
-        sessionId: resolvedSessionId,
-      });
-    }
-    const generationToken = generationTokenRef.current + 1;
-    generationTokenRef.current = generationToken;
-    stopRequestedRef.current = false;
-    setIsGenerating(true);
-    setIsStoppingGeneration(false);
-    setIsAwaitingFirstChunk(true);
-
-    let streamedResponse = '';
-    try {
-      await messagesChange.persisted?.catch(() => undefined);
-
-      if (resolvedSessionId) {
-        await AIEngine.compactChatSession(resolvedSessionId, 'auto').catch(
-          () => undefined,
+        const pendingAssistant = createMessage(
+          'assistant',
+          'Compacting context...',
+          responseModelName,
         );
-      }
+        onMessagesChange([...messagesWithUserPrompt, pendingAssistant]);
 
-      const requestHistory = [
-        ...systemHistory,
-        ...(shouldIncludeRuntimeContext(promptForModel)
-          ? [createRuntimeContextMessage()]
-          : []),
-        ...createConversationHistory(messages),
-      ];
+        try {
+          if (!sessionId) {
+            throw new Error(
+              'A saved chat session is required before compacting.',
+            );
+          }
 
-      const updateAssistantMessage = (text: string) => {
-        if (
-          generationTokenRef.current !== generationToken ||
-          stopRequestedRef.current
-        ) {
-          return;
-        }
-
-        onMessagesChange(
-          [
+          const result = await AIEngine.compactChatSession(sessionId, 'manual');
+          onMessagesChange([
             ...messagesWithUserPrompt,
             {
-              ...assistantMessage,
-              reasoning: assistantMessage.reasoning,
-              text,
+              ...pendingAssistant,
+              text: result.compacted
+                ? `Context compacted. Token estimate ${result.beforeTokenEstimate} -> ${result.afterTokenEstimate}.`
+                : result.message,
             },
-          ],
-          nextSessionTitle,
-          { persist: false },
-        );
-      };
-
-      const updateAssistantReasoning = (reasoning: string) => {
-        if (
-          generationTokenRef.current !== generationToken ||
-          stopRequestedRef.current
-        ) {
-          return;
-        }
-
-        assistantMessage.reasoning = reasoning;
-        onMessagesChange(
-          [
+          ]);
+        } catch (error) {
+          const message =
+            error instanceof Error ? error.message : 'Context compact failed.';
+          onMessagesChange([
             ...messagesWithUserPrompt,
             {
-              ...assistantMessage,
-              reasoning,
-              text: streamedResponse,
+              ...pendingAssistant,
+              text: `Context compact failed: ${message}`,
             },
-          ],
-          nextSessionTitle,
-        );
-      };
-
-      const response = await AIEngine.generateResponseStream(
-        promptForModel,
-        requestHistory,
-        {
-          onChunk: chunk => {
-            if (!chunk) {
-              return;
-            }
-            if (
-              generationTokenRef.current !== generationToken ||
-              stopRequestedRef.current
-            ) {
-              return;
-            }
-
-            streamedResponse += chunk;
-            setIsAwaitingFirstChunk(false);
-            updateAssistantMessage(streamedResponse);
-          },
-          onReasoning: updateAssistantReasoning,
-        },
-        {
-          attachments: attachmentsForPrompt,
-          chatSessionId: resolvedSessionId ?? undefined,
-          modelId: selectedModelId,
-        },
-      );
-
-      if (
-        generationTokenRef.current !== generationToken ||
-        stopRequestedRef.current
-      ) {
+          ]);
+        } finally {
+          setIsGenerating(false);
+          setIsStoppingGeneration(false);
+        }
         return;
       }
 
-      if (response !== streamedResponse) {
-        updateAssistantMessage(response);
-      }
-
-      const finalMessages = [
-        ...messagesWithUserPrompt,
-        {
-          ...assistantMessage,
-          reasoning: assistantMessage.reasoning,
-          text: response,
-        },
-      ];
-      await onMessagesChange(finalMessages, nextSessionTitle).persisted?.catch(
-        () => undefined,
-      );
-
-      if (shouldGenerateSessionTitle) {
-        AIEngine.generateChatTitle(userMessageText || promptForModel, response)
-          .then(title => {
-            const normalizedTitle = title.trim();
-            if (normalizedTitle) {
-              onSessionTitleChange?.(normalizedTitle, {
-                animated: true,
-                sessionId: resolvedSessionId,
-              });
-            }
-          })
-          .catch(() => undefined);
-      }
-    } catch (error) {
-      if (
-        generationTokenRef.current !== generationToken ||
-        stopRequestedRef.current
-      ) {
-        return;
-      }
-
-      const message =
-        error instanceof Error
-          ? error.message
-          : t('chat.unknownResponseError');
-
-      onMessagesChange(
-        [
-          ...messagesWithUserPrompt,
-          ...(streamedResponse
-            ? [{ ...assistantMessage, text: streamedResponse }]
-            : []),
-          createMessage('system', t('chat.responseFailed', { message })),
-        ],
+      const messagesChange = onMessagesChange(
+        [...messagesWithUserPrompt, assistantMessage],
         nextSessionTitle,
       );
-    } finally {
-      if (generationTokenRef.current === generationToken) {
-        setIsGenerating(false);
-        setIsStoppingGeneration(false);
-        setIsAwaitingFirstChunk(false);
+      const resolvedSessionId = messagesChange.sessionId ?? sessionId;
+      if (!hasUserMessages) {
+        onSessionTitleChange?.(PENDING_CHAT_TITLE, {
+          sessionId: resolvedSessionId,
+        });
       }
-    }
-  }, [
-    hasUserMessages,
-    conversationMessages,
-    messages,
-    onMessagesChange,
-    onSessionTitleChange,
-    selectedModelLabel,
-    selectedModelId,
-    sessionId,
-    systemHistory,
-    t,
-  ]);
+      const generationToken = generationTokenRef.current + 1;
+      generationTokenRef.current = generationToken;
+      stopRequestedRef.current = false;
+      setIsGenerating(true);
+      setIsStoppingGeneration(false);
+      setIsAwaitingFirstChunk(true);
+      showGenerationProgress(
+        t('chat.loadingResponse', { model: responseModelName }),
+      ).catch(() => undefined);
+
+      let streamedResponse = '';
+      try {
+        await messagesChange.persisted?.catch(() => undefined);
+
+        if (resolvedSessionId) {
+          const compaction = await AIEngine.compactChatSession(
+            resolvedSessionId,
+            'auto',
+          ).catch(() => null);
+          if (compaction?.compacted) {
+            baseMessages = [
+              ...messagesWithUserPrompt,
+              createMessage('system', t('chat.contextCompacted')),
+            ];
+          }
+        }
+
+        const todoToolRelevant = shouldUseTodoTool(promptForModel);
+        if (todoToolRelevant) {
+          await ensureTodoStoreLoaded();
+        }
+        const todoStateSection = todoToolRelevant
+          ? buildTodoToolStateSection()
+          : null;
+        const todoToolMessages: AIChatMessage[] = todoToolRelevant
+          ? [
+              { content: buildTodoToolPromptSection(), role: 'system' },
+              ...(todoStateSection
+                ? [
+                    {
+                      content: todoStateSection,
+                      role: 'system',
+                    } as AIChatMessage,
+                  ]
+                : []),
+            ]
+          : [];
+
+        const ocrContext =
+          attachmentsForPrompt.length > 0
+            ? await buildAttachmentOcrContext(attachmentsForPrompt)
+            : '';
+        const ocrMessages: AIChatMessage[] = ocrContext
+          ? [{ content: ocrContext, role: 'system' }]
+          : [];
+
+        const requestHistory = [
+          ...systemHistory,
+          ...todoToolMessages,
+          ...ocrMessages,
+          ...(shouldIncludeRuntimeContext(promptForModel)
+            ? [createRuntimeContextMessage()]
+            : []),
+          ...createConversationHistory(messages),
+        ];
+
+        const updateAssistantMessage = (text: string) => {
+          if (
+            generationTokenRef.current !== generationToken ||
+            stopRequestedRef.current
+          ) {
+            return;
+          }
+
+          onMessagesChange(
+            [
+              ...baseMessages,
+              {
+                ...assistantMessage,
+                reasoning: assistantMessage.reasoning,
+                text,
+              },
+            ],
+            nextSessionTitle,
+            { persist: false },
+          );
+        };
+
+        const updateAssistantReasoning = (reasoning: string) => {
+          if (
+            generationTokenRef.current !== generationToken ||
+            stopRequestedRef.current
+          ) {
+            return;
+          }
+
+          assistantMessage.reasoning = reasoning;
+          onMessagesChange(
+            [
+              ...baseMessages,
+              {
+                ...assistantMessage,
+                reasoning,
+                text: streamedResponse,
+              },
+            ],
+            nextSessionTitle,
+          );
+        };
+
+        const response = await AIEngine.generateResponseStream(
+          promptForModel,
+          requestHistory,
+          {
+            onChunk: chunk => {
+              if (!chunk) {
+                return;
+              }
+              if (
+                generationTokenRef.current !== generationToken ||
+                stopRequestedRef.current
+              ) {
+                return;
+              }
+
+              streamedResponse += chunk;
+              setIsAwaitingFirstChunk(false);
+              updateAssistantMessage(streamedResponse);
+            },
+            onReasoning: updateAssistantReasoning,
+          },
+          {
+            attachments: attachmentsForPrompt,
+            chatSessionId: resolvedSessionId ?? undefined,
+            disableRetrieval: todoToolRelevant && !searchModeActive,
+            forceWebSearch: searchModeActive,
+            modelId: selectedModelId,
+          },
+        );
+
+        if (
+          generationTokenRef.current !== generationToken ||
+          stopRequestedRef.current
+        ) {
+          return;
+        }
+
+        let finalText = response;
+        const responseHasToolBlock =
+          /```(?:openedge[_-]tool|openedge_tool_call|todo_tool)/.test(response);
+        if (todoToolRelevant || responseHasToolBlock) {
+          await ensureTodoStoreLoaded();
+          const todoOutcome = applyTodoToolCalls(response);
+          if (todoOutcome.results.length > 0) {
+            const parts: string[] = [];
+            if (todoOutcome.cleanedText) {
+              parts.push(todoOutcome.cleanedText);
+            }
+            if (todoOutcome.listText) {
+              parts.push(todoOutcome.listText);
+            } else if (todoOutcome.didMutate) {
+              parts.push(todoOutcome.results.join('\n'));
+            }
+            finalText = parts.join('\n\n').trim() || response;
+          }
+        }
+
+        if (finalText !== streamedResponse) {
+          updateAssistantMessage(finalText);
+        }
+
+        const finalMessages = [
+          ...baseMessages,
+          {
+            ...assistantMessage,
+            reasoning: assistantMessage.reasoning,
+            text: finalText,
+          },
+        ];
+        await onMessagesChange(
+          finalMessages,
+          nextSessionTitle,
+        ).persisted?.catch(() => undefined);
+
+        if (shouldGenerateSessionTitle) {
+          AIEngine.generateChatTitle(
+            userMessageText || promptForModel,
+            finalText,
+          )
+            .then(title => {
+              const normalizedTitle = title.trim();
+              if (normalizedTitle) {
+                onSessionTitleChange?.(normalizedTitle, {
+                  animated: true,
+                  sessionId: resolvedSessionId,
+                });
+              }
+            })
+            .catch(() => undefined);
+        }
+      } catch (error) {
+        if (
+          generationTokenRef.current !== generationToken ||
+          stopRequestedRef.current
+        ) {
+          return;
+        }
+
+        const message =
+          error instanceof Error
+            ? error.message
+            : t('chat.unknownResponseError');
+
+        onMessagesChange(
+          [
+            ...baseMessages,
+            ...(streamedResponse
+              ? [{ ...assistantMessage, text: streamedResponse }]
+              : []),
+            createMessage('system', t('chat.responseFailed', { message })),
+          ],
+          nextSessionTitle,
+        );
+      } finally {
+        hideGenerationProgress().catch(() => undefined);
+        if (generationTokenRef.current === generationToken) {
+          setIsGenerating(false);
+          setIsStoppingGeneration(false);
+          setIsAwaitingFirstChunk(false);
+        }
+      }
+    },
+    [
+      hasUserMessages,
+      conversationMessages,
+      messages,
+      onMessagesChange,
+      onSessionTitleChange,
+      selectedMode,
+      selectedModelLabel,
+      selectedModelId,
+      sessionId,
+      systemHistory,
+      t,
+    ],
+  );
 
   const handleSend = useCallback(() => {
     const prompt = draft.trim();
@@ -509,12 +601,7 @@ function ChatScreen({
     }
 
     runChatRequest(request).catch(() => undefined);
-  }, [
-    draft,
-    isGenerationBusy,
-    runChatRequest,
-    selectedAttachments,
-  ]);
+  }, [draft, isGenerationBusy, runChatRequest, selectedAttachments]);
 
   const handleEditQueuedRequest = useCallback((request: QueuedChatRequest) => {
     setEditingQueuedRequestId(request.id);
@@ -803,9 +890,7 @@ function ChatScreen({
         {!hasUserMessages ? (
           <View style={styles.hero}>
             <Text style={styles.heroTitle}>{t('chat.heroTitle')}</Text>
-            <Text style={styles.heroBody}>
-              {t('chat.heroBody')}
-            </Text>
+            <Text style={styles.heroBody}>{t('chat.heroBody')}</Text>
           </View>
         ) : null}
 
@@ -966,6 +1051,5 @@ function ChatScreen({
     </KeyboardAvoidingView>
   );
 }
-
 
 export default ChatScreen;

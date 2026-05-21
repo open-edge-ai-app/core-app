@@ -1,27 +1,4 @@
-import { Platform } from 'react-native';
-
 const defaultColors = {
-  background: '#FBFCFF',
-  foreground: '#151922',
-  card: '#FFFFFF',
-  cardForeground: '#151922',
-  muted: '#F5F7FA',
-  mutedForeground: '#68707D',
-  border: '#E3E7EE',
-  input: '#E7EBF1',
-  primary: '#007AFF',
-  primaryForeground: '#FFFFFF',
-  secondary: '#F2F4F7',
-  secondaryForeground: '#151922',
-  accent: '#EEF6FF',
-  accentForeground: '#0068D9',
-  ring: '#A5ACB7',
-  success: '#34C759',
-  warning: '#FF9500',
-  destructive: '#B3262D',
-};
-
-const iosMonochromeColors: typeof defaultColors = {
   background: '#FFFFFF',
   foreground: '#000000',
   card: '#FFFFFF',
@@ -42,8 +19,7 @@ const iosMonochromeColors: typeof defaultColors = {
   destructive: '#000000',
 };
 
-export const colors =
-  Platform.OS === 'ios' ? iosMonochromeColors : defaultColors;
+export const colors = defaultColors;
 
 export const radii = {
   sm: 8,

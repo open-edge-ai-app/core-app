@@ -87,7 +87,6 @@ export function SettingsNavigationRow({
     </Pressable>
   );
 }
-
 type SearchableLanguageSelectProps = {
   expanded: boolean;
   locale: LocaleCode;
@@ -436,4 +435,3 @@ export function SettingsToggle({
     </Pressable>
   );
 }
-

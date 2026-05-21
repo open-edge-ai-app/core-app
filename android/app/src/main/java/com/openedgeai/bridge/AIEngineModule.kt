@@ -91,8 +91,15 @@ class AIEngineModule(
     fun sendMultimodalMessage(request: ReadableMap, promise: Promise) {
         try {
             val multimodalRequest = request.toMultimodalRequest()
+            val blockedResponse = multimodalRequest.androidModelBlockedResponse()
+            if (blockedResponse != null) {
+                persistBackendChatTurn(multimodalRequest, blockedResponse)
+                promise.resolve(blockedResponse.toWritableMap())
+                return
+            }
+
             val response = queryRouter.routeMultimodal(multimodalRequest)
-            persistBackendChatTurn(multimodalRequest, response.message)
+            persistBackendChatTurn(multimodalRequest, response)
             promise.resolve(response.toWritableMap())
         } catch (error: Exception) {
             promise.reject("AI_ENGINE_MULTIMODAL_ERROR", error)
@@ -103,6 +110,27 @@ class AIEngineModule(
     fun sendMultimodalMessageStream(requestId: String, request: ReadableMap, promise: Promise) {
         try {
             val multimodalRequest = request.toMultimodalRequest()
+            val blockedResponse = multimodalRequest.androidModelBlockedResponse()
+            if (blockedResponse != null) {
+                persistBackendChatTurn(multimodalRequest, blockedResponse)
+                emitStreamEvent(
+                    requestId = requestId,
+                    done = true,
+                    message = blockedResponse.message,
+                    reasoning = blockedResponse.reasoning,
+                    modelId = blockedResponse.modelId,
+                    modelName = blockedResponse.modelName,
+                    provider = blockedResponse.provider,
+                    requestedModelId = blockedResponse.requestedModelId,
+                )
+                promise.resolve(
+                    Arguments.createMap().apply {
+                        putBoolean("started", true)
+                    },
+                )
+                return
+            }
+
             queryRouter.routeMultimodalStream(
                 request = multimodalRequest,
                 onPartial = { partial, done ->
@@ -113,12 +141,16 @@ class AIEngineModule(
                     )
                 },
                 onComplete = { response ->
-                    persistBackendChatTurn(multimodalRequest, response.message)
+                    persistBackendChatTurn(multimodalRequest, response)
                     emitStreamEvent(
                         requestId = requestId,
                         done = true,
                         message = response.message,
                         reasoning = response.reasoning,
+                        modelId = response.modelId,
+                        modelName = response.modelName,
+                        provider = response.provider,
+                        requestedModelId = response.requestedModelId,
                     )
                 },
                 onError = { error ->
@@ -346,6 +378,20 @@ class AIEngineModule(
     }
 
     @ReactMethod
+    fun getModelStatusForModel(modelId: String?, promise: Promise) {
+        promise.resolve(getStatusForModel(modelId).toWritableMap())
+    }
+
+    @ReactMethod
+    fun getModelStatuses(promise: Promise) {
+        promise.resolve(
+            listOf(
+                getStatusForModel(ModelFileManager.MODEL_ID),
+            ).toWritableModelStatusArray(),
+        )
+    }
+
+    @ReactMethod
     fun getStartupState(promise: Promise) {
         promise.resolve(modelFileManager.getStartupState().toWritableMap())
     }
@@ -353,6 +399,11 @@ class AIEngineModule(
     @ReactMethod
     fun getRuntimeStatus(promise: Promise) {
         promise.resolve(ModelRuntimeManager.getStatus(modelFileManager).toWritableMap())
+    }
+
+    @ReactMethod
+    fun getRuntimeStatusForModel(modelId: String?, promise: Promise) {
+        promise.resolve(getRuntimeStatusForModelId(modelId).toWritableMap())
     }
 
     @ReactMethod
@@ -367,6 +418,16 @@ class AIEngineModule(
         } catch (error: Exception) {
             promise.reject("MODEL_LOAD_ERROR", error)
         }
+    }
+
+    @ReactMethod
+    fun loadModelById(modelId: String?, promise: Promise) {
+        if (!isGemmaRuntimeSelection(modelId)) {
+            promise.resolve(getRuntimeStatusForModelId(modelId).toWritableMap())
+            return
+        }
+
+        loadModel(promise)
     }
 
     @ReactMethod
@@ -388,13 +449,21 @@ class AIEngineModule(
     fun downloadModel(promise: Promise) {
         try {
             val started = ModelDownloader.start(modelFileManager)
-            val status = modelFileManager.getStatus().toWritableMap().apply {
-                putBoolean("started", started)
-            }
+            val status = modelFileManager.getStatus().copy(started = started).toWritableMap()
             promise.resolve(status)
         } catch (error: Exception) {
             promise.reject("MODEL_DOWNLOAD_ERROR", error)
         }
+    }
+
+    @ReactMethod
+    fun downloadModelForModel(modelId: String?, promise: Promise) {
+        if (!isGemmaRuntimeSelection(modelId)) {
+            promise.resolve(getStatusForModel(modelId).toWritableMap())
+            return
+        }
+
+        downloadModel(promise)
     }
 
     @ReactMethod
@@ -406,9 +475,7 @@ class AIEngineModule(
             } else {
                 ModelDownloader.start(modelFileManager)
             }
-            val status = modelFileManager.getStatus().toWritableMap().apply {
-                putBoolean("started", started)
-            }
+            val status = modelFileManager.getStatus().copy(started = started).toWritableMap()
             promise.resolve(status)
         } catch (error: Exception) {
             promise.reject("MODEL_ENSURE_ERROR", error)
@@ -416,9 +483,29 @@ class AIEngineModule(
     }
 
     @ReactMethod
+    fun ensureModelDownloadedForModel(modelId: String?, promise: Promise) {
+        if (!isGemmaRuntimeSelection(modelId)) {
+            promise.resolve(getStatusForModel(modelId).toWritableMap())
+            return
+        }
+
+        ensureModelDownloaded(promise)
+    }
+
+    @ReactMethod
     fun cancelModelDownload(promise: Promise) {
         ModelDownloader.cancel()
         promise.resolve(modelFileManager.getStatus().toWritableMap())
+    }
+
+    @ReactMethod
+    fun cancelModelDownloadForModel(modelId: String?, promise: Promise) {
+        if (!isGemmaRuntimeSelection(modelId)) {
+            promise.resolve(getStatusForModel(modelId).toWritableMap())
+            return
+        }
+
+        cancelModelDownload(promise)
     }
 
     @ReactMethod
@@ -632,6 +719,115 @@ class AIEngineModule(
         memoryIndexer.close()
     }
 
+    private fun normalizedModelId(modelId: String?): String? =
+        modelId
+            ?.trim()
+            ?.lowercase(Locale.US)
+            ?.takeIf { normalized -> normalized.isNotEmpty() }
+
+    private fun isGemmaRuntimeSelection(modelId: String?): Boolean {
+        val normalized = normalizedModelId(modelId) ?: return true
+        return normalized in GEMMA_RUNTIME_MODEL_IDS
+    }
+
+    private fun getStatusForModel(modelId: String?): ModelStatus {
+        val normalized = normalizedModelId(modelId)
+        return when {
+            normalized == null || normalized in GEMMA_RUNTIME_MODEL_IDS -> modelFileManager.getStatus()
+            normalized == APPLE_FOUNDATION_MODEL_ID -> unavailableAppleModelStatus()
+            else -> unsupportedModelStatus(normalized)
+        }
+    }
+
+    private fun getRuntimeStatusForModelId(modelId: String?): RuntimeStatus {
+        val normalized = normalizedModelId(modelId)
+        return when {
+            normalized == null || normalized in GEMMA_RUNTIME_MODEL_IDS ->
+                ModelRuntimeManager.getStatus(modelFileManager)
+            normalized == APPLE_FOUNDATION_MODEL_ID -> RuntimeStatus(
+                modelInstalled = false,
+                loaded = false,
+                loading = false,
+                canGenerate = false,
+                localPath = "",
+                error = IOS_SYSTEM_MODEL_ANDROID_ERROR,
+            )
+            else -> RuntimeStatus(
+                modelInstalled = false,
+                loaded = false,
+                loading = false,
+                canGenerate = false,
+                localPath = "",
+                error = unsupportedModelMessage(normalized),
+            )
+        }
+    }
+
+    private fun MultimodalRequest.androidModelBlockedResponse(): AIResponse? {
+        val normalized = normalizedModelId(modelId) ?: return null
+        val modalities = attachments.map { attachment -> attachment.type }.distinct()
+        return when {
+            normalized == APPLE_FOUNDATION_MODEL_ID -> AIResponse(
+                type = "error",
+                message = IOS_SYSTEM_MODEL_ANDROID_ERROR,
+                route = "invalid",
+                modalities = modalities,
+                modelId = APPLE_FOUNDATION_MODEL_ID,
+                modelName = "Unsupported system model",
+                provider = "system",
+                requestedModelId = normalized,
+            )
+            normalized !in GEMMA_RUNTIME_MODEL_IDS -> AIResponse(
+                type = "error",
+                message = unsupportedModelMessage(normalized),
+                route = "invalid",
+                modalities = modalities,
+                modelId = normalized,
+                modelName = normalized,
+                provider = "unknown",
+                requestedModelId = normalized,
+            )
+            else -> null
+        }
+    }
+
+    private fun unavailableAppleModelStatus(): ModelStatus =
+        ModelStatus(
+            modelId = APPLE_FOUNDATION_MODEL_ID,
+            modelName = "Unsupported system model",
+            installed = false,
+            isDownloading = false,
+            bytesDownloaded = 0,
+            totalBytes = 0,
+            localPath = "",
+            downloadUrl = "",
+            error = IOS_SYSTEM_MODEL_ANDROID_ERROR,
+            provider = "system",
+            runnable = false,
+            started = false,
+            systemManaged = true,
+        )
+
+    private fun unsupportedModelStatus(modelId: String): ModelStatus =
+        ModelStatus(
+            modelId = modelId,
+            modelName = modelId,
+            installed = false,
+            isDownloading = false,
+            bytesDownloaded = 0,
+            totalBytes = 0,
+            localPath = "",
+            downloadUrl = "",
+            error = unsupportedModelMessage(modelId),
+            provider = "unknown",
+            runnable = false,
+            started = false,
+            systemManaged = false,
+        )
+
+    private fun unsupportedModelMessage(modelId: String): String =
+        "Model '$modelId' is not supported on Android. Supported Android runtime is Gemma 4."
+
     private fun emitStreamEvent(
         requestId: String,
         chunk: String? = null,
@@ -639,6 +835,10 @@ class AIEngineModule(
         message: String? = null,
         reasoning: String? = null,
         error: String? = null,
+        modelId: String? = null,
+        modelName: String? = null,
+        provider: String? = null,
+        requestedModelId: String? = null,
     ) {
         reactContext.runOnJSQueueThread {
             val event = Arguments.createMap().apply {
@@ -656,6 +856,18 @@ class AIEngineModule(
                 if (error != null) {
                     putString("error", error)
                 }
+                if (modelId != null) {
+                    putString("modelId", modelId)
+                }
+                if (modelName != null) {
+                    putString("modelName", modelName)
+                }
+                if (provider != null) {
+                    putString("provider", provider)
+                }
+                if (requestedModelId != null) {
+                    putString("requestedModelId", requestedModelId)
+                }
             }
 
             reactContext
@@ -666,11 +878,11 @@ class AIEngineModule(
 
     private fun persistBackendChatTurn(
         request: MultimodalRequest,
-        responseText: String,
+        response: AIResponse,
     ) {
         val chatId = request.chatSessionId?.takeIf { it.isNotBlank() } ?: return
         val userText = request.text.trim()
-        val assistantText = responseText.cleanModelOutput()
+        val assistantText = response.message.cleanModelOutput()
         if (userText.isBlank() && request.attachments.isEmpty()) {
             return
         }
@@ -721,7 +933,7 @@ class AIEngineModule(
                     chatId = chatId,
                     role = "assistant",
                     text = assistantText,
-                    modelName = "Gemma 4",
+                    modelName = response.modelName,
                     createdAt = now,
                     sortOrder = existingMessages.size,
                 ),
@@ -793,9 +1005,12 @@ class AIEngineModule(
             } else {
                 emptyList()
             },
+            modelId = options?.getOptionalString("modelId"),
             useRag = options?.getOptionalBoolean("useRag"),
             stream = options?.getOptionalBoolean("stream") ?: false,
             chatSessionId = options?.getOptionalString("chatSessionId"),
+            forceWebSearch = options?.getOptionalBoolean("forceWebSearch") ?: false,
+            disableRetrieval = options?.getOptionalBoolean("disableRetrieval") ?: false,
         )
     }
 
@@ -948,7 +1163,7 @@ class AIEngineModule(
             if (sizeBytes == null) {
                 putNull("sizeBytes")
             } else {
-                putDouble("sizeBytes", sizeBytes!!.toDouble())
+                putDouble("sizeBytes", sizeBytes.toDouble())
             }
         }
     }
@@ -979,6 +1194,14 @@ class AIEngineModule(
             putString("message", message)
             putString("route", route)
             putArray("modalities", modalities.toWritableArray())
+            putString("modelId", modelId)
+            putString("modelName", modelName)
+            putString("provider", provider)
+            if (requestedModelId == null) {
+                putNull("requestedModelId")
+            } else {
+                putString("requestedModelId", requestedModelId)
+            }
             if (reasoning == null) {
                 putNull("reasoning")
             } else {
@@ -988,6 +1211,7 @@ class AIEngineModule(
 
     private fun ModelStatus.toWritableMap(): WritableMap =
         Arguments.createMap().apply {
+            putString("modelId", modelId)
             putString("modelName", modelName)
             putBoolean("installed", installed)
             putBoolean("isDownloading", isDownloading)
@@ -995,6 +1219,10 @@ class AIEngineModule(
             putDouble("totalBytes", totalBytes.toDouble())
             putString("localPath", localPath)
             putString("downloadUrl", downloadUrl)
+            putString("provider", provider)
+            putBoolean("runnable", runnable)
+            putBoolean("started", started)
+            putBoolean("systemManaged", systemManaged)
             if (error == null) {
                 putNull("error")
             } else {
@@ -1132,6 +1360,11 @@ class AIEngineModule(
             forEach { value -> pushString(value) }
         }
 
+    private fun List<ModelStatus>.toWritableModelStatusArray(): WritableArray =
+        Arguments.createArray().apply {
+            forEach { value -> pushMap(value.toWritableMap()) }
+        }
+
     private fun ReadableMap.getOptionalString(key: String): String? =
         if (hasKey(key) && !isNull(key)) getString(key) else null
 
@@ -1253,6 +1486,18 @@ class AIEngineModule(
         private const val FILE_PICKER_REQUEST_CODE = 41042
         private const val DOCUMENT_FOLDER_REQUEST_CODE = 41043
         private const val STREAM_EVENT_NAME = "AIEngineStreamChunk"
+        private const val APPLE_FOUNDATION_MODEL_ID = "apple-foundation"
+        private const val IOS_SYSTEM_MODEL_ANDROID_ERROR =
+            "Requested iOS system model is not available on Android. Android uses the Gemma runtime."
+        private const val GEMMA_LITE_MODEL_ID = "gemma-lite"
+        private const val GEMMA_DEEP_MODEL_ID = "gemma-deep"
+        private const val AUTO_MODEL_ID = "auto"
+        private val GEMMA_RUNTIME_MODEL_IDS = setOf(
+            ModelFileManager.MODEL_ID,
+            GEMMA_LITE_MODEL_ID,
+            GEMMA_DEEP_MODEL_ID,
+            AUTO_MODEL_ID,
+        )
         private const val MAX_CHAT_TITLE_LENGTH = 40
         private const val DEFAULT_CHAT_TITLE = "새 채팅"
         private val ISO_FORMAT = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.US).apply {

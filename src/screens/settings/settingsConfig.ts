@@ -1,5 +1,5 @@
 import { I18nKey } from '../../i18n';
-import { IndexingStatus } from '../../native/AIEngine';
+import { IndexingStatus, ModelId, ModelStatus } from '../../native/AIEngine';
 import { type PersonalityPresetId } from '../../config/personalityPresets';
 
 export const defaultStatus: IndexingStatus = {
@@ -36,12 +36,95 @@ export const personalityLabelKeys: Record<PersonalityPresetId, I18nKey> = {
   friendly: 'settings.personality.friendly.label',
 };
 
-export const personalityDescriptionKeys: Record<PersonalityPresetId, I18nKey> = {
-  analytical: 'settings.personality.analytical.description',
-  balanced: 'settings.personality.balanced.description',
-  concise: 'settings.personality.concise.description',
-  friendly: 'settings.personality.friendly.description',
+export const personalityDescriptionKeys: Record<PersonalityPresetId, I18nKey> =
+  {
+    analytical: 'settings.personality.analytical.description',
+    balanced: 'settings.personality.balanced.description',
+    concise: 'settings.personality.concise.description',
+    friendly: 'settings.personality.friendly.description',
+  };
+
+export type SettingsModelOption = {
+  description: string;
+  id: Extract<ModelId, 'apple-foundation' | 'gemma-4'>;
+  title: string;
 };
+
+export const settingsModelOptions: SettingsModelOption[] = [
+  {
+    description: 'System-managed on-device model on eligible iOS devices.',
+    id: 'apple-foundation',
+    title: 'Apple Intelligence',
+  },
+  {
+    description: 'Downloadable local model for on-device inference.',
+    id: 'gemma-4',
+    title: 'Gemma 4',
+  },
+];
+
+export const getSettingsModelStatus = (
+  statuses: ModelStatus[],
+  modelId: ModelId | string,
+) =>
+  statuses.find(status => {
+    if (status.modelId === modelId) {
+      return true;
+    }
+
+    const normalizedName = status.modelName.toLowerCase();
+    if (modelId === 'apple-foundation') {
+      return (
+        normalizedName.includes('apple') ||
+        normalizedName.includes('foundation')
+      );
+    }
+
+    if (modelId === 'gemma-4') {
+      return normalizedName.includes('gemma');
+    }
+
+    return false;
+  }) ?? null;
+
+export const mergeModelStatuses = (
+  currentStatuses: ModelStatus[],
+  updatedStatuses: Array<ModelStatus | null | undefined>,
+) =>
+  updatedStatuses.reduce<ModelStatus[]>((statuses, updatedStatus) => {
+    if (!updatedStatus) {
+      return statuses;
+    }
+
+    const updatedModelId =
+      updatedStatus.modelId ??
+      (updatedStatus.modelName.toLowerCase().includes('apple')
+        ? 'apple-foundation'
+        : 'gemma-4');
+
+    return [
+      ...statuses.filter(status => {
+        const statusModelId =
+          status.modelId ??
+          (status.modelName.toLowerCase().includes('apple')
+            ? 'apple-foundation'
+            : 'gemma-4');
+        return statusModelId !== updatedModelId;
+      }),
+      {
+        ...updatedStatus,
+        modelId: updatedModelId,
+      },
+    ];
+  }, currentStatuses);
+
+export const isSettingsSystemManagedModel = (
+  modelId: ModelId | string,
+  status?: ModelStatus | null,
+) =>
+  modelId === 'apple-foundation' ||
+  Boolean(status?.systemManaged) ||
+  Boolean(status?.modelName.toLowerCase().includes('apple'));
 
 export const languageMenuGap = 8;
 export const languageMenuMargin = 18;

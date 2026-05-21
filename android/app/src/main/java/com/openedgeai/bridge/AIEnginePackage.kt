@@ -9,7 +9,12 @@ import com.facebook.react.uimanager.ViewManager
 class AIEnginePackage : ReactPackage {
     override fun createNativeModules(
         reactContext: ReactApplicationContext,
-    ): List<NativeModule> = listOf(AIEngineModule(reactContext))
+    ): List<NativeModule> = listOf(
+        AIEngineModule(reactContext),
+        CalendarModule(reactContext),
+        KnowledgeModule(reactContext),
+        ProgressNotificationModule(reactContext),
+    )
 
     override fun createViewManagers(
         reactContext: ReactApplicationContext,

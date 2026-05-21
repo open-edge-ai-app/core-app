@@ -1,9 +1,4 @@
-import React, {
-  useCallback,
-  useEffect,
-  useMemo,
-  useState,
-} from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Image,
   Linking,
@@ -28,10 +23,7 @@ import {
   getPersonalityPreset,
   personalityPresets,
 } from '../config/personalityPresets';
-import {
-  LocaleCode,
-  useI18n,
-} from '../i18n';
+import { LocaleCode, useI18n } from '../i18n';
 import AIEngine, {
   IndexingResult,
   IndexingStatus,
@@ -62,8 +54,12 @@ import {
   defaultStatus,
   formatBytes,
   getErrorMessage,
+  getSettingsModelStatus,
+  isSettingsSystemManagedModel,
+  mergeModelStatuses,
   personalityDescriptionKeys,
   personalityLabelKeys,
+  settingsModelOptions,
   textSizeDescriptionKeys,
   textSizeLabelKeys,
 } from './settings/settingsConfig';
@@ -107,16 +103,14 @@ function Settings({
   personalCustomization,
   selectedModelId = 'gemma-4',
 }: SettingsProps) {
-  const {
-    locale,
-    selectedLocale,
-    setLocale,
-    supportedLocales,
-    t,
-  } = useI18n();
+  const { locale, selectedLocale, setLocale, supportedLocales, t } = useI18n();
   const insets = useSafeAreaInsets();
   const [status, setStatus] = useState<IndexingStatus>(defaultStatus);
+  const [modelPanelModelId, setModelPanelModelId] = useState<ModelId | string>(
+    selectedModelId,
+  );
   const [modelStatus, setModelStatus] = useState<ModelStatus | null>(null);
+  const [modelStatuses, setModelStatuses] = useState<ModelStatus[]>([]);
   const [runtimeStatus, setRuntimeStatus] = useState<RuntimeStatus | null>(
     null,
   );
@@ -125,14 +119,42 @@ function Settings({
   const { selectedTextSize, setTextSize, textSize, textSizes } =
     useDisplaySettings();
 
-  const selectedTextSizeLabel =
-    t(textSizeLabelKeys[selectedTextSize.id] ?? 'settings.textSize.default.label');
+  const selectedTextSizeLabel = t(
+    textSizeLabelKeys[selectedTextSize.id] ?? 'settings.textSize.default.label',
+  );
   const selectedTextSizeDescription = t(
     textSizeDescriptionKeys[selectedTextSize.id] ??
       'settings.textSize.default.description',
   );
   const selectedPersonalityPreset = getPersonalityPreset(
     personalCustomization.personality,
+  );
+  const visibleSettingsModelOptions = useMemo(
+    () =>
+      settingsModelOptions.filter(
+        option => Platform.OS === 'ios' || option.id !== 'apple-foundation',
+      ),
+    [],
+  );
+  const defaultVisibleModelId = visibleSettingsModelOptions[0]?.id ?? 'gemma-4';
+  const visibleSelectedModelId = visibleSettingsModelOptions.some(
+    option => option.id === selectedModelId,
+  )
+    ? selectedModelId
+    : defaultVisibleModelId;
+  const activeModelId = visibleSettingsModelOptions.some(
+    option => option.id === modelPanelModelId,
+  )
+    ? modelPanelModelId
+    : visibleSelectedModelId;
+  const getVisibleModelStatuses = useCallback(
+    (statuses: ModelStatus[]) =>
+      statuses.filter(candidateStatus =>
+        visibleSettingsModelOptions.some(option =>
+          Boolean(getSettingsModelStatus([candidateStatus], option.id)),
+        ),
+      ),
+    [visibleSettingsModelOptions],
   );
   const visibleLocales = useMemo(() => {
     const normalizedQuery = languageQuery.trim().toLowerCase();
@@ -154,27 +176,45 @@ function Settings({
     );
   }, [languageQuery, supportedLocales]);
 
+  useEffect(() => {
+    setModelPanelModelId(visibleSelectedModelId);
+  }, [visibleSelectedModelId]);
+
   const refreshStatus = useCallback(async () => {
-    const [
-      nextStatus,
-      nextModelStatuses,
+    const [nextStatus, nextModelStatuses, nextModelStatus, nextRuntimeStatus] =
+      await Promise.all([
+        AIEngine.getIndexingStatus(),
+        AIEngine.getModelStatuses(),
+        AIEngine.getModelStatusForModel(activeModelId),
+        AIEngine.getRuntimeStatus(activeModelId),
+      ]);
+    const nextMergedModelStatuses = mergeModelStatuses(nextModelStatuses, [
       nextModelStatus,
-      nextRuntimeStatus,
-    ] = await Promise.all([
-      AIEngine.getIndexingStatus(),
-      AIEngine.getModelStatuses(),
-      AIEngine.getModelStatusForModel(selectedModelId),
-      AIEngine.getRuntimeStatus(selectedModelId),
     ]);
+    const nextVisibleModelStatuses = getVisibleModelStatuses(
+      nextMergedModelStatuses,
+    );
+    const nextSelectedModelStatus =
+      getSettingsModelStatus(
+        nextVisibleModelStatuses,
+        visibleSelectedModelId,
+      ) ?? nextModelStatus;
     setStatus(nextStatus);
+    setModelStatuses(nextVisibleModelStatuses);
     setModelStatus(nextModelStatus);
     setRuntimeStatus(nextRuntimeStatus);
     onModelStateChange?.({
-      modelStatus: nextModelStatus,
-      modelStatuses: nextModelStatuses,
-      runtimeStatus: nextRuntimeStatus,
+      modelStatus: nextSelectedModelStatus,
+      modelStatuses: nextVisibleModelStatuses,
+      runtimeStatus:
+        activeModelId === visibleSelectedModelId ? nextRuntimeStatus : null,
     });
-  }, [onModelStateChange, selectedModelId]);
+  }, [
+    activeModelId,
+    getVisibleModelStatuses,
+    onModelStateChange,
+    visibleSelectedModelId,
+  ]);
 
   useEffect(() => {
     refreshStatus();
@@ -195,22 +235,54 @@ function Settings({
       : Math.min(1, modelStatus.bytesDownloaded / modelStatus.totalBytes);
 
   const handleDownloadModel = useCallback(async () => {
-    const nextStatus = await AIEngine.ensureModelDownloaded(selectedModelId);
+    const nextStatus = await AIEngine.ensureModelDownloaded(activeModelId);
+    const nextModelStatuses = getVisibleModelStatuses(
+      mergeModelStatuses(modelStatuses, [nextStatus]),
+    );
+    const nextSelectedModelStatus =
+      getSettingsModelStatus(nextModelStatuses, visibleSelectedModelId) ??
+      nextStatus;
+    setModelStatuses(nextModelStatuses);
     setModelStatus(nextStatus);
     onModelStateChange?.({
-      modelStatus: nextStatus,
-      runtimeStatus,
+      modelStatus: nextSelectedModelStatus,
+      modelStatuses: nextModelStatuses,
+      runtimeStatus:
+        activeModelId === visibleSelectedModelId ? runtimeStatus : null,
     });
-  }, [onModelStateChange, runtimeStatus, selectedModelId]);
+  }, [
+    activeModelId,
+    getVisibleModelStatuses,
+    modelStatuses,
+    onModelStateChange,
+    runtimeStatus,
+    visibleSelectedModelId,
+  ]);
 
   const handleCancelModelDownload = useCallback(async () => {
-    const nextStatus = await AIEngine.cancelModelDownload(selectedModelId);
+    const nextStatus = await AIEngine.cancelModelDownload(activeModelId);
+    const nextModelStatuses = getVisibleModelStatuses(
+      mergeModelStatuses(modelStatuses, [nextStatus]),
+    );
+    const nextSelectedModelStatus =
+      getSettingsModelStatus(nextModelStatuses, visibleSelectedModelId) ??
+      nextStatus;
+    setModelStatuses(nextModelStatuses);
     setModelStatus(nextStatus);
     onModelStateChange?.({
-      modelStatus: nextStatus,
-      runtimeStatus,
+      modelStatus: nextSelectedModelStatus,
+      modelStatuses: nextModelStatuses,
+      runtimeStatus:
+        activeModelId === visibleSelectedModelId ? runtimeStatus : null,
     });
-  }, [onModelStateChange, runtimeStatus, selectedModelId]);
+  }, [
+    activeModelId,
+    getVisibleModelStatuses,
+    modelStatuses,
+    onModelStateChange,
+    runtimeStatus,
+    visibleSelectedModelId,
+  ]);
 
   const handleLoadModel = useCallback(async () => {
     const loadingStatus: RuntimeStatus = {
@@ -224,15 +296,19 @@ function Settings({
     setRuntimeStatus(loadingStatus);
     onModelStateChange?.({
       modelStatus,
-      runtimeStatus: loadingStatus,
+      modelStatuses,
+      runtimeStatus:
+        activeModelId === visibleSelectedModelId ? loadingStatus : null,
     });
 
     try {
-      const nextStatus = await AIEngine.loadModel(selectedModelId);
+      const nextStatus = await AIEngine.loadModel(activeModelId);
       setRuntimeStatus(nextStatus);
       onModelStateChange?.({
         modelStatus,
-        runtimeStatus: nextStatus,
+        modelStatuses,
+        runtimeStatus:
+          activeModelId === visibleSelectedModelId ? nextStatus : null,
       });
     } catch (error) {
       const errorStatus: RuntimeStatus = {
@@ -246,14 +322,18 @@ function Settings({
       setRuntimeStatus(errorStatus);
       onModelStateChange?.({
         modelStatus,
-        runtimeStatus: errorStatus,
+        modelStatuses,
+        runtimeStatus:
+          activeModelId === visibleSelectedModelId ? errorStatus : null,
       });
     }
   }, [
+    activeModelId,
     modelStatus,
+    modelStatuses,
     onModelStateChange,
     runtimeStatus?.localPath,
-    selectedModelId,
+    visibleSelectedModelId,
   ]);
 
   const handleUnloadModel = useCallback(async () => {
@@ -261,46 +341,64 @@ function Settings({
     setRuntimeStatus(nextStatus);
     onModelStateChange?.({
       modelStatus,
-      runtimeStatus: nextStatus,
+      modelStatuses,
+      runtimeStatus:
+        activeModelId === visibleSelectedModelId ? nextStatus : null,
     });
-  }, [modelStatus, onModelStateChange]);
+  }, [
+    activeModelId,
+    modelStatus,
+    modelStatuses,
+    onModelStateChange,
+    visibleSelectedModelId,
+  ]);
 
-  const runIndexingAction = useCallback(async (
-    action: () => Promise<IndexingResult>,
-  ) => {
-    try {
-      const result = await action();
-      setStatus(result.status);
-    } catch (error) {
-      setStatus(previousStatus => ({
-        ...previousStatus,
-        isIndexing: false,
-        lastError: getErrorMessage(error),
-      }));
-    }
-  }, []);
+  const runIndexingAction = useCallback(
+    async (action: () => Promise<IndexingResult>) => {
+      try {
+        const result = await action();
+        setStatus(result.status);
+      } catch (error) {
+        setStatus(previousStatus => ({
+          ...previousStatus,
+          isIndexing: false,
+          lastError: getErrorMessage(error),
+        }));
+      }
+    },
+    [],
+  );
 
   const handleStartIndexing = useCallback(async () => {
     await runIndexingAction(() => AIEngine.startIndexing());
   }, [runIndexingAction]);
 
-  const handleSmsToggle = useCallback(async (enabled: boolean) => {
-    await runIndexingAction(() =>
-      AIEngine.setIndexingSourceEnabled('sms', enabled),
-    );
-  }, [runIndexingAction]);
+  const handleSmsToggle = useCallback(
+    async (enabled: boolean) => {
+      await runIndexingAction(() =>
+        AIEngine.setIndexingSourceEnabled('sms', enabled),
+      );
+    },
+    [runIndexingAction],
+  );
 
-  const handleGalleryToggle = useCallback(async (enabled: boolean) => {
-    await runIndexingAction(() =>
-      AIEngine.setIndexingSourceEnabled('gallery', enabled),
-    );
-  }, [runIndexingAction]);
+  const handleGalleryToggle = useCallback(
+    async (enabled: boolean) => {
+      await runIndexingAction(() =>
+        AIEngine.setIndexingSourceEnabled('gallery', enabled),
+      );
+    },
+    [runIndexingAction],
+  );
 
-  const handleDocumentToggle = useCallback(async (enabled: boolean) => {
-    await runIndexingAction(() =>
-      AIEngine.setIndexingSourceEnabled('document', enabled),
-    );
-  }, [runIndexingAction]);
+  const handleDocumentToggle = useCallback(
+    async (enabled: boolean) => {
+      await runIndexingAction(() =>
+        AIEngine.setIndexingSourceEnabled('document', enabled),
+      );
+    },
+    [runIndexingAction],
+  );
 
   const handleAddDocumentFolder = useCallback(async () => {
     await runIndexingAction(() => AIEngine.addDocumentFolder());
@@ -315,9 +413,7 @@ function Settings({
   }, [runIndexingAction]);
 
   const handleDeleteDocuments = useCallback(async () => {
-    await runIndexingAction(() =>
-      AIEngine.deleteIndexingSource('document'),
-    );
+    await runIndexingAction(() => AIEngine.deleteIndexingSource('document'));
   }, [runIndexingAction]);
 
   const updatePersonalCustomization = useCallback(
@@ -375,18 +471,24 @@ function Settings({
     openExternalUrl(issueUrl);
   }, [openExternalUrl]);
 
-  const isSystemManagedModel =
-    selectedModelId === 'apple-foundation' ||
-    Boolean(modelStatus?.systemManaged) ||
-    (Platform.OS === 'ios' &&
-      Boolean(modelStatus?.modelName.toLowerCase().includes('apple')));
-  const modelSummary = isSystemManagedModel
+  const selectedModelStatus =
+    getSettingsModelStatus(modelStatuses, visibleSelectedModelId) ??
+    (activeModelId === visibleSelectedModelId ? modelStatus : null);
+  const isSelectedSystemManagedModel = isSettingsSystemManagedModel(
+    visibleSelectedModelId,
+    selectedModelStatus,
+  );
+  const isActiveSystemManagedModel = isSettingsSystemManagedModel(
+    activeModelId,
+    modelStatus,
+  );
+  const modelSummary = isSelectedSystemManagedModel
     ? t('settings.systemManagedModel')
-    : modelStatus?.installed
-    ? runtimeStatus?.loaded
+    : selectedModelStatus?.installed
+    ? activeModelId === visibleSelectedModelId && runtimeStatus?.loaded
       ? t('settings.loaded')
       : t('settings.installed')
-    : modelStatus?.isDownloading
+    : selectedModelStatus?.isDownloading
     ? t('settings.downloading')
     : t('settings.installNeeded');
   const renderDetailHeader = (title: string, description: string) => (
@@ -407,25 +509,6 @@ function Settings({
         />
       </View>
 
-      <SettingsSection title={t('settings.customizationSection')}>
-        <SettingsNavigationRow
-          icon={appIcons.personalSettings}
-          onPress={() => onPanelChange('appearance')}
-          title={t('settings.appearance')}
-        />
-        <SettingsNavigationRow
-          icon={appIcons.memory}
-          onPress={() => onPanelChange('personalCustomization')}
-          title={t('settings.personalCustomization')}
-        />
-        <SettingsNavigationRow
-          icon={appIcons.appsGrid}
-          isLast
-          onPress={() => onPanelChange('embedding')}
-          title={t('settings.embeddingSettings')}
-        />
-      </SettingsSection>
-
       <SettingsSection title={t('settings.aiSection')}>
         <SettingsNavigationRow
           icon={appIcons.modelManage}
@@ -433,6 +516,25 @@ function Settings({
           onPress={() => onPanelChange('model')}
           title={t('settings.model')}
           value={modelSummary}
+        />
+      </SettingsSection>
+
+      <SettingsSection title={t('settings.customizationSection')}>
+        <SettingsNavigationRow
+          icon={appIcons.memory}
+          onPress={() => onPanelChange('personalCustomization')}
+          title={t('settings.personalCustomization')}
+        />
+        <SettingsNavigationRow
+          icon={appIcons.personalSettings}
+          onPress={() => onPanelChange('appearance')}
+          title={t('settings.appearance')}
+        />
+        <SettingsNavigationRow
+          icon={appIcons.appsGrid}
+          isLast
+          onPress={() => onPanelChange('embedding')}
+          title={t('settings.embeddingSettings')}
         />
       </SettingsSection>
 
@@ -470,13 +572,6 @@ function Settings({
               {t('settings.personalCustomizationCaption')}
             </Text>
           </View>
-          <Badge
-            variant={personalCustomization.memoryEnabled ? 'success' : 'outline'}
-          >
-            {personalCustomization.memoryEnabled
-              ? t('settings.memoryOn')
-              : t('settings.memoryOff')}
-          </Badge>
         </View>
 
         <View style={styles.fieldGroup}>
@@ -541,33 +636,31 @@ function Settings({
             })}
           </View>
         </View>
+      </View>
 
-        <View style={styles.fieldGroup}>
-          <Text style={styles.fieldLabel}>
-            {t('settings.customInstructions')}
-          </Text>
-          <TextInput
-            accessibilityLabel={t('settings.customInstructions')}
-            multiline
-            onChangeText={customInstructions =>
-              updatePersonalCustomization({ customInstructions })
-            }
-            placeholder={t('settings.customInstructionsPlaceholder')}
-            placeholderTextColor={colors.mutedForeground}
-            style={[styles.settingsTextInput, styles.longTextArea]}
-            textAlignVertical="top"
-            value={personalCustomization.customInstructions}
-          />
-        </View>
-
-        <Separator style={styles.separator} />
-
-        <View style={styles.toggleRow}>
+      <View style={styles.section}>
+        <View style={styles.sectionHeader}>
           <View style={styles.switchCopy}>
-            <Text style={styles.rowLabel}>{t('settings.memoryEnabled')}</Text>
+            <Text style={styles.sectionTitle}>
+              {t('settings.memoryEnabled')}
+            </Text>
             <Text style={styles.sectionCaption}>
               {t('settings.memoryEnabledDescription')}
             </Text>
+          </View>
+          <Badge
+            variant={
+              personalCustomization.memoryEnabled ? 'success' : 'outline'
+            }
+          >
+            {personalCustomization.memoryEnabled
+              ? t('settings.memoryOn')
+              : t('settings.memoryOff')}
+          </Badge>
+        </View>
+        <View style={styles.toggleRow}>
+          <View style={styles.switchCopy}>
+            <Text style={styles.rowLabel}>{t('settings.memoryEnabled')}</Text>
           </View>
           <SettingsToggle
             onValueChange={memoryEnabled =>
@@ -578,9 +671,7 @@ function Settings({
         </View>
 
         <View style={styles.fieldGroup}>
-          <Text style={styles.fieldLabel}>
-            {t('settings.savedMemoryList')}
-          </Text>
+          <Text style={styles.fieldLabel}>{t('settings.savedMemoryList')}</Text>
           <View style={styles.memoryList}>
             {personalCustomization.savedMemories.length > 0 ? (
               personalCustomization.savedMemories.map((memory, index) => (
@@ -594,6 +685,31 @@ function Settings({
               </Text>
             )}
           </View>
+        </View>
+      </View>
+
+      <View style={styles.section}>
+        <View style={styles.sectionHeader}>
+          <View>
+            <Text style={styles.sectionTitle}>
+              {t('settings.customInstructions')}
+            </Text>
+          </View>
+        </View>
+
+        <View style={styles.fieldGroup}>
+          <TextInput
+            accessibilityLabel={t('settings.customInstructions')}
+            multiline
+            onChangeText={customInstructions =>
+              updatePersonalCustomization({ customInstructions })
+            }
+            placeholder={t('settings.customInstructionsPlaceholder')}
+            placeholderTextColor={colors.mutedForeground}
+            style={[styles.settingsTextInput, styles.longTextArea]}
+            textAlignVertical="top"
+            value={personalCustomization.customInstructions}
+          />
         </View>
       </View>
     </>
@@ -643,8 +759,9 @@ function Settings({
         </View>
 
         <View style={styles.textSizeList}>
-          {textSizes.map(option => {
+          {textSizes.map((option, index) => {
             const isSelected = option.id === textSize;
+            const isLast = index === textSizes.length - 1;
 
             return (
               <Pressable
@@ -654,6 +771,8 @@ function Settings({
                 onPress={() => setTextSize(option.id)}
                 style={({ pressed }) => [
                   styles.textSizeRow,
+                  isSelected && styles.textSizeRowSelected,
+                  isLast && styles.textSizeRowLast,
                   pressed && styles.rowPressed,
                 ]}
               >
@@ -691,18 +810,44 @@ function Settings({
     </>
   );
 
+  const getModelStateLabel = (
+    modelId: ModelId | string,
+    statusForModel: ModelStatus | null,
+  ) => {
+    const isFocused = modelId === activeModelId;
+
+    if (isSettingsSystemManagedModel(modelId, statusForModel)) {
+      if (statusForModel?.error && !statusForModel.runnable) {
+        return statusForModel.error;
+      }
+
+      return t('settings.systemManagedModel');
+    }
+
+    if (isFocused && runtimeStatus?.loaded) {
+      return t('settings.loaded');
+    }
+
+    if (statusForModel?.isDownloading) {
+      return t('settings.downloading');
+    }
+
+    if (statusForModel?.installed) {
+      return t('settings.installed');
+    }
+
+    return t('settings.installNeeded');
+  };
+
   const renderModel = () => (
     <>
-      {renderDetailHeader(
-        t('settings.model'),
-        t('settings.modelDescription'),
-      )}
+      {renderDetailHeader(t('settings.model'), t('settings.modelDescription'))}
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
           <View>
             <Text style={styles.sectionTitle}>{t('settings.model')}</Text>
             <Text style={styles.sectionCaption}>
-              {t('settings.engineStatus')}
+              {modelStatus?.modelName ?? 'Gemma 4'}
             </Text>
           </View>
           <Badge variant={status.isAvailable ? 'success' : 'secondary'}>
@@ -712,14 +857,76 @@ function Settings({
           </Badge>
         </View>
 
+        <View style={styles.modelOptionList}>
+          {visibleSettingsModelOptions.map((option, index) => {
+            const optionStatus = getSettingsModelStatus(
+              modelStatuses,
+              option.id,
+            );
+            const isFocused = option.id === activeModelId;
+            const isCurrent = option.id === visibleSelectedModelId;
+            const isLast = index === visibleSettingsModelOptions.length - 1;
+
+            return (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityState={{ selected: isFocused }}
+                key={option.id}
+                onPress={() => setModelPanelModelId(option.id)}
+                style={({ pressed }) => [
+                  styles.modelOptionRow,
+                  isFocused && styles.modelOptionRowSelected,
+                  isLast && styles.modelOptionRowLast,
+                  pressed && styles.rowPressed,
+                ]}
+              >
+                <View style={styles.modelOptionCopy}>
+                  <Text
+                    style={[
+                      styles.modelOptionTitle,
+                      isFocused && styles.modelOptionTitleSelected,
+                    ]}
+                  >
+                    {optionStatus?.modelName ?? option.title}
+                  </Text>
+                  <Text style={styles.modelOptionDescription}>
+                    {option.description}
+                  </Text>
+                  <Text style={styles.modelOptionStatus}>
+                    {getModelStateLabel(option.id, optionStatus)}
+                  </Text>
+                </View>
+                {isCurrent ? (
+                  <AppIcon
+                    color={colors.primary}
+                    icon={appIcons.selected}
+                    size={16}
+                  />
+                ) : null}
+              </Pressable>
+            );
+          })}
+        </View>
+      </View>
+
+      <View style={styles.section}>
+        <View style={styles.sectionHeader}>
+          <View>
+            <Text style={styles.sectionTitle}>
+              {t('settings.engineStatus')}
+            </Text>
+            <Text style={styles.sectionCaption}>
+              {getModelStateLabel(activeModelId, modelStatus)}
+            </Text>
+          </View>
+        </View>
+
         <Separator style={styles.separator} />
 
         <StatusRow
           label={t('settings.nativeBridge')}
           value={
-            status.isAvailable
-              ? t('settings.connected')
-              : t('settings.waiting')
+            status.isAvailable ? t('settings.connected') : t('settings.waiting')
           }
         />
         <StatusRow
@@ -729,7 +936,7 @@ function Settings({
         <StatusRow
           label={t('settings.modelFile')}
           value={
-            isSystemManagedModel
+            isActiveSystemManagedModel
               ? t('settings.systemManagedModel')
               : modelStatus?.installed
               ? t('settings.installed')
@@ -741,14 +948,14 @@ function Settings({
         <StatusRow
           label={t('settings.download')}
           value={
-            isSystemManagedModel
+            isActiveSystemManagedModel
               ? t('settings.systemManagedModel')
               : `${formatBytes(
                   modelStatus?.bytesDownloaded ?? 0,
                 )} / ${formatBytes(modelStatus?.totalBytes ?? 2588147712)}`
           }
         />
-        {isSystemManagedModel ? null : (
+        {isActiveSystemManagedModel ? null : (
           <View style={styles.progressTrack}>
             <View
               style={[
@@ -764,12 +971,12 @@ function Settings({
         <View style={styles.actionRow}>
           <Button
             disabled={
-              isSystemManagedModel ||
+              isActiveSystemManagedModel ||
               modelStatus?.installed ||
               modelStatus?.isDownloading
             }
             label={
-              isSystemManagedModel
+              isActiveSystemManagedModel
                 ? t('settings.systemManagedModel')
                 : t('settings.downloadModel')
             }
@@ -797,7 +1004,11 @@ function Settings({
         />
         <View style={styles.actionRow}>
           <Button
-            disabled={!modelStatus?.installed || runtimeStatus?.loaded}
+            disabled={
+              isActiveSystemManagedModel ||
+              !modelStatus?.installed ||
+              runtimeStatus?.loaded
+            }
             label={t('settings.loadModel')}
             onPress={handleLoadModel}
             style={styles.modelButton}
@@ -909,9 +1120,7 @@ function Settings({
           />
         </View>
 
-        <Text style={styles.description}>
-          {t('settings.embeddingHelp')}
-        </Text>
+        <Text style={styles.description}>{t('settings.embeddingHelp')}</Text>
 
         <Button
           disabled={status.isIndexing}
@@ -982,14 +1191,8 @@ function Settings({
 
         <Separator style={styles.separator} />
 
-        <StatusRow
-          label={t('settings.appName')}
-          value={appInfo.displayName}
-        />
-        <StatusRow
-          label={t('settings.appVersion')}
-          value={appInfo.version}
-        />
+        <StatusRow label={t('settings.appName')} value={appInfo.displayName} />
+        <StatusRow label={t('settings.appVersion')} value={appInfo.version} />
         <StatusRow
           label={t('settings.bundleIdentifier')}
           value={appInfo.bundleIdentifier}
@@ -1004,9 +1207,7 @@ function Settings({
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
           <View style={styles.switchCopy}>
-            <Text style={styles.sectionTitle}>
-              {t('settings.openSource')}
-            </Text>
+            <Text style={styles.sectionTitle}>{t('settings.openSource')}</Text>
             <Text style={styles.sectionCaption}>
               {t('settings.openSourceDescription')}
             </Text>
@@ -1028,9 +1229,7 @@ function Settings({
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
           <View style={styles.switchCopy}>
-            <Text style={styles.sectionTitle}>
-              {t('settings.contribute')}
-            </Text>
+            <Text style={styles.sectionTitle}>{t('settings.contribute')}</Text>
             <Text style={styles.sectionCaption}>
               {t('settings.contributeDescription')}
             </Text>

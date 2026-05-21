@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import {
   Image,
   ImageSourcePropType,
+  Linking,
   Pressable,
   StyleSheet,
   View,
@@ -12,6 +13,11 @@ import AppIcon from './AppIcon';
 import { Button } from './ui';
 import { copyToClipboard } from '../native/Clipboard';
 import type { MultimodalAttachment } from '../native/AIEngine';
+import {
+  CITATION_HEADER,
+  parseCitations,
+  type CitationSource,
+} from '../native/citations';
 import { ScaledText as Text } from '../theme/display';
 import { appIcons } from '../theme/icons';
 import { colors, typography } from '../theme/tokens';
@@ -164,6 +170,8 @@ function ChatBubble({
     );
   }
 
+  const { body: assistantBody, sources } = parseCitations(text);
+
   return (
     <View style={styles.assistantRow}>
       <View style={styles.assistantContent}>
@@ -191,7 +199,22 @@ function ChatBubble({
           </View>
         ) : null}
 
-        <MarkdownText selectable style={styles.assistantText} text={text} />
+        <MarkdownText selectable style={styles.assistantText} text={assistantBody} />
+
+        {sources.length > 0 ? (
+          <View style={styles.sourcesBox}>
+            <Text style={styles.sourcesTitle}>{CITATION_HEADER}</Text>
+            <View style={styles.sourcesList}>
+              {sources.map((source, index) => (
+                <SourceChip
+                  index={index + 1}
+                  key={`${source.label}-${index}`}
+                  source={source}
+                />
+              ))}
+            </View>
+          </View>
+        ) : null}
 
         {canUseAssistantActions || timestamp ? (
           <View style={styles.assistantFooter}>
@@ -264,9 +287,88 @@ function ChatBubble({
   );
 }
 
+function SourceChip({
+  index,
+  source,
+}: {
+  index: number;
+  source: CitationSource;
+}) {
+  const content = (
+    <View style={styles.sourceChip}>
+      <Text style={styles.sourceIndex}>{index}</Text>
+      <Text numberOfLines={1} style={styles.sourceLabel}>
+        {source.label}
+      </Text>
+    </View>
+  );
+
+  if (!source.url) {
+    return content;
+  }
+
+  const url = source.url;
+  return (
+    <Pressable
+      accessibilityRole="link"
+      onPress={() => {
+        Linking.openURL(url).catch(() => {});
+      }}
+    >
+      {content}
+    </Pressable>
+  );
+}
+
 const styles = StyleSheet.create({
   assistantRow: {
     marginBottom: 22,
+  },
+  sourcesBox: {
+    borderTopColor: colors.border,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    marginTop: 12,
+    paddingTop: 10,
+  },
+  sourcesTitle: {
+    ...typography.caption,
+    color: colors.mutedForeground,
+    marginBottom: 8,
+    textTransform: 'uppercase',
+  },
+  sourcesList: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  sourceChip: {
+    alignItems: 'center',
+    backgroundColor: colors.muted,
+    borderRadius: 14,
+    flexDirection: 'row',
+    gap: 6,
+    maxWidth: 240,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  sourceIndex: {
+    ...typography.caption,
+    backgroundColor: colors.primary,
+    borderRadius: 9,
+    color: colors.primaryForeground,
+    fontSize: 11,
+    fontWeight: '700',
+    minWidth: 18,
+    overflow: 'hidden',
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+    textAlign: 'center',
+  },
+  sourceLabel: {
+    ...typography.caption,
+    color: colors.foreground,
+    flexShrink: 1,
+    fontSize: 12,
   },
   assistantContent: {
     flex: 1,

@@ -80,63 +80,61 @@ export default function ChatComposer({
     <View style={[styles.composer, composerOffsetStyle]}>
       <View style={styles.inputPanel}>
         {selectedAttachments.length > 0 ? (
-          <View style={styles.attachmentList}>
-            {selectedAttachments.map(attachment => {
-              const attachmentName = getAttachmentName(
-                attachment,
-                defaultAttachmentName,
-              );
-              const attachmentSize = formatAttachmentSize(
-                attachment.sizeBytes,
-              );
+          <ScrollView
+            horizontal
+            keyboardShouldPersistTaps="handled"
+            showsHorizontalScrollIndicator={false}
+            style={styles.attachmentScroller}
+          >
+            <View style={styles.attachmentList}>
+              {selectedAttachments.map(attachment => {
+                const attachmentName = getAttachmentName(
+                  attachment,
+                  defaultAttachmentName,
+                );
+                const attachmentSize = formatAttachmentSize(
+                  attachment.sizeBytes,
+                );
 
-              return (
-                <View
-                  key={getAttachmentKey(attachment)}
-                  style={styles.attachmentChip}
-                >
-                  <AppIcon
-                    color={colors.mutedForeground}
-                    icon={appIcons.attachment}
-                    size={13}
-                  />
-                  <View style={styles.attachmentCopy}>
-                    <Text numberOfLines={1} style={styles.attachmentName}>
-                      {attachmentName}
-                    </Text>
-                    {attachmentSize ? (
-                      <Text style={styles.attachmentMeta}>
-                        {attachmentSize}
-                      </Text>
-                    ) : null}
-                  </View>
-                  <Pressable
-                    accessibilityLabel={t('chat.removeAttachment', {
-                      name: attachmentName,
-                    })}
-                    accessibilityRole="button"
-                    onPress={() => onRemoveAttachment(attachment)}
-                    style={({ pressed }) => [
-                      styles.removeAttachmentButton,
-                      pressed && styles.promptRowPressed,
-                    ]}
+                return (
+                  <View
+                    key={getAttachmentKey(attachment)}
+                    style={styles.attachmentChip}
                   >
-                    <Text style={styles.removeAttachmentText}>×</Text>
-                  </Pressable>
-                </View>
-              );
-            })}
-          </View>
+                    <AppIcon
+                      color={colors.mutedForeground}
+                      icon={appIcons.attachment}
+                      size={11}
+                    />
+                    <View style={styles.attachmentCopy}>
+                      <Text numberOfLines={1} style={styles.attachmentName}>
+                        {attachmentName}
+                      </Text>
+                      {attachmentSize ? (
+                        <Text style={styles.attachmentMeta}>
+                          {attachmentSize}
+                        </Text>
+                      ) : null}
+                    </View>
+                    <Pressable
+                      accessibilityLabel={t('chat.removeAttachment', {
+                        name: attachmentName,
+                      })}
+                      accessibilityRole="button"
+                      onPress={() => onRemoveAttachment(attachment)}
+                      style={({ pressed }) => [
+                        styles.removeAttachmentButton,
+                        pressed && styles.promptRowPressed,
+                      ]}
+                    >
+                      <Text style={styles.removeAttachmentText}>×</Text>
+                    </Pressable>
+                  </View>
+                );
+              })}
+            </View>
+          </ScrollView>
         ) : null}
-
-        <TextInput
-          multiline
-          onChangeText={onChangeDraft}
-          placeholder={t('chat.inputPlaceholder')}
-          placeholderTextColor={colors.mutedForeground}
-          style={styles.input}
-          value={draft}
-        />
 
         {attachmentError ? (
           <Text style={styles.attachmentError}>{attachmentError}</Text>
@@ -270,24 +268,27 @@ export default function ChatComposer({
           </View>
         ) : null}
 
-        <View style={styles.inputFooter}>
-          <View style={styles.inputTools}>
-            <Pressable
-              accessibilityLabel={t('chat.attachFile')}
-              accessibilityRole="button"
-              onPress={onAttachFile}
-              style={({ pressed }) => [
-                styles.iconTool,
-                pressed && styles.promptRowPressed,
-              ]}
-            >
-              <AppIcon
-                color={colors.mutedForeground}
-                icon={appIcons.attachment}
-                size={19}
-              />
-            </Pressable>
-          </View>
+        <View style={styles.inputRow}>
+          <Pressable
+            accessibilityLabel={t('chat.attachFile')}
+            accessibilityRole="button"
+            onPress={onAttachFile}
+            style={({ pressed }) => [
+              styles.iconTool,
+              pressed && styles.promptRowPressed,
+            ]}
+          >
+            <AppIcon color={colors.foreground} icon={appIcons.plus} size={18} />
+          </Pressable>
+
+          <TextInput
+            multiline
+            onChangeText={onChangeDraft}
+            placeholder={t('chat.inputPlaceholder')}
+            placeholderTextColor={colors.mutedForeground}
+            style={styles.input}
+            value={draft}
+          />
 
           <Pressable
             accessibilityLabel={
@@ -306,15 +307,17 @@ export default function ChatComposer({
               shouldShowStopButton &&
                 isStoppingGeneration &&
                 styles.stopButtonDisabled,
-              !shouldShowStopButton &&
-                !canSubmit &&
-                styles.sendButtonDisabled,
+              !shouldShowStopButton && !canSubmit && styles.sendButtonDisabled,
             ]}
           >
             <AppIcon
-              color={colors.card}
+              color={
+                !shouldShowStopButton && !canSubmit
+                  ? colors.mutedForeground
+                  : colors.primaryForeground
+              }
               icon={shouldShowStopButton ? appIcons.stop : appIcons.send}
-              size={shouldShowStopButton ? 17 : 20}
+              size={shouldShowStopButton ? 14 : 15}
             />
           </Pressable>
         </View>

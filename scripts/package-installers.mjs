@@ -25,7 +25,8 @@ const appVersion = packageJson.version ?? '0.0.0';
 const artifactRoot = resolve(projectRoot, 'dist', 'installers');
 const target = process.argv[2] ?? 'all';
 const shouldSkipBuild = process.env.OPEN_EDGE_SKIP_BUILD === '1';
-const gradleWrapper = process.platform === 'win32' ? 'gradlew.bat' : './gradlew';
+const gradleExecutable = process.platform === 'win32' ? 'cmd.exe' : './gradlew';
+const gradleArgs = process.platform === 'win32' ? ['/d', '/s', '/c', 'gradlew.bat'] : [];
 const iosScheme = process.env.OPEN_EDGE_AI_IOS_SCHEME ?? 'OpenEdgeAI';
 const iosWorkspacePath = resolve(iosRoot, 'OpenEdgeAI.xcworkspace');
 const iosDerivedDataPath = resolve(iosRoot, 'build');
@@ -89,12 +90,12 @@ function packageAndroidApks() {
   cleanTargetArtifacts(prefix);
 
   if (!shouldSkipBuild) {
-    run(gradleWrapper, [':app:assembleDebug', '--console=plain'], {
+    run(gradleExecutable, [...gradleArgs, ':app:assembleRelease', '--console=plain'], {
       cwd: androidRoot,
     });
   }
 
-  const apkRoot = resolve(androidRoot, 'app', 'build', 'outputs', 'apk', 'debug');
+  const apkRoot = resolve(androidRoot, 'app', 'build', 'outputs', 'apk', 'release');
   const apkPaths = collectFiles(apkRoot, filePath => filePath.endsWith('.apk'));
   if (apkPaths.length === 0) {
     throw new Error(`No Android APK files were found under ${apkRoot}`);
@@ -103,9 +104,9 @@ function packageAndroidApks() {
   return apkPaths.map(apkPath => {
     const variant = basename(apkPath)
       .replace(/^app-/, '')
-      .replace(/-debug\.apk$/, '')
+      .replace(/-release\.apk$/, '')
       .replace(/\.apk$/, '');
-    const artifactName = `${appSlug}-android-debug-${variant}-${appVersion}.apk`;
+    const artifactName = `${appSlug}-android-release-${variant}-${appVersion}.apk`;
     const artifactPath = resolve(artifactRoot, artifactName);
     copyFileSync(apkPath, artifactPath);
     return artifactPath;

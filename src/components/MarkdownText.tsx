@@ -36,6 +36,8 @@ const inlinePattern =
   /(\[[^\]]+\]\([^)]+\)|`[^`\n]+`|\*\*[^*\n]+?\*\*|__[^_\n]+?__|\*[^*\n]+?\*|_[^_\n]+?_)/g;
 const codeTokenPattern =
   /(\/\/.*$|#.*$|\/\*.*?\*\/|"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|`(?:\\.|[^`\\])*`|\b(?:abstract|and|as|async|await|break|catch|class|const|continue|data|def|do|else|enum|export|extends|false|finally|for|from|fun|function|if|implements|import|in|interface|is|let|new|null|object|or|override|private|public|return|static|struct|super|suspend|switch|this|throw|true|try|type|undefined|val|var|when|while|yield)\b|\b\d+(?:\.\d+)?\b|[{}[\]().,;:+\-*/%=<>!&|?]+)/g;
+const protectedTextSpanPattern = /(`[^`\n]+`|https?:\/\/\S+)/g;
+const protectedTextSpanPartPattern = /^(`[^`\n]+`|https?:\/\/\S+)$/;
 const codePalette =
   Platform.OS === 'ios'
     ? {
@@ -67,6 +69,174 @@ const codePalette =
 
 const isBlockStart = (line: string) => blockStartPattern.test(line.trim());
 
+const addCompactListBreaks = (line: string) =>
+  line
+    .replace(/([.!?。！？:：])\s*\*?\s*(\d+[.)])\s*([^\s\d])/g, '$1\n$2 $3')
+    .replace(/([.!?。！？:：])\s*([-*])\s+(\S)/g, '$1\n$2 $3');
+
+const isAsciiAlphaNumeric = (value: string | undefined) =>
+  Boolean(value && /^[A-Za-z0-9]$/.test(value));
+
+const shouldKeepTightPunctuation = (
+  text: string,
+  index: number,
+  mark: string,
+) => {
+  const previous = text[index - 1];
+  const next = text[index + 1];
+  const afterNext = text[index + 2];
+
+  if (!next || /\s/.test(next)) {
+    return true;
+  }
+
+  if (mark === '.' && isAsciiAlphaNumeric(previous) && isAsciiAlphaNumeric(next)) {
+    return true;
+  }
+
+  if (mark === ':' || mark === '：') {
+    if (previous && /\d/.test(previous) && /\d/.test(next)) {
+      return true;
+    }
+    if (next === '/' && afterNext === '/') {
+      return true;
+    }
+  }
+
+  if ((mark === ',' || mark === '，') && previous && /\d/.test(previous) && /\d/.test(next)) {
+    return true;
+  }
+
+  return false;
+};
+
+const addReadablePunctuationSpacing = (text: string) => {
+  let result = '';
+
+  for (let index = 0; index < text.length; index += 1) {
+    const char = text[index];
+    result += char;
+
+    if (
+      /[.,，:：;；!?！？。]/.test(char) &&
+      !shouldKeepTightPunctuation(text, index, char)
+    ) {
+      result += ' ';
+    }
+  }
+
+  return result
+    .replace(/([가-힣])(?=\d)/g, '$1 ')
+    .replace(/([가-힣])\(/g, '$1 (')
+    .replace(/\)(?=[가-힣])/g, ') ');
+};
+
+const addReadableSpacingOutsideProtectedText = (line: string) =>
+  line
+    .split(protectedTextSpanPattern)
+    .map(part =>
+      protectedTextSpanPartPattern.test(part)
+        ? part
+        : addReadablePunctuationSpacing(part),
+    )
+    .join('')
+    .replace(/([:：])(?=https?:\/\/)/g, '$1 ');
+
+const getProtectedRanges = (text: string) => {
+  const ranges: Array<{ end: number; start: number }> = [];
+  const pattern = new RegExp(protectedTextSpanPattern.source, 'g');
+  let match: RegExpExecArray | null;
+
+  while ((match = pattern.exec(text))) {
+    ranges.push({
+      end: match.index + match[0].length,
+      start: match.index,
+    });
+  }
+
+  return ranges;
+};
+
+const isInsideRange = (
+  index: number,
+  ranges: Array<{ end: number; start: number }>,
+) => ranges.some(range => index >= range.start && index < range.end);
+
+const isSentenceEndAt = (
+  text: string,
+  index: number,
+  ranges: Array<{ end: number; start: number }>,
+) => {
+  const char = text[index];
+  if (!/[.!?。！？]/.test(char) || isInsideRange(index, ranges)) {
+    return false;
+  }
+
+  if (
+    char === '.' &&
+    isAsciiAlphaNumeric(text[index - 1]) &&
+    isAsciiAlphaNumeric(text[index + 1])
+  ) {
+    return false;
+  }
+
+  const next = text[index + 1];
+  return !next || /\s|["')\]}）]/.test(next);
+};
+
+const addReadableParagraphBreaks = (line: string) => {
+  if (line.trim().length < 100 || isBlockStart(line)) {
+    return line;
+  }
+
+  const ranges = getProtectedRanges(line);
+  const sentences: string[] = [];
+  let current = '';
+
+  for (let index = 0; index < line.length; index += 1) {
+    current += line[index];
+
+    if (isSentenceEndAt(line, index, ranges)) {
+      sentences.push(current.trim());
+      current = '';
+
+      while (/\s/.test(line[index + 1] ?? '')) {
+        index += 1;
+      }
+    }
+  }
+
+  if (current.trim()) {
+    sentences.push(current.trim());
+  }
+
+  if (sentences.length < 3) {
+    return line;
+  }
+
+  const groups: string[] = [];
+  let group: string[] = [];
+  let groupLength = 0;
+
+  sentences.forEach(sentence => {
+    group.push(sentence);
+    groupLength += sentence.length;
+
+    if (group.length >= 2 || groupLength >= 220) {
+      groups.push(group.join(' '));
+      group = [];
+      groupLength = 0;
+    }
+  });
+
+  if (group.length > 0) {
+    groups.push(group.join(' '));
+  }
+
+  const leadingWhitespace = line.match(/^\s*/)?.[0] ?? '';
+  return groups.map(groupText => `${leadingWhitespace}${groupText}`).join('\n\n');
+};
+
 const normalizeMarkdownLine = (line: string) => {
   const compactHeadingAfterBullet = line.match(
     /^(\s*)-\s*(#{1,6})(\S.*)$/,
@@ -85,7 +255,9 @@ const normalizeMarkdownLine = (line: string) => {
     return `${compactOrderedItem[1]}${compactOrderedItem[2]} ${compactOrderedItem[3]}`;
   }
 
-  return line;
+  return addReadableParagraphBreaks(
+    addReadableSpacingOutsideProtectedText(addCompactListBreaks(line)),
+  );
 };
 
 export function normalizeMarkdownText(text: string) {
@@ -268,14 +440,15 @@ function renderInline(
     const link = token.match(/^\[([^\]]+)\]\(([^)]+)\)$/);
 
     if (link) {
+      const isCitation = /^\d+$/.test(link[1]);
       nodes.push(
         <Text
           key={key}
           onPress={() => Linking.openURL(link[2]).catch(() => undefined)}
           selectable={selectable}
-          style={styles.link}
+          style={isCitation ? styles.citation : styles.link}
         >
-          {link[1]}
+          {isCitation ? `[${link[1]}]` : link[1]}
         </Text>,
       );
     } else if (token.startsWith('`')) {
@@ -571,6 +744,10 @@ const styles = StyleSheet.create({
   link: {
     color: colors.primary,
     textDecorationLine: 'underline',
+  },
+  citation: {
+    color: colors.primary,
+    fontWeight: '700',
   },
   list: {
     gap: 6,

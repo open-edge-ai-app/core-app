@@ -5,6 +5,11 @@ import {
   setTaskCalendarEventId,
   type TodoTask,
 } from '../state/todoStore';
+import {
+  androidPermissionResults,
+  requestAndroidPermissions,
+  type AndroidPermission,
+} from './androidPermissions';
 
 type CalendarEventInput = {
   eventId?: string;
@@ -21,12 +26,6 @@ type CalendarNativeModule = {
   deleteEvent?: (eventId: string) => Promise<boolean>;
 };
 
-type NativePermissionsAndroidModule = {
-  requestMultiplePermissions?: (
-    permissions: string[],
-  ) => Promise<Record<string, string>>;
-};
-
 export type CalendarPermissionStatus =
   | 'unavailable'
   | 'granted'
@@ -36,18 +35,11 @@ export type CalendarPermissionStatus =
 const nativeModule = NativeModules.CalendarSync as
   | CalendarNativeModule
   | undefined;
-const nativePermissionsAndroid = NativeModules.PermissionsAndroid as
-  | NativePermissionsAndroidModule
-  | undefined;
 
-const androidCalendarPermissions = [
+const androidCalendarPermissions: AndroidPermission[] = [
   'android.permission.READ_CALENDAR',
   'android.permission.WRITE_CALENDAR',
-] as const;
-
-const androidPermissionResults = {
-  GRANTED: 'granted',
-} as const;
+];
 
 export const isCalendarSyncAvailable = (): boolean =>
   Boolean(nativeModule?.upsertEvent);
@@ -74,12 +66,7 @@ export async function requestCalendarPermission(): Promise<CalendarPermissionSta
     return getCalendarPermissionStatus();
   }
   try {
-    if (!nativePermissionsAndroid?.requestMultiplePermissions) {
-      return 'unknown';
-    }
-    const results = await nativePermissionsAndroid.requestMultiplePermissions([
-      ...androidCalendarPermissions,
-    ]);
+    const results = await requestAndroidPermissions(androidCalendarPermissions);
     return androidCalendarPermissions.every(
       permission => results[permission] === androidPermissionResults.GRANTED,
     )

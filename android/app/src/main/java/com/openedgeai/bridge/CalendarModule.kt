@@ -37,15 +37,15 @@ class CalendarModule(
 
     @ReactMethod
     fun hasPermission(promise: Promise) {
-        promise.resolve(hasWritePermission())
+        promise.resolve(hasCalendarPermission())
     }
 
     @ReactMethod
     fun upsertEvent(event: ReadableMap, promise: Promise) {
         executor.execute {
             try {
-                if (!hasWritePermission()) {
-                    promise.reject("calendar_permission", "Calendar write permission is not granted.")
+                if (!hasCalendarPermission()) {
+                    promise.reject("calendar_permission", "Calendar read/write permission is not granted.")
                     return@execute
                 }
 
@@ -108,8 +108,8 @@ class CalendarModule(
     fun deleteEvent(eventId: String, promise: Promise) {
         executor.execute {
             try {
-                if (!hasWritePermission()) {
-                    promise.reject("calendar_permission", "Calendar write permission is not granted.")
+                if (!hasCalendarPermission()) {
+                    promise.reject("calendar_permission", "Calendar read/write permission is not granted.")
                     return@execute
                 }
                 val id = eventId.toLongOrNull()
@@ -126,11 +126,15 @@ class CalendarModule(
         }
     }
 
-    private fun hasWritePermission(): Boolean =
+    private fun hasCalendarPermission(): Boolean =
         ContextCompat.checkSelfPermission(
             reactContext,
-            Manifest.permission.WRITE_CALENDAR,
-        ) == PackageManager.PERMISSION_GRANTED
+            Manifest.permission.READ_CALENDAR,
+        ) == PackageManager.PERMISSION_GRANTED &&
+            ContextCompat.checkSelfPermission(
+                reactContext,
+                Manifest.permission.WRITE_CALENDAR,
+            ) == PackageManager.PERMISSION_GRANTED
 
     private fun writableCalendarId(): Long? {
         val projection = arrayOf(

@@ -601,10 +601,11 @@ class QueryRouter(
         webContext: WebSearchContext,
     ): String =
         """
-        Answer the user's question using the web search and opened URL results below.
+        Answer the user's question using the numbered web sources below.
         Treat these results as fetched live from the public web.
         If the results are empty or failed, say that web search did not return enough information.
-        Prefer the opened URL details over search result snippets.
+        Prefer sources that include "Page content" over snippet-only sources.
+        Cite sources inline as [1], [2], ... using the source numbers below. The numbers match the source list shown to the user, so cite the exact number of each source you rely on.
         Do not say that you cannot browse the web; the web search has already been performed.
         Do not append your own source list, citation section, or "## 참고" footer to the answer. The system attaches a citation footer with URLs automatically after your answer.
 
@@ -614,7 +615,7 @@ class QueryRouter(
         Privacy:
         ${if (webContext.privacyMasked) "Private data was masked before external search." else "No private data was detected in the public query."}
 
-        Web search results:
+        Numbered web sources:
         ${webContext.resultsText}
 
         User question:
@@ -695,9 +696,15 @@ class QueryRouter(
         )
         private val WEB_SEARCH_TRIGGERS = listOf(
             "검색",
+            "찾아",
             "찾아봐",
             "찾아줘",
             "구글",
+            "웹",
+            "인터넷",
+            "출처",
+            "근거",
+            "링크",
             "뉴스",
             "최신",
             "실시간",
@@ -705,6 +712,12 @@ class QueryRouter(
             "검증",
             "search",
             "google",
+            "web",
+            "internet",
+            "source",
+            "sources",
+            "lookup",
+            "look up",
             "latest",
             "recent",
             "current",

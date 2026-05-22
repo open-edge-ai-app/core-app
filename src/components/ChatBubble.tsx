@@ -15,6 +15,7 @@ import { copyToClipboard } from '../native/Clipboard';
 import type { MultimodalAttachment } from '../native/AIEngine';
 import {
   CITATION_HEADER,
+  linkInlineCitationMarkers,
   parseCitations,
   type CitationSource,
 } from '../native/citations';
@@ -171,6 +172,10 @@ function ChatBubble({
   }
 
   const { body: assistantBody, sources } = parseCitations(text);
+  const linkedAssistantBody = linkInlineCitationMarkers(
+    assistantBody,
+    sources,
+  );
 
   return (
     <View style={styles.assistantRow}>
@@ -199,7 +204,7 @@ function ChatBubble({
           </View>
         ) : null}
 
-        <MarkdownText selectable style={styles.assistantText} text={assistantBody} />
+        <MarkdownText selectable style={styles.assistantText} text={linkedAssistantBody} />
 
         {sources.length > 0 ? (
           <View style={styles.sourcesBox}>

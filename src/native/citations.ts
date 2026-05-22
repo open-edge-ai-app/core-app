@@ -62,3 +62,32 @@ export function parseCitations(text: string): ParsedCitations {
 
   return { body, sources };
 }
+
+// Renders inline citation markers ("Source [1]", "Opened URL details [2]", or a
+// bare "[3]") as compact, tappable [n] links pointing at the matching footer
+// source. The number always indexes the same ordered source list shown to the
+// user, mirroring the iOS citation behavior.
+export function linkInlineCitationMarkers(
+  body: string,
+  sources: CitationSource[],
+): string {
+  if (sources.length === 0) {
+    return body;
+  }
+
+  return body.replace(
+    /\b(?:Source|Opened URL details)\s*\[(\d+)\]|\[(\d+)\]/gi,
+    (match, labeledIndex: string | undefined, bareIndex: string | undefined) => {
+      const index = labeledIndex ?? bareIndex;
+      if (!index) {
+        return match;
+      }
+      const source = sources[Number(index) - 1];
+      if (!source?.url) {
+        return match;
+      }
+
+      return `[${index}](${source.url})`;
+    },
+  );
+}

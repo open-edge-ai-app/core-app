@@ -1,4 +1,7 @@
-import { parseCitations } from '../src/native/citations';
+import {
+  linkInlineCitationMarkers,
+  parseCitations,
+} from '../src/native/citations';
 
 describe('parseCitations', () => {
   it('returns the text unchanged when there is no citation footer', () => {
@@ -40,5 +43,20 @@ describe('parseCitations', () => {
     expect(sources[0].kind).toBe('document');
     expect(sources[0].url).toBeUndefined();
     expect(sources[1].kind).toBe('memory');
+  });
+
+  it('links inline source markers to parsed footer urls', () => {
+    const text = [
+      '요약입니다. (Source [1]) 세부 내용입니다. (Opened URL details [2]) 참고하세요.',
+      '',
+      '## 참고한 자료',
+      '- 웹: First — https://example.com/first',
+      '- 웹: Second — https://example.com/second',
+    ].join('\n');
+    const { body, sources } = parseCitations(text);
+
+    expect(linkInlineCitationMarkers(body, sources)).toBe(
+      '요약입니다. ([1](https://example.com/first)) 세부 내용입니다. ([2](https://example.com/second)) 참고하세요.',
+    );
   });
 });

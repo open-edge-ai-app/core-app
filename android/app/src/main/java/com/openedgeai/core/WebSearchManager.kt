@@ -56,6 +56,14 @@ private data class WebPageDetail(
     val excerpt: String,
 )
 
+private data class MergedWebSource(
+    val title: String,
+    val url: String,
+    val snippet: String,
+    val date: String?,
+    val excerpt: String?,
+)
+
 class WebSearchManager(
     context: Context,
     private val gemmaManager: GemmaManager,
@@ -211,25 +219,47 @@ class WebSearchManager(
             results = results,
             plan = plan,
         )
-        val text = listOf(
-            formatSearchResults(results, fallbackDate = null, resultLimit = plan.resultLimit),
-            formatPageDetails(pageDetails),
-        )
-            .filter { section -> section.isNotBlank() }
-            .joinToString(separator = "\n\n")
-
         val openedUrls = pageDetails.map { detail -> detail.url.normalizeUrlForDedupe() }.toSet()
-        val sources = buildList {
+
+        // One ordered source list: opened pages first (richer page content), then
+        // the remaining search results. Inline [n] markers, the prompt numbering,
+        // and the citation footer all index into this same order so they stay
+        // aligned (mirrors the iOS citation behavior).
+        val merged = buildList {
             pageDetails.forEach { detail ->
-                add(WebSource(title = detail.title.ifBlank { detail.url }, url = detail.url))
-            }
-            results.forEach { result ->
-                if (result.url.normalizeUrlForDedupe() !in openedUrls) {
-                    add(WebSource(title = result.title.ifBlank { result.url }, url = result.url))
+                val match = results.firstOrNull { result ->
+                    result.url.normalizeUrlForDedupe() == detail.url.normalizeUrlForDedupe()
                 }
+                add(
+                    MergedWebSource(
+                        title = detail.title.ifBlank { match?.title.orEmpty() }.ifBlank { detail.url },
+                        url = detail.url,
+                        snippet = match?.description.orEmpty(),
+                        date = match?.date,
+                        excerpt = detail.excerpt,
+                    ),
+                )
             }
+            results.asSequence()
+                .filter { result -> result.url.normalizeUrlForDedupe() !in openedUrls }
+                .take(plan.resultLimit)
+                .forEach { result ->
+                    add(
+                        MergedWebSource(
+                            title = result.title.ifBlank { result.url },
+                            url = result.url,
+                            snippet = result.description,
+                            date = result.date,
+                            excerpt = null,
+                        ),
+                    )
+                }
         }
-        return WebSearchAggregate(text = text, sources = sources)
+
+        return WebSearchAggregate(
+            text = formatMergedSources(merged),
+            sources = merged.map { source -> WebSource(title = source.title, url = source.url) },
+        )
     }
 
     private fun fetchSelectedPageDetails(
@@ -685,24 +715,22 @@ class WebSearchManager(
             }
     }
 
-    private fun formatSearchResults(
-        results: List<WebSearchResult>,
-        fallbackDate: String?,
-        resultLimit: Int = WEB_SEARCH_RESULT_LIMIT,
-    ): String {
-        if (results.isEmpty()) {
+    private fun formatMergedSources(sources: List<MergedWebSource>): String {
+        if (sources.isEmpty()) {
             return "No web search results were found."
         }
 
-        return results
-            .take(resultLimit)
-            .mapIndexed { index, result ->
-                val date = result.date ?: fallbackDate
-                """
-                Source [${index + 1}]: ${result.title}
-                URL: ${result.url}
-                ${date?.let { "Date: $it\n" }.orEmpty()}Content: ${result.description.ifBlank { result.title }}
-                """.trimIndent()
+        return sources
+            .mapIndexed { index, source ->
+                buildString {
+                    append("[${index + 1}] ${source.title}\n")
+                    append("URL: ${source.url}")
+                    source.date?.let { date -> append("\nDate: $date") }
+                    if (source.snippet.isNotBlank()) {
+                        append("\nSnippet: ${source.snippet}")
+                    }
+                    source.excerpt?.let { excerpt -> append("\nPage content:\n$excerpt") }
+                }
             }
             .joinToString(separator = "\n---\n")
     }

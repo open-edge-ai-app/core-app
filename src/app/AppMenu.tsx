@@ -782,11 +782,59 @@ export default function FullScreenMenu({
     paddingBottom: insets.bottom,
     paddingTop: insets.top,
   };
+  const handleRequestClose = () => {
+    if (isWorkFolderActionIconMenuOpen) {
+      setIsWorkFolderActionIconMenuOpen(false);
+      return;
+    }
+
+    if (isWorkFolderSelectOpen) {
+      setIsWorkFolderSelectOpen(false);
+      return;
+    }
+
+    if (isWorkFolderIconMenuOpen) {
+      setIsWorkFolderIconMenuOpen(false);
+      return;
+    }
+
+    if (workFolderActionDialog) {
+      handleCloseWorkFolderActionDialog();
+      return;
+    }
+
+    if (recentDialog) {
+      handleCloseRecentDialog();
+      return;
+    }
+
+    if (isWorkFolderDialogOpen) {
+      handleCloseWorkFolderDialog();
+      return;
+    }
+
+    if (isSearchDialogOpen) {
+      handleCloseSearchDialog();
+      return;
+    }
+
+    if (actionSheetSession || workFolderActionSheetFolder) {
+      closeFloatingActionMenus();
+      return;
+    }
+
+    if (selectedWorkFolderRoute) {
+      handleCloseWorkFolderRoute();
+      return;
+    }
+
+    onClose();
+  };
 
   return (
     <Modal
       animationType="none"
-      onRequestClose={onClose}
+      onRequestClose={handleRequestClose}
       presentationStyle="overFullScreen"
       transparent
       visible={isRendered}

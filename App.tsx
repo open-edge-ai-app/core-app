@@ -8,6 +8,8 @@ import React, {
 } from 'react';
 import {
   ActivityIndicator,
+  BackHandler,
+  Platform,
   Pressable,
   StatusBar,
   Text as RNText,
@@ -184,6 +186,45 @@ function AppContent() {
   const headerModelLabel = selectedModel.label;
   const isSettingsDetailPanel =
     activeScreen === 'settings' && settingsPanel !== 'root';
+
+  useEffect(() => {
+    if (Platform.OS !== 'android') {
+      return undefined;
+    }
+
+    const subscription = BackHandler.addEventListener(
+      'hardwareBackPress',
+      () => {
+        if (isModelMenuOpen) {
+          setIsModelMenuOpen(false);
+          return true;
+        }
+
+        if (isMenuOpen) {
+          setIsMenuOpen(false);
+          return true;
+        }
+
+        if (activeScreen === 'settings' && settingsPanel !== 'root') {
+          setSettingsPanel('root');
+          return true;
+        }
+
+        if (activeScreen !== 'chat') {
+          setActiveScreen('chat');
+          setSettingsPanel('root');
+          if (!activeSessionIdRef.current) {
+            setSessionTitle('새 채팅');
+          }
+          return true;
+        }
+
+        return false;
+      },
+    );
+
+    return () => subscription.remove();
+  }, [activeScreen, isMenuOpen, isModelMenuOpen, settingsPanel]);
 
   const handleDownloadModelFromMenu = useCallback(
     async (modelId: ModelOption['id']) => {

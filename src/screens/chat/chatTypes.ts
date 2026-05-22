@@ -101,7 +101,6 @@ export const chatModeLabelKeys: Record<ChatMode['id'], I18nKey> = {
 export const INITIAL_SCROLL_BOTTOM_INSET = 170;
 export const THREAD_SCROLL_BOTTOM_INSET = 210;
 export const SCROLL_TO_BOTTOM_THRESHOLD = 140;
-export const SCROLL_TO_BOTTOM_BUTTON_OFFSET = 198;
 export const PENDING_CHAT_TITLE = '제목 생성 중';
 
 export const formatTime = (date: Date, locale: string) =>

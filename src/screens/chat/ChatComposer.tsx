@@ -1,6 +1,7 @@
 import React from 'react';
 import {
   Pressable,
+  LayoutChangeEvent,
   ScrollView,
   StyleProp,
   View,
@@ -41,6 +42,7 @@ type ChatComposerProps = {
   onChangeEditingQueuedDraft: (text: string) => void;
   onDeleteQueuedRequest: (requestId: string) => void;
   onEditQueuedRequest: (request: QueuedChatRequest) => void;
+  onLayout: (event: LayoutChangeEvent) => void;
   onRemoveAttachment: (attachment: MultimodalAttachment) => void;
   onSaveQueuedRequestEdit: (requestId: string) => void;
   onSend: () => void;
@@ -66,6 +68,7 @@ export default function ChatComposer({
   onChangeEditingQueuedDraft,
   onDeleteQueuedRequest,
   onEditQueuedRequest,
+  onLayout,
   onRemoveAttachment,
   onSaveQueuedRequestEdit,
   onSend,
@@ -77,7 +80,7 @@ export default function ChatComposer({
   const { locale, t } = useI18n();
 
   return (
-    <View style={[styles.composer, composerOffsetStyle]}>
+    <View onLayout={onLayout} style={[styles.composer, composerOffsetStyle]}>
       <View style={styles.inputPanel}>
         {selectedAttachments.length > 0 ? (
           <ScrollView

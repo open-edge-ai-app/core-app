@@ -309,7 +309,7 @@ object LiteRtLmReflector {
                         return
                     }
 
-                    val text = message.toFinalText()
+                    val text = message.toStreamText()
                     if (text.isBlank()) {
                         return
                     }
@@ -377,6 +377,9 @@ object LiteRtLmReflector {
     private fun Message.toFinalText(): String =
         toString().cleanModelOutput()
 
+    private fun Message.toStreamText(): String =
+        toString().cleanModelStreamChunk()
+
     private fun String.toPngByteArray(): ByteArray {
         val bitmap = requireNotNull(BitmapFactory.decodeFile(this)) {
             "Unable to decode image attachment: $this"
@@ -432,8 +435,37 @@ object LiteRtLmReflector {
             .stripToolControlText()
             .stripEmptyJsonFences()
             .collapseRepeatedText()
-            .replace(Regex("\\s+"), " ")
-            .trim()
+            .normalizeModelWhitespace(trimEdges = true)
+
+    private fun String.cleanModelStreamChunk(): String =
+        replace("<turn|>", "")
+            .replace("<eos>", "")
+            .replace("<bos>", "")
+            .replace("<start_of_turn>system", "")
+            .replace("<start_of_turn>user", "")
+            .replace("<start_of_turn>model", "")
+            .replace("<start_of_turn>", "")
+            .replace("<end_of_turn>", "")
+            .replace("<|channel>thought", "")
+            .replace("<|channel|>thought", "")
+            .replace("<channel>thought", "")
+            .replace("<|channel>final", "")
+            .replace("<|channel|>final", "")
+            .replace("<channel|>", "")
+            .replace("<channel>", "")
+            .stripPrivateReasoning()
+            .stripToolControlText()
+            .stripEmptyJsonFences()
+            .normalizeModelWhitespace(trimEdges = false)
+
+    private fun String.normalizeModelWhitespace(trimEdges: Boolean): String {
+        val normalized = replace("\r\n", "\n")
+            .replace('\r', '\n')
+            .replace(Regex("[\\t\\x0B\\f ]+"), " ")
+            .replace(Regex(" *\\n *"), "\n")
+            .replace(Regex("\\n{3,}"), "\n\n")
+        return if (trimEdges) normalized.trim() else normalized
+    }
 
     private fun String.stripPrivateReasoning(): String {
         val markerIndex = listOf(
@@ -460,7 +492,7 @@ object LiteRtLmReflector {
         replace(Regex("""(?is)```\s*json\s*```\s*"""), "")
 
     private fun String.collapseRepeatedText(): String {
-        val normalized = trim()
+        val normalized = collapseRunawayRepetition(trim())
         if (normalized.isEmpty()) {
             return normalized
         }

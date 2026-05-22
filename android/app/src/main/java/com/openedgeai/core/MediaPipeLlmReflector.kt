@@ -277,7 +277,14 @@ object MediaPipeLlmReflector {
             .stripToolControlText()
             .stripEmptyJsonFences()
             .collapseRepeatedText()
-            .replace(Regex("\\s+"), " ")
+            .normalizeModelWhitespace()
+
+    private fun String.normalizeModelWhitespace(): String =
+        replace("\r\n", "\n")
+            .replace('\r', '\n')
+            .replace(Regex("[\\t\\x0B\\f ]+"), " ")
+            .replace(Regex(" *\\n *"), "\n")
+            .replace(Regex("\\n{3,}"), "\n\n")
             .trim()
 
     private fun String.toGemmaItPrompt(): String {
@@ -340,7 +347,7 @@ object MediaPipeLlmReflector {
         replace(Regex("""(?is)```\s*json\s*```\s*"""), "")
 
     private fun String.collapseRepeatedText(): String {
-        val normalized = trim()
+        val normalized = collapseRunawayRepetition(trim())
         if (normalized.isEmpty()) {
             return normalized
         }
@@ -362,15 +369,21 @@ object MediaPipeLlmReflector {
         }
 
         return normalized
-            .split(Regex("""(?<=[.!?])\s+"""))
-            .fold(mutableListOf<String>()) { acc, sentence ->
-                val cleaned = sentence.trim()
-                if (cleaned.isNotBlank() && acc.lastOrNull() != cleaned) {
-                    acc.add(cleaned)
-                }
-                acc
+            .replace("\r\n", "\n")
+            .replace('\r', '\n')
+            .split('\n')
+            .joinToString("\n") { line ->
+                line
+                    .split(Regex("""(?<=[.!?])\s+"""))
+                    .fold(mutableListOf<String>()) { acc, sentence ->
+                        val cleaned = sentence.trim()
+                        if (cleaned.isNotBlank() && acc.lastOrNull() != cleaned) {
+                            acc.add(cleaned)
+                        }
+                        acc
+                    }
+                    .joinToString(" ")
             }
-            .joinToString(" ")
     }
 
     private fun mergeStreamPartial(

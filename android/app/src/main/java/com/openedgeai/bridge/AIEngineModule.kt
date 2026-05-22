@@ -36,6 +36,7 @@ import com.openedgeai.core.MultimodalRequest
 import com.openedgeai.core.QueryRouter
 import com.openedgeai.core.RuntimeStatus
 import com.openedgeai.core.StartupState
+import com.openedgeai.core.collapseRunawayRepetition
 import com.openedgeai.db.ChatHistoryRecord
 import com.openedgeai.db.ChatMessageRecord
 import com.openedgeai.db.ChatRecord
@@ -610,7 +611,10 @@ class AIEngineModule(
         try {
             val flags = data.flags and Intent.FLAG_GRANT_READ_URI_PERMISSION
             if (flags != 0) {
-                reactContext.contentResolver.takePersistableUriPermission(uri, flags)
+                reactContext.contentResolver.takePersistableUriPermission(
+                    uri,
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION,
+                )
             }
         } catch (_: Exception) {
             // Some document providers grant only transient access.
@@ -1406,7 +1410,14 @@ class AIEngineModule(
             .stripToolControlText()
             .stripEmptyJsonFences()
             .collapseRepeatedText()
-            .replace(Regex("\\s+"), " ")
+            .normalizeModelWhitespace()
+
+    private fun String.normalizeModelWhitespace(): String =
+        replace("\r\n", "\n")
+            .replace('\r', '\n')
+            .replace(Regex("[\\t\\x0B\\f ]+"), " ")
+            .replace(Regex(" *\\n *"), "\n")
+            .replace(Regex("\\n{3,}"), "\n\n")
             .trim()
 
     private fun String.keepAfterFinalChannel(): String {
@@ -1448,7 +1459,7 @@ class AIEngineModule(
         replace(Regex("""(?is)```\s*json\s*```\s*"""), "")
 
     private fun String.collapseRepeatedText(): String {
-        val normalized = trim()
+        val normalized = collapseRunawayRepetition(trim())
         if (normalized.isEmpty()) {
             return normalized
         }
@@ -1470,15 +1481,21 @@ class AIEngineModule(
         }
 
         return normalized
-            .split(Regex("""(?<=[.!?])\s+"""))
-            .fold(mutableListOf<String>()) { acc, sentence ->
-                val cleaned = sentence.trim()
-                if (cleaned.isNotBlank() && acc.lastOrNull() != cleaned) {
-                    acc.add(cleaned)
-                }
-                acc
+            .replace("\r\n", "\n")
+            .replace('\r', '\n')
+            .split('\n')
+            .joinToString("\n") { line ->
+                line
+                    .split(Regex("""(?<=[.!?])\s+"""))
+                    .fold(mutableListOf<String>()) { acc, sentence ->
+                        val cleaned = sentence.trim()
+                        if (cleaned.isNotBlank() && acc.lastOrNull() != cleaned) {
+                            acc.add(cleaned)
+                        }
+                        acc
+                    }
+                    .joinToString(" ")
             }
-            .joinToString(" ")
     }
 
     companion object {

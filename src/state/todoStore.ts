@@ -277,6 +277,14 @@ function normalizeTask(raw: TodoTask): TodoTask {
   };
 }
 
+function isSeedTask(task: TodoTask): boolean {
+  return task.id.startsWith('seed-');
+}
+
+function normalizeTasks(rawTasks: TodoTask[]): TodoTask[] {
+  return rawTasks.filter(task => !isSeedTask(task)).map(normalizeTask);
+}
+
 // --- shared in-memory store with persistence + subscriptions ---
 
 type TodoState = {
@@ -325,9 +333,12 @@ export function ensureTodoStoreLoaded(): Promise<void> {
         readJson<TodoLabel[]>(TODO_LABELS_STORAGE_KEY, []),
         readJson<Partial<TodoSettings>>(TODO_SETTINGS_STORAGE_KEY, {}),
       ]);
-      state.tasks = tasks.map(normalizeTask);
+      state.tasks = normalizeTasks(tasks);
       state.labels = labels;
       state.settings = { ...DEFAULT_TODO_SETTINGS, ...settings };
+      if (state.tasks.length !== tasks.length) {
+        persistTasks();
+      }
       notify();
     })();
   }
@@ -378,7 +389,7 @@ function persistSettings(): void {
 }
 
 export function setTasks(next: TodoTask[]): void {
-  state.tasks = next.map(normalizeTask);
+  state.tasks = normalizeTasks(next);
   persistTasks();
   notify();
 }

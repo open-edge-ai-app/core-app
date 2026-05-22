@@ -35,6 +35,16 @@ export type TodoToolApplyResult = {
   listText: string | null;
 };
 
+type TodoDateParts = { day: Date; matchedText: string };
+
+type TodoTimeParts = {
+  endHour?: number;
+  endMinute?: number;
+  matchedText: string;
+  startHour: number;
+  startMinute: number;
+};
+
 const TOOL_FENCE_PATTERN =
   /```(?:openedge_tool|openedge-tool|openedge_tool_call|todo_tool)\s*([\s\S]*?)\s*```/g;
 
@@ -253,6 +263,21 @@ export function parseTodoDate(value: string | undefined): ParsedDate | null {
     return { date: startOfDay(relativeBase), hasTime: false };
   }
 
+  const naturalDate = resolveNaturalLanguageDate(trimmed, relativeBase);
+  if (naturalDate) {
+    const naturalTime = resolveNaturalLanguageTime(trimmed);
+    const date = new Date(naturalDate.day);
+    if (naturalTime) {
+      date.setHours(
+        naturalTime.startHour,
+        naturalTime.startMinute,
+        0,
+        0,
+      );
+    }
+    return { date, hasTime: Boolean(naturalTime) };
+  }
+
   const match = trimmed.match(
     /(\d{4})[-./](\d{1,2})[-./](\d{1,2})(?:[ T](\d{1,2}):(\d{2}))?/,
   );
@@ -281,6 +306,17 @@ export function parseTodoDate(value: string | undefined): ParsedDate | null {
 
 function hourFraction(date: Date): number {
   return date.getHours() + date.getMinutes() / 60;
+}
+
+function formatTodoDisplayDateTime(date: Date, hasTime: boolean): string {
+  const month = date.getMonth() + 1;
+  const day = date.getDate();
+  if (!hasTime) {
+    return `${month}월 ${day}일`;
+  }
+  const hour = String(date.getHours()).padStart(2, '0');
+  const minute = String(date.getMinutes()).padStart(2, '0');
+  return `${month}월 ${day}일 ${hour}:${minute}`;
 }
 
 // --- task / label lookup ---
@@ -372,8 +408,14 @@ export function executeTodoToolCall(call: TodoToolCall): {
   switch (call.name) {
     case 'todo_list':
       return { message: executeTodoList(args), mutated: false, isList: true };
-    case 'todo_create':
-      return { message: executeTodoCreate(args), mutated: true, isList: false };
+    case 'todo_create': {
+      const message = executeTodoCreate(args);
+      return {
+        message,
+        mutated: message.startsWith('Todo를 추가했습니다:'),
+        isList: false,
+      };
+    }
     case 'todo_update':
       return { message: executeTodoUpdate(args), mutated: true, isList: false };
     case 'todo_complete':
@@ -500,10 +542,16 @@ function executeTodoCreate(args: Record<string, unknown>): string {
   if (!title) {
     return 'Todo를 만들려면 제목이 필요합니다.';
   }
-  const start = parseTodoDate(
-    argString(args, 'start_at', 'start', 'due_at', 'date'),
-  );
-  const end = parseTodoDate(argString(args, 'end_at', 'end'));
+  const rawStart = argString(args, 'start_at', 'start', 'due_at', 'date');
+  const rawEnd = argString(args, 'end_at', 'end');
+  const start = parseTodoDate(rawStart);
+  if (rawStart && !start) {
+    return `Todo 날짜/시간을 이해하지 못했습니다: ${rawStart}`;
+  }
+  const end = parseTodoDate(rawEnd);
+  if (rawEnd && !end) {
+    return `Todo 종료 시간을 이해하지 못했습니다: ${rawEnd}`;
+  }
   const repeat =
     parseRepeatRule(argString(args, 'repeat', 'repeat_rule')) ?? 'none';
   const labelIds = resolveLabelIds(
@@ -538,7 +586,10 @@ function executeTodoCreate(args: Record<string, unknown>): string {
   };
   upsertTask(task);
   syncTaskToCalendar(task).catch(() => undefined);
-  return `Todo를 추가했습니다: ${title}`;
+  return `Todo를 추가했습니다: ${title} (${formatTodoDisplayDateTime(
+    startDate,
+    start?.hasTime ?? false,
+  )})`;
 }
 
 function executeTodoUpdate(args: Record<string, unknown>): string {
@@ -749,6 +800,28 @@ function executeSettingsUpdate(args: Record<string, unknown>): string {
 
 // --- prompt sections (mirror NativeChatModels / NativeTodoChatTools) ---
 
+export function hasExplicitWebSearchTrigger(text: string): boolean {
+  const normalized = text.toLowerCase();
+  const explicitTriggers = [
+    '검색',
+    '찾아',
+    '구글',
+    '웹',
+    '인터넷',
+    '출처',
+    '근거',
+    '링크',
+    'search',
+    'web',
+    'internet',
+    'source',
+    'sources',
+    'lookup',
+    'look up',
+  ];
+  return explicitTriggers.some(term => normalized.includes(term));
+}
+
 export function shouldUseTodoTool(text: string): boolean {
   const normalized = text.toLowerCase().trim();
   if (!normalized) {
@@ -801,8 +874,17 @@ export function shouldUseTodoTool(text: string): boolean {
     '기록',
     '잡아',
     '정리',
+    '가신데',
+    '간데',
+    '가신다고',
+    '간다고',
+    '있대',
+    '있어',
     '예정',
+    '잡혀',
+    '잡혔',
     '해야',
+    '하래',
     'add',
     'create',
     'save',
@@ -825,6 +907,223 @@ export function shouldUseTodoTool(text: string): boolean {
     return true;
   }
   return hasVerb && hasTime;
+}
+
+function resolveNaturalLanguageDate(
+  text: string,
+  now: Date,
+): TodoDateParts | null {
+  const normalized = text.replace(/\s+/g, ' ').trim();
+  const base = new Date(now);
+
+  const relativeMatches: Array<[RegExp, number]> = [
+    [/(오늘)/, 0],
+    [/(내일)/, 1],
+    [/(모레)/, 2],
+    [/\b(today)\b/i, 0],
+    [/\b(tomorrow)\b/i, 1],
+  ];
+  for (const [pattern, offset] of relativeMatches) {
+    const match = normalized.match(pattern);
+    if (match) {
+      const day = new Date(base);
+      day.setDate(base.getDate() + offset);
+      return { day: startOfDay(day), matchedText: match[0] };
+    }
+  }
+
+  const absoluteMatch = normalized.match(
+    /(?:(\d{4})\s*년\s*)?(\d{1,2})\s*월\s*(\d{1,2})\s*일/,
+  );
+  if (absoluteMatch) {
+    const [, rawYear, rawMonth, rawDay] = absoluteMatch;
+    const day = new Date(
+      rawYear ? Number(rawYear) : base.getFullYear(),
+      Number(rawMonth) - 1,
+      Number(rawDay),
+    );
+    if (!rawYear && startOfDay(day).getTime() < startOfDay(base).getTime()) {
+      day.setFullYear(day.getFullYear() + 1);
+    }
+    return { day: startOfDay(day), matchedText: absoluteMatch[0] };
+  }
+
+  const isoMatch = normalized.match(
+    /(\d{4})[-./](\d{1,2})[-./](\d{1,2})/,
+  );
+  if (isoMatch) {
+    const [, rawYear, rawMonth, rawDay] = isoMatch;
+    return {
+      day: startOfDay(
+        new Date(Number(rawYear), Number(rawMonth) - 1, Number(rawDay)),
+      ),
+      matchedText: isoMatch[0],
+    };
+  }
+
+  const weekdayMatch = normalized.match(
+    /(이번\s*주|다음\s*주|이번주|다음주)?\s*(월|화|수|목|금|토|일)(?:요일)?/,
+  );
+  if (weekdayMatch) {
+    const weekPrefix = (weekdayMatch[1] ?? '').replace(/\s+/g, '');
+    const weekday = ['일', '월', '화', '수', '목', '금', '토'].indexOf(
+      weekdayMatch[2],
+    );
+    if (weekday >= 0) {
+      const day = new Date(base);
+      let offset = weekday - base.getDay();
+      if (weekPrefix === '다음주') {
+        offset += offset <= 0 ? 7 : 0;
+      } else if (weekPrefix !== '이번주' && offset < 0) {
+        offset += 7;
+      }
+      day.setDate(base.getDate() + offset);
+      return { day: startOfDay(day), matchedText: weekdayMatch[0] };
+    }
+  }
+
+  return null;
+}
+
+function toClockHour(period: string | undefined, rawHour: number): number {
+  if (period === '오후' && rawHour < 12) {
+    return rawHour + 12;
+  }
+  if (period === '오전' && rawHour === 12) {
+    return 0;
+  }
+  return rawHour;
+}
+
+function resolveNaturalLanguageTime(text: string): TodoTimeParts | null {
+  const normalized = text.replace(/\s+/g, ' ').trim();
+  const rangeMatch = normalized.match(
+    /(?:(오전|오후)\s*)?(\d{1,2})\s*시(?:\s*(\d{1,2})\s*분)?\s*(?:부터|에서|~|-|–|—)\s*(?:(오전|오후)\s*)?(\d{1,2})\s*시(?:\s*(\d{1,2})\s*분)?\s*(?:까지)?/,
+  );
+  if (rangeMatch) {
+    const [, startPeriod, rawStartHour, rawStartMinute, rawEndPeriod, rawEndHour, rawEndMinute] =
+      rangeMatch;
+    const startHour = toClockHour(startPeriod, Number(rawStartHour));
+    const endPeriod = rawEndPeriod ?? startPeriod;
+    const endHour = toClockHour(endPeriod, Number(rawEndHour));
+    return {
+      endHour,
+      endMinute: rawEndMinute ? Number(rawEndMinute) : 0,
+      matchedText: rangeMatch[0],
+      startHour,
+      startMinute: rawStartMinute ? Number(rawStartMinute) : 0,
+    };
+  }
+
+  const colonMatch = normalized.match(/(?:(오전|오후)\s*)?(\d{1,2}):(\d{2})/);
+  if (colonMatch) {
+    const [, period, rawHour, rawMinute] = colonMatch;
+    return {
+      matchedText: colonMatch[0],
+      startHour: toClockHour(period, Number(rawHour)),
+      startMinute: Number(rawMinute),
+    };
+  }
+
+  const singlePattern =
+    /(?:(오전|오후)\s*)?(\d{1,2})\s*시(?:\s*(\d{1,2})\s*분)?/g;
+  const eventIndex = normalized.search(
+    /미팅|회의|약속|예약|면담|방문|통화|콜|meeting|appointment|reservation|call/i,
+  );
+  const candidates: Array<RegExpExecArray> = [];
+  let singleMatch: RegExpExecArray | null;
+  while ((singleMatch = singlePattern.exec(normalized)) !== null) {
+    candidates.push(singleMatch);
+  }
+  if (candidates.length > 0) {
+    const selected =
+      eventIndex >= 0
+        ? candidates
+            .filter(match => match.index <= eventIndex)
+            .sort((left, right) => right.index - left.index)[0] ??
+          candidates[0]
+        : candidates[0];
+    const [, period, rawHour, rawMinute] = selected;
+    return {
+      matchedText: selected[0],
+      startHour: toClockHour(period, Number(rawHour)),
+      startMinute: rawMinute ? Number(rawMinute) : 0,
+    };
+  }
+
+  return null;
+}
+
+export function isTodoConfirmationReply(text: string): boolean {
+  const compact = text
+    .toLowerCase()
+    .replace(/[.!?。！？\s]/g, '')
+    .trim();
+  if (!compact || compact.length > 40) {
+    return false;
+  }
+
+  const exactTerms = ['doit', '네', '예', '응', '웅', 'ㅇㅋ'];
+  if (exactTerms.includes(compact)) {
+    return true;
+  }
+
+  const englishTokens = text
+    .toLowerCase()
+    .replace(/[.!?。！？]/g, ' ')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+  const englishTerms = ['yes', 'ok', 'okay', 'yep', 'sure', 'please'];
+  if (englishTokens.some(token => englishTerms.includes(token))) {
+    return true;
+  }
+
+  const koreanTerms = [
+    '알겠어',
+    '좋아',
+    '그래',
+    '맞아',
+    '부탁',
+    '해줘',
+    '해주세요',
+    '등록해줘',
+    '추가해줘',
+  ];
+  return koreanTerms.some(term => compact.includes(term));
+}
+
+export function isTodoRegistrationQuestion(text: string): boolean {
+  const normalized = text.toLowerCase().replace(/\s+/g, '');
+  return [
+    '등록해드릴까요',
+    '등록할까요',
+    '일정으로등록',
+    'todo로등록',
+    '할일로등록',
+    '추가해드릴까요',
+    '추가할까요',
+    '저장해드릴까요',
+    'wouldyoulikemetoadd',
+    'shouldiadd',
+    'addthisto',
+  ].some(term => normalized.includes(term));
+}
+
+export function buildTodoConfirmationCarryOverSection(
+  previousScheduleText: string,
+): string {
+  const scheduleText = previousScheduleText
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 500);
+  return [
+    'Todo confirmation carry-over:',
+    '- The current user message is an affirmative response to the assistant asking whether to register a Todo/schedule.',
+    `- Create the Todo now by using this previous user schedule statement as the source: ${scheduleText}`,
+    '- Do not ask for confirmation again.',
+    '- Emit a todo_create openedge_tool block and keep the visible answer brief.',
+  ].join('\n');
 }
 
 export function buildTodoToolStateSection(): string | null {
@@ -851,6 +1150,7 @@ export function buildTodoToolPromptSection(now: Date = new Date()): string {
   const today = occurrenceDayKey(now);
   return [
     'Todo app tools:',
+    '- IMPORTANT: This todo system manages in-app local tasks and schedules. It does NOT use or need any external calendar, device calendar, or calendar API permissions. Never say you cannot access a calendar or that you lack calendar integration. For ANY schedule/meeting/appointment/reminder request, immediately emit an openedge_tool block — do not explain limitations.',
     '- todo_list(filter, date, include_completed): reads Todo tasks. filter is all, today, tomorrow, overdue, or date.',
     '- todo_create(title, note, start_at, end_at, repeat, labels, starred): creates a Todo. Use at most one label.',
     '- todo_update(id or query, title, note, start_at, end_at, repeat, labels, starred): edits a Todo. Use at most one label.',
@@ -870,7 +1170,10 @@ export function buildTodoToolPromptSection(now: Date = new Date()): string {
       ' 14:00","repeat":"none","labels":["..."]}}',
     '```',
     '- Todo, schedule, reminder, meeting, and appointment requests have priority over web search unless the user explicitly asks to search the web.',
+    '- Named people, companies, venues, or places inside a Todo sentence are usually Todo title/note content, not a reason to search.',
+    '- Korean declarative schedule statements such as "오늘 오후 4시부터 5시까지 대한상공회의소 미팅 가신데" mean create a Todo/schedule item unless the sentence is clearly a question.',
     '- If the date/time and event content are sufficient, do not ask for confirmation; emit todo_create immediately.',
+    '- If the assistant previously asked whether to register a Todo/schedule and the user replies yes/okay/알겠어/네/응, use the previous user schedule statement and emit todo_create immediately.',
     '- When the user asks about today\'s tasks or "오늘 할 일", call todo_list with filter="today".',
     '- For todo_list, do not include internal ids in visible prose; the app formats the list for the user.',
     '- You may include an array of calls in one block.',

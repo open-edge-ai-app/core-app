@@ -83,77 +83,11 @@ const DATE_CELL_GAP = 8;
 const CENTER_DATE_INDEX = 14;
 const CURRENT_TIME_COLOR = '#FF3B30';
 
-function dateAtHour(dayOffset: number, hour: number) {
-  const date = new Date();
-  date.setDate(date.getDate() + dayOffset);
-  date.setHours(hour, 0, 0, 0);
-  return date.toISOString();
-}
-
 function dateOnSelectedDay(selectedDate: Date, hour: number) {
   const date = new Date(selectedDate);
   date.setHours(hour, 0, 0, 0);
   return date.toISOString();
 }
-
-const initialTasks: TodoTask[] = [
-  {
-    dueDateISO: dateAtHour(-1, 11),
-    dueLabel: 'Yesterday',
-    durationHours: 1,
-    id: 'seed-call-jason',
-    isOverdue: true,
-    note: '',
-    startHour: 11,
-    title: 'Call Jason',
-  },
-  {
-    dueDateISO: dateAtHour(0, 19),
-    dueLabel: 'Today',
-    durationHours: 1,
-    id: 'seed-email-james',
-    isStarred: true,
-    note: 'Email Mrs. James for the new intern we have next week from Alex Carter, a marketing student from Brookfield University. Confirm their start date, schedule, and onboarding needs.',
-    startHour: 19,
-    title: 'Email Back Mrs James',
-  },
-  {
-    dueDateISO: dateAtHour(0, 13),
-    dueLabel: 'Today',
-    durationHours: 4,
-    id: 'seed-design-system',
-    note: '',
-    startHour: 13,
-    subtasks: [
-      {
-        id: 'seed-design-system-1',
-        isComplete: true,
-        title: 'Update the UI system with a modern, cohesive design.',
-      },
-      {
-        id: 'seed-design-system-2',
-        isComplete: false,
-        title: 'Focus on consistency, scalability, and accessibility.',
-      },
-      {
-        id: 'seed-design-system-3',
-        isComplete: false,
-        title: 'Use clean aesthetics with reusable, responsive components.',
-      },
-      {
-        id: 'seed-design-system-4',
-        isComplete: false,
-        title: 'Enhance usability for a seamless user experience.',
-      },
-      {
-        id: 'seed-design-system-5',
-        isComplete: false,
-        title: 'Streamline development with clear design guidelines.',
-      },
-    ],
-    title: 'New Design System',
-  },
-];
 
 export default function TodoListScreen() {
   const { locale, t } = useI18n();
@@ -162,7 +96,7 @@ export default function TodoListScreen() {
   const calendarScrollRef = useRef<ScrollView>(null);
   const lastAutoScrolledCalendarDayRef = useRef<string | null>(null);
   const [tab, setTab] = useState<TodoTab>('all');
-  const [tasks, setTasks] = useState<TodoTask[]>(initialTasks);
+  const [tasks, setTasks] = useState<TodoTask[]>([]);
   const [labels, setLabels] = useState<TodoLabel[]>([]);
   const [settings, setSettings] = useState<TodoSettings>(DEFAULT_TODO_SETTINGS);
   const [calendarPermissionStatus, setCalendarPermissionStatus] =
@@ -244,14 +178,7 @@ export default function TodoListScreen() {
         setSettings(state.settings);
       }
     });
-    ensureTodoStoreLoaded().then(() => {
-      if (!isMounted) {
-        return;
-      }
-      if (getStoreTasks().length === 0) {
-        setStoreTasks(initialTasks);
-      }
-    });
+    ensureTodoStoreLoaded();
     return () => {
       isMounted = false;
       unsubscribe();

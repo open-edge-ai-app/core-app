@@ -132,6 +132,7 @@ enum NativeToolRegistry {
   static func promptSection(searchExecuted: Bool) -> String {
     let todoToolSection = """
     Todo app tools:
+    - IMPORTANT: This todo system manages in-app local tasks and schedules. It does NOT use or need any external calendar, device calendar, or calendar API permissions. Never say you cannot access a calendar or that you lack calendar integration. For ANY schedule/meeting/appointment/reminder request, immediately emit an openedge_tool block — do not explain limitations.
     - todo_list(filter, date, include_completed): reads Todo tasks. filter is all, today, tomorrow, overdue, or date.
     - todo_create(title, note, start_at, end_at, repeat, labels, starred): creates a Todo. Use at most one label.
     - todo_update(id or query, title, note, start_at, end_at, repeat, labels, starred): edits a Todo. Use at most one label.

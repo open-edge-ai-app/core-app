@@ -14,7 +14,11 @@ import {
 } from '../src/state/todoStore';
 import {
   applyTodoToolCalls,
+  buildTodoConfirmationCarryOverSection,
   executeTodoToolCall,
+  hasExplicitWebSearchTrigger,
+  isTodoConfirmationReply,
+  isTodoRegistrationQuestion,
   parseTodoToolCalls,
   shouldUseTodoTool,
 } from '../src/native/todoTools';
@@ -109,6 +113,26 @@ describe('recurrence helpers', () => {
     });
   });
 
+  it('removes bundled seed tasks from the shared Todo store', () => {
+    setTasks([
+      {
+        dueLabel: 'Yesterday',
+        id: 'seed-call-jason',
+        note: '',
+        title: 'Call Jason',
+      },
+      {
+        dueLabel: 'Tasks',
+        id: 'todo-real',
+        note: '',
+        title: 'Real task',
+      },
+    ]);
+
+    expect(getTasks()).toHaveLength(1);
+    expect(getTasks()[0].title).toBe('Real task');
+  });
+
   it('weekly task occurs only on the matching weekday', () => {
     const anchor = new Date(2026, 4, 20);
     const task: TodoTask = {
@@ -187,4 +211,36 @@ describe('shouldUseTodoTool', () => {
     expect(shouldUseTodoTool('add a task to call mom')).toBe(true);
     expect(shouldUseTodoTool('what is the capital of France?')).toBe(false);
   });
+
+  it('matches iOS declarative Korean schedule handling', () => {
+    expect(
+      shouldUseTodoTool('오늘 오후 4시부터 5시까지 대한상공회의소 미팅 가신데'),
+    ).toBe(true);
+  });
+
+  it('detects short confirmations after a schedule prompt', () => {
+    expect(isTodoConfirmationReply('네')).toBe(true);
+    expect(isTodoConfirmationReply('네 해줘')).toBe(true);
+    expect(isTodoConfirmationReply('okay')).toBe(true);
+    expect(isTodoConfirmationReply('tell me a joke')).toBe(false);
+    expect(isTodoConfirmationReply('why?')).toBe(false);
+    expect(isTodoConfirmationReply('예약하지마')).toBe(false);
+    expect(isTodoConfirmationReply('아니요')).toBe(false);
+  });
+
+  it('matches iOS todo registration question carry-over helpers', () => {
+    expect(isTodoRegistrationQuestion('일정으로 등록해 드릴까요?')).toBe(true);
+    expect(
+      buildTodoConfirmationCarryOverSection('오늘 오후 4시 미팅 가신데'),
+    ).toContain('오늘 오후 4시 미팅 가신데');
+  });
+
+  it('matches iOS explicit web search trigger handling', () => {
+    expect(hasExplicitWebSearchTrigger('내일 축구 일정 검색해줘')).toBe(true);
+    expect(hasExplicitWebSearchTrigger('find sources for this')).toBe(true);
+    expect(hasExplicitWebSearchTrigger('오늘 오후 4시 미팅 등록해줘')).toBe(
+      false,
+    );
+  });
+
 });

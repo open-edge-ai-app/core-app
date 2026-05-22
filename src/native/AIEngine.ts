@@ -1,4 +1,9 @@
 import { NativeEventEmitter, NativeModules, Platform } from 'react-native';
+import {
+  androidPermissionResults,
+  requestAndroidPermissions,
+  type AndroidPermission,
+} from './androidPermissions';
 
 export type AIChatRole = 'assistant' | 'user' | 'system';
 
@@ -237,30 +242,20 @@ type AIEngineNativeModule = {
   removeListeners: (count: number) => void;
 };
 
-type NativePermissionsAndroidModule = {
-  requestMultiplePermissions?: (
-    permissions: string[],
-  ) => Promise<Record<string, string>>;
-};
-
 const nativeModule = NativeModules.AIEngine as AIEngineNativeModule | undefined;
-const nativePermissionsAndroid = NativeModules.PermissionsAndroid as
-  | NativePermissionsAndroidModule
-  | undefined;
 const AI_ENGINE_STREAM_EVENT = 'AIEngineStreamChunk';
 const STREAM_IDLE_COMPLETION_MS = 45_000;
 const STREAM_HARD_TIMEOUT_MS = 120_000;
 const DEFAULT_CHAT_TITLE = '새 채팅';
 
-const androidPermissions = {
+const androidPermissions: Record<
+  'READ_EXTERNAL_STORAGE' | 'READ_MEDIA_IMAGES' | 'READ_SMS',
+  AndroidPermission
+> = {
   READ_EXTERNAL_STORAGE: 'android.permission.READ_EXTERNAL_STORAGE',
   READ_MEDIA_IMAGES: 'android.permission.READ_MEDIA_IMAGES',
   READ_SMS: 'android.permission.READ_SMS',
-} as const;
-
-const androidPermissionResults = {
-  GRANTED: 'granted',
-} as const;
+};
 
 const modelDownloadUrl =
   'https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm/resolve/main/gemma-4-E2B-it.litertlm?download=true';
@@ -630,7 +625,12 @@ export const AIEngine = {
   async generateResponse(
     prompt: string,
     history: AIChatMessage[] = [],
-    options: { chatSessionId?: string; modelId?: ModelId | string } = {},
+    options: {
+      chatSessionId?: string;
+      disableRetrieval?: boolean;
+      forceWebSearch?: boolean;
+      modelId?: ModelId | string;
+    } = {},
   ) {
     if (nativeModule?.sendMultimodalMessage) {
       const blockedReason = await ensureRuntimeReadyForGeneration(
@@ -645,6 +645,8 @@ export const AIEngine = {
         history,
         options: {
           chatSessionId: options.chatSessionId,
+          disableRetrieval: options.disableRetrieval,
+          forceWebSearch: options.forceWebSearch,
           modelId: options.modelId,
         },
         text: prompt,
@@ -1074,9 +1076,9 @@ export const AIEngine = {
 
     const mediaPermission =
       Number(Platform.Version) >= 33
-        ? 'android.permission.READ_MEDIA_IMAGES'
+        ? androidPermissions.READ_MEDIA_IMAGES
         : androidPermissions.READ_EXTERNAL_STORAGE;
-    const permissions =
+    const permissions: AndroidPermission[] =
       source === 'sms'
         ? [androidPermissions.READ_SMS]
         : source === 'gallery' || source === 'image'
@@ -1091,13 +1093,7 @@ export const AIEngine = {
       return true;
     }
 
-    if (!nativePermissionsAndroid?.requestMultiplePermissions) {
-      throw new Error('Android permission module is not available.');
-    }
-
-    const results = await nativePermissionsAndroid.requestMultiplePermissions(
-      permissions,
-    );
+    const results = await requestAndroidPermissions(permissions);
 
     return permissions.every(
       permission => results[permission] === androidPermissionResults.GRANTED,

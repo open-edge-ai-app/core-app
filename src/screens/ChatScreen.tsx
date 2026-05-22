@@ -9,11 +9,13 @@ import {
   Keyboard,
   KeyboardAvoidingView,
   KeyboardEvent,
+  LayoutChangeEvent,
   NativeScrollEvent,
   NativeSyntheticEvent,
   Platform,
   Pressable,
   ScrollView,
+  useWindowDimensions,
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -29,8 +31,12 @@ import AIEngine, {
 import { pickAttachment } from '../native/FilePicker';
 import {
   applyTodoToolCalls,
+  buildTodoConfirmationCarryOverSection,
   buildTodoToolPromptSection,
   buildTodoToolStateSection,
+  hasExplicitWebSearchTrigger,
+  isTodoConfirmationReply,
+  isTodoRegistrationQuestion,
   shouldUseTodoTool,
 } from '../native/todoTools';
 import { ensureTodoStoreLoaded } from '../state/todoStore';
@@ -47,7 +53,6 @@ import ChatComposer from './chat/ChatComposer';
 import {
   INITIAL_SCROLL_BOTTOM_INSET,
   PENDING_CHAT_TITLE,
-  SCROLL_TO_BOTTOM_BUTTON_OFFSET,
   SCROLL_TO_BOTTOM_THRESHOLD,
   THREAD_SCROLL_BOTTOM_INSET,
   chatModeLabelKeys,
@@ -75,6 +80,7 @@ export {
   shouldIncludeRuntimeContext,
 } from './chat/chatTypes';
 export type { ChatMessage } from './chat/chatTypes';
+
 function ChatScreen({
   commonSystemPrompt = '',
   messages,
@@ -86,6 +92,7 @@ function ChatScreen({
 }: ChatScreenProps) {
   const { locale, t } = useI18n();
   const insets = useSafeAreaInsets();
+  const { height: windowHeight } = useWindowDimensions();
   const scrollViewRef = useRef<ScrollView>(null);
   const isNearThreadEndRef = useRef(true);
   const generationTokenRef = useRef(0);
@@ -94,7 +101,11 @@ function ChatScreen({
   const [isGenerating, setIsGenerating] = useState(false);
   const [isStoppingGeneration, setIsStoppingGeneration] = useState(false);
   const [isAwaitingFirstChunk, setIsAwaitingFirstChunk] = useState(false);
-  const [keyboardHeight, setKeyboardHeight] = useState(0);
+  const [keyboardMetrics, setKeyboardMetrics] = useState<{
+    height: number;
+    screenY: number | null;
+  }>({ height: 0, screenY: null });
+  const [composerHeight, setComposerHeight] = useState(0);
   const [showScrollToBottom, setShowScrollToBottom] = useState(false);
   const [selectedAttachments, setSelectedAttachments] = useState<
     MultimodalAttachment[]
@@ -126,9 +137,21 @@ function ChatScreen({
   const canSubmit = draft.trim().length > 0 || selectedAttachments.length > 0;
   const shouldShowStopButton = isGenerationBusy && !canSubmit;
 
+  const keyboardHeight = keyboardMetrics.height;
+  const keyboardOffset = useMemo(() => {
+    if (keyboardMetrics.height <= 0) {
+      return 0;
+    }
+
+    if (Platform.OS === 'android' && keyboardMetrics.screenY != null) {
+      return Math.max(0, windowHeight - keyboardMetrics.screenY);
+    }
+
+    return keyboardMetrics.height;
+  }, [keyboardMetrics.height, keyboardMetrics.screenY, windowHeight]);
   const bottomSafeAreaInset = insets.bottom;
   const composerBottomOffset =
-    keyboardHeight > 0 ? keyboardHeight : bottomSafeAreaInset;
+    keyboardOffset > 0 ? keyboardOffset : bottomSafeAreaInset;
   const composerOffsetStyle = useMemo(
     () => ({
       bottom: composerBottomOffset,
@@ -138,24 +161,33 @@ function ChatScreen({
   );
   const scrollToBottomButtonOffsetStyle = useMemo(
     () => ({
-      bottom: SCROLL_TO_BOTTOM_BUTTON_OFFSET + composerBottomOffset,
+      bottom: composerHeight + composerBottomOffset + 10,
     }),
-    [composerBottomOffset],
+    [composerBottomOffset, composerHeight],
   );
   const scrollContentBottomInsetStyle = useMemo(
     () => ({
-      paddingBottom:
-        (hasUserMessages
+      paddingBottom: Math.max(
+        hasUserMessages
           ? THREAD_SCROLL_BOTTOM_INSET
-          : INITIAL_SCROLL_BOTTOM_INSET) + composerBottomOffset,
+          : INITIAL_SCROLL_BOTTOM_INSET,
+        composerHeight + composerBottomOffset + 24,
+      ),
     }),
-    [composerBottomOffset, hasUserMessages],
+    [composerBottomOffset, composerHeight, hasUserMessages],
   );
 
   const scrollToThreadEnd = useCallback((animated = true) => {
     isNearThreadEndRef.current = true;
     setShowScrollToBottom(false);
     scrollViewRef.current?.scrollToEnd({ animated });
+  }, []);
+
+  const handleComposerLayout = useCallback((event: LayoutChangeEvent) => {
+    const nextHeight = Math.ceil(event.nativeEvent.layout.height);
+    setComposerHeight(currentHeight =>
+      Math.abs(currentHeight - nextHeight) < 1 ? currentHeight : nextHeight,
+    );
   }, []);
 
   const handleThreadScroll = useCallback(
@@ -182,9 +214,13 @@ function ChatScreen({
 
   useEffect(() => {
     const handleKeyboardShow = (event: KeyboardEvent) => {
-      setKeyboardHeight(event.endCoordinates.height);
+      setKeyboardMetrics({
+        height: event.endCoordinates.height,
+        screenY: event.endCoordinates.screenY ?? null,
+      });
     };
-    const handleKeyboardHide = () => setKeyboardHeight(0);
+    const handleKeyboardHide = () =>
+      setKeyboardMetrics({ height: 0, screenY: null });
     const showSubscription =
       Platform.OS === 'ios'
         ? Keyboard.addListener('keyboardWillChangeFrame', handleKeyboardShow)
@@ -218,6 +254,7 @@ function ChatScreen({
     hasUserMessages,
     isGenerating,
     keyboardHeight,
+    keyboardOffset,
     latestMessageText,
     conversationMessages.length,
     scrollToThreadEnd,
@@ -254,13 +291,16 @@ function ChatScreen({
     async (request: QueuedChatRequest) => {
       const rawPrompt = request.prompt.trim();
       const isSearchSlash = /^\/search(\s|$)/i.test(rawPrompt);
-      const searchModeActive = selectedMode === 'search' || isSearchSlash;
       const prompt = isSearchSlash
         ? rawPrompt.replace(/^\/search\s*/i, '').trim()
         : rawPrompt;
       const attachmentsForPrompt = request.attachments;
 
       const promptForModel = prompt || t('chat.analyzeAttachedFile');
+      const searchModeActive =
+        selectedMode === 'search' ||
+        isSearchSlash ||
+        hasExplicitWebSearchTrigger(promptForModel);
       const userMessageText = prompt || promptForModel;
       const responseModelName = selectedModelLabel;
       const userMessage = createMessage(
@@ -362,26 +402,59 @@ function ChatScreen({
           }
         }
 
-        const todoToolRelevant = shouldUseTodoTool(promptForModel);
-        if (todoToolRelevant) {
-          await ensureTodoStoreLoaded();
-        }
-        const todoStateSection = todoToolRelevant
-          ? buildTodoToolStateSection()
-          : null;
-        const todoToolMessages: AIChatMessage[] = todoToolRelevant
-          ? [
-              { content: buildTodoToolPromptSection(), role: 'system' },
-              ...(todoStateSection
-                ? [
-                    {
-                      content: todoStateSection,
-                      role: 'system',
-                    } as AIChatMessage,
-                  ]
-                : []),
-            ]
-          : [];
+        await ensureTodoStoreLoaded();
+        const previousTodoConfirmationIndex = isTodoConfirmationReply(
+          promptForModel,
+        )
+          ? conversationMessages
+              .map((message, index) => ({ index, message }))
+              .reverse()
+              .find(
+                ({ message }) =>
+                  message.role === 'assistant' &&
+                  isTodoRegistrationQuestion(message.text),
+              )?.index
+          : undefined;
+        const previousScheduleMessage =
+          previousTodoConfirmationIndex !== undefined
+            ? conversationMessages
+                .slice(0, previousTodoConfirmationIndex)
+                .reverse()
+                .find(
+                  message =>
+                    message.role === 'user' && shouldUseTodoTool(message.text),
+                )
+            : undefined;
+        const todoConfirmationCarryOver =
+          previousScheduleMessage !== undefined
+            ? buildTodoConfirmationCarryOverSection(
+                previousScheduleMessage.text,
+              )
+            : null;
+        const todoToolCandidate =
+          shouldUseTodoTool(promptForModel) ||
+          todoConfirmationCarryOver !== null;
+        const todoToolRelevant = todoToolCandidate && !searchModeActive;
+        const todoStateSection = buildTodoToolStateSection();
+        const todoToolMessages: AIChatMessage[] = [
+          { content: buildTodoToolPromptSection(), role: 'system' },
+          ...(todoStateSection
+            ? [
+                {
+                  content: todoStateSection,
+                  role: 'system',
+                } as AIChatMessage,
+              ]
+            : []),
+          ...(todoConfirmationCarryOver
+            ? [
+                {
+                  content: todoConfirmationCarryOver,
+                  role: 'system',
+                } as AIChatMessage,
+              ]
+            : []),
+        ];
 
         const ocrContext =
           attachmentsForPrompt.length > 0
@@ -391,13 +464,13 @@ function ChatScreen({
           ? [{ content: ocrContext, role: 'system' }]
           : [];
 
+        const shouldUseRuntimeContext =
+          shouldIncludeRuntimeContext(promptForModel) || todoToolCandidate;
         const requestHistory = [
           ...systemHistory,
           ...todoToolMessages,
           ...ocrMessages,
-          ...(shouldIncludeRuntimeContext(promptForModel)
-            ? [createRuntimeContextMessage()]
-            : []),
+          ...(shouldUseRuntimeContext ? [createRuntimeContextMessage()] : []),
           ...createConversationHistory(messages),
         ];
 
@@ -469,7 +542,7 @@ function ChatScreen({
           {
             attachments: attachmentsForPrompt,
             chatSessionId: resolvedSessionId ?? undefined,
-            disableRetrieval: todoToolRelevant && !searchModeActive,
+            disableRetrieval: todoToolRelevant,
             forceWebSearch: searchModeActive,
             modelId: selectedModelId,
           },
@@ -485,7 +558,7 @@ function ChatScreen({
         let finalText = response;
         const responseHasToolBlock =
           /```(?:openedge[_-]tool|openedge_tool_call|todo_tool)/.test(response);
-        if (todoToolRelevant || responseHasToolBlock) {
+        if (todoToolCandidate || responseHasToolBlock) {
           await ensureTodoStoreLoaded();
           const todoOutcome = applyTodoToolCalls(response);
           if (todoOutcome.results.length > 0) {
@@ -741,12 +814,75 @@ function ChatScreen({
           );
         }
 
+        await ensureTodoStoreLoaded();
+        const previousTodoConfirmationIndex = isTodoConfirmationReply(
+          promptForModel,
+        )
+          ? conversationMessages
+              .slice(0, userIndex)
+              .map((message, index) => ({ index, message }))
+              .reverse()
+              .find(
+                ({ message }) =>
+                  message.role === 'assistant' &&
+                  isTodoRegistrationQuestion(message.text),
+              )?.index
+          : undefined;
+        const previousScheduleMessage =
+          previousTodoConfirmationIndex !== undefined
+            ? conversationMessages
+                .slice(0, previousTodoConfirmationIndex)
+                .reverse()
+                .find(
+                  message =>
+                    message.role === 'user' && shouldUseTodoTool(message.text),
+                )
+            : undefined;
+        const todoConfirmationCarryOver =
+          previousScheduleMessage !== undefined
+            ? buildTodoConfirmationCarryOverSection(
+                previousScheduleMessage.text,
+              )
+            : null;
+        const retrySearchModeActive =
+          selectedMode === 'search' ||
+          hasExplicitWebSearchTrigger(promptForModel);
+        const retryTodoCandidate =
+          shouldUseTodoTool(promptForModel) ||
+          todoConfirmationCarryOver !== null;
+        const retryTodoRelevant =
+          retryTodoCandidate && !retrySearchModeActive;
+        const todoStateSection = buildTodoToolStateSection();
+        const todoToolMessages: AIChatMessage[] = [
+          { content: buildTodoToolPromptSection(), role: 'system' },
+          ...(todoStateSection
+            ? [
+                {
+                  content: todoStateSection,
+                  role: 'system',
+                } as AIChatMessage,
+              ]
+            : []),
+          ...(todoConfirmationCarryOver
+            ? [
+                {
+                  content: todoConfirmationCarryOver,
+                  role: 'system',
+                } as AIChatMessage,
+              ]
+            : []),
+        ];
+        const retryShouldUseRuntimeContext =
+          shouldIncludeRuntimeContext(promptForModel) || retryTodoCandidate;
         const requestHistory = [
           ...createSystemHistory(commonSystemPrompt),
-          ...(shouldIncludeRuntimeContext(promptForModel)
+          ...todoToolMessages,
+          ...(retryShouldUseRuntimeContext
             ? [createRuntimeContextMessage()]
             : []),
-          ...createConversationHistory(messages.slice(0, userIndex + 1)),
+          ...createConversationHistory(
+            conversationMessages.slice(0, userIndex + 1),
+          ),
         ];
 
         const response = await AIEngine.generateResponseStream(
@@ -771,6 +907,8 @@ function ChatScreen({
           {
             attachments: sourceAttachments,
             chatSessionId: sessionId ?? undefined,
+            disableRetrieval: retryTodoRelevant,
+            forceWebSearch: retrySearchModeActive,
             modelId: selectedModelId,
           },
         );
@@ -782,7 +920,26 @@ function ChatScreen({
           return;
         }
 
-        const finalResponse = response || streamedResponse;
+        let finalResponse = response || streamedResponse;
+        const responseHasToolBlock =
+          /```(?:openedge[_-]tool|openedge_tool_call|todo_tool)/.test(
+            finalResponse,
+          );
+        if (retryTodoCandidate || responseHasToolBlock) {
+          const todoOutcome = applyTodoToolCalls(finalResponse);
+          if (todoOutcome.results.length > 0) {
+            const parts: string[] = [];
+            if (todoOutcome.cleanedText) {
+              parts.push(todoOutcome.cleanedText);
+            }
+            if (todoOutcome.listText) {
+              parts.push(todoOutcome.listText);
+            } else if (todoOutcome.didMutate) {
+              parts.push(todoOutcome.results.join('\n'));
+            }
+            finalResponse = parts.join('\n\n').trim() || finalResponse;
+          }
+        }
         updateRetriedAssistantMessage(finalResponse);
         await onMessagesChange(
           messagesWithPendingRetry.map(message =>
@@ -819,8 +976,8 @@ function ChatScreen({
       isGenerationBusy,
       commonSystemPrompt,
       conversationMessages,
-      messages,
       onMessagesChange,
+      selectedMode,
       selectedModelLabel,
       selectedModelId,
       sessionId,
@@ -1043,6 +1200,7 @@ function ChatScreen({
         onRemoveAttachment={handleRemoveAttachment}
         onSaveQueuedRequestEdit={handleSaveQueuedRequestEdit}
         onSend={handleSend}
+        onLayout={handleComposerLayout}
         onStopGeneration={handleStopGeneration}
         queuedRequests={queuedRequests}
         selectedAttachments={selectedAttachments}

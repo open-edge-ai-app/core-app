@@ -2,6 +2,45 @@ import SwiftUI
 
 let nativePromptInputCornerRadius: CGFloat = 24
 
+extension View {
+  func nativeComposerGlass(
+    cornerRadius: CGFloat,
+    borderColor: Color = Color.oeBorder.opacity(0.3)
+  ) -> some View {
+    background(
+      .ultraThinMaterial,
+      in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+    )
+    .overlay(
+      RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+        .stroke(Color(uiColor: .white).opacity(0.18), lineWidth: 0.7)
+    )
+    .overlay(
+      RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+        .stroke(borderColor, lineWidth: 1)
+    )
+  }
+
+  func nativeComposerGlassCircle(
+    fill: Color? = nil,
+    borderColor: Color = Color.oeBorder.opacity(0.22)
+  ) -> some View {
+    background {
+      Circle()
+        .fill(fill ?? Color.clear)
+        .background(.ultraThinMaterial, in: Circle())
+    }
+    .overlay(
+      Circle()
+        .stroke(Color(uiColor: .white).opacity(0.18), lineWidth: 0.7)
+    )
+    .overlay(
+      Circle()
+        .stroke(borderColor, lineWidth: 1)
+    )
+  }
+}
+
 struct NativeInputBar: View {
   @EnvironmentObject private var store: NativeChatStore
   @Binding var showingAttachmentOptions: Bool
@@ -65,6 +104,11 @@ struct NativeInputBar: View {
             focused: $focused
           )
           .environmentObject(store)
+          .padding(.horizontal, 10)
+          .nativeComposerGlass(
+            cornerRadius: 18,
+            borderColor: focused ? store.accentColor.color.opacity(0.46) : Color.oeBorder.opacity(0.18)
+          )
           .layoutPriority(1)
 
           Button {
@@ -87,16 +131,9 @@ struct NativeInputBar: View {
       }
       .padding(.horizontal, 8)
       .padding(.vertical, 6)
-      .background(
-        .ultraThinMaterial,
-        in: RoundedRectangle(cornerRadius: nativePromptInputCornerRadius, style: .continuous)
-      )
-      .overlay(
-        RoundedRectangle(cornerRadius: nativePromptInputCornerRadius, style: .continuous)
-          .stroke(
-            focused ? store.accentColor.color.opacity(0.38) : Color.oeBorder.opacity(0.26),
-            lineWidth: 1
-          )
+      .nativeComposerGlass(
+        cornerRadius: nativePromptInputCornerRadius,
+        borderColor: focused ? store.accentColor.color.opacity(0.62) : Color.oeBorder.opacity(0.3)
       )
     }
     .padding(.horizontal, 12)
@@ -124,11 +161,7 @@ struct NativeComposerCircleButtonIcon: View {
       .font(.system(size: 18, weight: .medium))
       .foregroundColor(.oeText)
       .frame(width: 34, height: 34)
-      .background(.ultraThinMaterial, in: Circle())
-      .overlay(
-        Circle()
-          .stroke(Color.oeBorder.opacity(0.18), lineWidth: 1)
-      )
+      .nativeComposerGlassCircle()
   }
 }
 
@@ -142,13 +175,9 @@ struct NativeComposerSubmitIcon: View {
       .font(.system(size: 15, weight: .bold))
       .foregroundColor(isActive ? store.accentColor.foregroundColor : .oeMutedText)
       .frame(width: 34, height: 34)
-      .background(
-        isActive ? store.accentColor.color : Color.oeSubtleFill.opacity(0.64),
-        in: Circle()
-      )
-      .overlay(
-        Circle()
-          .stroke(Color.oeBorder.opacity(0.18), lineWidth: 1)
+      .nativeComposerGlassCircle(
+        fill: isActive ? store.accentColor.color : Color.oeSubtleFill.opacity(0.32),
+        borderColor: isActive ? store.accentColor.color.opacity(0.74) : Color.oeBorder.opacity(0.2)
       )
   }
 }
@@ -201,7 +230,15 @@ private struct NativePendingAttachmentChip: View {
     .padding(.leading, 9)
     .padding(.trailing, 6)
     .frame(height: 29)
-    .nativeLiquidGlassCapsule(interactive: true)
+    .background(.ultraThinMaterial, in: Capsule(style: .continuous))
+    .overlay(
+      Capsule(style: .continuous)
+        .stroke(Color(uiColor: .white).opacity(0.16), lineWidth: 0.7)
+    )
+    .overlay(
+      Capsule(style: .continuous)
+        .stroke(Color.oeBorder.opacity(0.22), lineWidth: 1)
+    )
     .accessibilityLabel(Text(verbatim: attachment.name))
   }
 

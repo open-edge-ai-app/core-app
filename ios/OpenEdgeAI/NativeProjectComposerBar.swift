@@ -64,6 +64,11 @@ struct NativeProjectComposerBar: View {
             focused: $focused
           )
           .environmentObject(store)
+          .padding(.horizontal, 10)
+          .nativeComposerGlass(
+            cornerRadius: 18,
+            borderColor: focused ? store.accentColor.color.opacity(0.46) : Color.oeBorder.opacity(0.18)
+          )
           .layoutPriority(1)
 
           Button(action: send) {
@@ -80,16 +85,9 @@ struct NativeProjectComposerBar: View {
       }
       .padding(.horizontal, 8)
       .padding(.vertical, 6)
-      .background(
-        .ultraThinMaterial,
-        in: RoundedRectangle(cornerRadius: nativePromptInputCornerRadius, style: .continuous)
-      )
-      .overlay(
-        RoundedRectangle(cornerRadius: nativePromptInputCornerRadius, style: .continuous)
-          .stroke(
-            focused ? store.accentColor.color.opacity(0.38) : Color.oeBorder.opacity(0.26),
-            lineWidth: 1
-          )
+      .nativeComposerGlass(
+        cornerRadius: nativePromptInputCornerRadius,
+        borderColor: focused ? store.accentColor.color.opacity(0.62) : Color.oeBorder.opacity(0.3)
       )
     }
     .padding(.horizontal, 12)

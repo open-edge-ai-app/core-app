@@ -26,7 +26,7 @@ struct NativeComposerInputSurface<Content: View>: View {
 
   private var glassFill: some View {
     RoundedRectangle(cornerRadius: nativeComposerInputCornerRadius, style: .continuous)
-      .fill(.regularMaterial)
+      .fill(.ultraThinMaterial)
       .overlay {
         RoundedRectangle(cornerRadius: nativeComposerInputCornerRadius, style: .continuous)
           .fill(surfaceTint)
@@ -35,9 +35,9 @@ struct NativeComposerInputSurface<Content: View>: View {
 
   private var surfaceTint: Color {
     if colorScheme == .dark {
-      return Color.white.opacity(isFocused ? 0.16 : 0.12)
+      return Color.white.opacity(isFocused ? 0.08 : 0.05)
     }
-    return Color.white.opacity(isFocused ? 0.58 : 0.48)
+    return Color.white.opacity(isFocused ? 0.16 : 0.1)
   }
 
   private var glassHighlight: some View {
@@ -46,9 +46,9 @@ struct NativeComposerInputSurface<Content: View>: View {
       .stroke(
         LinearGradient(
           colors: [
-            Color.white.opacity(colorScheme == .dark ? 0.18 : 0.7),
-            Color.white.opacity(colorScheme == .dark ? 0.05 : 0.24),
-            Color.black.opacity(colorScheme == .dark ? 0.12 : 0.06)
+            Color.white.opacity(colorScheme == .dark ? 0.12 : 0.34),
+            Color.white.opacity(colorScheme == .dark ? 0.03 : 0.1),
+            Color.black.opacity(colorScheme == .dark ? 0.1 : 0.04)
           ],
           startPoint: .topLeading,
           endPoint: .bottomTrailing
@@ -69,9 +69,9 @@ struct NativeComposerInputSurface<Content: View>: View {
       return Color.oeDestructive.opacity(0.5)
     }
     if isFocused {
-      return accentColor.opacity(0.42)
+      return accentColor.opacity(0.36)
     }
-    return Color.white.opacity(colorScheme == .dark ? 0.18 : 0.58)
+    return Color.white.opacity(colorScheme == .dark ? 0.12 : 0.24)
   }
 }
 

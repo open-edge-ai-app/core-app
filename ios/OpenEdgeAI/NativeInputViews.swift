@@ -42,70 +42,73 @@ struct NativeInputBar: View {
             .transition(.move(edge: .bottom).combined(with: .opacity))
         }
 
-        VStack(alignment: .leading, spacing: 7) {
-          if isSearchMode || !store.pendingAttachments.isEmpty {
-            NativePendingAttachmentStrip(showsSearchMode: isSearchMode)
-              .environmentObject(store)
-              .padding(.top, 2)
+        HStack(alignment: .bottom, spacing: 9) {
+          Button {
+            showingAttachmentOptions = true
+          } label: {
+            NativeComposerCircleButtonIcon(systemName: "plus")
           }
+          .buttonStyle(.plain)
+          .accessibilityLabel(store.i18n.t(.chatAttachFile))
 
-          HStack(alignment: .bottom, spacing: 8) {
-            Button {
-              showingAttachmentOptions = true
-            } label: {
-              NativeComposerCircleButtonIcon(systemName: "plus")
+          VStack(alignment: .leading, spacing: 7) {
+            if isSearchMode || !store.pendingAttachments.isEmpty {
+              NativePendingAttachmentStrip(showsSearchMode: isSearchMode)
+                .environmentObject(store)
+                .padding(.top, 2)
             }
-            .buttonStyle(.plain)
-            .accessibilityLabel(store.i18n.t(.chatAttachFile))
 
-            NativePromptEditor(
-              text: $store.inputText,
-              placeholder: store.i18n.t(.chatInputPlaceholder),
-              focused: $focused
-            )
-            .environmentObject(store)
-            .padding(.horizontal, 10)
-            .nativePromptGlassPanel(
-              cornerRadius: 18,
-              fill: Color.oeSubtleFill.opacity(0.22),
-              borderColor: focused ? store.accentColor.color.opacity(0.54) : Color.oeBorder.opacity(0.24),
-              accentColor: focused ? store.accentColor.color : nil,
-              interactive: true
-            )
-            .layoutPriority(1)
-
-            Button {
-              if showsStopButton {
-                store.cancelGeneration()
-              } else {
-                store.sendCurrentInput()
-              }
-            } label: {
-              NativeComposerSubmitIcon(
-                systemName: showsStopButton ? "stop.fill" : "arrow.up",
-                isActive: submitButtonIsActive
+            HStack(alignment: .bottom, spacing: 8) {
+              NativePromptEditor(
+                text: $store.inputText,
+                placeholder: store.i18n.t(.chatInputPlaceholder),
+                focused: $focused
               )
               .environmentObject(store)
+              .padding(.leading, 8)
+              .layoutPriority(1)
+
+              Button {
+                if showsStopButton {
+                  store.cancelGeneration()
+                } else {
+                  store.sendCurrentInput()
+                }
+              } label: {
+                NativeComposerSubmitIcon(
+                  systemName: showsStopButton ? "stop.fill" : "arrow.up",
+                  isActive: submitButtonIsActive
+                )
+                .environmentObject(store)
+              }
+              .buttonStyle(.plain)
+              .disabled(!showsStopButton && !hasDraftInput)
+              .accessibilityLabel(showsStopButton ? store.i18n.t(.chatStopResponse) : store.i18n.t(.chatSendMessage))
             }
-            .buttonStyle(.plain)
-            .disabled(!showsStopButton && !hasDraftInput)
-            .accessibilityLabel(showsStopButton ? store.i18n.t(.chatStopResponse) : store.i18n.t(.chatSendMessage))
           }
+          .padding(.leading, 10)
+          .padding(.trailing, 8)
+          .padding(.vertical, 7)
+          .nativePromptGlassPanel(
+            cornerRadius: nativePromptInputCornerRadius,
+            fill: Color.oeSubtleFill.opacity(0.28),
+            borderColor: focused ? store.accentColor.color.opacity(0.72) : Color.oeBorder.opacity(0.4),
+            accentColor: focused ? store.accentColor.color : nil,
+            interactive: true
+          )
+          .layoutPriority(1)
         }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 7)
-        .nativePromptGlassPanel(
-          cornerRadius: nativePromptInputCornerRadius,
-          fill: Color.oeSubtleFill.opacity(0.28),
-          borderColor: focused ? store.accentColor.color.opacity(0.72) : Color.oeBorder.opacity(0.4),
-          accentColor: focused ? store.accentColor.color : nil
-        )
       }
     }
     .padding(.horizontal, 12)
-    .padding(.top, 6)
+    .padding(.top, 18)
     .padding(.bottom, 8)
-    .background(Color.clear)
+    .frame(maxWidth: .infinity)
+    .background(alignment: .bottom) {
+      NativePromptBlurBackdrop()
+        .frame(height: 140)
+        .ignoresSafeArea(edges: .bottom)
+    }
     .animation(.easeOut(duration: 0.18), value: showsSlashCommands)
     .animation(.easeOut(duration: 0.18), value: isSearchMode)
     .animation(.easeOut(duration: 0.14), value: hasDraftInput)

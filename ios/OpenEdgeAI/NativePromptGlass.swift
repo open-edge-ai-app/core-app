@@ -2,6 +2,26 @@ import SwiftUI
 
 let nativePromptInputCornerRadius: CGFloat = 24
 
+struct NativePromptBlurBackdrop: View {
+  var body: some View {
+    Rectangle()
+      .fill(.ultraThinMaterial)
+      .overlay(Color.oeBackground.opacity(0.12))
+      .mask(
+        LinearGradient(
+          colors: [
+            Color.clear,
+            Color.black.opacity(0.72),
+            Color.black
+          ],
+          startPoint: .top,
+          endPoint: .bottom
+        )
+      )
+      .allowsHitTesting(false)
+  }
+}
+
 extension View {
   func nativePromptGlassPanel(
     cornerRadius: CGFloat,

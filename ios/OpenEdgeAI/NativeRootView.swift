@@ -23,8 +23,12 @@ struct NativeRootView: View {
         )
         .zIndex(2)
 
-        NativeChatTranscript()
-        NativeInputBar(showingAttachmentOptions: $showingAttachmentOptions)
+        ZStack(alignment: .bottom) {
+          NativeChatTranscript(bottomPadding: 150)
+
+          NativeInputBar(showingAttachmentOptions: $showingAttachmentOptions)
+            .zIndex(2)
+        }
       }
       .background(Color.oeBackground)
 

@@ -2,6 +2,7 @@ import SwiftUI
 
 struct NativeChatTranscript: View {
   @EnvironmentObject private var store: NativeChatStore
+  var bottomPadding: CGFloat = 24
 
   var body: some View {
     ScrollViewReader { proxy in
@@ -23,7 +24,7 @@ struct NativeChatTranscript: View {
         }
         .padding(.horizontal, 18)
         .padding(.top, 18)
-        .padding(.bottom, 24)
+        .padding(.bottom, bottomPadding)
       }
       .background(Color.oeBackground)
       .onChange(of: store.currentMessages) { _, _ in

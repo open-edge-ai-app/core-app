@@ -6,6 +6,8 @@ let nativeComposerSubmitControlSize: CGFloat = 42
 let nativeComposerScrollBottomPadding: CGFloat = 134
 
 struct NativeComposerInputSurface<Content: View>: View {
+  @Environment(\.colorScheme) private var colorScheme
+
   var isFocused: Bool
   var isDisabled: Bool = false
   var isError: Bool = false
@@ -15,8 +17,61 @@ struct NativeComposerInputSurface<Content: View>: View {
   var body: some View {
     content
       .disabled(isDisabled)
+      .background(glassFill)
+      .overlay(glassHighlight)
+      .overlay(glassStroke)
       .opacity(isDisabled ? 0.48 : 1)
       .contentShape(RoundedRectangle(cornerRadius: nativeComposerInputCornerRadius, style: .continuous))
+  }
+
+  private var glassFill: some View {
+    RoundedRectangle(cornerRadius: nativeComposerInputCornerRadius, style: .continuous)
+      .fill(.ultraThinMaterial)
+      .overlay {
+        RoundedRectangle(cornerRadius: nativeComposerInputCornerRadius, style: .continuous)
+          .fill(surfaceTint)
+      }
+  }
+
+  private var surfaceTint: Color {
+    if colorScheme == .dark {
+      return Color.white.opacity(isFocused ? 0.13 : 0.1)
+    }
+    return Color.white.opacity(isFocused ? 0.82 : 0.72)
+  }
+
+  private var glassHighlight: some View {
+    RoundedRectangle(cornerRadius: nativeComposerInputCornerRadius - 1, style: .continuous)
+      .inset(by: 1)
+      .stroke(
+        LinearGradient(
+          colors: [
+            Color.white.opacity(colorScheme == .dark ? 0.18 : 0.7),
+            Color.white.opacity(colorScheme == .dark ? 0.04 : 0.18),
+            Color.black.opacity(colorScheme == .dark ? 0.12 : 0.06)
+          ],
+          startPoint: .topLeading,
+          endPoint: .bottomTrailing
+        ),
+        lineWidth: 0.8
+      )
+      .allowsHitTesting(false)
+  }
+
+  private var glassStroke: some View {
+    RoundedRectangle(cornerRadius: nativeComposerInputCornerRadius, style: .continuous)
+      .stroke(strokeColor, lineWidth: isFocused || isError ? 1.2 : 1)
+      .allowsHitTesting(false)
+  }
+
+  private var strokeColor: Color {
+    if isError {
+      return Color.oeDestructive.opacity(0.5)
+    }
+    if isFocused {
+      return accentColor.opacity(0.42)
+    }
+    return Color.white.opacity(colorScheme == .dark ? 0.18 : 0.58)
   }
 }
 

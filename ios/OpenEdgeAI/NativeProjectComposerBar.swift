@@ -43,57 +43,60 @@ struct NativeProjectComposerBar: View {
             .transition(.move(edge: .bottom).combined(with: .opacity))
         }
 
-        HStack(alignment: .bottom, spacing: 9) {
-          Button {
-            showingAttachmentOptions = true
-          } label: {
-            NativeComposerCircleButtonIcon(systemName: "plus")
-          }
-          .buttonStyle(.plain)
-          .accessibilityLabel(store.i18n.t(.chatAttachFile))
+        NativeComposerInputSurface(
+          isFocused: focused,
+          accentColor: store.accentColor.color
+        ) {
+          VStack(alignment: .leading, spacing: 7) {
+            if isSearchMode || !store.pendingAttachments.isEmpty {
+              NativePendingAttachmentStrip(showsSearchMode: isSearchMode)
+                .environmentObject(store)
+                .padding(.top, 2)
+            }
 
-          NativeComposerInputSurface(
-            isFocused: focused,
-            accentColor: store.accentColor.color
-          ) {
-            VStack(alignment: .leading, spacing: 7) {
-              if isSearchMode || !store.pendingAttachments.isEmpty {
-                NativePendingAttachmentStrip(showsSearchMode: isSearchMode)
-                  .environmentObject(store)
-                  .padding(.top, 2)
+            HStack(alignment: .bottom, spacing: 8) {
+              Button {
+                showingAttachmentOptions = true
+              } label: {
+                NativeComposerInlineIcon(systemName: "plus", size: 28)
               }
+              .buttonStyle(.plain)
+              .accessibilityLabel(store.i18n.t(.chatAttachFile))
 
-              HStack(alignment: .bottom, spacing: 8) {
-                NativePromptEditor(
-                  text: $store.inputText,
-                  placeholder: store.i18n.t(.projectMessagePlaceholder, ["name": project.title]),
-                  focused: $focused
+              NativePromptEditor(
+                text: $store.inputText,
+                placeholder: store.i18n.t(.projectMessagePlaceholder, ["name": project.title]),
+                focused: $focused
+              )
+              .environmentObject(store)
+              .layoutPriority(1)
+
+              NativeComposerInlineIcon(
+                systemName: "mic.fill",
+                color: .oeSecondaryText,
+                size: 22
+              )
+              .accessibilityHidden(true)
+
+              Button(action: send) {
+                NativeComposerSubmitIcon(
+                  systemName: submitSystemImage
                 )
                 .environmentObject(store)
-                .padding(.leading, 8)
-                .layoutPriority(1)
-
-                Button(action: send) {
-                  NativeComposerSubmitIcon(
-                    systemName: showsStopButton ? "stop.fill" : "arrow.up",
-                    isActive: submitButtonIsActive
-                  )
-                  .environmentObject(store)
-                }
-                .buttonStyle(.plain)
-                .disabled(!showsStopButton && !hasDraftInput)
-                .accessibilityLabel(showsStopButton ? store.i18n.t(.chatStopResponse) : store.i18n.t(.chatSendMessage))
               }
+              .buttonStyle(.plain)
+              .disabled(!showsStopButton && !hasDraftInput)
+              .accessibilityLabel(showsStopButton ? store.i18n.t(.chatStopResponse) : store.i18n.t(.chatSendMessage))
             }
-            .padding(.leading, 10)
-            .padding(.trailing, 8)
-            .padding(.vertical, 7)
           }
-          .layoutPriority(1)
+          .padding(.leading, 14)
+          .padding(.trailing, 7)
+          .padding(.vertical, 7)
         }
+        .layoutPriority(1)
       }
     }
-    .padding(.horizontal, 12)
+    .padding(.horizontal, 24)
     .padding(.top, 18)
     .padding(.bottom, 8)
     .frame(maxWidth: .infinity)
@@ -123,5 +126,12 @@ struct NativeProjectComposerBar: View {
       store.inputText = "\(command.trigger) "
       focused = true
     }
+  }
+
+  private var submitSystemImage: String {
+    if showsStopButton {
+      return "stop.fill"
+    }
+    return hasDraftInput ? "arrow.up" : "waveform"
   }
 }

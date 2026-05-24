@@ -132,6 +132,20 @@ struct NativeComposerInputSurface<Content: View>: View {
   }
 }
 
+struct NativeComposerInlineIcon: View {
+  var systemName: String
+  var color: Color = .oeText
+  var size: CGFloat = 22
+
+  var body: some View {
+    Image(systemName: systemName)
+      .font(.system(size: size, weight: .medium))
+      .foregroundColor(color)
+      .frame(width: 36, height: 36)
+      .contentShape(Rectangle())
+  }
+}
+
 struct NativeComposerCircleSurface<Content: View>: View {
   @Environment(\.colorScheme) private var colorScheme
 

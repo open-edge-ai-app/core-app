@@ -74,11 +74,6 @@ struct NativeChatComposerBar: View {
     .padding(.top, 18)
     .padding(.bottom, 14)
     .frame(maxWidth: .infinity)
-    .background(alignment: .bottom) {
-      NativeFloatingComposerBackdrop()
-        .frame(height: 178)
-        .ignoresSafeArea(edges: .bottom)
-    }
     .animation(.easeOut(duration: 0.18), value: showsSlashCommands)
     .animation(.easeOut(duration: 0.18), value: isSearchMode)
     .animation(.easeOut(duration: 0.14), value: hasDraftInput)

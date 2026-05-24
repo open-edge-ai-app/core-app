@@ -41,34 +41,78 @@ struct NativeComposerInputSurface<Content: View>: View {
   var body: some View {
     if #available(iOS 26.0, *) {
       content
+        .compositingGroup()
+        .shadow(color: shadowColor, radius: 18, x: 0, y: 8)
         .background(inputMaterial)
         .glassEffect(
           .regular
-            .tint(isFocused ? accentColor.opacity(0.1) : neutralGlassTint)
+            .tint(isFocused ? accentColor.opacity(0.16) : neutralGlassTint)
             .interactive(),
           in: .rect(cornerRadius: nativeComposerInputCornerRadius)
         )
+        .overlay(inputReflection)
         .overlay(inputStroke)
     } else {
       content
+        .compositingGroup()
+        .shadow(color: shadowColor, radius: 18, x: 0, y: 8)
         .background(inputMaterial)
+        .overlay(inputReflection)
         .overlay(inputStroke)
     }
   }
 
   private var neutralGlassTint: Color {
     colorScheme == .dark
-      ? Color.white.opacity(0.08)
-      : Color.white.opacity(0.18)
+      ? Color.white.opacity(0.1)
+      : Color.white.opacity(0.08)
+  }
+
+  private var shadowColor: Color {
+    colorScheme == .dark
+      ? Color.black.opacity(0.24)
+      : Color.black.opacity(0.1)
   }
 
   private var inputMaterial: some View {
     RoundedRectangle(cornerRadius: nativeComposerInputCornerRadius, style: .continuous)
-      .fill(.ultraThinMaterial)
+      .fill(.thinMaterial)
       .overlay {
         RoundedRectangle(cornerRadius: nativeComposerInputCornerRadius, style: .continuous)
-          .fill(colorScheme == .dark ? Color.white.opacity(0.06) : Color.white.opacity(0.38))
+          .fill(colorScheme == .dark ? Color.white.opacity(0.05) : Color.white.opacity(0.08))
       }
+      .overlay {
+        RoundedRectangle(cornerRadius: nativeComposerInputCornerRadius, style: .continuous)
+          .fill(
+            LinearGradient(
+              colors: [
+                Color.white.opacity(colorScheme == .dark ? 0.18 : 0.46),
+                Color.white.opacity(colorScheme == .dark ? 0.04 : 0.1),
+                Color.clear
+              ],
+              startPoint: .topLeading,
+              endPoint: .bottomTrailing
+            )
+          )
+      }
+  }
+
+  private var inputReflection: some View {
+    RoundedRectangle(cornerRadius: nativeComposerInputCornerRadius - 1, style: .continuous)
+      .inset(by: 1)
+      .stroke(
+        LinearGradient(
+          colors: [
+            Color.white.opacity(colorScheme == .dark ? 0.24 : 0.78),
+            Color.white.opacity(0.02),
+            Color.white.opacity(colorScheme == .dark ? 0.1 : 0.34)
+          ],
+          startPoint: .topLeading,
+          endPoint: .bottomTrailing
+        ),
+        lineWidth: 0.8
+      )
+      .allowsHitTesting(false)
   }
 
   private var inputStroke: some View {
@@ -76,8 +120,9 @@ struct NativeComposerInputSurface<Content: View>: View {
       .stroke(
         LinearGradient(
           colors: [
-            Color.white.opacity(colorScheme == .dark ? 0.2 : 0.7),
-            isFocused ? accentColor.opacity(0.7) : Color.oeBorder.opacity(0.34)
+            Color.white.opacity(colorScheme == .dark ? 0.28 : 0.82),
+            isFocused ? accentColor.opacity(0.72) : Color.oeBorder.opacity(0.28),
+            Color.black.opacity(colorScheme == .dark ? 0.28 : 0.06)
           ],
           startPoint: .topLeading,
           endPoint: .bottomTrailing

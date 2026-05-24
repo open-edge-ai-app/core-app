@@ -28,6 +28,7 @@ struct NativeRootView: View {
 
           NativeInputBar(showingAttachmentOptions: $showingAttachmentOptions)
             .zIndex(2)
+            .ignoresSafeArea(.container, edges: .bottom)
         }
       }
       .background(Color.oeBackground)

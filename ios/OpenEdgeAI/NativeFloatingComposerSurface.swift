@@ -3,7 +3,7 @@ import SwiftUI
 let nativeComposerInputCornerRadius: CGFloat = 30
 let nativeComposerInlineControlSize: CGFloat = 40
 let nativeComposerSubmitControlSize: CGFloat = 42
-let nativeComposerScrollBottomPadding: CGFloat = 154
+let nativeComposerScrollBottomPadding: CGFloat = 134
 
 struct NativeFloatingComposerBackdrop: View {
   @Environment(\.colorScheme) private var colorScheme

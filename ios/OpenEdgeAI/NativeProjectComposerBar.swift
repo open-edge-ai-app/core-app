@@ -52,45 +52,43 @@ struct NativeProjectComposerBar: View {
           .buttonStyle(.plain)
           .accessibilityLabel(store.i18n.t(.chatAttachFile))
 
-          VStack(alignment: .leading, spacing: 7) {
-            if isSearchMode || !store.pendingAttachments.isEmpty {
-              NativePendingAttachmentStrip(showsSearchMode: isSearchMode)
-                .environmentObject(store)
-                .padding(.top, 2)
-            }
+          NativeComposerInputSurface(
+            isFocused: focused,
+            accentColor: store.accentColor.color
+          ) {
+            VStack(alignment: .leading, spacing: 7) {
+              if isSearchMode || !store.pendingAttachments.isEmpty {
+                NativePendingAttachmentStrip(showsSearchMode: isSearchMode)
+                  .environmentObject(store)
+                  .padding(.top, 2)
+              }
 
-            HStack(alignment: .bottom, spacing: 8) {
-              NativePromptEditor(
-                text: $store.inputText,
-                placeholder: store.i18n.t(.projectMessagePlaceholder, ["name": project.title]),
-                focused: $focused
-              )
-              .environmentObject(store)
-              .padding(.leading, 8)
-              .layoutPriority(1)
-
-              Button(action: send) {
-                NativeComposerSubmitIcon(
-                  systemName: showsStopButton ? "stop.fill" : "arrow.up",
-                  isActive: submitButtonIsActive
+              HStack(alignment: .bottom, spacing: 8) {
+                NativePromptEditor(
+                  text: $store.inputText,
+                  placeholder: store.i18n.t(.projectMessagePlaceholder, ["name": project.title]),
+                  focused: $focused
                 )
                 .environmentObject(store)
+                .padding(.leading, 8)
+                .layoutPriority(1)
+
+                Button(action: send) {
+                  NativeComposerSubmitIcon(
+                    systemName: showsStopButton ? "stop.fill" : "arrow.up",
+                    isActive: submitButtonIsActive
+                  )
+                  .environmentObject(store)
+                }
+                .buttonStyle(.plain)
+                .disabled(!showsStopButton && !hasDraftInput)
+                .accessibilityLabel(showsStopButton ? store.i18n.t(.chatStopResponse) : store.i18n.t(.chatSendMessage))
               }
-              .buttonStyle(.plain)
-              .disabled(!showsStopButton && !hasDraftInput)
-              .accessibilityLabel(showsStopButton ? store.i18n.t(.chatStopResponse) : store.i18n.t(.chatSendMessage))
             }
+            .padding(.leading, 10)
+            .padding(.trailing, 8)
+            .padding(.vertical, 7)
           }
-          .padding(.leading, 10)
-          .padding(.trailing, 8)
-          .padding(.vertical, 7)
-          .nativePromptGlassPanel(
-            cornerRadius: nativePromptInputCornerRadius,
-            fill: Color.oeSubtleFill.opacity(0.28),
-            borderColor: focused ? store.accentColor.color.opacity(0.72) : Color.oeBorder.opacity(0.4),
-            accentColor: focused ? store.accentColor.color : nil,
-            interactive: true
-          )
           .layoutPriority(1)
         }
       }
@@ -100,7 +98,7 @@ struct NativeProjectComposerBar: View {
     .padding(.bottom, 8)
     .frame(maxWidth: .infinity)
     .background(alignment: .bottom) {
-      NativePromptBlurBackdrop()
+      NativeFloatingComposerBackdrop()
         .frame(height: 140)
         .ignoresSafeArea(edges: .bottom)
     }

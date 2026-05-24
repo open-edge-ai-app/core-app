@@ -136,22 +136,18 @@ struct NativeSearchModeChip: View {
   @EnvironmentObject private var store: NativeChatStore
 
   var body: some View {
-    HStack(spacing: 5) {
-      Image(systemName: "magnifyingglass")
-        .font(.system(size: 11, weight: .bold))
+    NativeComposerChipSurface(accentColor: store.accentColor.color) {
+      HStack(spacing: 5) {
+        Image(systemName: "magnifyingglass")
+          .font(.system(size: 11, weight: .bold))
 
-      Text(store.i18n.t(.chatSearchMode))
-        .font(.system(size: 12, weight: .semibold))
+        Text(store.i18n.t(.chatSearchMode))
+          .font(.system(size: 12, weight: .semibold))
+      }
+      .foregroundColor(store.accentColor.color)
+      .padding(.horizontal, 9)
+      .frame(height: 28)
     }
-    .foregroundColor(store.accentColor.color)
-    .padding(.horizontal, 9)
-    .frame(height: 28)
-    .nativePromptGlassCapsule(
-      fill: store.accentColor.color.opacity(0.14),
-      borderColor: store.accentColor.color.opacity(0.34),
-      accentColor: store.accentColor.color,
-      interactive: true
-    )
     .accessibilityLabel(store.i18n.t(.chatSearchMode))
   }
 }

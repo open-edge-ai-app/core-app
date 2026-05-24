@@ -24,7 +24,7 @@ struct NativeRootView: View {
         .zIndex(2)
 
         ZStack(alignment: .bottom) {
-          NativeChatTranscript(bottomPadding: 150)
+          NativeChatTranscript(bottomPadding: nativeComposerScrollBottomPadding)
 
           NativeInputBar(showingAttachmentOptions: $showingAttachmentOptions)
             .zIndex(2)

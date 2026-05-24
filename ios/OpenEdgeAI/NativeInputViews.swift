@@ -51,51 +51,49 @@ struct NativeInputBar: View {
           .buttonStyle(.plain)
           .accessibilityLabel(store.i18n.t(.chatAttachFile))
 
-          VStack(alignment: .leading, spacing: 7) {
-            if isSearchMode || !store.pendingAttachments.isEmpty {
-              NativePendingAttachmentStrip(showsSearchMode: isSearchMode)
-                .environmentObject(store)
-                .padding(.top, 2)
-            }
+          NativeComposerInputSurface(
+            isFocused: focused,
+            accentColor: store.accentColor.color
+          ) {
+            VStack(alignment: .leading, spacing: 7) {
+              if isSearchMode || !store.pendingAttachments.isEmpty {
+                NativePendingAttachmentStrip(showsSearchMode: isSearchMode)
+                  .environmentObject(store)
+                  .padding(.top, 2)
+              }
 
-            HStack(alignment: .bottom, spacing: 8) {
-              NativePromptEditor(
-                text: $store.inputText,
-                placeholder: store.i18n.t(.chatInputPlaceholder),
-                focused: $focused
-              )
-              .environmentObject(store)
-              .padding(.leading, 8)
-              .layoutPriority(1)
-
-              Button {
-                if showsStopButton {
-                  store.cancelGeneration()
-                } else {
-                  store.sendCurrentInput()
-                }
-              } label: {
-                NativeComposerSubmitIcon(
-                  systemName: showsStopButton ? "stop.fill" : "arrow.up",
-                  isActive: submitButtonIsActive
+              HStack(alignment: .bottom, spacing: 8) {
+                NativePromptEditor(
+                  text: $store.inputText,
+                  placeholder: store.i18n.t(.chatInputPlaceholder),
+                  focused: $focused
                 )
                 .environmentObject(store)
+                .padding(.leading, 8)
+                .layoutPriority(1)
+
+                Button {
+                  if showsStopButton {
+                    store.cancelGeneration()
+                  } else {
+                    store.sendCurrentInput()
+                  }
+                } label: {
+                  NativeComposerSubmitIcon(
+                    systemName: showsStopButton ? "stop.fill" : "arrow.up",
+                    isActive: submitButtonIsActive
+                  )
+                  .environmentObject(store)
+                }
+                .buttonStyle(.plain)
+                .disabled(!showsStopButton && !hasDraftInput)
+                .accessibilityLabel(showsStopButton ? store.i18n.t(.chatStopResponse) : store.i18n.t(.chatSendMessage))
               }
-              .buttonStyle(.plain)
-              .disabled(!showsStopButton && !hasDraftInput)
-              .accessibilityLabel(showsStopButton ? store.i18n.t(.chatStopResponse) : store.i18n.t(.chatSendMessage))
             }
+            .padding(.leading, 10)
+            .padding(.trailing, 8)
+            .padding(.vertical, 7)
           }
-          .padding(.leading, 10)
-          .padding(.trailing, 8)
-          .padding(.vertical, 7)
-          .nativePromptGlassPanel(
-            cornerRadius: nativePromptInputCornerRadius,
-            fill: Color.oeSubtleFill.opacity(0.28),
-            borderColor: focused ? store.accentColor.color.opacity(0.72) : Color.oeBorder.opacity(0.4),
-            accentColor: focused ? store.accentColor.color : nil,
-            interactive: true
-          )
           .layoutPriority(1)
         }
       }
@@ -105,7 +103,7 @@ struct NativeInputBar: View {
     .padding(.bottom, 8)
     .frame(maxWidth: .infinity)
     .background(alignment: .bottom) {
-      NativePromptBlurBackdrop()
+      NativeFloatingComposerBackdrop()
         .frame(height: 140)
         .ignoresSafeArea(edges: .bottom)
     }
@@ -123,17 +121,16 @@ struct NativeInputBar: View {
 }
 
 struct NativeComposerCircleButtonIcon: View {
+  @EnvironmentObject private var store: NativeChatStore
   var systemName: String
 
   var body: some View {
-    Image(systemName: systemName)
-      .font(.system(size: 18, weight: .medium))
-      .foregroundColor(.oeText)
-      .frame(width: 34, height: 34)
-      .nativePromptGlassCircle(
-        fill: Color.oeSubtleFill.opacity(0.26),
-        borderColor: Color.oeBorder.opacity(0.28)
-      )
+    NativeComposerCircleSurface(accentColor: store.accentColor.color) {
+      Image(systemName: systemName)
+        .font(.system(size: 18, weight: .medium))
+        .foregroundColor(.oeText)
+        .frame(width: 34, height: 34)
+    }
   }
 }
 
@@ -143,15 +140,15 @@ struct NativeComposerSubmitIcon: View {
   var isActive: Bool
 
   var body: some View {
-    Image(systemName: systemName)
-      .font(.system(size: 15, weight: .bold))
-      .foregroundColor(isActive ? store.accentColor.foregroundColor : .oeMutedText)
-      .frame(width: 34, height: 34)
-      .nativePromptGlassCircle(
-        fill: isActive ? store.accentColor.color : Color.oeSubtleFill.opacity(0.26),
-        borderColor: isActive ? store.accentColor.color.opacity(0.82) : Color.oeBorder.opacity(0.22),
-        accentColor: isActive ? store.accentColor.color : nil
-      )
+    NativeComposerCircleSurface(
+      isActive: isActive,
+      accentColor: store.accentColor.color
+    ) {
+      Image(systemName: systemName)
+        .font(.system(size: 15, weight: .bold))
+        .foregroundColor(isActive ? store.accentColor.foregroundColor : .oeMutedText)
+        .frame(width: 34, height: 34)
+    }
   }
 }
 
@@ -184,29 +181,27 @@ private struct NativePendingAttachmentChip: View {
   var onRemove: () -> Void
 
   var body: some View {
-    HStack(spacing: 6) {
-      Image(systemName: iconName)
-        .font(.system(size: 11, weight: .semibold))
+    NativeComposerChipSurface {
+      HStack(spacing: 6) {
+        Image(systemName: iconName)
+          .font(.system(size: 11, weight: .semibold))
 
-      Text(verbatim: attachment.compactDisplayName)
-        .lineLimit(1)
+        Text(verbatim: attachment.compactDisplayName)
+          .lineLimit(1)
 
-      Button(action: onRemove) {
-        Image(systemName: "xmark")
-          .font(.system(size: 10, weight: .bold))
-          .frame(width: 16, height: 16)
+        Button(action: onRemove) {
+          Image(systemName: "xmark")
+            .font(.system(size: 10, weight: .bold))
+            .frame(width: 16, height: 16)
+        }
+        .buttonStyle(.plain)
       }
-      .buttonStyle(.plain)
+      .font(.system(size: 12, weight: .medium))
+      .foregroundColor(Color.oeText)
+      .padding(.leading, 9)
+      .padding(.trailing, 6)
+      .frame(height: 29)
     }
-    .font(.system(size: 12, weight: .medium))
-    .foregroundColor(Color.oeText)
-    .padding(.leading, 9)
-    .padding(.trailing, 6)
-    .frame(height: 29)
-    .nativePromptGlassCapsule(
-      fill: Color.oeSubtleFill.opacity(0.24),
-      borderColor: Color.oeBorder.opacity(0.28)
-    )
     .accessibilityLabel(Text(verbatim: attachment.name))
   }
 

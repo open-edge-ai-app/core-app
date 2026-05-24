@@ -59,7 +59,6 @@ struct NativeChatComposerBar: View {
             HStack(alignment: .center, spacing: 8) {
               attachButton
               promptEditor
-              microphoneIcon
               submitButton
             }
           }
@@ -97,15 +96,6 @@ struct NativeChatComposerBar: View {
     )
     .environmentObject(store)
     .layoutPriority(1)
-  }
-
-  private var microphoneIcon: some View {
-    NativeComposerInlineIcon(
-      systemName: "mic.fill",
-      color: .oeSecondaryText,
-      size: 23
-    )
-    .accessibilityHidden(true)
   }
 
   private var submitButton: some View {

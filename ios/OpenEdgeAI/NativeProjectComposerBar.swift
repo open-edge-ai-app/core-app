@@ -31,69 +31,76 @@ struct NativeProjectComposerBar: View {
   }
 
   var body: some View {
-    VStack(spacing: 7) {
-      if !store.queuedDrafts.isEmpty {
-        NativeQueueView()
-      }
-
-      if showsSlashCommands {
-        NativeSlashCommandMenu(commands: slashCommands, onSelect: performSlashCommand)
-          .environmentObject(store)
-          .transition(.move(edge: .bottom).combined(with: .opacity))
-      }
-
-      VStack(alignment: .leading, spacing: 6) {
-        if isSearchMode || !store.pendingAttachments.isEmpty {
-          NativePendingAttachmentStrip(showsSearchMode: isSearchMode)
-            .environmentObject(store)
-            .padding(.top, 2)
+    NativeGlassEffectContainer(spacing: 8) {
+      VStack(spacing: 7) {
+        if !store.queuedDrafts.isEmpty {
+          NativeQueueView()
         }
 
-        HStack(alignment: .bottom, spacing: 8) {
-          Button {
-            showingAttachmentOptions = true
-          } label: {
-            NativeComposerCircleButtonIcon(systemName: "plus")
+        if showsSlashCommands {
+          NativeSlashCommandMenu(commands: slashCommands, onSelect: performSlashCommand)
+            .environmentObject(store)
+            .transition(.move(edge: .bottom).combined(with: .opacity))
+        }
+
+        VStack(alignment: .leading, spacing: 7) {
+          if isSearchMode || !store.pendingAttachments.isEmpty {
+            NativePendingAttachmentStrip(showsSearchMode: isSearchMode)
+              .environmentObject(store)
+              .padding(.top, 2)
           }
-          .buttonStyle(.plain)
-          .accessibilityLabel(store.i18n.t(.chatAttachFile))
 
-          NativePromptEditor(
-            text: $store.inputText,
-            placeholder: store.i18n.t(.projectMessagePlaceholder, ["name": project.title]),
-            focused: $focused
-          )
-          .environmentObject(store)
-          .padding(.horizontal, 10)
-          .nativeComposerGlass(
-            cornerRadius: 18,
-            borderColor: focused ? store.accentColor.color.opacity(0.46) : Color.oeBorder.opacity(0.18)
-          )
-          .layoutPriority(1)
+          HStack(alignment: .bottom, spacing: 8) {
+            Button {
+              showingAttachmentOptions = true
+            } label: {
+              NativeComposerCircleButtonIcon(systemName: "plus")
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(store.i18n.t(.chatAttachFile))
 
-          Button(action: send) {
-            NativeComposerSubmitIcon(
-              systemName: showsStopButton ? "stop.fill" : "arrow.up",
-              isActive: submitButtonIsActive
+            NativePromptEditor(
+              text: $store.inputText,
+              placeholder: store.i18n.t(.projectMessagePlaceholder, ["name": project.title]),
+              focused: $focused
             )
             .environmentObject(store)
+            .padding(.horizontal, 10)
+            .nativePromptGlassPanel(
+              cornerRadius: 18,
+              fill: Color.oeSubtleFill.opacity(0.22),
+              borderColor: focused ? store.accentColor.color.opacity(0.54) : Color.oeBorder.opacity(0.24),
+              accentColor: focused ? store.accentColor.color : nil,
+              interactive: true
+            )
+            .layoutPriority(1)
+
+            Button(action: send) {
+              NativeComposerSubmitIcon(
+                systemName: showsStopButton ? "stop.fill" : "arrow.up",
+                isActive: submitButtonIsActive
+              )
+              .environmentObject(store)
+            }
+            .buttonStyle(.plain)
+            .disabled(!showsStopButton && !hasDraftInput)
+            .accessibilityLabel(showsStopButton ? store.i18n.t(.chatStopResponse) : store.i18n.t(.chatSendMessage))
           }
-          .buttonStyle(.plain)
-          .disabled(!showsStopButton && !hasDraftInput)
-          .accessibilityLabel(showsStopButton ? store.i18n.t(.chatStopResponse) : store.i18n.t(.chatSendMessage))
         }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 7)
+        .nativePromptGlassPanel(
+          cornerRadius: nativePromptInputCornerRadius,
+          fill: Color.oeSubtleFill.opacity(0.28),
+          borderColor: focused ? store.accentColor.color.opacity(0.72) : Color.oeBorder.opacity(0.4),
+          accentColor: focused ? store.accentColor.color : nil
+        )
       }
-      .padding(.horizontal, 8)
-      .padding(.vertical, 6)
-      .nativeComposerGlass(
-        cornerRadius: nativePromptInputCornerRadius,
-        borderColor: focused ? store.accentColor.color.opacity(0.62) : Color.oeBorder.opacity(0.3)
-      )
     }
     .padding(.horizontal, 12)
     .padding(.top, 6)
     .padding(.bottom, 8)
-    .background(.ultraThinMaterial)
+    .background(Color.clear)
     .animation(.easeOut(duration: 0.18), value: showsSlashCommands)
     .animation(.easeOut(duration: 0.18), value: isSearchMode)
     .animation(.easeOut(duration: 0.14), value: hasDraftInput)

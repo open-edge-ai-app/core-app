@@ -146,8 +146,10 @@ struct NativeSearchModeChip: View {
     .foregroundColor(store.accentColor.color)
     .padding(.horizontal, 9)
     .frame(height: 28)
-    .nativeLiquidGlassCapsule(
-      tint: store.accentColor.color.opacity(0.72),
+    .nativePromptGlassCapsule(
+      fill: store.accentColor.color.opacity(0.14),
+      borderColor: store.accentColor.color.opacity(0.34),
+      accentColor: store.accentColor.color,
       interactive: true
     )
     .accessibilityLabel(store.i18n.t(.chatSearchMode))

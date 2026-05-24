@@ -71,6 +71,7 @@
 		A3E00000000000000000001D /* NativeProjectSessionRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3F00000000000000000001D /* NativeProjectSessionRow.swift */; };
 		A3E00000000000000000001E /* NativePromptCompressor.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3F00000000000000000001E /* NativePromptCompressor.swift */; };
 		A3E00000000000000000001F /* NativePromptEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3F00000000000000000001F /* NativePromptEditor.swift */; };
+		A3E000000000000000000033 /* NativePromptGlass.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3F000000000000000000033 /* NativePromptGlass.swift */; };
 		A3E000000000000000000020 /* NativeQueueView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3F000000000000000000020 /* NativeQueueView.swift */; };
 		A3E000000000000000000021 /* NativeSessionListRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3F000000000000000000021 /* NativeSessionListRow.swift */; };
 		A3E000000000000000000022 /* NativeSessionsHeaderControls.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3F000000000000000000022 /* NativeSessionsHeaderControls.swift */; };
@@ -192,6 +193,7 @@
 		A3F00000000000000000001D /* NativeProjectSessionRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = NativeProjectSessionRow.swift; path = OpenEdgeAI/NativeProjectSessionRow.swift; sourceTree = "<group>"; };
 		A3F00000000000000000001E /* NativePromptCompressor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = NativePromptCompressor.swift; path = OpenEdgeAI/NativePromptCompressor.swift; sourceTree = "<group>"; };
 		A3F00000000000000000001F /* NativePromptEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = NativePromptEditor.swift; path = OpenEdgeAI/NativePromptEditor.swift; sourceTree = "<group>"; };
+		A3F000000000000000000033 /* NativePromptGlass.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = NativePromptGlass.swift; path = OpenEdgeAI/NativePromptGlass.swift; sourceTree = "<group>"; };
 		A3F000000000000000000020 /* NativeQueueView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = NativeQueueView.swift; path = OpenEdgeAI/NativeQueueView.swift; sourceTree = "<group>"; };
 		A3F000000000000000000021 /* NativeSessionListRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = NativeSessionListRow.swift; path = OpenEdgeAI/NativeSessionListRow.swift; sourceTree = "<group>"; };
 		A3F000000000000000000022 /* NativeSessionsHeaderControls.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = NativeSessionsHeaderControls.swift; path = OpenEdgeAI/NativeSessionsHeaderControls.swift; sourceTree = "<group>"; };
@@ -295,6 +297,7 @@
 				A3F00000000000000000001D /* NativeProjectSessionRow.swift */,
 				A3F00000000000000000001E /* NativePromptCompressor.swift */,
 				A3F00000000000000000001F /* NativePromptEditor.swift */,
+				A3F000000000000000000033 /* NativePromptGlass.swift */,
 				A3F000000000000000000020 /* NativeQueueView.swift */,
 				A3F000000000000000000021 /* NativeSessionListRow.swift */,
 				A3F000000000000000000022 /* NativeSessionsHeaderControls.swift */,
@@ -585,6 +588,7 @@
 				A3E00000000000000000001D /* NativeProjectSessionRow.swift in Sources */,
 				A3E00000000000000000001E /* NativePromptCompressor.swift in Sources */,
 				A3E00000000000000000001F /* NativePromptEditor.swift in Sources */,
+				A3E000000000000000000033 /* NativePromptGlass.swift in Sources */,
 				A3E000000000000000000020 /* NativeQueueView.swift in Sources */,
 				A3E000000000000000000021 /* NativeSessionListRow.swift in Sources */,
 				A3E000000000000000000022 /* NativeSessionsHeaderControls.swift in Sources */,

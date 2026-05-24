@@ -26,7 +26,7 @@ struct NativeComposerInputSurface<Content: View>: View {
 
   private var glassFill: some View {
     RoundedRectangle(cornerRadius: nativeComposerInputCornerRadius, style: .continuous)
-      .fill(.ultraThinMaterial)
+      .fill(.regularMaterial)
       .overlay {
         RoundedRectangle(cornerRadius: nativeComposerInputCornerRadius, style: .continuous)
           .fill(surfaceTint)
@@ -35,9 +35,9 @@ struct NativeComposerInputSurface<Content: View>: View {
 
   private var surfaceTint: Color {
     if colorScheme == .dark {
-      return Color.white.opacity(isFocused ? 0.13 : 0.1)
+      return Color.white.opacity(isFocused ? 0.16 : 0.12)
     }
-    return Color.white.opacity(isFocused ? 0.82 : 0.72)
+    return Color.white.opacity(isFocused ? 0.58 : 0.48)
   }
 
   private var glassHighlight: some View {
@@ -47,7 +47,7 @@ struct NativeComposerInputSurface<Content: View>: View {
         LinearGradient(
           colors: [
             Color.white.opacity(colorScheme == .dark ? 0.18 : 0.7),
-            Color.white.opacity(colorScheme == .dark ? 0.04 : 0.18),
+            Color.white.opacity(colorScheme == .dark ? 0.05 : 0.24),
             Color.black.opacity(colorScheme == .dark ? 0.12 : 0.06)
           ],
           startPoint: .topLeading,

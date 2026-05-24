@@ -62,6 +62,7 @@
 		A3E000000000000000000014 /* NativeMarkdownCodeBlock.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3F000000000000000000014 /* NativeMarkdownCodeBlock.swift */; };
 		A3E000000000000000000015 /* NativeMessageSourcesSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3F000000000000000000015 /* NativeMessageSourcesSheet.swift */; };
 		A3E000000000000000000016 /* NativeMessageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3F000000000000000000016 /* NativeMessageView.swift */; };
+		A3E000000000000000000034 /* NativeChatComposerBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3F000000000000000000034 /* NativeChatComposerBar.swift */; };
 		A3E000000000000000000017 /* NativeModelConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3F000000000000000000017 /* NativeModelConfiguration.swift */; };
 		A3E000000000000000000018 /* NativeModelSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3F000000000000000000018 /* NativeModelSettingsView.swift */; };
 		A3E000000000000000000019 /* NativeModelStatus.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3F000000000000000000019 /* NativeModelStatus.swift */; };
@@ -184,6 +185,7 @@
 		A3F000000000000000000014 /* NativeMarkdownCodeBlock.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = NativeMarkdownCodeBlock.swift; path = OpenEdgeAI/NativeMarkdownCodeBlock.swift; sourceTree = "<group>"; };
 		A3F000000000000000000015 /* NativeMessageSourcesSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = NativeMessageSourcesSheet.swift; path = OpenEdgeAI/NativeMessageSourcesSheet.swift; sourceTree = "<group>"; };
 		A3F000000000000000000016 /* NativeMessageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = NativeMessageView.swift; path = OpenEdgeAI/NativeMessageView.swift; sourceTree = "<group>"; };
+		A3F000000000000000000034 /* NativeChatComposerBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = NativeChatComposerBar.swift; path = OpenEdgeAI/NativeChatComposerBar.swift; sourceTree = "<group>"; };
 		A3F000000000000000000017 /* NativeModelConfiguration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = NativeModelConfiguration.swift; path = OpenEdgeAI/NativeModelConfiguration.swift; sourceTree = "<group>"; };
 		A3F000000000000000000018 /* NativeModelSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = NativeModelSettingsView.swift; path = OpenEdgeAI/NativeModelSettingsView.swift; sourceTree = "<group>"; };
 		A3F000000000000000000019 /* NativeModelStatus.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = NativeModelStatus.swift; path = OpenEdgeAI/NativeModelStatus.swift; sourceTree = "<group>"; };
@@ -288,6 +290,7 @@
 				A3F000000000000000000014 /* NativeMarkdownCodeBlock.swift */,
 				A3F000000000000000000015 /* NativeMessageSourcesSheet.swift */,
 				A3F000000000000000000016 /* NativeMessageView.swift */,
+				A3F000000000000000000034 /* NativeChatComposerBar.swift */,
 				A3F000000000000000000017 /* NativeModelConfiguration.swift */,
 				A3F000000000000000000018 /* NativeModelSettingsView.swift */,
 				A3F000000000000000000019 /* NativeModelStatus.swift */,
@@ -579,6 +582,7 @@
 				A3E000000000000000000014 /* NativeMarkdownCodeBlock.swift in Sources */,
 				A3E000000000000000000015 /* NativeMessageSourcesSheet.swift in Sources */,
 				A3E000000000000000000016 /* NativeMessageView.swift in Sources */,
+				A3E000000000000000000034 /* NativeChatComposerBar.swift in Sources */,
 				A3E000000000000000000017 /* NativeModelConfiguration.swift in Sources */,
 				A3E000000000000000000018 /* NativeModelSettingsView.swift in Sources */,
 				A3E000000000000000000019 /* NativeModelStatus.swift in Sources */,

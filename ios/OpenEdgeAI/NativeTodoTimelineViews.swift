@@ -207,7 +207,7 @@ struct NativeTodoCalendarEventCard: View {
     }
     .nativeLiquidGlass(
       cornerRadius: 9,
-      tint: accentColor.color.opacity(0.58),
+      tint: accentColor.color.opacity(0.9),
       interactive: true
     )
   }

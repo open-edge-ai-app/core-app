@@ -97,7 +97,7 @@ struct NativeTodoSettingsSheet: View {
             .padding(.horizontal, 12)
             .frame(height: 32)
             .nativeLiquidGlassCapsule(
-              tint: canAddLabel ? store.accentColor.color.opacity(0.48) : nil,
+              tint: canAddLabel ? store.accentColor.color.opacity(0.86) : nil,
               interactive: true
             )
         }

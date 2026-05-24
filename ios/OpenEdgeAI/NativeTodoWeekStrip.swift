@@ -65,7 +65,7 @@ struct NativeTodoWeekStrip: View {
               .frame(width: dayCellWidth, height: 52)
               .nativeLiquidGlass(
                 cornerRadius: 10,
-                tint: isSelected ? accentColor.color.opacity(0.24) : nil,
+                tint: isSelected ? accentColor.color.opacity(0.72) : nil,
                 interactive: true
               )
             }

@@ -170,7 +170,7 @@ enum NativeAccentColor: String, CaseIterable, Identifiable {
   }
 
   var subtleColor: Color {
-    color.opacity(0.12)
+    color.opacity(0.22)
   }
 }
 

@@ -517,7 +517,7 @@ struct NativeTodoListView: View {
           .foregroundColor(store.accentColor.foregroundColor)
           .frame(width: 56, height: 56)
           .background(
-            store.accentColor.color.opacity(0.72),
+            store.accentColor.color,
             in: Circle()
           )
           .overlay(

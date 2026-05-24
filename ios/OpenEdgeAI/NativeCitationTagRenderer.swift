@@ -17,10 +17,10 @@ enum NativeCitationTagRenderer {
       let rect = CGRect(origin: .zero, size: size)
       let capsule = UIBezierPath(roundedRect: rect.insetBy(dx: 0.75, dy: 0.75), cornerRadius: size.height / 2)
 
-      accentColor.withAlphaComponent(0.10).setFill()
+      accentColor.withAlphaComponent(0.18).setFill()
       capsule.fill()
 
-      accentColor.withAlphaComponent(0.28).setStroke()
+      accentColor.withAlphaComponent(0.44).setStroke()
       capsule.lineWidth = 1
       capsule.stroke()
 

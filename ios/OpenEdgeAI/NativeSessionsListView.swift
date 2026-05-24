@@ -186,7 +186,7 @@ struct NativeSessionsView: View {
           .padding(.horizontal, 18)
           .frame(height: 48)
           .background(
-            store.accentColor.color.opacity(0.72),
+            store.accentColor.color,
             in: Capsule(style: .continuous)
           )
           .overlay(

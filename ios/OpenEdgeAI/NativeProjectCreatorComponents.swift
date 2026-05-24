@@ -36,10 +36,10 @@ struct NativeProjectIconOption: View {
       .frame(height: 78)
       .nativeLiquidGlass(
         cornerRadius: 14,
-        tint: isSelected ? accentColor.color.opacity(0.44) : nil,
+        tint: isSelected ? accentColor.color.opacity(0.88) : nil,
         interactive: true
       )
-      .nativeGlassStroke(cornerRadius: 14, color: isSelected ? accentColor.color.opacity(0.62) : Color.oeBorder.opacity(0.34))
+      .nativeGlassStroke(cornerRadius: 14, color: isSelected ? accentColor.color : Color.oeBorder.opacity(0.34))
     }
     .buttonStyle(.plain)
   }

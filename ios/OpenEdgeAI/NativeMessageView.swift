@@ -18,7 +18,7 @@ struct NativeMessageView: View {
           .padding(.horizontal, 14)
           .padding(.vertical, 10)
           .background(
-            store.accentColor.color.opacity(0.72),
+            store.accentColor.color,
             in: RoundedRectangle(cornerRadius: 18, style: .continuous)
           )
           .overlay(

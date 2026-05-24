@@ -94,7 +94,7 @@ struct NativeSlashCommandMenu: View {
               .foregroundColor(store.accentColor.color)
               .frame(width: 28, height: 28)
               .nativeLiquidGlassCircle(
-                tint: store.accentColor.color.opacity(0.22),
+                tint: store.accentColor.color.opacity(0.72),
                 interactive: true
               )
 
@@ -147,7 +147,7 @@ struct NativeSearchModeChip: View {
     .padding(.horizontal, 9)
     .frame(height: 28)
     .nativeLiquidGlassCapsule(
-      tint: store.accentColor.color.opacity(0.22),
+      tint: store.accentColor.color.opacity(0.72),
       interactive: true
     )
     .accessibilityLabel(store.i18n.t(.chatSearchMode))

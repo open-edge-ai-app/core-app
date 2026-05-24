@@ -143,7 +143,7 @@ struct NativeComposerSubmitIcon: View {
       .foregroundColor(isActive ? store.accentColor.foregroundColor : .oeMutedText)
       .frame(width: 34, height: 34)
       .background(
-        isActive ? store.accentColor.color.opacity(0.72) : Color.oeSubtleFill.opacity(0.64),
+        isActive ? store.accentColor.color : Color.oeSubtleFill.opacity(0.64),
         in: Circle()
       )
       .overlay(

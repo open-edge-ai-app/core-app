@@ -26,10 +26,6 @@ struct NativeProjectComposerBar: View {
     store.isGenerating && !hasDraftInput
   }
 
-  private var submitButtonIsActive: Bool {
-    showsStopButton || hasDraftInput
-  }
-
   var body: some View {
     NativeGlassEffectContainer(spacing: 8) {
       VStack(spacing: 7) {
@@ -85,7 +81,6 @@ struct NativeProjectComposerBar: View {
                 .environmentObject(store)
               }
               .buttonStyle(.plain)
-              .disabled(!showsStopButton && !hasDraftInput)
               .accessibilityLabel(showsStopButton ? store.i18n.t(.chatStopResponse) : store.i18n.t(.chatSendMessage))
             }
           }

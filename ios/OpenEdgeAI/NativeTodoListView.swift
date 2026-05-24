@@ -109,9 +109,6 @@ struct NativeTodoListView: View {
       VStack(spacing: 0) {
         topBar
 
-        Divider()
-          .background(Color.oeSeparator)
-
         header
 
         Divider()
@@ -194,7 +191,11 @@ struct NativeTodoListView: View {
         Image(systemName: "line.3.horizontal")
           .font(.system(size: 18, weight: .semibold))
           .frame(width: 36, height: 36)
-          .nativeLiquidGlassCircle(interactive: true)
+          .background(.ultraThinMaterial, in: Circle())
+          .overlay(
+            Circle()
+              .stroke(Color.oeBorder.opacity(0.18), lineWidth: 1)
+          )
       }
       .buttonStyle(.plain)
       .accessibilityLabel(i18n.t(.todoBackToMenu))
@@ -211,7 +212,11 @@ struct NativeTodoListView: View {
         Image(systemName: "gearshape")
           .font(.system(size: 18, weight: .semibold))
           .frame(width: 36, height: 36)
-          .nativeLiquidGlassCircle(interactive: true)
+          .background(.ultraThinMaterial, in: Circle())
+          .overlay(
+            Circle()
+              .stroke(Color.oeBorder.opacity(0.18), lineWidth: 1)
+          )
       }
       .buttonStyle(.plain)
       .accessibilityLabel(i18n.t(.todoSettings))
@@ -220,7 +225,6 @@ struct NativeTodoListView: View {
     .padding(.horizontal, 16)
     .padding(.top, 6)
     .padding(.bottom, 8)
-    .background(.ultraThinMaterial)
   }
 
   private var header: some View {
@@ -512,9 +516,13 @@ struct NativeTodoListView: View {
           .font(.system(size: 31, weight: .light))
           .foregroundColor(store.accentColor.foregroundColor)
           .frame(width: 56, height: 56)
-          .nativeLiquidGlassCircle(
-            tint: store.accentColor.color.opacity(0.48),
-            interactive: true
+          .background(
+            store.accentColor.color.opacity(0.72),
+            in: Circle()
+          )
+          .overlay(
+            Circle()
+              .stroke(Color.oeBorder.opacity(0.18), lineWidth: 1)
           )
       }
       .buttonStyle(.plain)

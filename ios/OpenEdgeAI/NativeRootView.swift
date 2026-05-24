@@ -23,7 +23,6 @@ struct NativeRootView: View {
         )
         .zIndex(2)
 
-        Divider()
         NativeChatTranscript()
         NativeInputBar(showingAttachmentOptions: $showingAttachmentOptions)
       }

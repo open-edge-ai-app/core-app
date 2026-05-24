@@ -27,8 +27,11 @@ struct NativeSessionsSearchPill: View {
     .padding(.leading, 16)
     .padding(.trailing, 8)
     .frame(height: 52)
-    .nativeLiquidGlassCapsule(interactive: true)
-    .nativeGlassStroke(cornerRadius: 26, color: Color.oeBorder.opacity(0.28))
+    .background(.ultraThinMaterial, in: Capsule(style: .continuous))
+    .overlay(
+      Capsule(style: .continuous)
+        .stroke(Color.oeBorder.opacity(0.18), lineWidth: 1)
+    )
   }
 }
 

@@ -185,9 +185,13 @@ struct NativeSessionsView: View {
           .foregroundColor(store.accentColor.foregroundColor)
           .padding(.horizontal, 18)
           .frame(height: 48)
-          .nativeLiquidGlassCapsule(
-            tint: store.accentColor.color.opacity(0.48),
-            interactive: true
+          .background(
+            store.accentColor.color.opacity(0.72),
+            in: Capsule(style: .continuous)
+          )
+          .overlay(
+            Capsule(style: .continuous)
+              .stroke(Color.oeBorder.opacity(0.18), lineWidth: 1)
           )
         }
         .buttonStyle(.plain)

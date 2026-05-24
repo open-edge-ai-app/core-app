@@ -15,7 +15,11 @@ struct NativeTopBar: View {
         Image(systemName: "line.3.horizontal")
           .font(.system(size: 18, weight: .semibold))
           .frame(width: 36, height: 36)
-          .nativeLiquidGlassCircle(interactive: true)
+          .background(.ultraThinMaterial, in: Circle())
+          .overlay(
+            Circle()
+              .stroke(Color.oeBorder.opacity(0.18), lineWidth: 1)
+          )
       }
       .accessibilityLabel(store.i18n.t(.chatOpenList))
       .buttonStyle(.plain)
@@ -38,7 +42,6 @@ struct NativeTopBar: View {
     .padding(.horizontal, 16)
     .padding(.top, 6)
     .padding(.bottom, 8)
-    .background(.ultraThinMaterial)
   }
 }
 
@@ -81,8 +84,11 @@ struct NativeModelMenu: View {
       .foregroundColor(.oeText)
       .padding(.horizontal, 10)
       .frame(height: 34)
-      .nativeLiquidGlassCapsule(interactive: true)
-      .nativeGlassStroke(cornerRadius: 17, color: Color.oeBorder.opacity(0.38))
+      .background(.ultraThinMaterial, in: Capsule(style: .continuous))
+      .overlay(
+        Capsule(style: .continuous)
+          .stroke(Color.oeBorder.opacity(0.18), lineWidth: 1)
+      )
     }
   }
 }

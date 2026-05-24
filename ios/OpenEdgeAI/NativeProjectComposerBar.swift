@@ -80,14 +80,16 @@ struct NativeProjectComposerBar: View {
       }
       .padding(.horizontal, 8)
       .padding(.vertical, 6)
-      .nativeLiquidGlass(
-        cornerRadius: nativePromptInputCornerRadius,
-        tint: focused ? store.accentColor.color.opacity(0.12) : nil,
-        interactive: true
+      .background(
+        .ultraThinMaterial,
+        in: RoundedRectangle(cornerRadius: nativePromptInputCornerRadius, style: .continuous)
       )
-      .nativeGlassStroke(
-        cornerRadius: nativePromptInputCornerRadius,
-        color: Color.oeBorder.opacity(focused ? 0.76 : 0.42)
+      .overlay(
+        RoundedRectangle(cornerRadius: nativePromptInputCornerRadius, style: .continuous)
+          .stroke(
+            focused ? store.accentColor.color.opacity(0.38) : Color.oeBorder.opacity(0.26),
+            lineWidth: 1
+          )
       )
     }
     .padding(.horizontal, 12)

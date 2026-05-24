@@ -53,6 +53,9 @@ struct NativeGeneralSettingsView: View {
         }
       }
     }
+    .listStyle(.insetGrouped)
+    .scrollContentBackground(.hidden)
+    .background(Color.oeGroupedBackground)
     .navigationTitle(i18n.t(.settingsGeneral))
     .navigationBarTitleDisplayMode(.inline)
     .onChange(of: store.backgroundExecutionEnabled) { _, isEnabled in

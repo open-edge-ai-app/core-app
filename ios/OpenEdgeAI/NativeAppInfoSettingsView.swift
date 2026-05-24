@@ -27,6 +27,9 @@ struct NativeAppInfoSettingsView: View {
         }
       }
     }
+    .listStyle(.insetGrouped)
+    .scrollContentBackground(.hidden)
+    .background(Color.oeGroupedBackground)
     .navigationTitle(i18n.t(.settingsInfo))
     .navigationBarTitleDisplayMode(.inline)
   }

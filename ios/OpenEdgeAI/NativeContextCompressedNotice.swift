@@ -14,8 +14,7 @@ struct NativeContextCompressedNotice: View {
     .foregroundColor(.oeSecondaryText)
     .padding(.horizontal, 10)
     .padding(.vertical, 6)
-    .background(Color.oeSubtleFill)
-    .clipShape(Capsule())
+    .nativeLiquidGlassCapsule()
     .accessibilityLabel(store.i18n.t(.chatContextCompressed))
   }
 }

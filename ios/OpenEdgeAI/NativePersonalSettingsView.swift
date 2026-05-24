@@ -36,6 +36,9 @@ struct NativePersonalSettingsView: View {
           .frame(minHeight: 160)
       }
     }
+    .listStyle(.insetGrouped)
+    .scrollContentBackground(.hidden)
+    .background(Color.oeGroupedBackground)
     .navigationTitle(i18n.t(.settingsPersonalization))
     .navigationBarTitleDisplayMode(.inline)
     .onDisappear {

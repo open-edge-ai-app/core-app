@@ -59,6 +59,7 @@ struct NativeProjectSessionsPage: View {
         Image(systemName: "line.3.horizontal")
           .font(.system(size: 18, weight: .semibold))
           .frame(width: 36, height: 36)
+          .nativeLiquidGlassCircle(interactive: true)
       }
       .buttonStyle(.plain)
       .accessibilityLabel(store.i18n.t(.projectList))
@@ -80,6 +81,7 @@ struct NativeProjectSessionsPage: View {
         Image(systemName: "ellipsis")
           .font(.system(size: 22, weight: .bold))
           .frame(width: 36, height: 36)
+          .nativeLiquidGlassCircle(interactive: true)
       }
       .buttonStyle(.plain)
       .accessibilityLabel(store.i18n.t(.menuProjectSettings))
@@ -88,7 +90,7 @@ struct NativeProjectSessionsPage: View {
     .padding(.horizontal, 16)
     .padding(.top, 6)
     .padding(.bottom, 8)
-    .background(Color.oeBackground)
+    .background(.ultraThinMaterial)
   }
 
   private var chatList: some View {

@@ -80,17 +80,20 @@ struct NativeProjectComposerBar: View {
       }
       .padding(.horizontal, 8)
       .padding(.vertical, 6)
-      .background(Color.oeElevatedSurface)
-      .overlay(
-        RoundedRectangle(cornerRadius: nativePromptInputCornerRadius, style: .continuous)
-          .stroke(Color.oeBorder.opacity(focused ? 1 : 0.75), lineWidth: 1)
+      .nativeLiquidGlass(
+        cornerRadius: nativePromptInputCornerRadius,
+        tint: focused ? store.accentColor.color.opacity(0.12) : nil,
+        interactive: true
       )
-      .clipShape(RoundedRectangle(cornerRadius: nativePromptInputCornerRadius, style: .continuous))
+      .nativeGlassStroke(
+        cornerRadius: nativePromptInputCornerRadius,
+        color: Color.oeBorder.opacity(focused ? 0.76 : 0.42)
+      )
     }
     .padding(.horizontal, 12)
     .padding(.top, 6)
     .padding(.bottom, 8)
-    .background(.regularMaterial)
+    .background(.ultraThinMaterial)
     .animation(.easeOut(duration: 0.18), value: showsSlashCommands)
     .animation(.easeOut(duration: 0.18), value: isSearchMode)
     .animation(.easeOut(duration: 0.14), value: hasDraftInput)

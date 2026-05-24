@@ -56,6 +56,9 @@ struct NativeSettingsView: View {
           }
         }
       }
+      .listStyle(.insetGrouped)
+      .scrollContentBackground(.hidden)
+      .background(Color.oeGroupedBackground)
       .navigationBarTitleDisplayMode(.inline)
       .toolbar {
         ToolbarItem(placement: .principal) {
@@ -96,5 +99,7 @@ struct NativeSettingsNavigationRow: View {
 
       Spacer()
     }
+    .padding(.vertical, 6)
+    .contentShape(Rectangle())
   }
 }

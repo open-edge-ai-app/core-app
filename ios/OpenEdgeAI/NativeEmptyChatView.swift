@@ -60,8 +60,8 @@ struct NativeEmptyChatView: View {
               .padding(.horizontal, 14)
               .padding(.vertical, 12)
               .frame(maxWidth: .infinity, alignment: .leading)
-              .background(Color.oeSubtleFill)
-              .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+              .nativeLiquidGlass(cornerRadius: 12, interactive: true)
+              .nativeGlassStroke(cornerRadius: 12, color: Color.oeBorder.opacity(0.28))
             }
             .buttonStyle(.plain)
           }

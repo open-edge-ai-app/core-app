@@ -199,16 +199,17 @@ struct NativeTodoCalendarEventCard: View {
 
   var body: some View {
     ZStack(alignment: .topLeading) {
-      RoundedRectangle(cornerRadius: 9, style: .continuous)
-        .fill(accentColor.color)
-
       cardContent
         .padding(.horizontal, 8)
         .padding(.vertical, isCompact ? 5 : 11)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .clipped()
     }
-    .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+    .nativeLiquidGlass(
+      cornerRadius: 9,
+      tint: accentColor.color.opacity(0.58),
+      interactive: true
+    )
   }
 
   private var cardContent: some View {

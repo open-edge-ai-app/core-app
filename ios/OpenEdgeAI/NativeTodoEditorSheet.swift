@@ -55,8 +55,8 @@ struct NativeTodoEditorSheet: View {
               .textInputAutocapitalization(.sentences)
               .padding(.horizontal, 14)
               .frame(height: 50)
-              .background(Color.oeSubtleFill)
-              .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+              .nativeLiquidGlass(cornerRadius: 14, interactive: true)
+              .nativeGlassStroke(cornerRadius: 14, color: Color.oeBorder.opacity(0.28))
           }
 
           VStack(alignment: .leading, spacing: 8) {
@@ -68,8 +68,8 @@ struct NativeTodoEditorSheet: View {
               .lineLimit(3...6)
               .padding(14)
               .frame(minHeight: 94, alignment: .topLeading)
-              .background(Color.oeSubtleFill)
-              .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+              .nativeLiquidGlass(cornerRadius: 14, interactive: true)
+              .nativeGlassStroke(cornerRadius: 14, color: Color.oeBorder.opacity(0.28))
           }
 
           NativeTodoLabelSelect(
@@ -118,8 +118,8 @@ struct NativeTodoEditorSheet: View {
           }
           .padding(.horizontal, 14)
           .frame(height: 50)
-          .background(Color.oeSubtleFill)
-          .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+          .nativeLiquidGlass(cornerRadius: 14, interactive: true)
+          .nativeGlassStroke(cornerRadius: 14, color: Color.oeBorder.opacity(0.28))
         }
         .padding(.horizontal, 22)
         .padding(.top, 18)
@@ -257,8 +257,8 @@ struct NativeTodoLabelSelect: View {
       }
       .padding(.horizontal, 14)
       .frame(height: 54)
-      .background(Color.oeSubtleFill)
-      .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+      .nativeLiquidGlass(cornerRadius: 14, interactive: true)
+      .nativeGlassStroke(cornerRadius: 14, color: Color.oeBorder.opacity(0.28))
     }
   }
 
@@ -298,8 +298,8 @@ struct NativeTodoDateTimeField: View {
     }
     .padding(.horizontal, 14)
     .frame(height: 54)
-    .background(Color.oeSubtleFill)
-    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+    .nativeLiquidGlass(cornerRadius: 14, interactive: true)
+    .nativeGlassStroke(cornerRadius: 14, color: Color.oeBorder.opacity(0.28))
   }
 }
 

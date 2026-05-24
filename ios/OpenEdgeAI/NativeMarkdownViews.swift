@@ -470,11 +470,8 @@ private struct NativeMarkdownTableView: View {
           .background(index.isMultiple(of: 2) ? Color.clear : Color.oeSubtleFill.opacity(0.45))
         }
       }
-      .overlay(
-        RoundedRectangle(cornerRadius: 12, style: .continuous)
-          .stroke(Color.oeBorder, lineWidth: 1)
-      )
-      .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+      .nativeLiquidGlass(cornerRadius: 12)
+      .nativeGlassStroke(cornerRadius: 12)
     }
     .frame(maxWidth: .infinity, alignment: .leading)
   }

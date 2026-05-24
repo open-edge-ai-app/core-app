@@ -194,6 +194,7 @@ struct NativeTodoListView: View {
         Image(systemName: "line.3.horizontal")
           .font(.system(size: 18, weight: .semibold))
           .frame(width: 36, height: 36)
+          .nativeLiquidGlassCircle(interactive: true)
       }
       .buttonStyle(.plain)
       .accessibilityLabel(i18n.t(.todoBackToMenu))
@@ -210,6 +211,7 @@ struct NativeTodoListView: View {
         Image(systemName: "gearshape")
           .font(.system(size: 18, weight: .semibold))
           .frame(width: 36, height: 36)
+          .nativeLiquidGlassCircle(interactive: true)
       }
       .buttonStyle(.plain)
       .accessibilityLabel(i18n.t(.todoSettings))
@@ -218,7 +220,7 @@ struct NativeTodoListView: View {
     .padding(.horizontal, 16)
     .padding(.top, 6)
     .padding(.bottom, 8)
-    .background(Color.oeBackground)
+    .background(.ultraThinMaterial)
   }
 
   private var header: some View {
@@ -508,10 +510,12 @@ struct NativeTodoListView: View {
       } label: {
         Image(systemName: "plus")
           .font(.system(size: 31, weight: .light))
-          .foregroundColor(.oeControlText)
+          .foregroundColor(store.accentColor.foregroundColor)
           .frame(width: 56, height: 56)
-          .background(Color.oeControlFill)
-          .clipShape(Circle())
+          .nativeLiquidGlassCircle(
+            tint: store.accentColor.color.opacity(0.48),
+            interactive: true
+          )
       }
       .buttonStyle(.plain)
       .accessibilityLabel(i18n.t(.todoAdd))

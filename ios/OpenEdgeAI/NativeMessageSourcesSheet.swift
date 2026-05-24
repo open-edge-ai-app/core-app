@@ -18,6 +18,7 @@ struct NativeMessageSourcesSheet: View {
         .padding(.bottom, 28)
       }
       .background(Color.oeGroupedBackground)
+      .scrollContentBackground(.hidden)
       .navigationTitle(store.i18n.t(.chatSources))
       .navigationBarTitleDisplayMode(.inline)
       .toolbar {
@@ -73,7 +74,7 @@ struct NativeMessageSourceRow: View {
     }
     .padding(.horizontal, 10)
     .padding(.vertical, 10)
-    .background(Color.oeBackground)
-    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+    .nativeLiquidGlass(cornerRadius: 12, interactive: true)
+    .nativeGlassStroke(cornerRadius: 12)
   }
 }

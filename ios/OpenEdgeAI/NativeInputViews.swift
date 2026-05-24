@@ -87,17 +87,20 @@ struct NativeInputBar: View {
       }
       .padding(.horizontal, 8)
       .padding(.vertical, 6)
-      .background(Color.oeElevatedSurface)
-      .overlay(
-        RoundedRectangle(cornerRadius: nativePromptInputCornerRadius, style: .continuous)
-          .stroke(Color.oeBorder.opacity(focused ? 1 : 0.75), lineWidth: 1)
+      .nativeLiquidGlass(
+        cornerRadius: nativePromptInputCornerRadius,
+        tint: focused ? store.accentColor.color.opacity(0.12) : nil,
+        interactive: true
       )
-      .clipShape(RoundedRectangle(cornerRadius: nativePromptInputCornerRadius, style: .continuous))
+      .nativeGlassStroke(
+        cornerRadius: nativePromptInputCornerRadius,
+        color: Color.oeBorder.opacity(focused ? 0.76 : 0.42)
+      )
     }
     .padding(.horizontal, 12)
     .padding(.top, 6)
     .padding(.bottom, 8)
-    .background(.regularMaterial)
+    .background(.ultraThinMaterial)
     .animation(.easeOut(duration: 0.18), value: showsSlashCommands)
     .animation(.easeOut(duration: 0.18), value: isSearchMode)
     .animation(.easeOut(duration: 0.14), value: hasDraftInput)
@@ -119,8 +122,7 @@ struct NativeComposerCircleButtonIcon: View {
       .font(.system(size: 18, weight: .medium))
       .foregroundColor(.oeText)
       .frame(width: 34, height: 34)
-      .background(Color.oeSubtleFill)
-      .clipShape(Circle())
+      .nativeLiquidGlassCircle(interactive: true)
   }
 }
 
@@ -134,8 +136,10 @@ struct NativeComposerSubmitIcon: View {
       .font(.system(size: 15, weight: .bold))
       .foregroundColor(isActive ? store.accentColor.foregroundColor : .oeMutedText)
       .frame(width: 34, height: 34)
-      .background(isActive ? store.accentColor.color : Color.oeSubtleFill)
-      .clipShape(Circle())
+      .nativeLiquidGlassCircle(
+        tint: isActive ? store.accentColor.color.opacity(0.46) : nil,
+        interactive: true
+      )
   }
 }
 
@@ -187,8 +191,7 @@ private struct NativePendingAttachmentChip: View {
     .padding(.leading, 9)
     .padding(.trailing, 6)
     .frame(height: 29)
-    .background(Color.oeSubtleFill)
-    .clipShape(Capsule(style: .continuous))
+    .nativeLiquidGlassCapsule(interactive: true)
     .accessibilityLabel(Text(verbatim: attachment.name))
   }
 

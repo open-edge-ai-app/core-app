@@ -17,8 +17,10 @@ struct NativeMessageView: View {
           .foregroundColor(store.accentColor.foregroundColor)
           .padding(.horizontal, 14)
           .padding(.vertical, 10)
-          .background(store.accentColor.color)
-          .clipShape(RoundedRectangle(cornerRadius: 18))
+          .nativeLiquidGlass(
+            cornerRadius: 18,
+            tint: store.accentColor.color.opacity(0.52)
+          )
           .frame(maxWidth: .infinity, alignment: .trailing)
           .textSelection(.enabled)
       } else {
@@ -67,6 +69,9 @@ struct NativeMessageView: View {
         .buttonStyle(.plain)
         .foregroundColor(store.accentColor.color)
         .font(.system(size: 14, weight: .medium))
+        .padding(.horizontal, 10)
+        .frame(height: 34)
+        .nativeLiquidGlassCapsule()
       }
     }
     .frame(maxWidth: .infinity, alignment: message.role == .user ? .trailing : .leading)

@@ -169,12 +169,8 @@ struct NativeTodoTaskCard: View {
     }
     .padding(22)
     .frame(maxWidth: .infinity, alignment: .leading)
-    .background(Color.oeTaskCardSurface)
-    .overlay(
-      RoundedRectangle(cornerRadius: 16, style: .continuous)
-        .stroke(Color.oeTaskCardBorder, lineWidth: 1)
-    )
-    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+    .nativeLiquidGlass(cornerRadius: 16, interactive: true)
+    .nativeGlassStroke(cornerRadius: 16, color: Color.oeTaskCardBorder)
     .contextMenu {
       Button(action: onEdit) {
         Label(i18n.t(.todoEdit), systemImage: "pencil")
@@ -250,8 +246,7 @@ struct NativeTodoInlineTagChip: View {
     .padding(.horizontal, 7)
     .frame(maxWidth: 72)
     .frame(height: 22)
-    .background(Color.oeSubtleFill)
-    .clipShape(Capsule())
+    .nativeLiquidGlassCapsule()
   }
 }
 
@@ -303,7 +298,7 @@ struct NativeTodoEmptyRow: View {
       .frame(maxWidth: .infinity, alignment: .leading)
       .padding(.horizontal, 18)
       .padding(.vertical, 16)
-    .background(Color.oeSubtleFill)
-    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+    .nativeLiquidGlass(cornerRadius: 14)
+    .nativeGlassStroke(cornerRadius: 14, color: Color.oeBorder.opacity(0.28))
   }
 }

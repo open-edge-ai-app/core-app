@@ -116,8 +116,8 @@ struct NativeSearchView: View {
         }
         .padding(.horizontal, 14)
         .frame(height: 48)
-        .background(Color.oeSubtleFill)
-        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .nativeLiquidGlass(cornerRadius: 16, interactive: true)
+        .nativeGlassStroke(cornerRadius: 16, color: Color.oeBorder.opacity(0.32))
         .padding(.horizontal, 18)
         .padding(.top, 14)
         .padding(.bottom, 8)
@@ -301,8 +301,8 @@ struct NativeSearchRowContent: View {
     .padding(.horizontal, 14)
     .padding(.vertical, 12)
     .frame(maxWidth: .infinity, alignment: .leading)
-    .background(Color.oeSubtleFill)
-    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+    .nativeLiquidGlass(cornerRadius: 16, interactive: true)
+    .nativeGlassStroke(cornerRadius: 16, color: Color.oeBorder.opacity(0.26))
     .contentShape(Rectangle())
   }
 }

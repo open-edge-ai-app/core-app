@@ -82,8 +82,7 @@ struct NativeTodoSettingsSheet: View {
           .font(.system(size: 15, weight: .bold))
           .foregroundColor(.oeSecondaryText)
           .frame(width: 28, height: 28)
-          .background(Color.oeSubtleFill)
-          .clipShape(Circle())
+          .nativeLiquidGlassCircle(interactive: true)
 
         TextField(i18n.t(.todoNewLabelName), text: $newLabelTitle)
           .font(.system(size: 15, weight: .semibold))
@@ -97,8 +96,10 @@ struct NativeTodoSettingsSheet: View {
             .foregroundColor(canAddLabel ? .oeControlText : .oeMutedText)
             .padding(.horizontal, 12)
             .frame(height: 32)
-            .background(canAddLabel ? Color.oeControlFill : Color.oeSubtleFill)
-            .clipShape(Capsule())
+            .nativeLiquidGlassCapsule(
+              tint: canAddLabel ? store.accentColor.color.opacity(0.48) : nil,
+              interactive: true
+            )
         }
         .buttonStyle(.plain)
         .disabled(!canAddLabel)
@@ -225,12 +226,8 @@ private struct NativeTodoSettingsGroup<Content: View>: View {
       VStack(spacing: 0) {
         content
       }
-      .background(Color.oeSurface)
-      .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-      .overlay(
-        RoundedRectangle(cornerRadius: 20, style: .continuous)
-          .stroke(Color.oeBorder, lineWidth: 1)
-      )
+      .nativeLiquidGlass(cornerRadius: 20)
+      .nativeGlassStroke(cornerRadius: 20)
     }
   }
 }
@@ -268,8 +265,7 @@ private struct NativeTodoSettingsIcon: View {
       .font(.system(size: 15, weight: .semibold))
       .foregroundColor(.oeText)
       .frame(width: 34, height: 34)
-      .background(Color.oeSubtleFill)
-      .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+      .nativeLiquidGlass(cornerRadius: 10)
   }
 }
 
@@ -310,8 +306,9 @@ private struct NativeTodoSettingsStatusPill: View {
       .foregroundColor(isActive ? .oeControlText : .oeSecondaryText)
       .padding(.horizontal, 8)
       .frame(height: 20)
-      .background(isActive ? Color.oeControlFill : Color.oeSubtleFill)
-      .clipShape(Capsule())
+      .nativeLiquidGlassCapsule(
+        tint: isActive ? Color.oeControlFill.opacity(0.38) : nil
+      )
   }
 }
 

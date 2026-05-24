@@ -40,11 +40,7 @@ struct NativeMarkdownCodeBlock: View {
     }
     .padding(12)
     .frame(maxWidth: .infinity, alignment: .leading)
-    .background(Color.oeSubtleFill)
-    .overlay(
-      RoundedRectangle(cornerRadius: 12, style: .continuous)
-        .stroke(Color.oeBorder, lineWidth: 1)
-    )
-    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+    .nativeLiquidGlass(cornerRadius: 12)
+    .nativeGlassStroke(cornerRadius: 12)
   }
 }

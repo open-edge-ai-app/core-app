@@ -185,9 +185,10 @@ struct NativeSessionsView: View {
           .foregroundColor(store.accentColor.foregroundColor)
           .padding(.horizontal, 18)
           .frame(height: 48)
-          .background(store.accentColor.color)
-          .clipShape(Capsule())
-          .shadow(color: Color(uiColor: .black).opacity(0.16), radius: 14, x: 0, y: 8)
+          .nativeLiquidGlassCapsule(
+            tint: store.accentColor.color.opacity(0.48),
+            interactive: true
+          )
         }
         .buttonStyle(.plain)
         .accessibilityLabel(store.i18n.t(.chatNewChat))

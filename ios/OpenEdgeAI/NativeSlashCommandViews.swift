@@ -93,8 +93,10 @@ struct NativeSlashCommandMenu: View {
               .font(.system(size: 15, weight: .semibold))
               .foregroundColor(store.accentColor.color)
               .frame(width: 28, height: 28)
-              .background(store.accentColor.subtleColor)
-              .clipShape(Circle())
+              .nativeLiquidGlassCircle(
+                tint: store.accentColor.color.opacity(0.22),
+                interactive: true
+              )
 
             VStack(alignment: .leading, spacing: 2) {
               HStack(spacing: 8) {
@@ -125,12 +127,8 @@ struct NativeSlashCommandMenu: View {
       }
     }
     .padding(6)
-    .background(Color.oeSurface)
-    .overlay(
-      RoundedRectangle(cornerRadius: 16, style: .continuous)
-        .stroke(Color.oeBorder, lineWidth: 1)
-    )
-    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+    .nativeLiquidGlass(cornerRadius: 16)
+    .nativeGlassStroke(cornerRadius: 16)
   }
 }
 
@@ -148,8 +146,10 @@ struct NativeSearchModeChip: View {
     .foregroundColor(store.accentColor.color)
     .padding(.horizontal, 9)
     .frame(height: 28)
-    .background(store.accentColor.subtleColor)
-    .clipShape(Capsule())
+    .nativeLiquidGlassCapsule(
+      tint: store.accentColor.color.opacity(0.22),
+      interactive: true
+    )
     .accessibilityLabel(store.i18n.t(.chatSearchMode))
   }
 }

@@ -5,7 +5,8 @@ struct NativeTopBar: View {
   @Binding var showingSessions: Bool
 
   var body: some View {
-    HStack(spacing: 12) {
+    NativeGlassEffectContainer(spacing: 12) {
+      HStack(spacing: 12) {
       Button {
         withAnimation(.easeOut(duration: 0.24)) {
           showingSessions = true
@@ -14,6 +15,7 @@ struct NativeTopBar: View {
         Image(systemName: "line.3.horizontal")
           .font(.system(size: 18, weight: .semibold))
           .frame(width: 36, height: 36)
+          .nativeLiquidGlassCircle(interactive: true)
       }
       .accessibilityLabel(store.i18n.t(.chatOpenList))
       .buttonStyle(.plain)
@@ -30,12 +32,13 @@ struct NativeTopBar: View {
       Spacer(minLength: 8)
 
       NativeModelMenu()
+      }
     }
     .foregroundColor(.oeText)
     .padding(.horizontal, 16)
     .padding(.top, 6)
     .padding(.bottom, 8)
-    .background(Color.oeBackground)
+    .background(.ultraThinMaterial)
   }
 }
 
@@ -78,10 +81,8 @@ struct NativeModelMenu: View {
       .foregroundColor(.oeText)
       .padding(.horizontal, 10)
       .frame(height: 34)
-      .overlay(
-        RoundedRectangle(cornerRadius: 17)
-          .stroke(Color.oeBorder, lineWidth: 1)
-      )
+      .nativeLiquidGlassCapsule(interactive: true)
+      .nativeGlassStroke(cornerRadius: 17, color: Color.oeBorder.opacity(0.38))
     }
   }
 }

@@ -35,7 +35,7 @@ struct NativeChatComposerBar: View {
 
   var body: some View {
     NativeGlassEffectContainer(spacing: 8) {
-      VStack(spacing: 7) {
+      VStack(spacing: 8) {
         if !store.queuedDrafts.isEmpty {
           NativeQueueView()
         }
@@ -50,23 +50,22 @@ struct NativeChatComposerBar: View {
           isFocused: focused,
           accentColor: store.accentColor.color
         ) {
-          VStack(alignment: .leading, spacing: 7) {
+          VStack(alignment: .leading, spacing: 8) {
             if isSearchMode || !store.pendingAttachments.isEmpty {
               NativePendingAttachmentStrip(showsSearchMode: isSearchMode)
                 .environmentObject(store)
-                .padding(.top, 2)
             }
 
-            HStack(alignment: .bottom, spacing: 8) {
+            HStack(alignment: .center, spacing: 8) {
               attachButton
               promptEditor
               microphoneIcon
               submitButton
             }
           }
-          .padding(.leading, 14)
-          .padding(.trailing, 7)
-          .padding(.vertical, 7)
+          .padding(.leading, 12)
+          .padding(.trailing, 8)
+          .padding(.vertical, 8)
         }
         .layoutPriority(1)
       }
@@ -89,7 +88,7 @@ struct NativeChatComposerBar: View {
     Button {
       showingAttachmentOptions = true
     } label: {
-      NativeComposerInlineIcon(systemName: "plus", size: 28)
+      NativeComposerInlineIcon(systemName: "plus", size: 27)
     }
     .buttonStyle(.plain)
     .accessibilityLabel(store.i18n.t(.chatAttachFile))
@@ -109,7 +108,7 @@ struct NativeChatComposerBar: View {
     NativeComposerInlineIcon(
       systemName: "mic.fill",
       color: .oeSecondaryText,
-      size: 22
+      size: 23
     )
     .accessibilityHidden(true)
   }
@@ -163,9 +162,9 @@ struct NativeComposerSubmitIcon: View {
       accentColor: store.accentColor.color
     ) {
       Image(systemName: systemName)
-        .font(.system(size: 15, weight: .bold))
+        .font(.system(size: 16, weight: .bold))
         .foregroundColor(store.accentColor.foregroundColor)
-        .frame(width: 34, height: 34)
+        .frame(width: nativeComposerSubmitControlSize, height: nativeComposerSubmitControlSize)
     }
   }
 }

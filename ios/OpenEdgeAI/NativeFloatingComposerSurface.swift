@@ -1,6 +1,8 @@
 import SwiftUI
 
-let nativeComposerInputCornerRadius: CGFloat = 24
+let nativeComposerInputCornerRadius: CGFloat = 30
+let nativeComposerInlineControlSize: CGFloat = 40
+let nativeComposerSubmitControlSize: CGFloat = 42
 let nativeComposerScrollBottomPadding: CGFloat = 154
 
 struct NativeFloatingComposerBackdrop: View {
@@ -14,7 +16,7 @@ struct NativeFloatingComposerBackdrop: View {
         LinearGradient(
           colors: [
             .clear,
-            .black.opacity(0.62),
+            .black.opacity(0.56),
             .black
           ],
           startPoint: .top,
@@ -26,8 +28,8 @@ struct NativeFloatingComposerBackdrop: View {
 
   private var backdropTint: Color {
     colorScheme == .dark
-      ? Color.black.opacity(0.18)
-      : Color.white.opacity(0.18)
+      ? Color.black.opacity(0.12)
+      : Color.white.opacity(0.16)
   }
 }
 
@@ -42,59 +44,35 @@ struct NativeComposerInputSurface<Content: View>: View {
   @ViewBuilder var content: Content
 
   var body: some View {
-    if #available(iOS 26.0, *) {
-      content
-        .disabled(isDisabled)
-        .background(inputMaterial)
-        .glassEffect(
-          .regular
-            .tint(glassTint)
-            .interactive(),
-          in: .rect(cornerRadius: nativeComposerInputCornerRadius)
-        )
-        .overlay(inputReflection)
-        .overlay(inputStroke)
-        .overlay(focusRing)
-        .shadow(color: shadowColor, radius: 18, x: 0, y: 8)
-        .opacity(isDisabled ? 0.48 : 1)
-        .onHover { isHovered = !isDisabled && $0 }
-    } else {
-      content
-        .disabled(isDisabled)
-        .background(inputMaterial)
-        .overlay(inputReflection)
-        .overlay(inputStroke)
-        .overlay(focusRing)
-        .shadow(color: shadowColor, radius: 18, x: 0, y: 8)
-        .opacity(isDisabled ? 0.48 : 1)
-        .onHover { isHovered = !isDisabled && $0 }
-    }
+    content
+      .disabled(isDisabled)
+      .background(surfaceFill)
+      .overlay(surfaceHighlight)
+      .overlay(surfaceStroke)
+      .overlay(focusRing)
+      .shadow(color: ambientShadow, radius: 14, x: 0, y: 8)
+      .opacity(isDisabled ? 0.48 : 1)
+      .contentShape(RoundedRectangle(cornerRadius: nativeComposerInputCornerRadius, style: .continuous))
+      .onHover { isHovered = !isDisabled && $0 }
+      .animation(.easeOut(duration: 0.16), value: isHovered)
+      .animation(.easeOut(duration: 0.16), value: isFocused)
+      .animation(.easeOut(duration: 0.16), value: isError)
   }
 
   private var surfaceOpacity: Double {
     if colorScheme == .dark {
-      return isHovered || isFocused ? 0.1 : 0.08
+      return isHovered || isFocused ? 0.12 : 0.08
     }
-    return isHovered || isFocused ? 0.68 : 0.58
+    return isHovered || isFocused ? 0.74 : 0.62
   }
 
-  private var glassTint: Color {
-    if isError {
-      return Color.oeDestructive.opacity(colorScheme == .dark ? 0.18 : 0.12)
-    }
-    if isFocused {
-      return accentColor.opacity(colorScheme == .dark ? 0.18 : 0.12)
-    }
-    return Color.white.opacity(colorScheme == .dark ? 0.08 : 0.1)
-  }
-
-  private var shadowColor: Color {
+  private var ambientShadow: Color {
     if isError || isFocused {
-      return Color.black.opacity(colorScheme == .dark ? 0.2 : 0.12)
+      return Color.black.opacity(colorScheme == .dark ? 0.22 : 0.12)
     }
     return colorScheme == .dark
       ? Color.black.opacity(0.18)
-      : Color.black.opacity(0.1)
+      : Color.black.opacity(0.08)
   }
 
   private var borderColor: Color {
@@ -105,12 +83,12 @@ struct NativeComposerInputSurface<Content: View>: View {
       return accentColor.opacity(0.45)
     }
     if isHovered {
-      return Color.white.opacity(colorScheme == .dark ? 0.24 : 0.78)
+      return Color.white.opacity(colorScheme == .dark ? 0.24 : 0.9)
     }
-    return Color.white.opacity(colorScheme == .dark ? 0.16 : 0.66)
+    return Color.white.opacity(colorScheme == .dark ? 0.16 : 0.74)
   }
 
-  private var inputMaterial: some View {
+  private var surfaceFill: some View {
     RoundedRectangle(cornerRadius: nativeComposerInputCornerRadius, style: .continuous)
       .fill(.ultraThinMaterial)
       .overlay {
@@ -122,7 +100,7 @@ struct NativeComposerInputSurface<Content: View>: View {
           .fill(
             LinearGradient(
               colors: [
-                Color.white.opacity(colorScheme == .dark ? 0.12 : 0.34),
+                Color.white.opacity(colorScheme == .dark ? 0.16 : 0.46),
                 Color.white.opacity(colorScheme == .dark ? 0.04 : 0.12),
                 Color.clear
               ],
@@ -133,15 +111,15 @@ struct NativeComposerInputSurface<Content: View>: View {
       }
   }
 
-  private var inputReflection: some View {
+  private var surfaceHighlight: some View {
     RoundedRectangle(cornerRadius: nativeComposerInputCornerRadius - 1, style: .continuous)
       .inset(by: 1)
       .stroke(
         LinearGradient(
           colors: [
-            Color.white.opacity(colorScheme == .dark ? 0.12 : 0.42),
+            Color.white.opacity(colorScheme == .dark ? 0.16 : 0.56),
             Color.white.opacity(0.02),
-            Color.white.opacity(colorScheme == .dark ? 0.06 : 0.2)
+            Color.black.opacity(colorScheme == .dark ? 0.1 : 0.04)
           ],
           startPoint: .topLeading,
           endPoint: .bottomTrailing
@@ -151,20 +129,21 @@ struct NativeComposerInputSurface<Content: View>: View {
       .allowsHitTesting(false)
   }
 
-  private var inputStroke: some View {
+  private var surfaceStroke: some View {
     RoundedRectangle(cornerRadius: nativeComposerInputCornerRadius, style: .continuous)
       .stroke(
         LinearGradient(
           colors: [
-            Color.white.opacity(colorScheme == .dark ? 0.2 : 0.7),
+            Color.white.opacity(colorScheme == .dark ? 0.22 : 0.82),
             borderColor,
-            Color.black.opacity(colorScheme == .dark ? 0.18 : 0.05)
+            Color.black.opacity(colorScheme == .dark ? 0.22 : 0.08)
           ],
           startPoint: .topLeading,
           endPoint: .bottomTrailing
         ),
         lineWidth: 1
       )
+      .allowsHitTesting(false)
   }
 
   private var focusRing: some View {
@@ -194,7 +173,7 @@ struct NativeComposerInlineIcon: View {
     Image(systemName: systemName)
       .font(.system(size: size, weight: .medium))
       .foregroundColor(color)
-      .frame(width: 36, height: 36)
+      .frame(width: nativeComposerInlineControlSize, height: nativeComposerInlineControlSize)
       .contentShape(Rectangle())
   }
 }

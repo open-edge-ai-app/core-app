@@ -20,7 +20,7 @@ struct NativePromptEditor: View {
   }
 
   private var editorHeight: CGFloat {
-    max(40, CGFloat(visibleLineCount) * lineHeight + 12)
+    max(36, CGFloat(visibleLineCount) * lineHeight + 8)
   }
 
   private var estimatedLineCount: Int {
@@ -54,13 +54,13 @@ struct NativePromptEditor: View {
           .font(.system(size: fontSize))
           .foregroundColor(.oeSecondaryText.opacity(0.72))
           .lineLimit(1)
-          .padding(.top, 8)
+          .padding(.top, 6)
           .padding(.leading, 5)
           .allowsHitTesting(false)
           .accessibilityHidden(true)
       }
     }
-    .frame(minHeight: 40)
+    .frame(minHeight: 36)
     .contentShape(Rectangle())
     .onTapGesture {
       focused.wrappedValue = true

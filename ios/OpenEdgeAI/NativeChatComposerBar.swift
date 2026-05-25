@@ -46,7 +46,7 @@ struct NativeChatComposerBar: View {
             .transition(.move(edge: .bottom).combined(with: .opacity))
         }
 
-        HStack(alignment: .center, spacing: 8) {
+        HStack(alignment: .center, spacing: 7) {
           attachButton
 
           NativeComposerInputSurface(
@@ -64,8 +64,8 @@ struct NativeChatComposerBar: View {
                 submitButton
               }
             }
-            .padding(.leading, 14)
-            .padding(.trailing, 8)
+            .padding(.leading, 12)
+            .padding(.trailing, 6)
             .padding(.vertical, 6)
           }
           .layoutPriority(1)
@@ -90,7 +90,7 @@ struct NativeChatComposerBar: View {
         accentColor: store.accentColor.color
       ) {
         Image(systemName: "plus")
-          .font(.system(size: 24, weight: .medium))
+          .font(.system(size: 22, weight: .medium))
           .foregroundColor(.oeText)
           .frame(width: nativeComposerAttachControlSize, height: nativeComposerAttachControlSize)
       }
@@ -158,7 +158,7 @@ struct NativeComposerSubmitIcon: View {
       accentColor: store.accentColor.color
     ) {
       Image(systemName: systemName)
-        .font(.system(size: 16, weight: .bold))
+        .font(.system(size: 15, weight: .bold))
         .foregroundColor(store.accentColor.foregroundColor)
         .frame(width: nativeComposerSubmitControlSize, height: nativeComposerSubmitControlSize)
     }

@@ -1,8 +1,8 @@
 import SwiftUI
 
-let nativeComposerInputCornerRadius: CGFloat = 30
-let nativeComposerAttachControlSize: CGFloat = 52
-let nativeComposerSubmitControlSize: CGFloat = 42
+let nativeComposerInputCornerRadius: CGFloat = 24
+let nativeComposerAttachControlSize: CGFloat = 48
+let nativeComposerSubmitControlSize: CGFloat = 38
 let nativeComposerScrollBottomPadding: CGFloat = 134
 
 struct NativeComposerInputSurface<Content: View>: View {

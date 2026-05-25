@@ -5,6 +5,8 @@ struct NativeProjectSessionsPage: View {
   @EnvironmentObject private var store: NativeChatStore
   var project: NativeProject
   @Binding var showingAttachmentOptions: Bool
+  var onPickPhotoOrVideo: () -> Void
+  var onPickFile: () -> Void
   var onSelectSession: (NativeChatSession) -> Void
   @State private var renameTarget: NativeRenameTarget?
 
@@ -35,7 +37,9 @@ struct NativeProjectSessionsPage: View {
 
         NativeProjectComposerBar(
           project: currentProject,
-          showingAttachmentOptions: $showingAttachmentOptions
+          showingAttachmentOptions: $showingAttachmentOptions,
+          onPickPhotoOrVideo: onPickPhotoOrVideo,
+          onPickFile: onPickFile
         )
       }
     }

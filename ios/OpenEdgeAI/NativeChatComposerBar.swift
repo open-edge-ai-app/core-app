@@ -4,6 +4,8 @@ struct NativeChatComposerBar: View {
   @EnvironmentObject private var store: NativeChatStore
   var project: NativeProject?
   @Binding var showingAttachmentOptions: Bool
+  var onPickPhotoOrVideo: () -> Void
+  var onPickFile: () -> Void
   @FocusState private var focused: Bool
 
   private var slashCommands: [NativeSlashCommand] {
@@ -83,20 +85,35 @@ struct NativeChatComposerBar: View {
 
   private var attachButton: some View {
     Button {
-      showingAttachmentOptions = true
+      withAnimation(.spring(response: 0.24, dampingFraction: 0.88)) {
+        showingAttachmentOptions.toggle()
+      }
     } label: {
       NativeComposerCircleSurface(
-        isActive: false,
+        isActive: showingAttachmentOptions,
         accentColor: store.accentColor.color
       ) {
         Image(systemName: "plus")
           .font(.system(size: 22, weight: .medium))
-          .foregroundColor(.oeText)
+          .foregroundColor(showingAttachmentOptions ? store.accentColor.foregroundColor : .oeText)
+          .rotationEffect(.degrees(showingAttachmentOptions ? 45 : 0))
           .frame(width: nativeComposerAttachControlSize, height: nativeComposerAttachControlSize)
       }
     }
     .buttonStyle(.plain)
     .accessibilityLabel(store.i18n.t(.chatAttachFile))
+    .overlay(alignment: .bottomLeading) {
+      if showingAttachmentOptions {
+        NativeAttachmentOptionsMenu(
+          onPickPhotoOrVideo: selectPhotoOrVideo,
+          onPickFile: selectFile
+        )
+        .environmentObject(store)
+        .offset(y: -(nativeComposerAttachControlSize + 10))
+        .transition(.move(edge: .bottom).combined(with: .opacity))
+      }
+    }
+    .zIndex(showingAttachmentOptions ? 3 : 0)
   }
 
   private var promptEditor: some View {
@@ -145,6 +162,81 @@ struct NativeChatComposerBar: View {
       store.inputText = "\(command.trigger) "
       focused = true
     }
+  }
+
+  private func selectPhotoOrVideo() {
+    closeAttachmentMenu()
+    onPickPhotoOrVideo()
+  }
+
+  private func selectFile() {
+    closeAttachmentMenu()
+    onPickFile()
+  }
+
+  private func closeAttachmentMenu() {
+    withAnimation(.spring(response: 0.22, dampingFraction: 0.9)) {
+      showingAttachmentOptions = false
+    }
+  }
+}
+
+private struct NativeAttachmentOptionsMenu: View {
+  @EnvironmentObject private var store: NativeChatStore
+  var onPickPhotoOrVideo: () -> Void
+  var onPickFile: () -> Void
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 2) {
+      menuButton(
+        title: store.i18n.t(.attachmentPhotoOrVideo),
+        systemImage: "photo.on.rectangle",
+        action: onPickPhotoOrVideo
+      )
+
+      Divider()
+        .overlay(Color.oeBorder.opacity(0.18))
+        .padding(.leading, 42)
+
+      menuButton(
+        title: store.i18n.t(.attachmentFile),
+        systemImage: "doc",
+        action: onPickFile
+      )
+    }
+    .padding(.vertical, 6)
+    .frame(width: 190, alignment: .leading)
+    .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+    .overlay {
+      RoundedRectangle(cornerRadius: 18, style: .continuous)
+        .fill(Color.white.opacity(0.12))
+        .allowsHitTesting(false)
+    }
+    .overlay {
+      RoundedRectangle(cornerRadius: 18, style: .continuous)
+        .stroke(Color.oeBorder.opacity(0.24), lineWidth: 1)
+        .allowsHitTesting(false)
+    }
+    .shadow(color: Color.black.opacity(0.1), radius: 18, x: 0, y: 8)
+  }
+
+  private func menuButton(title: String, systemImage: String, action: @escaping () -> Void) -> some View {
+    Button(action: action) {
+      HStack(spacing: 12) {
+        Image(systemName: systemImage)
+          .font(.system(size: 15, weight: .semibold))
+          .frame(width: 18)
+
+        Text(title)
+          .font(.system(size: 14, weight: .semibold))
+          .lineLimit(1)
+      }
+      .foregroundColor(.oeText)
+      .frame(maxWidth: .infinity, minHeight: 40, alignment: .leading)
+      .padding(.horizontal, 14)
+      .contentShape(Rectangle())
+    }
+    .buttonStyle(.plain)
   }
 }
 

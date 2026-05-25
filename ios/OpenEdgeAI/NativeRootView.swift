@@ -26,7 +26,11 @@ struct NativeRootView: View {
         ZStack(alignment: .bottom) {
           NativeChatTranscript(bottomPadding: nativeComposerScrollBottomPadding)
 
-          NativeInputBar(showingAttachmentOptions: $showingAttachmentOptions)
+          NativeInputBar(
+            showingAttachmentOptions: $showingAttachmentOptions,
+            onPickPhotoOrVideo: requestPhotoLibraryAccess,
+            onPickFile: openFileImporter
+          )
             .zIndex(2)
             .ignoresSafeArea(.container, edges: .bottom)
         }
@@ -37,7 +41,9 @@ struct NativeRootView: View {
         NativeSessionsView(
           isPresented: $showingSessions,
           showingSettings: $showingSettings,
-          showingAttachmentOptions: $showingAttachmentOptions
+          showingAttachmentOptions: $showingAttachmentOptions,
+          onPickPhotoOrVideo: requestPhotoLibraryAccess,
+          onPickFile: openFileImporter
         )
           .environmentObject(store)
           .transition(.move(edge: .leading))
@@ -48,23 +54,6 @@ struct NativeRootView: View {
     .sheet(isPresented: $showingSettings) {
       NativeSettingsView()
         .environmentObject(store)
-    }
-    .confirmationDialog(store.i18n.t(.attachmentAdd), isPresented: $showingAttachmentOptions, titleVisibility: .visible) {
-      Button {
-        requestPhotoLibraryAccess()
-      } label: {
-        Label(store.i18n.t(.attachmentPhotoOrVideo), systemImage: "photo.on.rectangle")
-      }
-
-      Button {
-        showingFileImporter = true
-      } label: {
-        Label(store.i18n.t(.attachmentFile), systemImage: "doc")
-      }
-
-      Button(store.i18n.t(.commonCancel), role: .cancel) {}
-    } message: {
-      Text(store.i18n.t(.attachmentDialogMessage))
     }
     .photosPicker(
       isPresented: $showingPhotoPicker,
@@ -126,6 +115,10 @@ struct NativeRootView: View {
     @unknown default:
       showingPhotoPicker = true
     }
+  }
+
+  private func openFileImporter() {
+    showingFileImporter = true
   }
 
   private func openAppSettings() {

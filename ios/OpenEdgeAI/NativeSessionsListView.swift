@@ -9,6 +9,8 @@ struct NativeSessionsView: View {
   @Binding var isPresented: Bool
   @Binding var showingSettings: Bool
   @Binding var showingAttachmentOptions: Bool
+  var onPickPhotoOrVideo: () -> Void
+  var onPickFile: () -> Void
   @EnvironmentObject private var store: NativeChatStore
   @State private var isSearchPresented = false
   @State private var isProjectCreatorPresented = false
@@ -206,7 +208,9 @@ struct NativeSessionsView: View {
         case .project(let project):
           NativeProjectSessionsPage(
             project: project,
-            showingAttachmentOptions: $showingAttachmentOptions
+            showingAttachmentOptions: $showingAttachmentOptions,
+            onPickPhotoOrVideo: onPickPhotoOrVideo,
+            onPickFile: onPickFile
           ) { session in
             store.selectSession(session)
             close()

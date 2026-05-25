@@ -41,59 +41,23 @@ enum NativeDynamicIslandPet: String, CaseIterable, Identifiable {
   }
 
   var primaryColor: Color {
-    switch self {
-    case .orbit:
-      return Color(red: 0.18, green: 0.58, blue: 1)
-    case .stacky:
-      return Color(red: 1, green: 0.68, blue: 0.20)
-    case .nullSignal:
-      return Color(red: 0.62, green: 0.36, blue: 1)
-    case .luma:
-      return Color(red: 0.22, green: 0.86, blue: 0.68)
-    case .flux:
-      return Color(red: 1, green: 0.38, blue: 0.34)
-    }
+    NativeDynamicIslandPetSprite.primaryColor(for: rawValue)
   }
 
   var secondaryColor: Color {
-    switch self {
-    case .orbit:
-      return Color(red: 0.55, green: 0.92, blue: 1)
-    case .stacky:
-      return Color(red: 1, green: 0.93, blue: 0.48)
-    case .nullSignal:
-      return Color(red: 0.90, green: 0.78, blue: 1)
-    case .luma:
-      return Color(red: 0.78, green: 1, blue: 0.42)
-    case .flux:
-      return Color(red: 1, green: 0.78, blue: 0.22)
-    }
+    NativeDynamicIslandPetSprite.secondaryColor(for: rawValue)
   }
 
   var outlineColor: Color {
-    switch self {
-    case .orbit:
-      return Color(red: 0.04, green: 0.12, blue: 0.24)
-    case .stacky:
-      return Color(red: 0.28, green: 0.17, blue: 0.04)
-    case .nullSignal:
-      return Color(red: 0.20, green: 0.08, blue: 0.36)
-    case .luma:
-      return Color(red: 0.04, green: 0.24, blue: 0.22)
-    case .flux:
-      return Color(red: 0.36, green: 0.08, blue: 0.05)
-    }
+    NativeDynamicIslandPetSprite.outlineColor(for: rawValue)
   }
 
   var eyeColor: Color {
-    switch self {
-    case .nullSignal:
-      return Color(uiColor: .white)
-    case .flux:
-      return Color(uiColor: .white)
-    default:
-      return Color(red: 0.03, green: 0.05, blue: 0.07)
-    }
+    NativeDynamicIslandPetSprite.eyeColor(for: rawValue)
+  }
+
+  var cheekColor: Color {
+    NativeDynamicIslandPetSprite.cheekColor(for: rawValue)
   }
 }
 

@@ -128,6 +128,8 @@
 		A5E00000000000000000001E /* NativeToolRegistry.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5F00000000000000000001E /* NativeToolRegistry.swift */; };
 		A5E00000000000000000001F /* NativeTodoTaskSupportingViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5F00000000000000000001F /* NativeTodoTaskSupportingViews.swift */; };
 		A5E000000000000000000020 /* NativeMarkdownBlock.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5F000000000000000000020 /* NativeMarkdownBlock.swift */; };
+		A6E000000000000000000001 /* NativeDynamicIslandPetSprites.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6F000000000000000000001 /* NativeDynamicIslandPetSprites.swift */; };
+		A6E000000000000000000002 /* NativeDynamicIslandPetSprites.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6F000000000000000000001 /* NativeDynamicIslandPetSprites.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -283,6 +285,7 @@
 		A5F00000000000000000001E /* NativeToolRegistry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = NativeToolRegistry.swift; path = OpenEdgeAI/NativeToolRegistry.swift; sourceTree = "<group>"; };
 		A5F00000000000000000001F /* NativeTodoTaskSupportingViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = NativeTodoTaskSupportingViews.swift; path = OpenEdgeAI/NativeTodoTaskSupportingViews.swift; sourceTree = "<group>"; };
 		A5F000000000000000000020 /* NativeMarkdownBlock.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = NativeMarkdownBlock.swift; path = OpenEdgeAI/NativeMarkdownBlock.swift; sourceTree = "<group>"; };
+		A6F000000000000000000001 /* NativeDynamicIslandPetSprites.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = NativeDynamicIslandPetSprites.swift; path = OpenEdgeAI/NativeDynamicIslandPetSprites.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -346,6 +349,7 @@
 				A3F00000000000000000000C /* NativeCitationTagRenderer.swift */,
 				A3F00000000000000000000D /* NativeContextCompressedNotice.swift */,
 				A3F00000000000000000000E /* NativeDynamicIslandModels.swift */,
+				A6F000000000000000000001 /* NativeDynamicIslandPetSprites.swift */,
 				A3F00000000000000000000F /* NativeEmptyChatView.swift */,
 				A3F000000000000000000010 /* NativeGeneralSettingsView.swift */,
 				A3F000000000000000000011 /* NativeInlineMarkdownText.swift */,
@@ -740,6 +744,7 @@
 				A5E00000000000000000001D /* NativeTodoEditorComponents.swift in Sources */,
 				A5E00000000000000000001E /* NativeToolRegistry.swift in Sources */,
 				A5E00000000000000000001F /* NativeTodoTaskSupportingViews.swift in Sources */,
+				A6E000000000000000000001 /* NativeDynamicIslandPetSprites.swift in Sources */,
 				D1A000000000000000000002 /* DynamicIslandActivityAttributes.swift in Sources */,
 				D1A000000000000000000005 /* NativeDynamicIslandLiveActivityController.swift in Sources */,
 				A1F4C9A12D0B4E8591F00001 /* AIEngineFoundationModelClient.swift in Sources */,
@@ -753,6 +758,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				D1A000000000000000000003 /* DynamicIslandActivityAttributes.swift in Sources */,
+				A6E000000000000000000002 /* NativeDynamicIslandPetSprites.swift in Sources */,
 				D1A000000000000000000009 /* OpenEdgeAIWidgetBundle.swift in Sources */,
 				D1A00000000000000000000B /* OpenEdgeAILiveActivityWidget.swift in Sources */,
 			);

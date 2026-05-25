@@ -132,6 +132,7 @@
 		A6E000000000000000000002 /* NativeDynamicIslandPetSprites.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6F000000000000000000001 /* NativeDynamicIslandPetSprites.swift */; };
 		A7E000000000000000000001 /* NativeOnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7F000000000000000000001 /* NativeOnboardingView.swift */; };
 		A9E000000000000000000001 /* NativeOnboardingIllustrations.swift in Sources */ = {isa = PBXBuildFile; fileRef = A9F000000000000000000001 /* NativeOnboardingIllustrations.swift */; };
+		A9E000000000000000000002 /* NativeOnboardingSketchComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = A9F000000000000000000002 /* NativeOnboardingSketchComponents.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -290,6 +291,7 @@
 		A6F000000000000000000001 /* NativeDynamicIslandPetSprites.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = NativeDynamicIslandPetSprites.swift; path = OpenEdgeAI/NativeDynamicIslandPetSprites.swift; sourceTree = "<group>"; };
 		A7F000000000000000000001 /* NativeOnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = NativeOnboardingView.swift; path = OpenEdgeAI/NativeOnboardingView.swift; sourceTree = "<group>"; };
 		A9F000000000000000000001 /* NativeOnboardingIllustrations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = NativeOnboardingIllustrations.swift; path = OpenEdgeAI/NativeOnboardingIllustrations.swift; sourceTree = "<group>"; };
+		A9F000000000000000000002 /* NativeOnboardingSketchComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = NativeOnboardingSketchComponents.swift; path = OpenEdgeAI/NativeOnboardingSketchComponents.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -368,6 +370,7 @@
 				A3F000000000000000000019 /* NativeModelStatus.swift */,
 				A7F000000000000000000001 /* NativeOnboardingView.swift */,
 				A9F000000000000000000001 /* NativeOnboardingIllustrations.swift */,
+				A9F000000000000000000002 /* NativeOnboardingSketchComponents.swift */,
 				A3F00000000000000000001A /* NativePersonalSettingsView.swift */,
 				A3F00000000000000000001B /* NativeProjectComposerBar.swift */,
 				A3F00000000000000000001C /* NativeProjectCreatorComponents.swift */,
@@ -744,6 +747,7 @@
 				A5E000000000000000000017 /* NativeChatStoreSearchProgress.swift in Sources */,
 				A7E000000000000000000001 /* NativeOnboardingView.swift in Sources */,
 				A9E000000000000000000001 /* NativeOnboardingIllustrations.swift in Sources */,
+				A9E000000000000000000002 /* NativeOnboardingSketchComponents.swift in Sources */,
 				A5E000000000000000000018 /* NativeTodoSupportingModels.swift in Sources */,
 				A5E000000000000000000019 /* NativeTodoSeedData.swift in Sources */,
 				A5E00000000000000000001A /* NativeTodoSettingsComponents.swift in Sources */,

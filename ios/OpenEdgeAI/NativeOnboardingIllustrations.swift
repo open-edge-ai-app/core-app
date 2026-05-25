@@ -10,416 +10,195 @@ enum NativeOnboardingScene {
 struct NativeOnboardingIllustration: View {
   var scene: NativeOnboardingScene
   var accentColor: NativeAccentColor
-  @State private var isAnimating = false
 
   var body: some View {
-    ZStack {
-      RoundedRectangle(cornerRadius: 30, style: .continuous)
-        .fill(Color.oeSurface.opacity(0.72))
-        .nativeLiquidGlass(cornerRadius: 30)
-        .nativeGlassStroke(cornerRadius: 30, color: Color.oeBorder.opacity(0.16))
+    TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { timeline in
+      let motion = NativeOnboardingMotion(date: timeline.date)
 
-      switch scene {
-      case .workspace:
-        NativeOnboardingChatCoreScene(accentColor: accentColor, isAnimating: isAnimating)
-      case .todo:
-        NativeOnboardingTodoCoreScene(accentColor: accentColor, isAnimating: isAnimating)
-      case .document:
-        NativeOnboardingProjectCoreScene(accentColor: accentColor, isAnimating: isAnimating)
-      case .progress:
-        NativeOnboardingIslandCoreScene(accentColor: accentColor, isAnimating: isAnimating)
+      ZStack {
+        NativeOnboardingSketchStage(accentColor: accentColor, motion: motion)
+
+        switch scene {
+        case .workspace:
+          NativeOnboardingChatSketchScene(accentColor: accentColor, motion: motion)
+        case .todo:
+          NativeOnboardingTodoSketchScene(accentColor: accentColor, motion: motion)
+        case .document:
+          NativeOnboardingProjectSketchScene(accentColor: accentColor, motion: motion)
+        case .progress:
+          NativeOnboardingIslandSketchScene(accentColor: accentColor, motion: motion)
+        }
       }
-    }
-    .clipShape(RoundedRectangle(cornerRadius: 30, style: .continuous))
-    .onAppear {
-      withAnimation(.easeInOut(duration: 1.35).repeatForever(autoreverses: true)) {
-        isAnimating = true
-      }
+      .clipShape(RoundedRectangle(cornerRadius: 32, style: .continuous))
     }
   }
 }
 
-private struct NativeOnboardingChatCoreScene: View {
+struct NativeOnboardingMotion {
+  var date: Date
+
+  private var time: TimeInterval {
+    date.timeIntervalSinceReferenceDate
+  }
+
+  func wave(speed: Double = 0.55, offset: Double = 0) -> CGFloat {
+    CGFloat(sin((time * speed + offset) * Double.pi * 2))
+  }
+
+  func float(_ amplitude: CGFloat, speed: Double = 0.55, offset: Double = 0) -> CGFloat {
+    wave(speed: speed, offset: offset) * amplitude
+  }
+
+  func scale(_ amplitude: CGFloat = 0.03, speed: Double = 0.55, offset: Double = 0) -> CGFloat {
+    1 + float(amplitude, speed: speed, offset: offset)
+  }
+
+  func progress(from start: CGFloat, to end: CGFloat, speed: Double = 0.55, offset: Double = 0) -> CGFloat {
+    let normalized = (wave(speed: speed, offset: offset) + 1) / 2
+    return start + (end - start) * normalized
+  }
+
+  func opacity(from start: Double, to end: Double, speed: Double = 0.55, offset: Double = 0) -> Double {
+    let normalized = Double((wave(speed: speed, offset: offset) + 1) / 2)
+    return start + (end - start) * normalized
+  }
+
+  func degrees(_ amplitude: Double, speed: Double = 0.55, offset: Double = 0) -> Double {
+    Double(wave(speed: speed, offset: offset)) * amplitude
+  }
+
+  func rotation(speed: Double = 0.7, offset: Double = 0) -> Double {
+    (time * speed + offset).truncatingRemainder(dividingBy: 1) * 360
+  }
+}
+
+private struct NativeOnboardingChatSketchScene: View {
   var accentColor: NativeAccentColor
-  var isAnimating: Bool
+  var motion: NativeOnboardingMotion
 
   var body: some View {
     ZStack {
-      NativeOnboardingMotionLines(color: accentColor.color, alignment: .topTrailing, isAnimating: isAnimating)
+      NativeSketchCurve(variant: 1)
+        .stroke(accentColor.color.opacity(0.18), style: NativeSketchStyle.thick)
+        .frame(width: 206, height: 112)
+        .offset(x: 26, y: -42)
 
       VStack(spacing: 18) {
-        NativeOnboardingPetBadge(pet: .orbit, motion: .resting, label: "Noa", size: 82, accentColor: accentColor)
-          .offset(y: isAnimating ? -5 : 3)
-          .scaleEffect(isAnimating ? 1.02 : 0.98)
+        HStack(alignment: .bottom, spacing: 12) {
+          NativeOnboardingPetActor(pet: .orbit, petMotion: .resting, size: 96)
+            .rotationEffect(.degrees(motion.degrees(2.6, speed: 0.34)))
+            .offset(x: motion.float(3, speed: 0.36), y: motion.float(6, speed: 0.42))
 
-        VStack(spacing: 10) {
-          NativeOnboardingBubble(
-            text: "Ask privately",
-            foreground: accentColor.foregroundColor,
-            background: accentColor.color,
-            alignment: .trailing
-          )
-          .offset(x: isAnimating ? -4 : 6)
-
-          NativeOnboardingBubble(
-            text: "Answer with context",
-            foreground: .oeText,
-            background: Color.oeBackground.opacity(0.84),
-            alignment: .leading
-          )
-          .offset(x: isAnimating ? 5 : -4)
-        }
-
-        HStack(spacing: 8) {
-          NativeOnboardingChip("ON DEVICE")
-          NativeOnboardingChip("PRIVATE")
-          NativeOnboardingChip("FOLLOW-UP")
-        }
-      }
-      .padding(26)
-    }
-  }
-}
-
-private struct NativeOnboardingTodoCoreScene: View {
-  var accentColor: NativeAccentColor
-  var isAnimating: Bool
-
-  var body: some View {
-    ZStack {
-      NativeOnboardingMotionLines(color: accentColor.color, alignment: .bottomTrailing, isAnimating: isAnimating)
-
-      VStack(spacing: 16) {
-        HStack(alignment: .bottom, spacing: 16) {
-          VStack(spacing: 10) {
-            NativeOnboardingTaskCard(title: "VP meeting", time: "4:00 PM", isDone: true, accentColor: accentColor)
-              .offset(x: isAnimating ? -5 : 4, y: isAnimating ? -2 : 2)
-            NativeOnboardingTaskCard(title: "Send summary", time: "Today", isDone: false, accentColor: accentColor)
-              .offset(x: isAnimating ? 4 : -4, y: isAnimating ? 2 : -2)
+          VStack(alignment: .leading, spacing: 10) {
+            NativeSketchBubble(text: "Private question", accentColor: accentColor, isAccent: true)
+              .offset(x: motion.float(7, speed: 0.32, offset: 0.16))
+            NativeSketchBubble(text: "Local answer", accentColor: accentColor, isAccent: false)
+              .offset(x: motion.float(6, speed: 0.32, offset: 0.66))
           }
-
-          NativeOnboardingWandPet(accentColor: accentColor, isAnimating: isAnimating)
-            .offset(y: isAnimating ? -7 : 3)
         }
 
-        NativeOnboardingArrowLabel(text: "Message → Todo")
-          .opacity(isAnimating ? 1 : 0.68)
+        NativeSketchPromptStrip(accentColor: accentColor, motion: motion)
+          .padding(.horizontal, 14)
       }
-      .padding(24)
+      .padding(.horizontal, 24)
     }
   }
 }
 
-private struct NativeOnboardingProjectCoreScene: View {
+private struct NativeOnboardingTodoSketchScene: View {
   var accentColor: NativeAccentColor
-  var isAnimating: Bool
+  var motion: NativeOnboardingMotion
 
   var body: some View {
     ZStack {
-      NativeOnboardingMotionLines(color: accentColor.color, alignment: .topLeading, isAnimating: isAnimating)
+      NativeSketchCurve(variant: 2)
+        .stroke(accentColor.color.opacity(0.16), style: NativeSketchStyle.thin)
+        .frame(width: 230, height: 126)
+        .offset(x: -6, y: 18)
 
-      VStack(spacing: 18) {
-        HStack(spacing: 10) {
-          NativeOnboardingContextTile(icon: "text.alignleft", title: "Prompt")
-            .offset(y: isAnimating ? -4 : 4)
-          NativeOnboardingContextTile(icon: "doc", title: "Files")
-            .offset(y: isAnimating ? 4 : -3)
-          NativeOnboardingContextTile(icon: "bubble.left.and.bubble.right", title: "Chats")
-            .offset(y: isAnimating ? -2 : 5)
+      HStack(alignment: .center, spacing: 14) {
+        VStack(spacing: 12) {
+          NativeSketchTaskRow(title: "VP meeting", time: "4:00 PM", isDone: true, accentColor: accentColor)
+            .offset(x: motion.float(5, speed: 0.38, offset: 0.14), y: motion.float(3, speed: 0.48, offset: 0.28))
+          NativeSketchTaskRow(title: "Send summary", time: "Today", isDone: false, accentColor: accentColor)
+            .offset(x: motion.float(5, speed: 0.38, offset: 0.62), y: motion.float(3, speed: 0.48, offset: 0.76))
         }
 
-        Image(systemName: "arrow.down")
-          .font(.system(size: 18, weight: .heavy))
-          .foregroundColor(.oeMutedText)
-          .offset(y: isAnimating ? 5 : -2)
-
-        NativeOnboardingProjectFolder(accentColor: accentColor)
-          .scaleEffect(isAnimating ? 1.02 : 0.98)
-
-        HStack(spacing: 12) {
-          NativeOnboardingPetBadge(pet: .nullSignal, motion: .resting, label: "Sia", size: 58, accentColor: accentColor)
-            .offset(x: isAnimating ? -4 : 3)
-          NativeOnboardingPetBadge(pet: .luma, motion: .running, label: "Lumi", size: 58, accentColor: accentColor)
-            .offset(x: isAnimating ? 5 : -3, y: isAnimating ? -4 : 3)
-        }
+        NativeOnboardingWandPet(accentColor: accentColor, motion: motion)
+          .offset(y: motion.float(8, speed: 0.58))
       }
-      .padding(24)
+      .padding(.horizontal, 24)
+
+      NativeSketchCaption(text: "message becomes a task")
+        .offset(y: 106)
+        .opacity(motion.opacity(from: 0.58, to: 0.92, speed: 0.44))
     }
   }
 }
 
-private struct NativeOnboardingIslandCoreScene: View {
+private struct NativeOnboardingProjectSketchScene: View {
   var accentColor: NativeAccentColor
-  var isAnimating: Bool
+  var motion: NativeOnboardingMotion
 
   var body: some View {
     ZStack {
-      NativeOnboardingMotionLines(color: Color.oeText, alignment: .bottomLeading, isAnimating: isAnimating)
+      NativeSketchCurve(variant: 0)
+        .stroke(Color.oeText.opacity(0.10), style: NativeSketchStyle.thin)
+        .frame(width: 246, height: 136)
+        .offset(x: 4, y: -16)
 
-      VStack(spacing: 18) {
-        NativeOnboardingIslandPill(isAnimating: isAnimating)
-          .offset(y: isAnimating ? -5 : 3)
-
-        VStack(spacing: 10) {
-          Text("Working in background")
-            .font(.system(size: 15, weight: .heavy))
-            .foregroundColor(.oeText)
-
-          NativeOnboardingProgressTrack(accentColor: accentColor, isAnimating: isAnimating)
-        }
-        .padding(18)
-        .background(Color.oeBackground.opacity(0.82), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
-
-        NativeOnboardingPetBadge(pet: .flux, motion: .running, label: "Rio", size: 68, accentColor: accentColor)
-          .offset(y: isAnimating ? 4 : -3)
-      }
-      .padding(26)
-    }
-  }
-}
-
-private struct NativeOnboardingPetBadge: View {
-  var pet: NativeDynamicIslandPet
-  var motion: NativeDynamicIslandPetMotion
-  var label: String
-  var size: CGFloat
-  var accentColor: NativeAccentColor
-
-  var body: some View {
-    VStack(spacing: 4) {
-      NativeDynamicIslandPetView(pet: pet, motion: motion, size: size)
-        .frame(width: size + 14, height: size + 10)
-
-      Text(label)
-        .font(.system(size: 10, weight: .black))
-        .foregroundColor(.oeSecondaryText)
-    }
-    .padding(10)
-    .background(Color.oeBackground.opacity(0.76), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
-    .nativeGlassStroke(cornerRadius: 20, color: accentColor.color.opacity(0.12))
-  }
-}
-
-private struct NativeOnboardingBubble: View {
-  var text: String
-  var foreground: Color
-  var background: Color
-  var alignment: Alignment
-
-  var body: some View {
-    Text(text)
-      .font(.system(size: 15, weight: .heavy))
-      .foregroundColor(foreground)
-      .padding(.horizontal, 18)
-      .frame(height: 42)
-      .background(background, in: Capsule(style: .continuous))
-      .frame(maxWidth: .infinity, alignment: alignment)
-  }
-}
-
-private struct NativeOnboardingTaskCard: View {
-  var title: String
-  var time: String
-  var isDone: Bool
-  var accentColor: NativeAccentColor
-
-  var body: some View {
-    HStack(spacing: 10) {
-      Image(systemName: isDone ? "checkmark.circle.fill" : "circle")
-        .font(.system(size: 21, weight: .semibold))
-        .foregroundColor(isDone ? accentColor.color : .oeMutedText)
-
-      VStack(alignment: .leading, spacing: 3) {
-        Text(title)
-          .font(.system(size: 14, weight: .heavy))
-          .foregroundColor(.oeText)
-        Text(time)
-          .font(.system(size: 11, weight: .bold))
-          .foregroundColor(.oeMutedText)
-      }
-
-      Spacer()
-    }
-    .padding(.horizontal, 14)
-    .frame(width: 180, height: 60)
-    .background(Color.oeBackground.opacity(0.82), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-    .nativeGlassStroke(cornerRadius: 18, color: Color.oeBorder.opacity(0.18))
-  }
-}
-
-private struct NativeOnboardingWandPet: View {
-  var accentColor: NativeAccentColor
-  var isAnimating: Bool
-
-  var body: some View {
-    ZStack(alignment: .topTrailing) {
-      NativeOnboardingPetBadge(pet: .stacky, motion: .running, label: "Mino", size: 66, accentColor: accentColor)
-
-      Rectangle()
-        .fill(Color.oeText)
-        .frame(width: 2, height: 34)
-        .rotationEffect(.degrees(isAnimating ? 52 : 38))
-        .offset(x: 9, y: 2)
-
-      ForEach(0..<4, id: \.self) { index in
-        Image(systemName: "sparkle")
-          .font(.system(size: index == 0 ? 10 : 7, weight: .bold))
-          .foregroundColor(accentColor.color)
-          .offset(x: CGFloat(index * 11 - 13), y: CGFloat(index.isMultiple(of: 2) ? -12 : 0))
-          .scaleEffect(isAnimating ? 1.18 : 0.82)
-          .opacity(isAnimating ? 1 : 0.58)
-      }
-    }
-  }
-}
-
-private struct NativeOnboardingContextTile: View {
-  var icon: String
-  var title: String
-
-  var body: some View {
-    VStack(spacing: 8) {
-      Image(systemName: icon)
-        .font(.system(size: 19, weight: .bold))
-      Text(title)
-        .font(.system(size: 10, weight: .heavy))
-    }
-    .foregroundColor(.oeText)
-    .frame(maxWidth: .infinity)
-    .frame(height: 76)
-    .background(Color.oeBackground.opacity(0.82), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-    .nativeGlassStroke(cornerRadius: 18, color: Color.oeBorder.opacity(0.16))
-  }
-}
-
-private struct NativeOnboardingProjectFolder: View {
-  var accentColor: NativeAccentColor
-
-  var body: some View {
-    HStack(spacing: 12) {
-      Image(systemName: "folder.fill")
-        .font(.system(size: 31, weight: .bold))
-        .foregroundColor(accentColor.color)
-
-      VStack(alignment: .leading, spacing: 4) {
-        Text("Project Context")
-          .font(.system(size: 16, weight: .heavy))
-          .foregroundColor(.oeText)
-        Text("One focused workspace")
-          .font(.system(size: 11, weight: .bold))
-          .foregroundColor(.oeSecondaryText)
-      }
-
-      Spacer()
-    }
-    .padding(16)
-    .background(Color.oeBackground.opacity(0.84), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
-    .nativeGlassStroke(cornerRadius: 22, color: accentColor.color.opacity(0.16))
-  }
-}
-
-private struct NativeOnboardingIslandPill: View {
-  var isAnimating: Bool
-
-  var body: some View {
-    Capsule(style: .continuous)
-      .fill(Color.oeText)
-      .frame(width: 192, height: 54)
-      .overlay {
+      VStack(spacing: 14) {
         HStack(spacing: 12) {
-          NativeDynamicIslandPetView(pet: .flux, motion: .running, size: 34)
-            .frame(width: 42, height: 38)
+          NativeSketchPaperNote(icon: "doc.text", title: "Brief")
+            .offset(y: motion.float(6, speed: 0.36, offset: 0.08))
+          NativeSketchPaperNote(icon: "paperclip", title: "Files")
+            .offset(y: motion.float(6, speed: 0.36, offset: 0.42))
+          NativeSketchPaperNote(icon: "message", title: "Chats")
+            .offset(y: motion.float(6, speed: 0.36, offset: 0.74))
+        }
 
-          VStack(alignment: .leading, spacing: 4) {
-            Text("Generating")
-              .font(.system(size: 12, weight: .heavy))
-              .foregroundColor(.white)
-            Capsule(style: .continuous)
-              .fill(Color.white.opacity(0.78))
-              .frame(width: isAnimating ? 98 : 58, height: 4)
+        ZStack(alignment: .top) {
+          NativeSketchFolder(accentColor: accentColor)
+            .offset(y: 16)
+            .scaleEffect(motion.scale(0.02, speed: 0.38, offset: 0.22))
+
+          HStack(spacing: 26) {
+            NativeOnboardingPetActor(pet: .luma, petMotion: .running, size: 58)
+              .offset(x: motion.float(8, speed: 0.45, offset: 0.12), y: motion.float(5, speed: 0.42, offset: 0.32))
+            NativeOnboardingPetActor(pet: .nullSignal, petMotion: .resting, size: 58)
+              .offset(x: motion.float(6, speed: 0.40, offset: 0.70), y: motion.float(4, speed: 0.44, offset: 0.10))
           }
-
-          NativeOnboardingSpinner(isAnimating: isAnimating)
-            .frame(width: 18, height: 18)
+          .offset(y: -10)
         }
+        .frame(height: 126)
       }
-  }
-}
-
-private struct NativeOnboardingChip: View {
-  var title: String
-
-  init(_ title: String) {
-    self.title = title
-  }
-
-  var body: some View {
-    Text(title)
-      .font(.system(size: 9, weight: .black))
-      .foregroundColor(.oeSecondaryText)
-      .padding(.horizontal, 10)
-      .frame(height: 26)
-      .background(Color.oeBackground.opacity(0.76), in: Capsule(style: .continuous))
-  }
-}
-
-private struct NativeOnboardingArrowLabel: View {
-  var text: String
-
-  var body: some View {
-    Text(text)
-      .font(.system(size: 12, weight: .heavy))
-      .foregroundColor(.oeSecondaryText)
-      .padding(.horizontal, 14)
-      .frame(height: 34)
-      .background(Color.oeBackground.opacity(0.72), in: Capsule(style: .continuous))
-  }
-}
-
-private struct NativeOnboardingMotionLines: View {
-  var color: Color
-  var alignment: Alignment
-  var isAnimating: Bool
-
-  var body: some View {
-    VStack(alignment: .leading, spacing: 10) {
-      ForEach(0..<3, id: \.self) { index in
-        Capsule(style: .continuous)
-          .fill(color.opacity(0.10 - Double(index) * 0.02))
-          .frame(width: CGFloat(128 - index * 28), height: 8)
-          .offset(x: isAnimating ? CGFloat(index * 12) : CGFloat(-index * 8))
-      }
+      .padding(.horizontal, 24)
     }
-    .rotationEffect(.degrees(alignment == .bottomLeading ? -18 : 18))
-    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: alignment)
-    .padding(24)
   }
 }
 
-private struct NativeOnboardingProgressTrack: View {
+private struct NativeOnboardingIslandSketchScene: View {
   var accentColor: NativeAccentColor
-  var isAnimating: Bool
+  var motion: NativeOnboardingMotion
 
   var body: some View {
-    ZStack(alignment: .leading) {
-      Capsule(style: .continuous)
-        .fill(Color.oeMutedText.opacity(0.16))
-        .frame(width: 180, height: 8)
+    ZStack {
+      NativeSketchCurve(variant: 3)
+        .stroke(accentColor.color.opacity(0.15), style: NativeSketchStyle.thick)
+        .frame(width: 240, height: 138)
+        .offset(y: 22)
 
-      Capsule(style: .continuous)
-        .fill(accentColor.color)
-        .frame(width: isAnimating ? 152 : 82, height: 8)
+      VStack(spacing: 18) {
+        NativeSketchIslandPill(accentColor: accentColor, motion: motion)
+          .offset(y: motion.float(5, speed: 0.42, offset: 0.18))
+
+        NativeSketchProgressPanel(accentColor: accentColor, motion: motion)
+
+        NativeOnboardingPetActor(pet: .flux, petMotion: .running, size: 76)
+          .rotationEffect(.degrees(motion.degrees(3, speed: 0.46, offset: 0.2)))
+          .offset(y: motion.float(7, speed: 0.52, offset: 0.62))
+      }
+      .padding(.horizontal, 26)
     }
-  }
-}
-
-private struct NativeOnboardingSpinner: View {
-  var isAnimating = false
-
-  var body: some View {
-    Circle()
-      .trim(from: 0.08, to: 0.72)
-      .stroke(.white.opacity(0.84), style: StrokeStyle(lineWidth: 3, lineCap: .round))
-      .rotationEffect(.degrees(isAnimating ? 392 : 32))
   }
 }

@@ -150,6 +150,96 @@ struct NativeSketchPromptStrip: View {
   }
 }
 
+struct NativeSketchSentChatBar: View {
+  var accentColor: NativeAccentColor
+  var motion: NativeOnboardingMotion
+
+  var body: some View {
+    HStack(spacing: 9) {
+      Image(systemName: "paperplane.fill")
+        .font(.system(size: 13, weight: .black))
+        .foregroundColor(accentColor.color)
+
+      VStack(alignment: .leading, spacing: 4) {
+        Text("Message sent")
+          .font(.system(size: 9, weight: .black))
+          .foregroundColor(.oeSecondaryText)
+
+        HStack(spacing: 4) {
+          ForEach(0..<8, id: \.self) { index in
+            Rectangle()
+              .fill(index < 5 ? Color.oeText.opacity(0.52) : Color.oeText.opacity(0.14))
+              .frame(width: index == 4 ? 18 : 10, height: 5)
+          }
+        }
+      }
+
+      Spacer(minLength: 0)
+
+      NativeSketchSendButton(accentColor: accentColor, motion: motion)
+        .scaleEffect(0.86)
+    }
+    .padding(.horizontal, 12)
+    .frame(height: 46)
+    .nativePixelPanel(background: Color.oeBackground.opacity(0.64), border: Color.oeText.opacity(0.11))
+  }
+}
+
+struct NativeSketchDetailedResponsePanel: View {
+  var accentColor: NativeAccentColor
+  var motion: NativeOnboardingMotion
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 8) {
+      HStack(spacing: 7) {
+        Image(systemName: "cpu")
+          .font(.system(size: 12, weight: .black))
+          .foregroundColor(accentColor.color)
+        Text("Detailed answer")
+          .font(.system(size: 13, weight: .black))
+          .foregroundColor(.oeText)
+      }
+
+      NativeSketchResponseLine(icon: "text.alignleft", title: "summary", width: 104, color: .oeText)
+      NativeSketchResponseLine(icon: "list.number", title: "steps", width: motion.progress(from: 64, to: 112, speed: 0.38, offset: 0.28), color: accentColor.color)
+      NativeSketchResponseLine(icon: "arrow.turn.down.right", title: "follow-up", width: 88, color: .oeSecondaryText)
+    }
+    .padding(.horizontal, 12)
+    .padding(.vertical, 10)
+    .frame(width: 184, height: 116, alignment: .topLeading)
+    .nativePixelPanel(background: Color.oeBackground.opacity(0.70), border: accentColor.color.opacity(0.24))
+    .overlay(alignment: .leading) {
+      NativePixelTail()
+        .fill(Color.oeBackground.opacity(0.70))
+        .frame(width: 16, height: 14)
+        .rotationEffect(.degrees(180))
+        .offset(x: -13, y: 24)
+    }
+  }
+}
+
+private struct NativeSketchResponseLine: View {
+  var icon: String
+  var title: String
+  var width: CGFloat
+  var color: Color
+
+  var body: some View {
+    HStack(spacing: 6) {
+      Image(systemName: icon)
+        .font(.system(size: 9, weight: .black))
+        .frame(width: 12)
+      Text(title)
+        .font(.system(size: 10, weight: .black))
+        .frame(width: 54, alignment: .leading)
+      Rectangle()
+        .fill(color.opacity(0.72))
+        .frame(width: width, height: 5)
+    }
+    .foregroundColor(color)
+  }
+}
+
 struct NativeSketchTaskRow: View {
   var title: String
   var time: String

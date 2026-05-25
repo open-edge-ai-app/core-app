@@ -82,28 +82,28 @@ private struct NativeOnboardingChatSketchScene: View {
         .frame(width: 206, height: 112)
         .offset(x: 26, y: -42)
 
-      NativeSketchSceneBadge(icon: "lock.shield", title: "On-device chat", accentColor: accentColor)
+      NativeSketchSceneBadge(icon: "bubble.left.and.text.bubble.right", title: "Chat response", accentColor: accentColor)
         .offset(y: -124)
         .zIndex(2)
 
-      VStack(spacing: 18) {
-        HStack(alignment: .bottom, spacing: 12) {
-          NativeOnboardingPetActor(pet: .orbit, petMotion: .resting, size: 96)
-            .rotationEffect(.degrees(motion.degrees(2.6, speed: 0.34)))
-            .offset(x: motion.float(3, speed: 0.36), y: motion.float(6, speed: 0.42))
+      VStack(spacing: 12) {
+        NativeSketchSentChatBar(accentColor: accentColor, motion: motion)
+          .padding(.horizontal, 12)
 
-          VStack(alignment: .leading, spacing: 10) {
-            NativeSketchBubble(icon: "lock", text: "Ask on device", accentColor: accentColor, isAccent: true)
-              .offset(x: motion.float(7, speed: 0.32, offset: 0.16))
-            NativeSketchBubble(icon: "cpu", text: "Local answer", accentColor: accentColor, isAccent: false)
-              .offset(x: motion.float(6, speed: 0.32, offset: 0.66))
-          }
+        HStack(alignment: .bottom, spacing: 10) {
+          NativeOnboardingPetActor(pet: .orbit, petMotion: .resting, size: 78)
+            .rotationEffect(.degrees(motion.degrees(2.6, speed: 0.34)))
+            .offset(x: motion.float(3, speed: 0.36), y: motion.float(6, speed: 0.42) + 4)
+
+          NativeSketchDetailedResponsePanel(accentColor: accentColor, motion: motion)
+            .offset(x: motion.float(5, speed: 0.32, offset: 0.20))
         }
 
-        NativeSketchPromptStrip(accentColor: accentColor, motion: motion)
-          .padding(.horizontal, 14)
+        NativeSketchFlowCaption(text: "send chat  ->  pet answer  ->  details", accentColor: accentColor)
+          .opacity(motion.opacity(from: 0.62, to: 0.96, speed: 0.46, offset: 0.18))
       }
-      .padding(.horizontal, 24)
+      .padding(.horizontal, 22)
+      .offset(y: 10)
     }
   }
 }

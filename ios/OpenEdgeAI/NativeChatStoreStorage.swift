@@ -7,7 +7,12 @@ import PhotosUI
 
 @MainActor
 extension NativeChatStore {
-  func mutateSession(_ id: String, _ mutation: (inout NativeChatSession) -> Void) {
+  func mutateSession(
+    _ id: String,
+    persist: Bool = true,
+    resort: Bool = true,
+    _ mutation: (inout NativeChatSession) -> Void
+  ) {
     guard let index = sessions.firstIndex(where: { $0.id == id }) else {
       return
     }
@@ -15,8 +20,13 @@ extension NativeChatStore {
     objectWillChange.send()
     mutation(&sessions[index])
     sessions[index].updatedAt = Date()
-    sessions.sort { $0.updatedAt > $1.updatedAt }
-    saveSessions()
+    sessionMutationRevision &+= 1
+    if resort {
+      sessions.sort { $0.updatedAt > $1.updatedAt }
+    }
+    if persist {
+      saveSessions()
+    }
   }
 
   func mutateTodoItem(_ id: String, _ mutation: (inout NativeTodoItem) -> Void) {

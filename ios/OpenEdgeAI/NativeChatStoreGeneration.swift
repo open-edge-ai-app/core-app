@@ -139,6 +139,7 @@ extension NativeChatStore {
 
   func streamResponse(prompt: String, assistantId: String, sessionId: String) {
     let model = selectedModel
+    resetPendingStreamBuffer(for: assistantId)
     let didCompressContext = NativePromptCompressor.estimatedTokens(prompt) > NativePromptCompressor.maxInputTokens
       || NativePromptCompressor.containsCompressionMarker(prompt)
     let compactedPrompt = NativePromptCompressor.clippedPreservingEdges(
@@ -171,7 +172,7 @@ extension NativeChatStore {
   }
 
   func setContextCompressionNotice(_ isCompressed: Bool, to assistantId: String, in sessionId: String) {
-    mutateSession(sessionId) { session in
+    mutateSession(sessionId, persist: false, resort: false) { session in
       guard let index = session.messages.firstIndex(where: { $0.id == assistantId }) else {
         return
       }
@@ -184,15 +185,54 @@ extension NativeChatStore {
     guard isGenerating, activeAssistantMessageId == assistantId else {
       return
     }
-    mutateSession(sessionId) { session in
+
+    pendingStreamChunks[assistantId, default: ""] += chunk
+    scheduleStreamFlush(to: assistantId, in: sessionId)
+  }
+
+  func scheduleStreamFlush(to assistantId: String, in sessionId: String) {
+    guard streamFlushTasks[assistantId] == nil else {
+      return
+    }
+
+    streamFlushTasks[assistantId] = Task { [weak self] in
+      try? await Task.sleep(nanoseconds: self?.streamFlushIntervalNanoseconds ?? 80_000_000)
+      await MainActor.run { [weak self] in
+        self?.flushPendingStreamChunks(to: assistantId, in: sessionId, persist: false)
+      }
+    }
+  }
+
+  func flushPendingStreamChunks(to assistantId: String, in sessionId: String, persist: Bool) {
+    streamFlushTasks[assistantId]?.cancel()
+    streamFlushTasks[assistantId] = nil
+
+    guard let pending = pendingStreamChunks[assistantId],
+          !pending.isEmpty,
+          isGenerating,
+          activeAssistantMessageId == assistantId
+    else {
+      pendingStreamChunks[assistantId] = nil
+      return
+    }
+
+    pendingStreamChunks[assistantId] = nil
+
+    mutateSession(sessionId, persist: persist, resort: persist) { session in
       guard let index = session.messages.firstIndex(where: { $0.id == assistantId }) else {
         return
       }
       if isSearchProgressText(session.messages[index].text) {
         session.messages[index].text = ""
       }
-      session.messages[index].text += chunk
+      session.messages[index].text += pending
     }
+  }
+
+  func resetPendingStreamBuffer(for assistantId: String) {
+    streamFlushTasks[assistantId]?.cancel()
+    streamFlushTasks[assistantId] = nil
+    pendingStreamChunks[assistantId] = nil
   }
 
   func finishGeneration(message: String?, error: String?, assistantId: String, sessionId: String) {
@@ -200,6 +240,7 @@ extension NativeChatStore {
       return
     }
 
+    flushPendingStreamChunks(to: assistantId, in: sessionId, persist: true)
     stopSearchProgress(for: assistantId, in: sessionId, clearMessage: false)
 
     mutateSession(sessionId) { session in
@@ -257,7 +298,7 @@ extension NativeChatStore {
       return
     }
 
-    mutateSession(sessionId) { session in
+    mutateSession(sessionId, persist: false, resort: false) { session in
       guard let index = session.messages.firstIndex(where: { $0.id == assistantId }),
             isSearchProgressText(session.messages[index].text)
       else {
@@ -288,7 +329,7 @@ extension NativeChatStore {
     }
     let progressText = "\(elapsedText) 동안 검색하는 중..."
 
-    mutateSession(sessionId) { session in
+    mutateSession(sessionId, persist: false, resort: false) { session in
       guard let index = session.messages.firstIndex(where: { $0.id == assistantId }),
             session.messages[index].text.isEmpty || isSearchProgressText(session.messages[index].text)
       else {

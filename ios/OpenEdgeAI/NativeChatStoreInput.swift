@@ -113,6 +113,7 @@ extension NativeChatStore {
     let gemmaCancelled = AIEngineGemmaModelClient.shared.cancelActiveGeneration()
 
     if let activeRequestSessionId, let activeAssistantMessageId {
+      flushPendingStreamChunks(to: activeAssistantMessageId, in: activeRequestSessionId, persist: true)
       stopSearchProgress(for: activeAssistantMessageId, in: activeRequestSessionId, clearMessage: false)
       mutateSession(activeRequestSessionId) { session in
         if let index = session.messages.firstIndex(where: { $0.id == activeAssistantMessageId }),

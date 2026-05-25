@@ -51,6 +51,10 @@ final class NativeChatStore: ObservableObject {
   @Published var activeRequestSessionId: String?
   var generationBackgroundTaskIdentifier: UIBackgroundTaskIdentifier = .invalid
   var searchProgressTasks: [String: Task<Void, Never>] = [:]
+  var pendingStreamChunks: [String: String] = [:]
+  var streamFlushTasks: [String: Task<Void, Never>] = [:]
+  var sessionMutationRevision = 0
+  let streamFlushIntervalNanoseconds: UInt64 = 80_000_000
   let deviceContextProvider = NativeDeviceContextProvider()
   let localKnowledgeStore = NativeLocalKnowledgeStore.shared
   let searchFallbackRequestText = "현재 대화 내용을 기반으로 검색해서 내용을 개선해줘."

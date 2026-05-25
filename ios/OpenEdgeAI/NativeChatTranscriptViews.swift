@@ -6,14 +6,16 @@ struct NativeChatTranscript: View {
   var bottomPadding: CGFloat = 24
 
   var body: some View {
+    let messages = store.currentMessages
+
     ScrollViewReader { proxy in
       ScrollView {
         LazyVStack(alignment: .leading, spacing: 18) {
-          if store.currentMessages.isEmpty {
+          if messages.isEmpty {
             NativeEmptyChatView()
               .padding(.top, 80)
           } else {
-            ForEach(store.currentMessages) { message in
+            ForEach(messages) { message in
               NativeMessageView(message: message)
                 .id(message.id)
             }
@@ -32,7 +34,7 @@ struct NativeChatTranscript: View {
         NativeChatTranscriptEdgeFade(edge: .top, height: 128)
           .ignoresSafeArea(edges: .top)
       }
-      .onChange(of: store.currentMessages) { _, _ in
+      .onChange(of: store.sessionMutationRevision) { _, _ in
         withAnimation(.easeOut(duration: 0.2)) {
           proxy.scrollTo("bottom", anchor: .bottom)
         }

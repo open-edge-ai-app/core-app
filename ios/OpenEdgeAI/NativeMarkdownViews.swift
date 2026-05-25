@@ -33,7 +33,7 @@ struct NativeMarkdownBlock: Identifiable {
     case divider
   }
 
-  let id = UUID()
+  let id: Int
   let kind: Kind
 }
 
@@ -44,12 +44,18 @@ enum NativeMarkdownParser {
     var blocks: [NativeMarkdownBlock] = []
     var paragraphLines: [String] = []
     var index = 0
+    var blockId = 0
+
+    func appendBlock(_ kind: NativeMarkdownBlock.Kind) {
+      blocks.append(.init(id: blockId, kind: kind))
+      blockId += 1
+    }
 
     func flushParagraph() {
       guard !paragraphLines.isEmpty else {
         return
       }
-      blocks.append(.init(kind: .paragraph(paragraphLines.joined(separator: "\n"))))
+      appendBlock(.paragraph(paragraphLines.joined(separator: "\n")))
       paragraphLines.removeAll()
     }
 
@@ -77,27 +83,27 @@ enum NativeMarkdownParser {
           codeLines.append(lines[index])
           index += 1
         }
-        blocks.append(.init(kind: .code(language: language, text: codeLines.joined(separator: "\n"))))
+        appendBlock(.code(language: language, text: codeLines.joined(separator: "\n")))
         continue
       }
 
       if let heading = heading(in: trimmed) {
         flushParagraph()
-        blocks.append(.init(kind: .heading(level: heading.level, text: heading.text)))
+        appendBlock(.heading(level: heading.level, text: heading.text))
         index += 1
         continue
       }
 
       if let table = table(startingAt: index, in: lines) {
         flushParagraph()
-        blocks.append(.init(kind: .table(headers: table.headers, rows: table.rows)))
+        appendBlock(.table(headers: table.headers, rows: table.rows))
         index = table.nextIndex
         continue
       }
 
       if isDivider(trimmed) {
         flushParagraph()
-        blocks.append(.init(kind: .divider))
+        appendBlock(.divider)
         index += 1
         continue
       }
@@ -110,7 +116,7 @@ enum NativeMarkdownParser {
           items.append(item)
           index += 1
         }
-        blocks.append(.init(kind: .unorderedList(items)))
+        appendBlock(.unorderedList(items))
         continue
       }
 
@@ -122,7 +128,7 @@ enum NativeMarkdownParser {
           items.append(item)
           index += 1
         }
-        blocks.append(.init(kind: .orderedList(items)))
+        appendBlock(.orderedList(items))
         continue
       }
 
@@ -134,7 +140,7 @@ enum NativeMarkdownParser {
           quoteLines.append(quote)
           index += 1
         }
-        blocks.append(.init(kind: .quote(quoteLines.joined(separator: "\n"))))
+        appendBlock(.quote(quoteLines.joined(separator: "\n")))
         continue
       }
 
@@ -143,7 +149,10 @@ enum NativeMarkdownParser {
     }
 
     flushParagraph()
-    return blocks.isEmpty ? [.init(kind: .paragraph(markdown))] : blocks
+    if blocks.isEmpty {
+      appendBlock(.paragraph(markdown))
+    }
+    return blocks
   }
 
   private static func codeFence(in line: String) -> (marker: String, language: String?)? {

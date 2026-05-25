@@ -90,13 +90,12 @@ struct NativeChatComposerBar: View {
       }
     } label: {
       NativeComposerCircleSurface(
-        isActive: showingAttachmentOptions,
+        isActive: false,
         accentColor: store.accentColor.color
       ) {
         Image(systemName: "plus")
           .font(.system(size: 22, weight: .medium))
-          .foregroundColor(showingAttachmentOptions ? store.accentColor.foregroundColor : .oeText)
-          .rotationEffect(.degrees(showingAttachmentOptions ? 45 : 0))
+          .foregroundColor(.oeText)
           .frame(width: nativeComposerAttachControlSize, height: nativeComposerAttachControlSize)
       }
     }

@@ -18,8 +18,8 @@ struct NativeOnboardingSketchStage: View {
               .frame(width: isAccent ? 11 : 7, height: isAccent ? 3 : 2)
               .rotationEffect(.degrees(Double((column - row) * 8)))
               .offset(
-                x: CGFloat(column) * proxy.size.width / 10 - proxy.size.width / 2 + motion.float(2, speed: 0.12, offset: Double(row) * 0.11),
-                y: CGFloat(row) * proxy.size.height / 7 - proxy.size.height / 2 + motion.float(2, speed: 0.14, offset: Double(column) * 0.09)
+                x: CGFloat(column) * proxy.size.width / 10 - proxy.size.width / 2,
+                y: CGFloat(row) * proxy.size.height / 7 - proxy.size.height / 2
               )
           }
         }

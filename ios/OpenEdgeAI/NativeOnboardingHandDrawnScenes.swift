@@ -17,7 +17,6 @@ struct NativeOnboardingChatSketchScene: View {
           accentColor: accentColor
         )
         .padding(.leading, 64)
-        .offset(x: motion.float(2, speed: 0.28), y: motion.float(2, speed: 0.32, offset: 0.1))
 
         HStack(alignment: .top, spacing: 10) {
           NativeOnboardingPetActor(pet: .orbit, petMotion: .resting, size: 66)
@@ -25,7 +24,6 @@ struct NativeOnboardingChatSketchScene: View {
             .offset(x: motion.float(3, speed: 0.36), y: motion.float(6, speed: 0.42) + 26)
 
           NativeHandDrawnAnswerCard(accentColor: accentColor, motion: motion)
-            .offset(x: motion.float(4, speed: 0.32, offset: 0.20))
         }
       }
       .padding(.horizontal, 22)
@@ -51,11 +49,9 @@ struct NativeOnboardingTodoSketchScene: View {
           accentColor: accentColor
         )
         .frame(width: 246)
-        .offset(x: motion.float(2, speed: 0.30), y: motion.float(2, speed: 0.34))
 
         HStack(alignment: .center, spacing: 12) {
           NativeHandDrawnTodoCard(accentColor: accentColor, motion: motion)
-            .offset(y: motion.float(4, speed: 0.38, offset: 0.22))
 
           NativeHandDrawnWandPet(accentColor: accentColor, motion: motion)
             .offset(x: motion.float(4, speed: 0.42), y: motion.float(7, speed: 0.54))
@@ -81,18 +77,14 @@ struct NativeOnboardingProjectSketchScene: View {
         HStack(alignment: .bottom, spacing: 10) {
           NativeHandDrawnNote(icon: "doc.text", title: "Notes", accentColor: accentColor)
             .rotationEffect(.degrees(-3))
-            .offset(y: motion.float(5, speed: 0.35, offset: 0.10))
           NativeHandDrawnNote(icon: "paperclip", title: "Files", accentColor: accentColor)
             .rotationEffect(.degrees(2))
-            .offset(y: motion.float(5, speed: 0.35, offset: 0.46))
           NativeHandDrawnNote(icon: "message", title: "Chats", accentColor: accentColor)
             .rotationEffect(.degrees(-1.5))
-            .offset(y: motion.float(5, speed: 0.35, offset: 0.76))
         }
 
         ZStack(alignment: .top) {
           NativeHandDrawnProjectFolder(accentColor: accentColor)
-            .scaleEffect(motion.scale(0.015, speed: 0.38))
             .offset(y: 15)
 
           HStack(spacing: 72) {
@@ -123,7 +115,6 @@ struct NativeOnboardingIslandSketchScene: View {
 
       VStack(spacing: 14) {
         NativeHandDrawnIslandStatus(accentColor: accentColor, motion: motion)
-          .offset(y: motion.float(4, speed: 0.42, offset: 0.18))
 
         HStack(alignment: .center, spacing: 14) {
           NativeOnboardingPetActor(pet: .flux, petMotion: .running, size: 76)
@@ -205,7 +196,6 @@ private struct NativeHandDrawnTodoCard: View {
           Image(systemName: "checkmark")
             .font(.system(size: 11, weight: .black))
             .foregroundColor(accentColor.color)
-            .scaleEffect(motion.scale(0.08, speed: 0.62))
         }
         Text("Call Alex")
           .font(.system(size: 17, weight: .black))
@@ -316,7 +306,7 @@ private struct NativeHandDrawnIslandStatus: View {
             .frame(width: 102, height: 6)
           Capsule()
             .fill(accentColor.color)
-            .frame(width: motion.progress(from: 30, to: 96, speed: 0.58), height: 6)
+            .frame(width: 72, height: 6)
         }
       }
 
@@ -359,7 +349,6 @@ private struct NativeHandDrawnSparkleDot: View {
       Image(systemName: "sparkles")
         .font(.system(size: 11, weight: .black))
         .foregroundColor(accentColor.color)
-        .rotationEffect(.degrees(motion.degrees(8, speed: 0.52)))
     }
     .frame(width: 24, height: 24)
   }
@@ -390,9 +379,8 @@ private struct NativeHandDrawnTypingDots: View {
     HStack(spacing: 5) {
       ForEach(0..<3, id: \.self) { index in
         Circle()
-          .fill(accentColor.color.opacity(motion.opacity(from: 0.28, to: 0.88, speed: 0.58, offset: Double(index) * 0.14)))
+          .fill(accentColor.color.opacity(index == 0 ? 0.82 : 0.36))
           .frame(width: 5, height: 5)
-          .offset(y: motion.float(2, speed: 0.58, offset: Double(index) * 0.14))
       }
     }
   }

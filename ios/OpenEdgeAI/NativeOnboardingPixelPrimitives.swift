@@ -14,7 +14,7 @@ struct NativePixelTrail: View {
           .frame(width: index.isMultiple(of: 3) ? 10 : 6, height: index.isMultiple(of: 3) ? 10 : 6)
           .offset(
             x: phase * proxy.size.width - proxy.size.width / 2 + CGFloat(pixelXOffset(index)),
-            y: pixelY(phase: phase, height: proxy.size.height) + motion.float(3, speed: 0.18, offset: Double(index) * 0.11)
+            y: pixelY(phase: phase, height: proxy.size.height)
           )
       }
     }
@@ -97,7 +97,7 @@ struct NativeSketchSpinner: View {
     Circle()
       .trim(from: 0.08, to: 0.72)
       .stroke(.white.opacity(0.84), style: StrokeStyle(lineWidth: 3, lineCap: .square))
-      .rotationEffect(.degrees(motion.rotation(speed: 0.86)))
+      .rotationEffect(.degrees(24))
   }
 }
 
@@ -113,7 +113,6 @@ struct NativeSketchSendButton: View {
         Image(systemName: "arrow.up")
           .font(.system(size: 14, weight: .black))
           .foregroundColor(accentColor.foregroundColor)
-          .offset(y: motion.float(1.5, speed: 0.48, offset: 0.4))
       }
   }
 }

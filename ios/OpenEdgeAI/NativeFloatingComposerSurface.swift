@@ -18,6 +18,7 @@ struct NativeComposerInputSurface<Content: View>: View {
     content
       .disabled(isDisabled)
       .background(glassFill)
+      .overlay(inputBorder)
       .opacity(isDisabled ? 0.48 : 1)
       .contentShape(RoundedRectangle(cornerRadius: nativeComposerInputCornerRadius, style: .continuous))
   }
@@ -36,6 +37,22 @@ struct NativeComposerInputSurface<Content: View>: View {
       return Color.white.opacity(isFocused ? 0.1 : 0.07)
     }
     return Color.white.opacity(isFocused ? 0.72 : 0.62)
+  }
+
+  private var inputBorder: some View {
+    RoundedRectangle(cornerRadius: nativeComposerInputCornerRadius, style: .continuous)
+      .strokeBorder(inputBorderColor, lineWidth: 0.7)
+      .allowsHitTesting(false)
+  }
+
+  private var inputBorderColor: Color {
+    if isError {
+      return Color.oeDestructive.opacity(0.24)
+    }
+    if isFocused {
+      return accentColor.opacity(0.22)
+    }
+    return colorScheme == .dark ? Color.white.opacity(0.1) : Color.black.opacity(0.045)
   }
 
 }

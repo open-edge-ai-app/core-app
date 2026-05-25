@@ -55,7 +55,18 @@ struct NativeRootView: View {
           .zIndex(4)
       }
     }
+    .overlay {
+      if !store.hasCompletedOnboarding {
+        NativeOnboardingView {
+          store.completeOnboarding()
+        }
+        .environmentObject(store)
+        .transition(.opacity)
+        .zIndex(20)
+      }
+    }
     .animation(.easeOut(duration: 0.24), value: showingSessions)
+    .animation(.easeInOut(duration: 0.24), value: store.hasCompletedOnboarding)
     .sheet(isPresented: $showingSettings) {
       NativeSettingsView()
         .environmentObject(store)

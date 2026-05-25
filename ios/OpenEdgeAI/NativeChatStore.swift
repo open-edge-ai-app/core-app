@@ -32,6 +32,7 @@ final class NativeChatStore: ObservableObject {
   @Published var appearanceMode: NativeAppearanceMode = .light
   @Published var accentColor: NativeAccentColor = .black
   @Published var selectedLanguage: NativeLanguage = .korean
+  @Published var hasCompletedOnboarding = false
   @Published var backgroundExecutionEnabled = false
   @Published var backgroundDynamicIslandEnabled = true
   @Published var dynamicIslandPetEnabled = false

@@ -149,12 +149,14 @@ extension NativeChatStore {
   }
 
   func loadSettings() {
+    let hasStoredSettings = UserDefaults.standard.object(forKey: settingsKey) != nil
     let data = UserDefaults.standard.dictionary(forKey: settingsKey) ?? [:]
     let storedSettingsSchemaVersion = data["settingsSchemaVersion"] as? Int ?? 0
     systemPrompt = data["systemPrompt"] as? String ?? ""
     userName = data["userName"] as? String ?? ""
     personality = data["personality"] as? String ?? "Balanced"
     memoryEnabled = boolSetting(data["memoryEnabled"], default: true)
+    hasCompletedOnboarding = boolSetting(data["hasCompletedOnboarding"], default: hasStoredSettings)
     if let raw = data["fontSize"] as? String,
        let setting = NativeFontSizeSetting(rawValue: raw) {
       fontSizeSetting = setting

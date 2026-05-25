@@ -40,6 +40,19 @@ enum NativeI18nKey: String, CaseIterable {
   case chatGenerating
   case chatCopyCode
 
+  case onboardingBrandEyebrow
+  case onboardingNext
+  case onboardingStart
+  case onboardingLegal
+  case onboardingChatTitle
+  case onboardingChatSubtitle
+  case onboardingTodoTitle
+  case onboardingTodoSubtitle
+  case onboardingProjectTitle
+  case onboardingProjectSubtitle
+  case onboardingIslandTitle
+  case onboardingIslandSubtitle
+
   case attachmentAdd
   case attachmentPhotoOrVideo
   case attachmentFile

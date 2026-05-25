@@ -121,23 +121,24 @@ private struct NativeTopBarFadeBackground: View {
     LinearGradient(
       stops: [
         .init(color: Color.oeBackground.opacity(0), location: 0),
-        .init(color: Color.oeBackground.opacity(topFadeMidOpacity), location: 0.46),
-        .init(color: Color.oeBackground.opacity(topFadeBottomOpacity), location: 1)
+        .init(color: Color.oeBackground.opacity(topFadeShoulderOpacity), location: 0.32),
+        .init(color: Color.oeBackground.opacity(topFadePeakOpacity), location: 0.68),
+        .init(color: Color.oeBackground.opacity(0), location: 1)
       ],
       startPoint: .top,
       endPoint: .bottom
     )
-    .frame(height: 88)
+    .frame(height: 148)
     .ignoresSafeArea(edges: .top)
     .allowsHitTesting(false)
   }
 
-  private var topFadeMidOpacity: Double {
-    colorScheme == .dark ? 0.18 : 0.34
+  private var topFadeShoulderOpacity: Double {
+    colorScheme == .dark ? 0.08 : 0.12
   }
 
-  private var topFadeBottomOpacity: Double {
-    colorScheme == .dark ? 0.58 : 0.72
+  private var topFadePeakOpacity: Double {
+    colorScheme == .dark ? 0.24 : 0.32
   }
 }
 

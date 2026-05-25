@@ -152,6 +152,10 @@ extension View {
   func nativeRoundedPixelBubble(background: Color, border: Color, radius: CGFloat = 20) -> some View {
     modifier(NativeRoundedPixelBubble(background: background, border: border, radius: radius))
   }
+
+  func nativeHandDrawnBubble(background: Color, ink: Color, radius: CGFloat = 22) -> some View {
+    modifier(NativeHandDrawnBubble(background: background, ink: ink, radius: radius))
+  }
 }
 
 private struct NativeRoundedPixelBubble: ViewModifier {
@@ -168,6 +172,36 @@ private struct NativeRoundedPixelBubble: ViewModifier {
       .overlay {
         RoundedRectangle(cornerRadius: radius, style: .continuous)
           .stroke(border, lineWidth: 1.4)
+      }
+  }
+}
+
+private struct NativeHandDrawnBubble: ViewModifier {
+  var background: Color
+  var ink: Color
+  var radius: CGFloat
+
+  func body(content: Content) -> some View {
+    content
+      .background(
+        RoundedRectangle(cornerRadius: radius, style: .continuous)
+          .fill(background)
+      )
+      .overlay {
+        RoundedRectangle(cornerRadius: radius, style: .continuous)
+          .stroke(ink.opacity(0.52), lineWidth: 1.5)
+      }
+      .overlay {
+        RoundedRectangle(cornerRadius: radius + 1.5, style: .continuous)
+          .stroke(ink.opacity(0.20), lineWidth: 1.2)
+          .offset(x: 1.2, y: -0.8)
+      }
+      .overlay(alignment: .topLeading) {
+        Capsule()
+          .fill(ink.opacity(0.16))
+          .frame(width: 42, height: 3)
+          .rotationEffect(.degrees(-3))
+          .offset(x: 18, y: 9)
       }
   }
 }

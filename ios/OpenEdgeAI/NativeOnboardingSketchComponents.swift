@@ -8,14 +8,15 @@ struct NativeOnboardingSketchStage: View {
     GeometryReader { proxy in
       ZStack {
         Rectangle()
-          .fill(Color.oeSurface.opacity(0.16))
+          .fill(Color.oeSurface.opacity(0.11))
 
         ForEach(0..<11, id: \.self) { column in
           ForEach(0..<8, id: \.self) { row in
             let isAccent = (column + row).isMultiple(of: 5)
-            Rectangle()
+            Capsule()
               .fill((isAccent ? accentColor.color : Color.oeText).opacity(isAccent ? 0.08 : 0.035))
-              .frame(width: isAccent ? 5 : 3, height: isAccent ? 5 : 3)
+              .frame(width: isAccent ? 11 : 7, height: isAccent ? 3 : 2)
+              .rotationEffect(.degrees(Double((column - row) * 8)))
               .offset(
                 x: CGFloat(column) * proxy.size.width / 10 - proxy.size.width / 2 + motion.float(2, speed: 0.12, offset: Double(row) * 0.11),
                 y: CGFloat(row) * proxy.size.height / 7 - proxy.size.height / 2 + motion.float(2, speed: 0.14, offset: Double(column) * 0.09)
@@ -65,7 +66,8 @@ struct NativeSketchSceneBadge: View {
     .foregroundColor(.oeText)
     .padding(.horizontal, 12)
     .frame(height: 32)
-    .nativePixelPanel(background: Color.oeBackground.opacity(0.64), border: accentColor.color.opacity(0.32))
+    .nativeHandDrawnBubble(background: Color.oeBackground.opacity(0.72), ink: accentColor.color.opacity(0.72), radius: 10)
+    .rotationEffect(.degrees(-0.8))
   }
 }
 
@@ -154,21 +156,21 @@ struct NativePixelChatQuestion: View {
   var accentColor: NativeAccentColor
 
   var body: some View {
-    HStack(alignment: .top, spacing: 7) {
-      Image(systemName: "paperplane.fill")
-        .font(.system(size: 11, weight: .black))
-        .padding(.top, 2)
-
+    VStack(alignment: .leading, spacing: 6) {
+      Text("You")
+        .font(.system(size: 9, weight: .black))
+        .foregroundColor(accentColor.foregroundColor.opacity(0.74))
       Text("Can you explain edge AI simply?")
-        .font(.system(size: 13, weight: .heavy))
+        .font(.system(size: 14, weight: .heavy))
         .lineLimit(2)
         .fixedSize(horizontal: false, vertical: true)
     }
     .foregroundColor(accentColor.foregroundColor)
-    .padding(.horizontal, 12)
-    .padding(.vertical, 9)
+    .padding(.horizontal, 14)
+    .padding(.vertical, 10)
     .frame(width: 232, alignment: .leading)
-    .nativeRoundedPixelBubble(background: accentColor.color, border: Color.oeText.opacity(0.12), radius: 19)
+    .nativeHandDrawnBubble(background: accentColor.color, ink: accentColor.foregroundColor.opacity(0.48), radius: 21)
+    .rotationEffect(.degrees(1.2))
     .overlay(alignment: .bottomTrailing) {
       NativePixelTail()
         .fill(accentColor.color)
@@ -184,37 +186,45 @@ struct NativePixelChatAnswer: View {
   var motion: NativeOnboardingMotion
 
   var body: some View {
-    VStack(alignment: .leading, spacing: 7) {
-      HStack(spacing: 7) {
-        Image(systemName: "cpu")
+    VStack(alignment: .leading, spacing: 8) {
+      HStack(alignment: .top, spacing: 8) {
+        ZStack {
+          Circle()
+            .fill(accentColor.color.opacity(0.16))
+          Image(systemName: "sparkles")
+            .font(.system(size: 11, weight: .black))
+            .foregroundColor(accentColor.color)
+        }
+        .frame(width: 24, height: 24)
+
+        Text("Edge AI runs the model on your device, so answers feel fast and private.")
           .font(.system(size: 12, weight: .black))
-          .foregroundColor(accentColor.color)
-        Text("It runs AI directly on your device.")
-          .font(.system(size: 13, weight: .black))
           .foregroundColor(.oeText)
-          .lineLimit(2)
+          .lineLimit(4)
+          .fixedSize(horizontal: false, vertical: true)
       }
 
-      NativePixelAnswerTextRow(number: "1", text: "Private by default", color: accentColor.color)
-      NativePixelAnswerTextRow(number: "2", text: "Fast offline answers", color: .oeText)
-      NativePixelAnswerTextRow(number: "3", text: "Search only when needed", color: .oeSecondaryText)
+      NativePixelAnswerTextRow(number: "•", text: "Private by default", color: accentColor.color)
+      NativePixelAnswerTextRow(number: "•", text: "Works offline", color: .oeText)
 
       HStack(spacing: 5) {
-        ForEach(0..<5, id: \.self) { index in
-          Rectangle()
-            .fill(index < 3 ? accentColor.color.opacity(0.78) : Color.oeMutedText.opacity(0.20))
-            .frame(width: motion.progress(from: 7, to: 16, speed: 0.36, offset: Double(index) * 0.14), height: 4)
+        ForEach(0..<3, id: \.self) { index in
+          Circle()
+            .fill(accentColor.color.opacity(motion.opacity(from: 0.28, to: 0.88, speed: 0.58, offset: Double(index) * 0.14)))
+            .frame(width: 5, height: 5)
+            .offset(y: motion.float(2, speed: 0.58, offset: Double(index) * 0.14))
         }
       }
       .padding(.top, 1)
     }
-    .padding(.horizontal, 12)
+    .padding(.horizontal, 13)
     .padding(.vertical, 11)
     .frame(width: 214, height: 136, alignment: .topLeading)
-    .nativeRoundedPixelBubble(background: Color.oeBackground.opacity(0.70), border: accentColor.color.opacity(0.24), radius: 18)
+    .nativeHandDrawnBubble(background: Color.oeBackground.opacity(0.76), ink: accentColor.color.opacity(0.62), radius: 20)
+    .rotationEffect(.degrees(-1.1))
     .overlay(alignment: .leading) {
       NativePixelTail()
-        .fill(Color.oeBackground.opacity(0.70))
+        .fill(Color.oeBackground.opacity(0.76))
         .frame(width: 16, height: 14)
         .rotationEffect(.degrees(180))
         .offset(x: -13, y: 30)
@@ -230,10 +240,9 @@ private struct NativePixelAnswerTextRow: View {
   var body: some View {
     HStack(spacing: 7) {
       Text(number)
-        .font(.system(size: 9, weight: .black))
-        .foregroundColor(.oeBackground)
-        .frame(width: 16, height: 16)
-        .background(color)
+        .font(.system(size: 13, weight: .black))
+        .foregroundColor(color)
+        .frame(width: 12, alignment: .leading)
       Text(text)
         .font(.system(size: 11, weight: .heavy))
         .foregroundColor(.oeText)

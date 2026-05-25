@@ -82,10 +82,6 @@ private struct NativeOnboardingChatSketchScene: View {
         .frame(width: 206, height: 112)
         .offset(x: 26, y: -42)
 
-      NativeSketchSceneBadge(icon: "bubble.left.and.text.bubble.right", title: "On-device answer", accentColor: accentColor)
-        .offset(y: -124)
-        .zIndex(2)
-
       VStack(spacing: 10) {
         NativePixelChatQuestion(accentColor: accentColor)
           .padding(.leading, 66)
@@ -100,7 +96,7 @@ private struct NativeOnboardingChatSketchScene: View {
         }
       }
       .padding(.horizontal, 22)
-      .offset(y: 20)
+      .offset(y: -2)
     }
   }
 }

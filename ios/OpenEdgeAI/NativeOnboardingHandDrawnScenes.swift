@@ -73,17 +73,17 @@ struct NativeOnboardingProjectSketchScene: View {
         .frame(width: 246, height: 140)
         .offset(x: 6, y: -14)
 
-      HStack(alignment: .bottom, spacing: 8) {
-        NativeOnboardingPetActor(pet: .luma, petMotion: .running, size: 44)
-          .offset(x: motion.float(5, speed: 0.45, offset: 0.12), y: motion.float(3, speed: 0.42, offset: 0.32) + 6)
+      ZStack {
+        NativeHandDrawnWorkspaceBoard(accentColor: accentColor)
+          .offset(y: -6)
 
-        NativeHandDrawnWorkspaceCard(accentColor: accentColor)
+        NativeOnboardingPetActor(pet: .luma, petMotion: .running, size: 44)
+          .offset(x: -148 + motion.float(3, speed: 0.45, offset: 0.12), y: 54 + motion.float(3, speed: 0.42, offset: 0.32))
 
         NativeOnboardingPetActor(pet: .nullSignal, petMotion: .resting, size: 44)
-          .offset(x: motion.float(5, speed: 0.40, offset: 0.70), y: motion.float(3, speed: 0.44, offset: 0.10) + 6)
+          .offset(x: 148 + motion.float(3, speed: 0.40, offset: 0.70), y: 54 + motion.float(3, speed: 0.44, offset: 0.10))
       }
       .frame(height: 210)
-      .padding(.horizontal, 4)
       .offset(y: 4)
     }
   }
@@ -225,71 +225,60 @@ private struct NativeHandDrawnWandPet: View {
   }
 }
 
-private struct NativeHandDrawnWorkspaceCard: View {
+private struct NativeHandDrawnWorkspaceBoard: View {
   var accentColor: NativeAccentColor
 
   var body: some View {
-    VStack(alignment: .leading, spacing: 10) {
-      HStack(spacing: 8) {
-        Image(systemName: "folder.fill")
-          .font(.system(size: 16, weight: .black))
-          .foregroundColor(accentColor.color)
-        VStack(alignment: .leading, spacing: 2) {
-          Text("Workspace")
-            .font(.system(size: 17, weight: .black))
-            .foregroundColor(.oeText)
-          Text("one project context")
-            .font(.system(size: 9, weight: .heavy))
-            .foregroundColor(.oeMutedText)
+    VStack(alignment: .leading, spacing: 14) {
+      HStack(spacing: 10) {
+        ZStack {
+          RoundedRectangle(cornerRadius: 9, style: .continuous)
+            .fill(accentColor.color.opacity(0.16))
+          Image(systemName: "folder.fill")
+            .font(.system(size: 16, weight: .black))
+            .foregroundColor(accentColor.color)
         }
+        .frame(width: 34, height: 30)
+
+        Text("Project")
+          .font(.system(size: 20, weight: .black))
+          .foregroundColor(.oeText)
       }
 
-      VStack(spacing: 7) {
-        NativeHandDrawnWorkspaceRow(icon: "text.alignleft", title: "Instructions", subtitle: "shared prompt", accentColor: accentColor)
-        NativeHandDrawnWorkspaceRow(icon: "paperclip", title: "Files", subtitle: "docs and images", accentColor: accentColor)
-        NativeHandDrawnWorkspaceRow(icon: "bubble.left.and.bubble.right", title: "Chats", subtitle: "session history", accentColor: accentColor)
+      HStack(spacing: 9) {
+        NativeHandDrawnWorkspaceTile(icon: "text.alignleft", label: "Prompt", accentColor: accentColor)
+        NativeHandDrawnWorkspaceTile(icon: "doc.text", label: "Files", accentColor: accentColor)
+        NativeHandDrawnWorkspaceTile(icon: "bubble.left.and.bubble.right", label: "Chats", accentColor: accentColor)
       }
     }
-    .padding(.horizontal, 14)
-    .padding(.vertical, 14)
-    .frame(width: 214, height: 172, alignment: .topLeading)
+    .padding(.horizontal, 16)
+    .padding(.vertical, 16)
+    .frame(width: 244, height: 136, alignment: .topLeading)
     .nativeHandDrawnBubble(background: Color.oeBackground.opacity(0.76), ink: accentColor.color.opacity(0.42), radius: 22)
   }
 }
 
-private struct NativeHandDrawnWorkspaceRow: View {
+private struct NativeHandDrawnWorkspaceTile: View {
   var icon: String
-  var title: String
-  var subtitle: String
+  var label: String
   var accentColor: NativeAccentColor
 
   var body: some View {
-    HStack(spacing: 9) {
-      ZStack {
-        RoundedRectangle(cornerRadius: 9, style: .continuous)
-          .fill(accentColor.color.opacity(0.13))
-        Image(systemName: icon)
-          .font(.system(size: 11, weight: .black))
-          .foregroundColor(accentColor.color)
-      }
-      .frame(width: 30, height: 30)
-
-      VStack(alignment: .leading, spacing: 1) {
-        Text(title)
-          .font(.system(size: 11, weight: .black))
-          .foregroundColor(.oeText)
-        Text(subtitle)
-          .font(.system(size: 9, weight: .heavy))
-          .foregroundColor(.oeMutedText)
-      }
-
-      Spacer(minLength: 0)
+    VStack(spacing: 7) {
+      Image(systemName: icon)
+        .font(.system(size: 16, weight: .black))
+        .foregroundColor(accentColor.color)
+        .frame(height: 18)
+      Text(label)
+        .font(.system(size: 11, weight: .black))
+        .foregroundColor(.oeText)
+        .lineLimit(1)
+        .minimumScaleFactor(0.8)
     }
-    .padding(.horizontal, 9)
-    .frame(height: 36)
+    .frame(width: 64, height: 58)
     .background(
-      RoundedRectangle(cornerRadius: 13, style: .continuous)
-        .fill(Color.oeSurface.opacity(0.22))
+      RoundedRectangle(cornerRadius: 16, style: .continuous)
+        .fill(Color.oeSurface.opacity(0.26))
     )
   }
 }

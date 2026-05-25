@@ -1,7 +1,6 @@
 import SwiftUI
 
 let nativeComposerInputCornerRadius: CGFloat = 30
-let nativeComposerInlineControlSize: CGFloat = 40
 let nativeComposerSubmitControlSize: CGFloat = 42
 let nativeComposerScrollBottomPadding: CGFloat = 134
 
@@ -35,9 +34,9 @@ struct NativeComposerInputSurface<Content: View>: View {
 
   private var surfaceTint: Color {
     if colorScheme == .dark {
-      return Color.white.opacity(isFocused ? 0.08 : 0.05)
+      return Color.white.opacity(isFocused ? 0.1 : 0.07)
     }
-    return Color.white.opacity(isFocused ? 0.16 : 0.1)
+    return Color.white.opacity(isFocused ? 0.22 : 0.14)
   }
 
   private var glassHighlight: some View {
@@ -46,8 +45,8 @@ struct NativeComposerInputSurface<Content: View>: View {
       .stroke(
         LinearGradient(
           colors: [
-            Color.white.opacity(colorScheme == .dark ? 0.12 : 0.34),
-            Color.white.opacity(colorScheme == .dark ? 0.03 : 0.1),
+            Color.white.opacity(colorScheme == .dark ? 0.14 : 0.4),
+            Color.white.opacity(colorScheme == .dark ? 0.04 : 0.12),
             Color.black.opacity(colorScheme == .dark ? 0.1 : 0.04)
           ],
           startPoint: .topLeading,
@@ -71,21 +70,7 @@ struct NativeComposerInputSurface<Content: View>: View {
     if isFocused {
       return accentColor.opacity(0.36)
     }
-    return Color.white.opacity(colorScheme == .dark ? 0.12 : 0.24)
-  }
-}
-
-struct NativeComposerInlineIcon: View {
-  var systemName: String
-  var color: Color = .oeText
-  var size: CGFloat = 22
-
-  var body: some View {
-    Image(systemName: systemName)
-      .font(.system(size: size, weight: .medium))
-      .foregroundColor(color)
-      .frame(width: nativeComposerInlineControlSize, height: nativeComposerInlineControlSize)
-      .contentShape(Rectangle())
+    return Color.white.opacity(colorScheme == .dark ? 0.14 : 0.3)
   }
 }
 
@@ -107,17 +92,19 @@ struct NativeComposerCircleSurface<Content: View>: View {
           in: .circle
         )
         .overlay(circleStroke)
+        .shadow(color: inactiveCircleShadow, radius: isActive ? 0 : 8, x: 0, y: 2)
     } else {
       content
         .background(circleMaterial)
         .overlay(circleStroke)
+        .shadow(color: inactiveCircleShadow, radius: isActive ? 0 : 8, x: 0, y: 2)
     }
   }
 
   private var neutralGlassTint: Color {
     colorScheme == .dark
-      ? Color.white.opacity(0.08)
-      : Color.white.opacity(0.2)
+      ? Color.white.opacity(0.1)
+      : Color.white.opacity(0.26)
   }
 
   private var circleMaterial: some View {
@@ -126,16 +113,34 @@ struct NativeComposerCircleSurface<Content: View>: View {
       .background(.ultraThinMaterial, in: Circle())
       .overlay {
         Circle()
-          .fill(isActive ? Color.clear : (colorScheme == .dark ? Color.white.opacity(0.05) : Color.white.opacity(0.32)))
+          .fill(isActive ? Color.clear : inactiveCircleTint)
       }
   }
 
   private var circleStroke: some View {
     Circle()
       .stroke(
-        isActive ? accentColor.opacity(0.78) : Color.oeBorder.opacity(0.32),
+        isActive ? accentColor.opacity(0.78) : inactiveCircleStroke,
         lineWidth: 1
       )
+  }
+
+  private var inactiveCircleTint: Color {
+    colorScheme == .dark
+      ? Color.white.opacity(0.12)
+      : Color.black.opacity(0.14)
+  }
+
+  private var inactiveCircleStroke: Color {
+    colorScheme == .dark
+      ? Color.white.opacity(0.18)
+      : Color.black.opacity(0.16)
+  }
+
+  private var inactiveCircleShadow: Color {
+    colorScheme == .dark
+      ? Color.black.opacity(0.18)
+      : Color.black.opacity(0.08)
   }
 }
 

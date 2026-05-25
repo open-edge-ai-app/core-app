@@ -46,27 +46,30 @@ struct NativeChatComposerBar: View {
             .transition(.move(edge: .bottom).combined(with: .opacity))
         }
 
-        NativeComposerInputSurface(
-          isFocused: focused,
-          accentColor: store.accentColor.color
-        ) {
-          VStack(alignment: .leading, spacing: 8) {
-            if isSearchMode || !store.pendingAttachments.isEmpty {
-              NativePendingAttachmentStrip(showsSearchMode: isSearchMode)
-                .environmentObject(store)
-            }
+        HStack(alignment: .bottom, spacing: 8) {
+          attachButton
 
-            HStack(alignment: .center, spacing: 8) {
-              attachButton
-              promptEditor
-              submitButton
+          NativeComposerInputSurface(
+            isFocused: focused,
+            accentColor: store.accentColor.color
+          ) {
+            VStack(alignment: .leading, spacing: 8) {
+              if isSearchMode || !store.pendingAttachments.isEmpty {
+                NativePendingAttachmentStrip(showsSearchMode: isSearchMode)
+                  .environmentObject(store)
+              }
+
+              HStack(alignment: .center, spacing: 8) {
+                promptEditor
+                submitButton
+              }
             }
+            .padding(.leading, 14)
+            .padding(.trailing, 8)
+            .padding(.vertical, 8)
           }
-          .padding(.leading, 12)
-          .padding(.trailing, 8)
-          .padding(.vertical, 8)
+          .layoutPriority(1)
         }
-        .layoutPriority(1)
       }
     }
     .padding(.horizontal, 24)
@@ -82,7 +85,15 @@ struct NativeChatComposerBar: View {
     Button {
       showingAttachmentOptions = true
     } label: {
-      NativeComposerInlineIcon(systemName: "plus", size: 27)
+      NativeComposerCircleSurface(
+        isActive: false,
+        accentColor: store.accentColor.color
+      ) {
+        Image(systemName: "plus")
+          .font(.system(size: 25, weight: .medium))
+          .foregroundColor(.oeText)
+          .frame(width: nativeComposerSubmitControlSize, height: nativeComposerSubmitControlSize)
+      }
     }
     .buttonStyle(.plain)
     .accessibilityLabel(store.i18n.t(.chatAttachFile))
@@ -111,7 +122,7 @@ struct NativeChatComposerBar: View {
     if showsStopButton {
       return "stop.fill"
     }
-    return hasDraftInput ? "arrow.up" : "waveform"
+    return "arrow.up"
   }
 
   private func submit() {

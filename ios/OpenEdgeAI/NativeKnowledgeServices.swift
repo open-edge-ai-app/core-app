@@ -67,10 +67,11 @@ final class NativeLocalKnowledgeStore {
     }
 
     queue.sync {
+      let normalizedRecords = newRecords.map(normalizedRecord)
       var next = records.filter { existing in
-        !newRecords.contains { $0.id == existing.id }
+        !normalizedRecords.contains { $0.id == existing.id }
       }
-      next.append(contentsOf: newRecords)
+      next.append(contentsOf: normalizedRecords)
       records = dedupe(next)
       saveLocked()
     }
@@ -132,7 +133,18 @@ final class NativeLocalKnowledgeStore {
       .sorted { $0.updatedAt > $1.updatedAt }
       .filter { seen.insert($0.id).inserted }
       .prefix(400)
-      .map { $0 }
+      .map(normalizedRecord)
+  }
+
+  private func normalizedRecord(_ record: NativeKnowledgeRecord) -> NativeKnowledgeRecord {
+    NativeKnowledgeRecord(
+      id: record.id,
+      source: record.source,
+      title: NativePromptCompressor.clipped(record.title, maxEstimatedTokens: 80),
+      text: NativePromptCompressor.clipped(record.text, maxEstimatedTokens: 1_600),
+      url: record.url,
+      updatedAt: record.updatedAt
+    )
   }
 
   static func searchTerms(_ query: String) -> [String] {

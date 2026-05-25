@@ -29,8 +29,8 @@ extension NativeChatStore {
 
   func downloadGemma() {
     _ = AIEngineGemmaModelClient.shared.downloadModel()
-    Task {
-      await refreshModelStatuses()
+    Task { [weak self] in
+      await self?.refreshModelStatuses()
     }
   }
 
@@ -41,8 +41,8 @@ extension NativeChatStore {
     case .gemma:
       _ = AIEngineGemmaModelClient.shared.loadModel()
     }
-    Task {
-      await refreshModelStatuses()
+    Task { [weak self] in
+      await self?.refreshModelStatuses()
     }
   }
 

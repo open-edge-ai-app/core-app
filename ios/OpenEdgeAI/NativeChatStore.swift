@@ -78,11 +78,16 @@ final class NativeChatStore: ObservableObject {
       uniqueKeysWithValues: NativeModel.allCases.map { ($0, NativeModelStatus(model: $0)) }
     )
 
-    Task {
-      await refreshModelStatuses()
+    Task { [weak self] in
+      await self?.refreshModelStatuses()
     }
 
     syncDynamicIslandLiveActivity()
+  }
+
+  deinit {
+    searchProgressTasks.values.forEach { $0.cancel() }
+    streamFlushTasks.values.forEach { $0.cancel() }
   }
 
   var currentSession: NativeChatSession? {

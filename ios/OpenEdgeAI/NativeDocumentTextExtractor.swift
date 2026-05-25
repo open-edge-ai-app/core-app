@@ -4,6 +4,8 @@ import UIKit
 import Vision
 
 enum NativeDocumentTextExtractor {
+  private static let storedTextTokenLimit = 1_600
+
   static func knowledgeRecords(from attachments: [NativeAttachment]) -> [NativeKnowledgeRecord] {
     attachments.compactMap { attachment in
       guard let text = extractedText(from: attachment), !text.isEmpty else {
@@ -13,7 +15,7 @@ enum NativeDocumentTextExtractor {
         id: "attachment:\(attachment.id)",
         source: .attachment,
         title: attachment.name,
-        text: text,
+        text: NativePromptCompressor.clipped(text, maxEstimatedTokens: storedTextTokenLimit),
         url: attachment.url,
         updatedAt: Date()
       )

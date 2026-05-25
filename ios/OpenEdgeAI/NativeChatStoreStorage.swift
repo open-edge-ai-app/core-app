@@ -219,9 +219,9 @@ extension NativeChatStore {
     showDynamicIslandWork()
 
     if canRunBackgroundDynamicIsland {
-      Task { @MainActor in
+      Task { [weak self] in
         try? await Task.sleep(nanoseconds: 450_000_000)
-        self.runQueuedDraftIfReady()
+        self?.runQueuedDraftIfReady()
       }
     } else {
       runQueuedDraftIfReady()

@@ -23,6 +23,9 @@ struct NativeRootView: View {
           bottomPadding: nativeComposerScrollBottomPadding
         )
 
+        NativeRootBottomTranscriptFade()
+          .zIndex(1)
+
         NativeInputBar(
           showingAttachmentOptions: $showingAttachmentOptions,
           onPickPhotoOrVideo: requestPhotoLibraryAccess,
@@ -128,5 +131,25 @@ struct NativeRootView: View {
       return
     }
     UIApplication.shared.open(url)
+  }
+}
+
+private struct NativeRootBottomTranscriptFade: View {
+  var body: some View {
+    GeometryReader { proxy in
+      VStack(spacing: 0) {
+        Spacer(minLength: 0)
+
+        NativeChatTranscriptEdgeFade(
+          edge: .bottom,
+          height: 226 + proxy.safeAreaInsets.bottom
+        )
+        .frame(maxWidth: .infinity)
+        .offset(y: proxy.safeAreaInsets.bottom)
+      }
+      .frame(width: proxy.size.width, height: proxy.size.height)
+    }
+    .ignoresSafeArea(.container, edges: .bottom)
+    .allowsHitTesting(false)
   }
 }

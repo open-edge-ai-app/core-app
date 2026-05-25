@@ -32,10 +32,6 @@ struct NativeChatTranscript: View {
         NativeChatTranscriptEdgeFade(edge: .top, height: 128)
           .ignoresSafeArea(edges: .top)
       }
-      .overlay(alignment: .bottom) {
-        NativeChatTranscriptEdgeFade(edge: .bottom, height: 178)
-          .ignoresSafeArea(edges: .bottom)
-      }
       .onChange(of: store.currentMessages) { _, _ in
         withAnimation(.easeOut(duration: 0.2)) {
           proxy.scrollTo("bottom", anchor: .bottom)
@@ -45,12 +41,12 @@ struct NativeChatTranscript: View {
   }
 }
 
-private enum NativeChatTranscriptFadeEdge {
+enum NativeChatTranscriptFadeEdge {
   case top
   case bottom
 }
 
-private struct NativeChatTranscriptEdgeFade: View {
+struct NativeChatTranscriptEdgeFade: View {
   let edge: NativeChatTranscriptFadeEdge
   let height: CGFloat
 

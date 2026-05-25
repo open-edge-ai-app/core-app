@@ -34,12 +34,12 @@ struct NativeProjectIconOption: View {
       .foregroundColor(isSelected ? accentColor.foregroundColor : .oeText)
       .frame(maxWidth: .infinity)
       .frame(height: 78)
-      .background(isSelected ? accentColor.color : Color.oeSubtleFill)
-      .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-      .overlay(
-        RoundedRectangle(cornerRadius: 14, style: .continuous)
-          .stroke(isSelected ? accentColor.color : Color.oeBorder, lineWidth: 1)
+      .nativeLiquidGlass(
+        cornerRadius: 14,
+        tint: isSelected ? accentColor.color.opacity(0.88) : nil,
+        interactive: true
       )
+      .nativeGlassStroke(cornerRadius: 14, color: isSelected ? accentColor.color : Color.oeBorder.opacity(0.34))
     }
     .buttonStyle(.plain)
   }

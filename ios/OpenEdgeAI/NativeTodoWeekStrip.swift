@@ -63,8 +63,11 @@ struct NativeTodoWeekStrip: View {
               }
               .foregroundColor(isSelected ? accentColor.color : .oeSecondaryText)
               .frame(width: dayCellWidth, height: 52)
-              .background(isSelected ? accentColor.subtleColor : Color.clear)
-              .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+              .nativeLiquidGlass(
+                cornerRadius: 10,
+                tint: isSelected ? accentColor.color.opacity(0.72) : nil,
+                interactive: true
+              )
             }
             .buttonStyle(.plain)
             .id(dayID(for: day))

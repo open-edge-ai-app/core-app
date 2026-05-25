@@ -154,7 +154,7 @@ struct NativeInlineMarkdownText: View {
     var tag = AttributedString(" \(number) ")
     tag.link = URL(string: "openedgeai-source://\(number)")
     tag.foregroundColor = store.accentColor.color
-    tag.backgroundColor = store.accentColor.color.opacity(0.12)
+    tag.backgroundColor = store.accentColor.color.opacity(0.22)
     tag.font = .system(size: max(11, store.fontSizeSetting.bodySize - 3), weight: .semibold)
     return tag
   }

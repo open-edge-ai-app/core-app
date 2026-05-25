@@ -90,6 +90,9 @@ struct NativeAppearanceSettingsView: View {
         }
       }
     }
+    .listStyle(.insetGrouped)
+    .scrollContentBackground(.hidden)
+    .background(Color.oeGroupedBackground)
     .navigationTitle(i18n.t(.settingsAppearance))
     .navigationBarTitleDisplayMode(.inline)
     .onChange(of: store.fontSizeSetting) { _, _ in

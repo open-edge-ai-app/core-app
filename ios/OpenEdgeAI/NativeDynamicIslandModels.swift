@@ -13,87 +13,63 @@ enum NativeDynamicIslandPet: String, CaseIterable, Identifiable {
   var title: String {
     switch self {
     case .orbit:
-      return "Orbit"
+      return "Noa"
     case .stacky:
-      return "Stacky"
+      return "Mino"
     case .nullSignal:
-      return "Signal"
+      return "Sia"
     case .luma:
-      return "Luma"
+      return "Lumi"
     case .flux:
-      return "Flux"
+      return "Rio"
     }
   }
 
   var subtitle: String {
     switch self {
     case .orbit:
-      return "푸른 궤도로 작업을 따라가는 기본 펫"
+      return "차분하게 생각을 정리하는 파란 동료"
     case .stacky:
-      return "노란 블록으로 차분하게 쌓아 올리는 펫"
+      return "할 일을 착착 쌓아 올리는 노란 동료"
     case .nullSignal:
-      return "보라색 신호를 조용히 기다리는 펫"
+      return "조용히 신호를 읽고 기다리는 보라 동료"
     case .luma:
-      return "민트빛으로 가볍게 반응하는 펫"
+      return "밝게 반응하며 흐름을 밝혀주는 민트 동료"
     case .flux:
-      return "코랄 톤으로 빠르게 뛰는 펫"
+      return "빠르게 움직이며 작업을 밀어주는 코랄 동료"
     }
   }
 
   var primaryColor: Color {
-    switch self {
-    case .orbit:
-      return Color(red: 0.18, green: 0.58, blue: 1)
-    case .stacky:
-      return Color(red: 1, green: 0.68, blue: 0.20)
-    case .nullSignal:
-      return Color(red: 0.62, green: 0.36, blue: 1)
-    case .luma:
-      return Color(red: 0.22, green: 0.86, blue: 0.68)
-    case .flux:
-      return Color(red: 1, green: 0.38, blue: 0.34)
-    }
+    NativeDynamicIslandPetSprite.primaryColor(for: rawValue)
   }
 
   var secondaryColor: Color {
-    switch self {
-    case .orbit:
-      return Color(red: 0.55, green: 0.92, blue: 1)
-    case .stacky:
-      return Color(red: 1, green: 0.93, blue: 0.48)
-    case .nullSignal:
-      return Color(red: 0.90, green: 0.78, blue: 1)
-    case .luma:
-      return Color(red: 0.78, green: 1, blue: 0.42)
-    case .flux:
-      return Color(red: 1, green: 0.78, blue: 0.22)
-    }
+    NativeDynamicIslandPetSprite.secondaryColor(for: rawValue)
   }
 
   var outlineColor: Color {
-    switch self {
-    case .orbit:
-      return Color(red: 0.04, green: 0.12, blue: 0.24)
-    case .stacky:
-      return Color(red: 0.28, green: 0.17, blue: 0.04)
-    case .nullSignal:
-      return Color(red: 0.20, green: 0.08, blue: 0.36)
-    case .luma:
-      return Color(red: 0.04, green: 0.24, blue: 0.22)
-    case .flux:
-      return Color(red: 0.36, green: 0.08, blue: 0.05)
-    }
+    NativeDynamicIslandPetSprite.outlineColor(for: rawValue)
   }
 
   var eyeColor: Color {
-    switch self {
-    case .nullSignal:
-      return Color(uiColor: .white)
-    case .flux:
-      return Color(uiColor: .white)
-    default:
-      return Color(red: 0.03, green: 0.05, blue: 0.07)
-    }
+    NativeDynamicIslandPetSprite.eyeColor(for: rawValue)
+  }
+
+  var cheekColor: Color {
+    NativeDynamicIslandPetSprite.cheekColor(for: rawValue)
+  }
+
+  var sparkleColor: Color {
+    NativeDynamicIslandPetSprite.sparkleColor(for: rawValue)
+  }
+
+  var skinColor: Color {
+    NativeDynamicIslandPetSprite.skinColor(for: rawValue)
+  }
+
+  var hairColor: Color {
+    NativeDynamicIslandPetSprite.hairColor(for: rawValue)
   }
 }
 

@@ -22,8 +22,8 @@ struct NativeQueueView: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
-        .background(Color.oeSubtleFill)
-        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .nativeLiquidGlass(cornerRadius: 12, interactive: true)
+        .nativeGlassStroke(cornerRadius: 12, color: Color.oeBorder.opacity(0.26))
       }
     }
   }

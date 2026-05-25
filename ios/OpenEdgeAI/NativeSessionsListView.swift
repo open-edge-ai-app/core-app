@@ -9,6 +9,8 @@ struct NativeSessionsView: View {
   @Binding var isPresented: Bool
   @Binding var showingSettings: Bool
   @Binding var showingAttachmentOptions: Bool
+  var onPickPhotoOrVideo: () -> Void
+  var onPickFile: () -> Void
   @EnvironmentObject private var store: NativeChatStore
   @State private var isSearchPresented = false
   @State private var isProjectCreatorPresented = false
@@ -185,9 +187,14 @@ struct NativeSessionsView: View {
           .foregroundColor(store.accentColor.foregroundColor)
           .padding(.horizontal, 18)
           .frame(height: 48)
-          .background(store.accentColor.color)
-          .clipShape(Capsule())
-          .shadow(color: Color(uiColor: .black).opacity(0.16), radius: 14, x: 0, y: 8)
+          .background(
+            store.accentColor.color,
+            in: Capsule(style: .continuous)
+          )
+          .overlay(
+            Capsule(style: .continuous)
+              .stroke(Color.oeBorder.opacity(0.18), lineWidth: 1)
+          )
         }
         .buttonStyle(.plain)
         .accessibilityLabel(store.i18n.t(.chatNewChat))
@@ -201,7 +208,9 @@ struct NativeSessionsView: View {
         case .project(let project):
           NativeProjectSessionsPage(
             project: project,
-            showingAttachmentOptions: $showingAttachmentOptions
+            showingAttachmentOptions: $showingAttachmentOptions,
+            onPickPhotoOrVideo: onPickPhotoOrVideo,
+            onPickFile: onPickFile
           ) { session in
             store.selectSession(session)
             close()

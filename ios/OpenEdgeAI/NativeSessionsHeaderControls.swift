@@ -27,9 +27,11 @@ struct NativeSessionsSearchPill: View {
     .padding(.leading, 16)
     .padding(.trailing, 8)
     .frame(height: 52)
-    .background(Color.oeSurface)
-    .clipShape(Capsule())
-    .shadow(color: Color(uiColor: .black).opacity(0.08), radius: 22, x: 0, y: 12)
+    .background(.ultraThinMaterial, in: Capsule(style: .continuous))
+    .overlay(
+      Capsule(style: .continuous)
+        .stroke(Color.oeBorder.opacity(0.18), lineWidth: 1)
+    )
   }
 }
 

@@ -17,15 +17,28 @@ struct NativeRootView: View {
 
   var body: some View {
     ZStack(alignment: .leading) {
-      VStack(spacing: 0) {
+      ZStack(alignment: .bottom) {
+        NativeChatTranscript(
+          topPadding: nativeTopBarTranscriptPadding,
+          bottomPadding: nativeComposerScrollBottomPadding
+        )
+
+        NativeRootBottomTranscriptFade()
+          .zIndex(1)
+
+        NativeInputBar(
+          showingAttachmentOptions: $showingAttachmentOptions,
+          onPickPhotoOrVideo: requestPhotoLibraryAccess,
+          onPickFile: openFileImporter
+        )
+          .zIndex(2)
+          .ignoresSafeArea(.container, edges: .bottom)
+      }
+      .overlay(alignment: .top) {
         NativeTopBar(
           showingSessions: $showingSessions
         )
         .zIndex(2)
-
-        Divider()
-        NativeChatTranscript()
-        NativeInputBar(showingAttachmentOptions: $showingAttachmentOptions)
       }
       .background(Color.oeBackground)
 
@@ -33,34 +46,30 @@ struct NativeRootView: View {
         NativeSessionsView(
           isPresented: $showingSessions,
           showingSettings: $showingSettings,
-          showingAttachmentOptions: $showingAttachmentOptions
+          showingAttachmentOptions: $showingAttachmentOptions,
+          onPickPhotoOrVideo: requestPhotoLibraryAccess,
+          onPickFile: openFileImporter
         )
           .environmentObject(store)
           .transition(.move(edge: .leading))
           .zIndex(4)
       }
     }
+    .overlay {
+      if !store.hasCompletedOnboarding {
+        NativeOnboardingView {
+          store.completeOnboarding()
+        }
+        .environmentObject(store)
+        .transition(.opacity)
+        .zIndex(20)
+      }
+    }
     .animation(.easeOut(duration: 0.24), value: showingSessions)
+    .animation(.easeInOut(duration: 0.24), value: store.hasCompletedOnboarding)
     .sheet(isPresented: $showingSettings) {
       NativeSettingsView()
         .environmentObject(store)
-    }
-    .confirmationDialog(store.i18n.t(.attachmentAdd), isPresented: $showingAttachmentOptions, titleVisibility: .visible) {
-      Button {
-        requestPhotoLibraryAccess()
-      } label: {
-        Label(store.i18n.t(.attachmentPhotoOrVideo), systemImage: "photo.on.rectangle")
-      }
-
-      Button {
-        showingFileImporter = true
-      } label: {
-        Label(store.i18n.t(.attachmentFile), systemImage: "doc")
-      }
-
-      Button(store.i18n.t(.commonCancel), role: .cancel) {}
-    } message: {
-      Text(store.i18n.t(.attachmentDialogMessage))
     }
     .photosPicker(
       isPresented: $showingPhotoPicker,
@@ -124,10 +133,34 @@ struct NativeRootView: View {
     }
   }
 
+  private func openFileImporter() {
+    showingFileImporter = true
+  }
+
   private func openAppSettings() {
     guard let url = URL(string: UIApplication.openSettingsURLString) else {
       return
     }
     UIApplication.shared.open(url)
+  }
+}
+
+private struct NativeRootBottomTranscriptFade: View {
+  var body: some View {
+    GeometryReader { proxy in
+      VStack(spacing: 0) {
+        Spacer(minLength: 0)
+
+        NativeChatTranscriptEdgeFade(
+          edge: .bottom,
+          height: 226 + proxy.safeAreaInsets.bottom
+        )
+        .frame(maxWidth: .infinity)
+        .offset(y: proxy.safeAreaInsets.bottom)
+      }
+      .frame(width: proxy.size.width, height: proxy.size.height)
+    }
+    .ignoresSafeArea(.container, edges: .bottom)
+    .allowsHitTesting(false)
   }
 }

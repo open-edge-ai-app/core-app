@@ -58,6 +58,9 @@ struct NativeModelSettingsView: View {
         }
       }
     }
+    .listStyle(.insetGrouped)
+    .scrollContentBackground(.hidden)
+    .background(Color.oeGroupedBackground)
     .navigationTitle(i18n.t(.settingsModel))
     .navigationBarTitleDisplayMode(.inline)
   }

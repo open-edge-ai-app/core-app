@@ -37,8 +37,8 @@ struct NativeRenameSheet: View {
               .textInputAutocapitalization(.sentences)
               .padding(.horizontal, 16)
               .frame(height: 54)
-              .background(Color.oeSubtleFill)
-              .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+              .nativeLiquidGlass(cornerRadius: 14, interactive: true)
+              .nativeGlassStroke(cornerRadius: 14, color: Color.oeBorder.opacity(0.32))
           }
 
           if target.isProject {
@@ -79,8 +79,8 @@ struct NativeRenameSheet: View {
                     .allowsHitTesting(false)
                 }
               }
-              .background(Color.oeSubtleFill)
-              .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+              .nativeLiquidGlass(cornerRadius: 14, interactive: true)
+              .nativeGlassStroke(cornerRadius: 14, color: Color.oeBorder.opacity(0.32))
             }
           }
         }
@@ -88,7 +88,7 @@ struct NativeRenameSheet: View {
         .padding(.top, 24)
         .padding(.bottom, 34)
       }
-      .background(Color.oeBackground)
+      .background(Color.oeGroupedBackground)
       .navigationTitle(target.localizedNavigationTitle(store.i18n))
       .navigationBarTitleDisplayMode(.inline)
       .toolbar {
@@ -163,8 +163,8 @@ struct NativeProjectCreatorView: View {
               .textInputAutocapitalization(.words)
               .padding(.horizontal, 16)
               .frame(height: 54)
-              .background(Color.oeSubtleFill)
-              .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+              .nativeLiquidGlass(cornerRadius: 14, interactive: true)
+              .nativeGlassStroke(cornerRadius: 14, color: Color.oeBorder.opacity(0.32))
           }
 
           NativeProjectCreatorSection(title: store.i18n.t(.projectIcon)) {
@@ -205,15 +205,15 @@ struct NativeProjectCreatorView: View {
                   .allowsHitTesting(false)
               }
             }
-            .background(Color.oeSubtleFill)
-            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .nativeLiquidGlass(cornerRadius: 14, interactive: true)
+            .nativeGlassStroke(cornerRadius: 14, color: Color.oeBorder.opacity(0.32))
           }
         }
         .padding(.horizontal, 24)
         .padding(.top, 20)
         .padding(.bottom, 34)
       }
-      .background(Color.oeBackground)
+      .background(Color.oeGroupedBackground)
       .navigationTitle(store.i18n.t(.projectNew))
       .navigationBarTitleDisplayMode(.inline)
       .toolbar {

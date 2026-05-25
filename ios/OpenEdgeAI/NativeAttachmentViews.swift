@@ -16,8 +16,7 @@ struct NativeAttachmentRow: View {
         .foregroundColor(.oeText)
         .padding(.horizontal, 10)
         .padding(.vertical, 8)
-        .background(Color.oeSubtleFill)
-        .clipShape(RoundedRectangle(cornerRadius: 10))
+        .nativeLiquidGlass(cornerRadius: 10, interactive: true)
       }
     }
   }

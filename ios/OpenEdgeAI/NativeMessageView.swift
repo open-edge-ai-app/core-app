@@ -17,8 +17,14 @@ struct NativeMessageView: View {
           .foregroundColor(store.accentColor.foregroundColor)
           .padding(.horizontal, 14)
           .padding(.vertical, 10)
-          .background(store.accentColor.color)
-          .clipShape(RoundedRectangle(cornerRadius: 18))
+          .background(
+            store.accentColor.color,
+            in: RoundedRectangle(cornerRadius: 18, style: .continuous)
+          )
+          .overlay(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+              .stroke(Color.oeBorder.opacity(0.16), lineWidth: 1)
+          )
           .frame(maxWidth: .infinity, alignment: .trailing)
           .textSelection(.enabled)
       } else {
@@ -67,6 +73,13 @@ struct NativeMessageView: View {
         .buttonStyle(.plain)
         .foregroundColor(store.accentColor.color)
         .font(.system(size: 14, weight: .medium))
+        .padding(.horizontal, 10)
+        .frame(height: 34)
+        .background(.ultraThinMaterial, in: Capsule(style: .continuous))
+        .overlay(
+          Capsule(style: .continuous)
+            .stroke(Color.oeBorder.opacity(0.18), lineWidth: 1)
+        )
       }
     }
     .frame(maxWidth: .infinity, alignment: message.role == .user ? .trailing : .leading)

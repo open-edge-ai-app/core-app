@@ -7,62 +7,11 @@ struct NativeDynamicIslandPetView: View {
   @State private var phase = false
 
   private var rows: [[Int]] {
-    switch pet {
-    case .orbit:
-      return [
-        [0, 0, 2, 2, 2, 0, 0],
-        [0, 2, 1, 1, 1, 2, 0],
-        [2, 1, 4, 1, 4, 1, 2],
-        [2, 1, 1, 3, 1, 1, 2],
-        [0, 2, 1, 1, 1, 2, 0],
-        [0, 3, 2, 1, 2, 3, 0],
-        [3, 0, 2, 0, 2, 0, 3]
-      ]
-    case .stacky:
-      return [
-        [0, 0, 2, 2, 2, 0, 0],
-        [0, 2, 3, 3, 3, 2, 0],
-        [2, 3, 4, 3, 4, 3, 2],
-        [2, 1, 1, 1, 1, 1, 2],
-        [2, 3, 3, 3, 3, 3, 2],
-        [0, 2, 1, 1, 1, 2, 0],
-        [3, 2, 0, 0, 0, 2, 3]
-      ]
-    case .nullSignal:
-      return [
-        [0, 0, 2, 2, 2, 0, 0],
-        [0, 2, 1, 1, 1, 2, 0],
-        [2, 1, 4, 1, 4, 1, 2],
-        [2, 1, 1, 2, 1, 1, 2],
-        [2, 1, 3, 3, 3, 1, 2],
-        [0, 2, 1, 1, 1, 2, 0],
-        [0, 0, 2, 0, 2, 0, 0]
-      ]
-    case .luma:
-      return [
-        [0, 0, 3, 3, 3, 0, 0],
-        [0, 3, 1, 1, 1, 3, 0],
-        [3, 1, 4, 1, 4, 1, 3],
-        [2, 1, 1, 1, 1, 1, 2],
-        [0, 3, 1, 2, 1, 3, 0],
-        [0, 0, 3, 1, 3, 0, 0],
-        [0, 3, 0, 0, 0, 3, 0]
-      ]
-    case .flux:
-      return [
-        [0, 0, 3, 1, 3, 0, 0],
-        [0, 3, 1, 1, 1, 3, 0],
-        [3, 1, 4, 1, 4, 1, 3],
-        [2, 1, 1, 3, 1, 1, 2],
-        [0, 3, 1, 1, 1, 3, 0],
-        [0, 0, 2, 3, 2, 0, 0],
-        [0, 2, 0, 0, 0, 2, 0]
-      ]
-    }
+    NativeDynamicIslandPetSprite.rows(for: pet.rawValue)
   }
 
   private var pixelSize: CGFloat {
-    size / 7
+    size / CGFloat(NativeDynamicIslandPetSprite.dimension)
   }
 
   private var bodyOffset: CGFloat {
@@ -121,7 +70,7 @@ struct NativeDynamicIslandPetView: View {
           ForEach(0..<3, id: \.self) { index in
             RoundedRectangle(cornerRadius: 1.5, style: .continuous)
               .fill(pet.secondaryColor.opacity(index == 1 ? 0.9 : 0.64))
-              .frame(width: 3.5, height: phase == (index == 1) ? 7 : 4)
+              .frame(width: 2.8, height: phase == (index == 1) ? 6 : 3.5)
           }
         }
         .offset(x: 8, y: -8)
@@ -156,6 +105,14 @@ struct NativeDynamicIslandPetView: View {
       return pet.secondaryColor
     case 4:
       return pet.eyeColor
+    case 5:
+      return pet.cheekColor
+    case 6:
+      return pet.sparkleColor
+    case 7:
+      return pet.skinColor
+    case 8:
+      return pet.hairColor
     default:
       return Color.clear
     }

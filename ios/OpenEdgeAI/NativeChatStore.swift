@@ -32,6 +32,7 @@ final class NativeChatStore: ObservableObject {
   @Published var appearanceMode: NativeAppearanceMode = .light
   @Published var accentColor: NativeAccentColor = .black
   @Published var selectedLanguage: NativeLanguage = .korean
+  @Published var hasCompletedOnboarding = false
   @Published var backgroundExecutionEnabled = false
   @Published var backgroundDynamicIslandEnabled = true
   @Published var dynamicIslandPetEnabled = false
@@ -51,6 +52,10 @@ final class NativeChatStore: ObservableObject {
   @Published var activeRequestSessionId: String?
   var generationBackgroundTaskIdentifier: UIBackgroundTaskIdentifier = .invalid
   var searchProgressTasks: [String: Task<Void, Never>] = [:]
+  var pendingStreamChunks: [String: String] = [:]
+  var streamFlushTasks: [String: Task<Void, Never>] = [:]
+  var sessionMutationRevision = 0
+  let streamFlushIntervalNanoseconds: UInt64 = 80_000_000
   let deviceContextProvider = NativeDeviceContextProvider()
   let localKnowledgeStore = NativeLocalKnowledgeStore.shared
   let searchFallbackRequestText = "현재 대화 내용을 기반으로 검색해서 내용을 개선해줘."
@@ -74,11 +79,16 @@ final class NativeChatStore: ObservableObject {
       uniqueKeysWithValues: NativeModel.allCases.map { ($0, NativeModelStatus(model: $0)) }
     )
 
-    Task {
-      await refreshModelStatuses()
+    Task { [weak self] in
+      await self?.refreshModelStatuses()
     }
 
     syncDynamicIslandLiveActivity()
+  }
+
+  deinit {
+    searchProgressTasks.values.forEach { $0.cancel() }
+    streamFlushTasks.values.forEach { $0.cancel() }
   }
 
   var currentSession: NativeChatSession? {

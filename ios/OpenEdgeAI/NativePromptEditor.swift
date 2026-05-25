@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 struct NativePromptEditor: View {
   @EnvironmentObject private var store: NativeChatStore
@@ -6,35 +7,63 @@ struct NativePromptEditor: View {
   var placeholder: String
   var focused: FocusState<Bool>.Binding
 
+  private var fontSize: CGFloat {
+    store.fontSizeSetting.inputSize
+  }
+
+  private var lineHeight: CGFloat {
+    UIFont.systemFont(ofSize: fontSize).lineHeight
+  }
+
   private var visibleLineCount: Int {
-    min(max(1, text.components(separatedBy: .newlines).count), 3)
+    min(max(1, estimatedLineCount), 3)
   }
 
   private var editorHeight: CGFloat {
-    let lineHeight = max(20, store.fontSizeSetting.inputSize + 5)
-    return CGFloat(visibleLineCount) * lineHeight + 16
+    max(36, CGFloat(visibleLineCount) * lineHeight + 8)
+  }
+
+  private var estimatedLineCount: Int {
+    let lines = text.split(separator: "\n", omittingEmptySubsequences: false)
+    guard !lines.isEmpty else {
+      return 1
+    }
+
+    return lines.reduce(0) { count, line in
+      count + max(1, Int(ceil(Double(line.count) / 24.0)))
+    }
   }
 
   var body: some View {
-    ZStack(alignment: .topLeading) {
+    ZStack(alignment: .leading) {
       TextEditor(text: $text)
-        .font(.system(size: store.fontSizeSetting.inputSize))
+        .font(.system(size: fontSize))
         .foregroundColor(.oeText)
         .tint(store.accentColor.color)
         .focused(focused)
         .scrollContentBackground(.hidden)
+        .scrollIndicators(.hidden)
         .background(Color.clear)
         .frame(height: editorHeight)
         .fixedSize(horizontal: false, vertical: false)
+        .accessibilityIdentifier("chatPromptInput")
+        .accessibilityLabel(Text(placeholder))
 
       if text.isEmpty {
         Text(placeholder)
-          .font(.system(size: store.fontSizeSetting.inputSize))
-          .foregroundColor(.oeText.opacity(0.35))
-          .padding(.top, 8)
+          .font(.system(size: fontSize))
+          .foregroundColor(.oeSecondaryText.opacity(0.72))
+          .lineLimit(1)
+          .frame(height: editorHeight, alignment: .center)
           .padding(.leading, 5)
           .allowsHitTesting(false)
+          .accessibilityHidden(true)
       }
+    }
+    .frame(minHeight: 36)
+    .contentShape(Rectangle())
+    .onTapGesture {
+      focused.wrappedValue = true
     }
   }
 }

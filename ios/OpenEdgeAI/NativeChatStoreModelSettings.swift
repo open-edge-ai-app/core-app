@@ -29,8 +29,8 @@ extension NativeChatStore {
 
   func downloadGemma() {
     _ = AIEngineGemmaModelClient.shared.downloadModel()
-    Task {
-      await refreshModelStatuses()
+    Task { [weak self] in
+      await self?.refreshModelStatuses()
     }
   }
 
@@ -41,8 +41,8 @@ extension NativeChatStore {
     case .gemma:
       _ = AIEngineGemmaModelClient.shared.loadModel()
     }
-    Task {
-      await refreshModelStatuses()
+    Task { [weak self] in
+      await self?.refreshModelStatuses()
     }
   }
 
@@ -53,6 +53,7 @@ extension NativeChatStore {
       "userName": userName,
       "personality": personality,
       "memoryEnabled": memoryEnabled,
+      "hasCompletedOnboarding": hasCompletedOnboarding,
       "selectedModel": selectedModel.rawValue,
       "fontSize": fontSizeSetting.rawValue,
       "appearanceMode": appearanceMode.rawValue,
@@ -67,6 +68,11 @@ extension NativeChatStore {
       "todoCalendarSyncEnabled": todoCalendarSyncEnabled
     ]
     UserDefaults.standard.set(data, forKey: settingsKey)
+  }
+
+  func completeOnboarding() {
+    hasCompletedOnboarding = true
+    saveSettings()
   }
 
   func rebuildLocalMemoryIndex() {

@@ -224,72 +224,11 @@ private struct OpenEdgeAIIslandPet: View {
   var size: CGFloat
 
   private var pixelSize: CGFloat {
-    size / 7
+    size / CGFloat(NativeDynamicIslandPetSprite.dimension)
   }
 
   private var rows: [[Int]] {
-    switch pet {
-    case "orbit":
-      return [
-        [0, 0, 2, 2, 2, 0, 0],
-        [0, 2, 1, 1, 1, 2, 0],
-        [2, 1, 4, 1, 4, 1, 2],
-        [2, 1, 1, 3, 1, 1, 2],
-        [0, 2, 1, 1, 1, 2, 0],
-        [0, 3, 2, 1, 2, 3, 0],
-        [3, 0, 2, 0, 2, 0, 3]
-      ]
-    case "stacky":
-      return [
-        [0, 0, 2, 2, 2, 0, 0],
-        [0, 2, 3, 3, 3, 2, 0],
-        [2, 3, 4, 3, 4, 3, 2],
-        [2, 1, 1, 1, 1, 1, 2],
-        [2, 3, 3, 3, 3, 3, 2],
-        [0, 2, 1, 1, 1, 2, 0],
-        [3, 2, 0, 0, 0, 2, 3]
-      ]
-    case "nullSignal":
-      return [
-        [0, 0, 2, 2, 2, 0, 0],
-        [0, 2, 1, 1, 1, 2, 0],
-        [2, 1, 4, 1, 4, 1, 2],
-        [2, 1, 1, 2, 1, 1, 2],
-        [2, 1, 3, 3, 3, 1, 2],
-        [0, 2, 1, 1, 1, 2, 0],
-        [0, 0, 2, 0, 2, 0, 0]
-      ]
-    case "luma":
-      return [
-        [0, 0, 3, 3, 3, 0, 0],
-        [0, 3, 1, 1, 1, 3, 0],
-        [3, 1, 4, 1, 4, 1, 3],
-        [2, 1, 1, 1, 1, 1, 2],
-        [0, 3, 1, 2, 1, 3, 0],
-        [0, 0, 3, 1, 3, 0, 0],
-        [0, 3, 0, 0, 0, 3, 0]
-      ]
-    case "flux":
-      return [
-        [0, 0, 3, 1, 3, 0, 0],
-        [0, 3, 1, 1, 1, 3, 0],
-        [3, 1, 4, 1, 4, 1, 3],
-        [2, 1, 1, 3, 1, 1, 2],
-        [0, 3, 1, 1, 1, 3, 0],
-        [0, 0, 2, 3, 2, 0, 0],
-        [0, 2, 0, 0, 0, 2, 0]
-      ]
-    default:
-      return [
-        [0, 0, 2, 2, 2, 0, 0],
-        [0, 2, 1, 1, 1, 2, 0],
-        [2, 1, 4, 1, 4, 1, 2],
-        [2, 1, 1, 3, 1, 1, 2],
-        [0, 2, 1, 1, 1, 2, 0],
-        [0, 3, 2, 1, 2, 3, 0],
-        [3, 0, 2, 0, 2, 0, 3]
-      ]
-    }
+    NativeDynamicIslandPetSprite.rows(for: pet)
   }
 
   private var yOffset: CGFloat {
@@ -350,62 +289,48 @@ private struct OpenEdgeAIIslandPet: View {
       return secondaryColor
     case 4:
       return eyeColor
+    case 5:
+      return cheekColor
+    case 6:
+      return sparkleColor
+    case 7:
+      return skinColor
+    case 8:
+      return hairColor
     default:
       return .clear
     }
   }
 
   private var primaryColor: Color {
-    switch pet {
-    case "stacky":
-      return Color(red: 1, green: 0.68, blue: 0.20)
-    case "nullSignal":
-      return Color(red: 0.62, green: 0.36, blue: 1)
-    case "luma":
-      return Color(red: 0.22, green: 0.86, blue: 0.68)
-    case "flux":
-      return Color(red: 1, green: 0.38, blue: 0.34)
-    default:
-      return Color(red: 0.18, green: 0.58, blue: 1)
-    }
+    NativeDynamicIslandPetSprite.primaryColor(for: pet)
   }
 
   private var secondaryColor: Color {
-    switch pet {
-    case "stacky":
-      return Color(red: 1, green: 0.93, blue: 0.48)
-    case "nullSignal":
-      return Color(red: 0.90, green: 0.78, blue: 1)
-    case "luma":
-      return Color(red: 0.78, green: 1, blue: 0.42)
-    case "flux":
-      return Color(red: 1, green: 0.78, blue: 0.22)
-    default:
-      return Color(red: 0.55, green: 0.92, blue: 1)
-    }
+    NativeDynamicIslandPetSprite.secondaryColor(for: pet)
   }
 
   private var outlineColor: Color {
-    switch pet {
-    case "stacky":
-      return Color(red: 0.28, green: 0.17, blue: 0.04)
-    case "nullSignal":
-      return Color(red: 0.20, green: 0.08, blue: 0.36)
-    case "luma":
-      return Color(red: 0.04, green: 0.24, blue: 0.22)
-    case "flux":
-      return Color(red: 0.36, green: 0.08, blue: 0.05)
-    default:
-      return Color(red: 0.04, green: 0.12, blue: 0.24)
-    }
+    NativeDynamicIslandPetSprite.outlineColor(for: pet)
   }
 
   private var eyeColor: Color {
-    switch pet {
-    case "nullSignal", "flux":
-      return .white
-    default:
-      return Color(red: 0.03, green: 0.05, blue: 0.07)
-    }
+    NativeDynamicIslandPetSprite.eyeColor(for: pet)
+  }
+
+  private var cheekColor: Color {
+    NativeDynamicIslandPetSprite.cheekColor(for: pet)
+  }
+
+  private var sparkleColor: Color {
+    NativeDynamicIslandPetSprite.sparkleColor(for: pet)
+  }
+
+  private var skinColor: Color {
+    NativeDynamicIslandPetSprite.skinColor(for: pet)
+  }
+
+  private var hairColor: Color {
+    NativeDynamicIslandPetSprite.hairColor(for: pet)
   }
 }

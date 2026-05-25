@@ -20,19 +20,6 @@ struct NativeTopBar: View {
         .accessibilityLabel(store.i18n.t(.chatOpenList))
         .buttonStyle(.plain)
 
-        Button {
-          store.createNewSession()
-        } label: {
-          NativeTopBarGlassCapsule {
-            Text(store.currentSession?.title ?? "Open Edge AI")
-              .font(.system(size: 15, weight: .semibold))
-              .lineLimit(1)
-              .frame(maxWidth: 132, alignment: .leading)
-          }
-        }
-        .buttonStyle(.plain)
-        .layoutPriority(1)
-
         Spacer(minLength: 8)
 
         NativeModelMenu()

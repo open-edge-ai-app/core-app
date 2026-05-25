@@ -50,7 +50,7 @@ extension NativeI18n {
     .onboardingProjectTitle: "프로젝트마다 맥락을 나누세요",
     .onboardingProjectSubtitle: "프로젝트별 지침, 파일, 대화를 분리해 필요한 맥락만 유지합니다.",
     .onboardingIslandTitle: "백그라운드에서도 작업을 지켜보세요",
-    .onboardingIslandSubtitle: "Dynamic Island에서 진행 중인 응답과 대기열 상태를 작게 보여줍니다.",
+    .onboardingIslandSubtitle: "Dynamic Island에서 작업 중인 응답과 대기열 상태를 작게 보여줍니다.",
     .attachmentAdd: "첨부 추가",
     .attachmentPhotoOrVideo: "사진 또는 동영상",
     .attachmentFile: "파일",

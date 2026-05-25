@@ -97,7 +97,7 @@ struct NativeSketchSpinner: View {
     Circle()
       .trim(from: 0.08, to: 0.72)
       .stroke(.white.opacity(0.84), style: StrokeStyle(lineWidth: 3, lineCap: .square))
-      .rotationEffect(.degrees(24))
+      .rotationEffect(.degrees(motion.rotation(speed: 1.15)))
   }
 }
 

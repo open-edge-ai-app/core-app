@@ -50,7 +50,7 @@ extension NativeI18n {
     .onboardingProjectTitle: "Keep each project in its own context",
     .onboardingProjectSubtitle: "Separates instructions, files, and chats so each workspace stays focused.",
     .onboardingIslandTitle: "Track work from Dynamic Island",
-    .onboardingIslandSubtitle: "Shows live response progress and queued follow-ups while the app keeps working.",
+    .onboardingIslandSubtitle: "Shows live response work and queued follow-ups while the app keeps running.",
     .attachmentAdd: "Add attachment",
     .attachmentPhotoOrVideo: "Photo or video",
     .attachmentFile: "File",

@@ -292,24 +292,19 @@ private struct NativeHandDrawnIslandStatus: View {
       NativeDynamicIslandPetView(pet: .flux, motion: .running, size: 34)
         .frame(width: 42, height: 38)
 
-      VStack(alignment: .leading, spacing: 5) {
-        Text("Writing in background")
+      VStack(alignment: .leading, spacing: 3) {
+        Text("Working in background")
           .font(.system(size: 11, weight: .black))
           .foregroundColor(.white.opacity(0.90))
-        ZStack(alignment: .leading) {
-          Capsule()
-            .fill(Color.white.opacity(0.22))
-            .frame(width: 102, height: 6)
-          Capsule()
-            .fill(accentColor.color)
-            .frame(width: 72, height: 6)
-        }
+        Text("Writing answer")
+          .font(.system(size: 9, weight: .heavy))
+          .foregroundColor(.white.opacity(0.56))
       }
 
       NativeSketchSpinner(motion: motion)
-        .frame(width: 18, height: 18)
+        .frame(width: 22, height: 22)
     }
-    .padding(.horizontal, 14)
+    .padding(.horizontal, 15)
     .frame(width: 236, height: 60)
     .nativeHandDrawnBubble(background: Color.oeText, ink: accentColor.color.opacity(0.62), radius: 26)
     .rotationEffect(.degrees(0.8))

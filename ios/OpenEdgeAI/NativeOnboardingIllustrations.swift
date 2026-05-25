@@ -82,28 +82,25 @@ private struct NativeOnboardingChatSketchScene: View {
         .frame(width: 206, height: 112)
         .offset(x: 26, y: -42)
 
-      NativeSketchSceneBadge(icon: "bubble.left.and.text.bubble.right", title: "Chat response", accentColor: accentColor)
+      NativeSketchSceneBadge(icon: "bubble.left.and.text.bubble.right", title: "On-device answer", accentColor: accentColor)
         .offset(y: -124)
         .zIndex(2)
 
-      VStack(spacing: 12) {
-        NativeSketchSentChatBar(accentColor: accentColor, motion: motion)
-          .padding(.horizontal, 12)
+      VStack(spacing: 10) {
+        NativePixelChatQuestion(accentColor: accentColor)
+          .padding(.leading, 66)
 
-        HStack(alignment: .bottom, spacing: 10) {
-          NativeOnboardingPetActor(pet: .orbit, petMotion: .resting, size: 78)
+        HStack(alignment: .top, spacing: 9) {
+          NativeOnboardingPetActor(pet: .orbit, petMotion: .resting, size: 66)
             .rotationEffect(.degrees(motion.degrees(2.6, speed: 0.34)))
-            .offset(x: motion.float(3, speed: 0.36), y: motion.float(6, speed: 0.42) + 4)
+            .offset(x: motion.float(3, speed: 0.36), y: motion.float(6, speed: 0.42) + 22)
 
-          NativeSketchDetailedResponsePanel(accentColor: accentColor, motion: motion)
+          NativePixelChatAnswer(accentColor: accentColor, motion: motion)
             .offset(x: motion.float(5, speed: 0.32, offset: 0.20))
         }
-
-        NativeSketchFlowCaption(text: "send chat  ->  pet answer  ->  details", accentColor: accentColor)
-          .opacity(motion.opacity(from: 0.62, to: 0.96, speed: 0.46, offset: 0.18))
       }
       .padding(.horizontal, 22)
-      .offset(y: 10)
+      .offset(y: 20)
     }
   }
 }

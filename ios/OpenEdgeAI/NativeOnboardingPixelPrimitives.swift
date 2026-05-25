@@ -148,4 +148,26 @@ extension View {
   func nativePixelPanel(background: Color, border: Color) -> some View {
     modifier(NativePixelPanel(background: background, border: border))
   }
+
+  func nativeRoundedPixelBubble(background: Color, border: Color, radius: CGFloat = 20) -> some View {
+    modifier(NativeRoundedPixelBubble(background: background, border: border, radius: radius))
+  }
+}
+
+private struct NativeRoundedPixelBubble: ViewModifier {
+  var background: Color
+  var border: Color
+  var radius: CGFloat
+
+  func body(content: Content) -> some View {
+    content
+      .background(
+        RoundedRectangle(cornerRadius: radius, style: .continuous)
+          .fill(background)
+      )
+      .overlay {
+        RoundedRectangle(cornerRadius: radius, style: .continuous)
+          .stroke(border, lineWidth: 1.4)
+      }
+  }
 }

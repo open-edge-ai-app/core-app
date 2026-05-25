@@ -150,93 +150,95 @@ struct NativeSketchPromptStrip: View {
   }
 }
 
-struct NativeSketchSentChatBar: View {
+struct NativePixelChatQuestion: View {
   var accentColor: NativeAccentColor
-  var motion: NativeOnboardingMotion
 
   var body: some View {
-    HStack(spacing: 9) {
+    HStack(alignment: .top, spacing: 7) {
       Image(systemName: "paperplane.fill")
-        .font(.system(size: 13, weight: .black))
-        .foregroundColor(accentColor.color)
+        .font(.system(size: 11, weight: .black))
+        .padding(.top, 2)
 
-      VStack(alignment: .leading, spacing: 4) {
-        Text("Message sent")
-          .font(.system(size: 9, weight: .black))
-          .foregroundColor(.oeSecondaryText)
-
-        HStack(spacing: 4) {
-          ForEach(0..<8, id: \.self) { index in
-            Rectangle()
-              .fill(index < 5 ? Color.oeText.opacity(0.52) : Color.oeText.opacity(0.14))
-              .frame(width: index == 4 ? 18 : 10, height: 5)
-          }
-        }
-      }
-
-      Spacer(minLength: 0)
-
-      NativeSketchSendButton(accentColor: accentColor, motion: motion)
-        .scaleEffect(0.86)
+      Text("Can you explain edge AI simply?")
+        .font(.system(size: 13, weight: .heavy))
+        .lineLimit(2)
+        .fixedSize(horizontal: false, vertical: true)
     }
+    .foregroundColor(accentColor.foregroundColor)
     .padding(.horizontal, 12)
-    .frame(height: 46)
-    .nativePixelPanel(background: Color.oeBackground.opacity(0.64), border: Color.oeText.opacity(0.11))
+    .padding(.vertical, 9)
+    .frame(width: 232, alignment: .leading)
+    .nativeRoundedPixelBubble(background: accentColor.color, border: Color.oeText.opacity(0.12), radius: 19)
+    .overlay(alignment: .bottomTrailing) {
+      NativePixelTail()
+        .fill(accentColor.color)
+        .frame(width: 16, height: 13)
+        .scaleEffect(x: -1, y: 1)
+        .offset(x: -14, y: 9)
+    }
   }
 }
 
-struct NativeSketchDetailedResponsePanel: View {
+struct NativePixelChatAnswer: View {
   var accentColor: NativeAccentColor
   var motion: NativeOnboardingMotion
 
   var body: some View {
-    VStack(alignment: .leading, spacing: 8) {
+    VStack(alignment: .leading, spacing: 7) {
       HStack(spacing: 7) {
         Image(systemName: "cpu")
           .font(.system(size: 12, weight: .black))
           .foregroundColor(accentColor.color)
-        Text("Detailed answer")
+        Text("It runs AI directly on your device.")
           .font(.system(size: 13, weight: .black))
           .foregroundColor(.oeText)
+          .lineLimit(2)
       }
 
-      NativeSketchResponseLine(icon: "text.alignleft", title: "summary", width: 104, color: .oeText)
-      NativeSketchResponseLine(icon: "list.number", title: "steps", width: motion.progress(from: 64, to: 112, speed: 0.38, offset: 0.28), color: accentColor.color)
-      NativeSketchResponseLine(icon: "arrow.turn.down.right", title: "follow-up", width: 88, color: .oeSecondaryText)
+      NativePixelAnswerTextRow(number: "1", text: "Private by default", color: accentColor.color)
+      NativePixelAnswerTextRow(number: "2", text: "Fast offline answers", color: .oeText)
+      NativePixelAnswerTextRow(number: "3", text: "Search only when needed", color: .oeSecondaryText)
+
+      HStack(spacing: 5) {
+        ForEach(0..<5, id: \.self) { index in
+          Rectangle()
+            .fill(index < 3 ? accentColor.color.opacity(0.78) : Color.oeMutedText.opacity(0.20))
+            .frame(width: motion.progress(from: 7, to: 16, speed: 0.36, offset: Double(index) * 0.14), height: 4)
+        }
+      }
+      .padding(.top, 1)
     }
     .padding(.horizontal, 12)
-    .padding(.vertical, 10)
-    .frame(width: 184, height: 116, alignment: .topLeading)
-    .nativePixelPanel(background: Color.oeBackground.opacity(0.70), border: accentColor.color.opacity(0.24))
+    .padding(.vertical, 11)
+    .frame(width: 214, height: 136, alignment: .topLeading)
+    .nativeRoundedPixelBubble(background: Color.oeBackground.opacity(0.70), border: accentColor.color.opacity(0.24), radius: 18)
     .overlay(alignment: .leading) {
       NativePixelTail()
         .fill(Color.oeBackground.opacity(0.70))
         .frame(width: 16, height: 14)
         .rotationEffect(.degrees(180))
-        .offset(x: -13, y: 24)
+        .offset(x: -13, y: 30)
     }
   }
 }
 
-private struct NativeSketchResponseLine: View {
-  var icon: String
-  var title: String
-  var width: CGFloat
+private struct NativePixelAnswerTextRow: View {
+  var number: String
+  var text: String
   var color: Color
 
   var body: some View {
-    HStack(spacing: 6) {
-      Image(systemName: icon)
+    HStack(spacing: 7) {
+      Text(number)
         .font(.system(size: 9, weight: .black))
-        .frame(width: 12)
-      Text(title)
-        .font(.system(size: 10, weight: .black))
-        .frame(width: 54, alignment: .leading)
-      Rectangle()
-        .fill(color.opacity(0.72))
-        .frame(width: width, height: 5)
+        .foregroundColor(.oeBackground)
+        .frame(width: 16, height: 16)
+        .background(color)
+      Text(text)
+        .font(.system(size: 11, weight: .heavy))
+        .foregroundColor(.oeText)
+        .lineLimit(1)
     }
-    .foregroundColor(color)
   }
 }
 

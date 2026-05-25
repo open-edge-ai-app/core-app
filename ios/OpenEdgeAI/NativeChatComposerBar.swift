@@ -66,7 +66,7 @@ struct NativeChatComposerBar: View {
             }
             .padding(.leading, 14)
             .padding(.trailing, 8)
-            .padding(.vertical, 8)
+            .padding(.vertical, 6)
           }
           .layoutPriority(1)
         }
@@ -90,7 +90,7 @@ struct NativeChatComposerBar: View {
         accentColor: store.accentColor.color
       ) {
         Image(systemName: "plus")
-          .font(.system(size: 25, weight: .medium))
+          .font(.system(size: 24, weight: .medium))
           .foregroundColor(.oeText)
           .frame(width: nativeComposerAttachControlSize, height: nativeComposerAttachControlSize)
       }

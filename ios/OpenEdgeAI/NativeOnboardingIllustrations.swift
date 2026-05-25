@@ -78,8 +78,7 @@ private struct NativeOnboardingChatSketchScene: View {
 
   var body: some View {
     ZStack {
-      NativeSketchCurve(variant: 1)
-        .stroke(accentColor.color.opacity(0.18), style: NativeSketchStyle.thick)
+      NativePixelTrail(color: accentColor.color, variant: 1, motion: motion)
         .frame(width: 206, height: 112)
         .offset(x: 26, y: -42)
 
@@ -115,8 +114,7 @@ private struct NativeOnboardingTodoSketchScene: View {
 
   var body: some View {
     ZStack {
-      NativeSketchCurve(variant: 2)
-        .stroke(accentColor.color.opacity(0.16), style: NativeSketchStyle.thin)
+      NativePixelTrail(color: accentColor.color, variant: 2, motion: motion)
         .frame(width: 230, height: 126)
         .offset(x: -6, y: 18)
 
@@ -150,8 +148,7 @@ private struct NativeOnboardingProjectSketchScene: View {
 
   var body: some View {
     ZStack {
-      NativeSketchCurve(variant: 0)
-        .stroke(Color.oeText.opacity(0.10), style: NativeSketchStyle.thin)
+      NativePixelTrail(color: Color.oeText, variant: 0, motion: motion)
         .frame(width: 246, height: 136)
         .offset(x: 4, y: -16)
 
@@ -195,8 +192,7 @@ private struct NativeOnboardingIslandSketchScene: View {
 
   var body: some View {
     ZStack {
-      NativeSketchCurve(variant: 3)
-        .stroke(accentColor.color.opacity(0.15), style: NativeSketchStyle.thick)
+      NativePixelTrail(color: accentColor.color, variant: 3, motion: motion)
         .frame(width: 240, height: 138)
         .offset(y: 22)
 

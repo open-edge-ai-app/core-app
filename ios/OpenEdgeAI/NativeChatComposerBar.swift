@@ -71,6 +71,7 @@ struct NativeChatComposerBar: View {
             .padding(.vertical, 6)
           }
           .layoutPriority(1)
+          .offset(y: 1)
         }
       }
     }
@@ -127,7 +128,10 @@ struct NativeChatComposerBar: View {
 
   private var submitButton: some View {
     Button(action: submit) {
-      NativeComposerSubmitIcon(systemName: submitSystemImage)
+      NativeComposerSubmitIcon(
+        systemName: submitSystemImage,
+        isActive: hasDraftInput || showsStopButton
+      )
         .environmentObject(store)
     }
     .buttonStyle(.plain)
@@ -242,15 +246,16 @@ private struct NativeAttachmentOptionsMenu: View {
 struct NativeComposerSubmitIcon: View {
   @EnvironmentObject private var store: NativeChatStore
   var systemName: String
+  var isActive: Bool
 
   var body: some View {
     NativeComposerCircleSurface(
-      isActive: true,
+      isActive: isActive,
       accentColor: store.accentColor.color
     ) {
       Image(systemName: systemName)
         .font(.system(size: 15, weight: .bold))
-        .foregroundColor(store.accentColor.foregroundColor)
+        .foregroundColor(isActive ? store.accentColor.foregroundColor : .oeText)
         .frame(width: nativeComposerSubmitControlSize, height: nativeComposerSubmitControlSize)
     }
   }

@@ -37,7 +37,7 @@ struct NativeComposerInputSurface<Content: View>: View {
     if colorScheme == .dark {
       return Color.white.opacity(isFocused ? 0.1 : 0.07)
     }
-    return Color.white.opacity(isFocused ? 0.22 : 0.14)
+    return Color.white.opacity(isFocused ? 0.72 : 0.62)
   }
 
   private var glassHighlight: some View {
@@ -46,9 +46,9 @@ struct NativeComposerInputSurface<Content: View>: View {
       .stroke(
         LinearGradient(
           colors: [
-            Color.white.opacity(colorScheme == .dark ? 0.14 : 0.4),
-            Color.white.opacity(colorScheme == .dark ? 0.04 : 0.12),
-            Color.black.opacity(colorScheme == .dark ? 0.1 : 0.04)
+            Color.white.opacity(colorScheme == .dark ? 0.14 : 0.82),
+            Color.white.opacity(colorScheme == .dark ? 0.04 : 0.34),
+            Color.black.opacity(colorScheme == .dark ? 0.1 : 0.05)
           ],
           startPoint: .topLeading,
           endPoint: .bottomTrailing
@@ -71,7 +71,7 @@ struct NativeComposerInputSurface<Content: View>: View {
     if isFocused {
       return accentColor.opacity(0.36)
     }
-    return Color.white.opacity(colorScheme == .dark ? 0.14 : 0.3)
+    return colorScheme == .dark ? Color.white.opacity(0.14) : Color.black.opacity(0.06)
   }
 }
 
@@ -105,7 +105,7 @@ struct NativeComposerCircleSurface<Content: View>: View {
   private var neutralGlassTint: Color {
     colorScheme == .dark
       ? Color.white.opacity(0.1)
-      : Color.white.opacity(0.26)
+      : Color.white.opacity(0.58)
   }
 
   private var circleMaterial: some View {
@@ -129,13 +129,13 @@ struct NativeComposerCircleSurface<Content: View>: View {
   private var inactiveCircleTint: Color {
     colorScheme == .dark
       ? Color.white.opacity(0.12)
-      : Color.black.opacity(0.14)
+      : Color.white.opacity(0.74)
   }
 
   private var inactiveCircleStroke: Color {
     colorScheme == .dark
       ? Color.white.opacity(0.18)
-      : Color.black.opacity(0.16)
+      : Color.black.opacity(0.07)
   }
 
   private var inactiveCircleShadow: Color {

@@ -73,32 +73,21 @@ struct NativeOnboardingProjectSketchScene: View {
         .frame(width: 246, height: 140)
         .offset(x: 6, y: -14)
 
-      VStack(spacing: 12) {
-        HStack(alignment: .bottom, spacing: 10) {
-          NativeHandDrawnNote(icon: "doc.text", title: "Notes", accentColor: accentColor)
-            .rotationEffect(.degrees(-3))
-          NativeHandDrawnNote(icon: "paperclip", title: "Files", accentColor: accentColor)
-            .rotationEffect(.degrees(2))
-          NativeHandDrawnNote(icon: "message", title: "Chats", accentColor: accentColor)
-            .rotationEffect(.degrees(-1.5))
-        }
+      ZStack(alignment: .top) {
+        NativeHandDrawnProjectFolder(accentColor: accentColor)
+          .offset(y: 28)
 
-        ZStack(alignment: .top) {
-          NativeHandDrawnProjectFolder(accentColor: accentColor)
-            .offset(y: 15)
-
-          HStack(spacing: 72) {
-            NativeOnboardingPetActor(pet: .luma, petMotion: .running, size: 54)
-              .offset(x: motion.float(8, speed: 0.45, offset: 0.12), y: motion.float(4, speed: 0.42, offset: 0.32))
-            NativeOnboardingPetActor(pet: .nullSignal, petMotion: .resting, size: 54)
-              .offset(x: motion.float(6, speed: 0.40, offset: 0.70), y: motion.float(4, speed: 0.44, offset: 0.10))
-          }
-          .offset(y: -4)
+        HStack(spacing: 132) {
+          NativeOnboardingPetActor(pet: .luma, petMotion: .running, size: 54)
+            .offset(x: motion.float(8, speed: 0.45, offset: 0.12), y: motion.float(4, speed: 0.42, offset: 0.32))
+          NativeOnboardingPetActor(pet: .nullSignal, petMotion: .resting, size: 54)
+            .offset(x: motion.float(6, speed: 0.40, offset: 0.70), y: motion.float(4, speed: 0.44, offset: 0.10))
         }
-        .frame(height: 130)
+        .offset(y: -2)
       }
+      .frame(height: 230)
       .padding(.horizontal, 22)
-      .offset(y: 2)
+      .offset(y: -4)
     }
   }
 }
@@ -261,29 +250,143 @@ private struct NativeHandDrawnProjectFolder: View {
   var accentColor: NativeAccentColor
 
   var body: some View {
-    ZStack(alignment: .topLeading) {
-      RoundedRectangle(cornerRadius: 24, style: .continuous)
-        .fill(accentColor.color.opacity(0.15))
-        .frame(height: 102)
-        .offset(y: 18)
+    ZStack(alignment: .top) {
+      NativeHandDrawnFolderBack(accentColor: accentColor)
+        .offset(y: 62)
 
-      RoundedRectangle(cornerRadius: 14, style: .continuous)
-        .fill(accentColor.color.opacity(0.24))
-        .frame(width: 92, height: 30)
-        .offset(x: 22, y: 5)
-
-      VStack(alignment: .leading, spacing: 7) {
-        Text("Client Project")
-          .font(.system(size: 17, weight: .black))
-          .foregroundColor(.oeText)
-        NativeHandDrawnBullet(text: "Files, chats, and memory", color: .oeSecondaryText)
-        NativeHandDrawnBullet(text: "Ready for focused answers", color: accentColor.color)
+      HStack(alignment: .bottom, spacing: 10) {
+        NativeHandDrawnFolderSheet(icon: "text.alignleft", title: "Instructions", accentColor: accentColor)
+          .rotationEffect(.degrees(-4))
+          .offset(y: 2)
+        NativeHandDrawnFolderSheet(icon: "paperclip", title: "Files", accentColor: accentColor)
+          .rotationEffect(.degrees(2))
+        NativeHandDrawnFolderSheet(icon: "bubble.left.and.bubble.right", title: "Chats", accentColor: accentColor)
+          .rotationEffect(.degrees(4))
+          .offset(y: 4)
       }
-      .padding(.horizontal, 22)
-      .padding(.top, 38)
+      .offset(y: 0)
+
+      NativeHandDrawnFolderFront(accentColor: accentColor)
+        .offset(y: 102)
+
+      VStack(alignment: .leading, spacing: 8) {
+        HStack(spacing: 7) {
+          Image(systemName: "folder.fill")
+            .font(.system(size: 14, weight: .black))
+            .foregroundColor(accentColor.color)
+          Text("Workspace")
+            .font(.system(size: 17, weight: .black))
+            .foregroundColor(.oeText)
+        }
+
+        HStack(spacing: 6) {
+          NativeHandDrawnContextChip(text: "notes", accentColor: accentColor, isAccent: false)
+          NativeHandDrawnContextChip(text: "files", accentColor: accentColor, isAccent: true)
+          NativeHandDrawnContextChip(text: "chats", accentColor: accentColor, isAccent: false)
+        }
+
+        NativeHandDrawnBullet(text: "Only this project context", color: accentColor.color)
+      }
+      .padding(.horizontal, 18)
+      .padding(.top, 78)
+      .frame(width: 256, alignment: .leading)
     }
-    .frame(width: 260, height: 134)
-    .nativeHandDrawnBubble(background: Color.clear, ink: accentColor.color.opacity(0.52), radius: 25)
+    .frame(width: 270, height: 188)
+  }
+}
+
+private struct NativeHandDrawnFolderSheet: View {
+  var icon: String
+  var title: String
+  var accentColor: NativeAccentColor
+
+  var body: some View {
+    VStack(spacing: 7) {
+      Image(systemName: icon)
+        .font(.system(size: 14, weight: .black))
+      Text(title)
+        .font(.system(size: title.count > 8 ? 8 : 9, weight: .heavy))
+        .lineLimit(1)
+    }
+    .foregroundColor(.oeText)
+    .frame(width: 78, height: 64)
+    .nativeHandDrawnBubble(background: Color.oeBackground.opacity(0.78), ink: accentColor.color.opacity(0.32), radius: 14)
+  }
+}
+
+private struct NativeHandDrawnFolderBack: View {
+  var accentColor: NativeAccentColor
+
+  var body: some View {
+    ZStack(alignment: .topLeading) {
+      RoundedRectangle(cornerRadius: 20, style: .continuous)
+        .fill(accentColor.color.opacity(0.16))
+        .frame(width: 258, height: 118)
+
+      RoundedRectangle(cornerRadius: 12, style: .continuous)
+        .fill(accentColor.color.opacity(0.26))
+        .frame(width: 104, height: 28)
+        .offset(x: 18, y: -13)
+    }
+    .overlay {
+      RoundedRectangle(cornerRadius: 20, style: .continuous)
+        .stroke(accentColor.color.opacity(0.42), lineWidth: 1.4)
+    }
+  }
+}
+
+private struct NativeHandDrawnFolderFront: View {
+  var accentColor: NativeAccentColor
+
+  var body: some View {
+    UnevenRoundedRectangle(
+      topLeadingRadius: 18,
+      bottomLeadingRadius: 24,
+      bottomTrailingRadius: 24,
+      topTrailingRadius: 18,
+      style: .continuous
+    )
+    .fill(Color.oeBackground.opacity(0.82))
+    .frame(width: 260, height: 74)
+    .overlay {
+      UnevenRoundedRectangle(
+        topLeadingRadius: 18,
+        bottomLeadingRadius: 24,
+        bottomTrailingRadius: 24,
+        topTrailingRadius: 18,
+        style: .continuous
+      )
+      .stroke(Color.oeText.opacity(0.18), lineWidth: 1.4)
+    }
+    .overlay(alignment: .topLeading) {
+      Capsule()
+        .fill(accentColor.color.opacity(0.52))
+        .frame(width: 46, height: 4)
+        .rotationEffect(.degrees(-2))
+        .offset(x: 20, y: 12)
+    }
+  }
+}
+
+private struct NativeHandDrawnContextChip: View {
+  var text: String
+  var accentColor: NativeAccentColor
+  var isAccent: Bool
+
+  var body: some View {
+    Text(text)
+      .font(.system(size: 9, weight: .black))
+      .foregroundColor(isAccent ? accentColor.foregroundColor : .oeSecondaryText)
+      .padding(.horizontal, 8)
+      .frame(height: 20)
+      .background(
+        Capsule(style: .continuous)
+          .fill(isAccent ? accentColor.color : Color.oeBackground.opacity(0.64))
+      )
+      .overlay {
+        Capsule(style: .continuous)
+          .stroke(isAccent ? Color.clear : Color.oeText.opacity(0.12), lineWidth: 1)
+      }
   }
 }
 

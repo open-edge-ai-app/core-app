@@ -63,6 +63,14 @@ enum NativeDynamicIslandPet: String, CaseIterable, Identifiable {
   var sparkleColor: Color {
     NativeDynamicIslandPetSprite.sparkleColor(for: rawValue)
   }
+
+  var skinColor: Color {
+    NativeDynamicIslandPetSprite.skinColor(for: rawValue)
+  }
+
+  var hairColor: Color {
+    NativeDynamicIslandPetSprite.hairColor(for: rawValue)
+  }
 }
 
 enum NativeDynamicIslandPetMotion: String {

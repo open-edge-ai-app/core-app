@@ -1,9 +1,4 @@
 import Foundation
-import EventKit
-import SwiftUI
-import UIKit
-import UniformTypeIdentifiers
-import PhotosUI
 
 @MainActor
 extension NativeChatStore {
@@ -181,59 +176,6 @@ extension NativeChatStore {
     }
   }
 
-  func appendChunk(_ chunk: String, to assistantId: String, in sessionId: String) {
-    guard isGenerating, activeAssistantMessageId == assistantId else {
-      return
-    }
-
-    pendingStreamChunks[assistantId, default: ""] += chunk
-    scheduleStreamFlush(to: assistantId, in: sessionId)
-  }
-
-  func scheduleStreamFlush(to assistantId: String, in sessionId: String) {
-    guard streamFlushTasks[assistantId] == nil else {
-      return
-    }
-
-    streamFlushTasks[assistantId] = Task { [weak self] in
-      try? await Task.sleep(nanoseconds: self?.streamFlushIntervalNanoseconds ?? 80_000_000)
-      await MainActor.run { [weak self] in
-        self?.flushPendingStreamChunks(to: assistantId, in: sessionId, persist: false)
-      }
-    }
-  }
-
-  func flushPendingStreamChunks(to assistantId: String, in sessionId: String, persist: Bool) {
-    streamFlushTasks[assistantId]?.cancel()
-    streamFlushTasks[assistantId] = nil
-
-    guard let pending = pendingStreamChunks[assistantId],
-          !pending.isEmpty,
-          isGenerating,
-          activeAssistantMessageId == assistantId
-    else {
-      pendingStreamChunks[assistantId] = nil
-      return
-    }
-
-    pendingStreamChunks[assistantId] = nil
-
-    mutateSession(sessionId, persist: persist, resort: persist) { session in
-      guard let index = session.messages.firstIndex(where: { $0.id == assistantId }) else {
-        return
-      }
-      if isSearchProgressText(session.messages[index].text) {
-        session.messages[index].text = ""
-      }
-      session.messages[index].text += pending
-    }
-  }
-
-  func resetPendingStreamBuffer(for assistantId: String) {
-    streamFlushTasks[assistantId]?.cancel()
-    streamFlushTasks[assistantId] = nil
-    pendingStreamChunks[assistantId] = nil
-  }
 
   func finishGeneration(message: String?, error: String?, assistantId: String, sessionId: String) {
     guard activeAssistantMessageId == assistantId else {
@@ -269,88 +211,6 @@ extension NativeChatStore {
       syncDynamicIslandLiveActivity()
     } else {
       scheduleNextQueuedDraft()
-    }
-  }
-
-  func startSearchProgress(assistantId: String, sessionId: String) {
-    stopSearchProgress(for: assistantId, in: sessionId, clearMessage: false)
-    let startedAt = Date()
-    updateSearchProgress(startedAt: startedAt, assistantId: assistantId, sessionId: sessionId)
-
-    searchProgressTasks[assistantId] = Task { [weak self] in
-      while !Task.isCancelled {
-        try? await Task.sleep(nanoseconds: 1_000_000_000)
-        guard !Task.isCancelled else {
-          break
-        }
-        await MainActor.run { [weak self] in
-          self?.updateSearchProgress(startedAt: startedAt, assistantId: assistantId, sessionId: sessionId)
-        }
-      }
-    }
-  }
-
-  func stopSearchProgress(for assistantId: String, in sessionId: String, clearMessage: Bool) {
-    searchProgressTasks[assistantId]?.cancel()
-    searchProgressTasks[assistantId] = nil
-
-    guard clearMessage else {
-      return
-    }
-
-    mutateSession(sessionId, persist: false, resort: false) { session in
-      guard let index = session.messages.firstIndex(where: { $0.id == assistantId }),
-            isSearchProgressText(session.messages[index].text)
-      else {
-        return
-      }
-
-      session.messages[index].text = ""
-    }
-  }
-
-  func updateSearchProgress(startedAt: Date, assistantId: String, sessionId: String) {
-    guard activeAssistantMessageId == assistantId,
-          activeRequestSessionId == sessionId,
-          isGenerating
-    else {
-      stopSearchProgress(for: assistantId, in: sessionId, clearMessage: false)
-      return
-    }
-
-    let elapsed = max(0, Int(Date().timeIntervalSince(startedAt)))
-    let minutes = elapsed / 60
-    let seconds = elapsed % 60
-    let elapsedText: String
-    if minutes > 0 {
-      elapsedText = String(format: "%dm %02ds", minutes, seconds)
-    } else {
-      elapsedText = String(format: "%02ds", seconds)
-    }
-    let progressText = "\(elapsedText) 동안 검색하는 중..."
-
-    mutateSession(sessionId, persist: false, resort: false) { session in
-      guard let index = session.messages.firstIndex(where: { $0.id == assistantId }),
-            session.messages[index].text.isEmpty || isSearchProgressText(session.messages[index].text)
-      else {
-        return
-      }
-
-      session.messages[index].text = progressText
-    }
-  }
-
-  func isSearchProgressText(_ text: String) -> Bool {
-    text.contains("동안 검색하는 중...")
-  }
-
-  func applySearchSources(_ sources: [NativeSearchSourceReference], to assistantId: String, in sessionId: String) {
-    mutateSession(sessionId) { session in
-      guard let index = session.messages.firstIndex(where: { $0.id == assistantId }) else {
-        return
-      }
-
-      session.messages[index].sourceReferences = sources
     }
   }
 }

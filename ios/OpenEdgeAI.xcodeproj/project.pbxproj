@@ -96,6 +96,38 @@
 		A4E000000000000000000002 /* NativeTodoChatToolHelpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = A4F000000000000000000002 /* NativeTodoChatToolHelpers.swift */; };
 		A4E000000000000000000003 /* NativeTodoChatToolFormatting.swift in Sources */ = {isa = PBXBuildFile; fileRef = A4F000000000000000000003 /* NativeTodoChatToolFormatting.swift */; };
 		A4E000000000000000000004 /* NativeTodoToolParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = A4F000000000000000000004 /* NativeTodoToolParser.swift */; };
+		A5E000000000000000000001 /* NativeTodoListModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5F000000000000000000001 /* NativeTodoListModels.swift */; };
+		A5E000000000000000000002 /* NativeTodoListChrome.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5F000000000000000000002 /* NativeTodoListChrome.swift */; };
+		A5E000000000000000000003 /* NativeTodoListSections.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5F000000000000000000003 /* NativeTodoListSections.swift */; };
+		A5E000000000000000000004 /* NativeTodoListCalendarContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5F000000000000000000004 /* NativeTodoListCalendarContent.swift */; };
+		A5E000000000000000000005 /* NativeMarkdownParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5F000000000000000000005 /* NativeMarkdownParser.swift */; };
+		A5E000000000000000000006 /* NativeMarkdownTableViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5F000000000000000000006 /* NativeMarkdownTableViews.swift */; };
+		A5E000000000000000000007 /* NativeLocalizationKoreanMessages.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5F000000000000000000007 /* NativeLocalizationKoreanMessages.swift */; };
+		A5E000000000000000000008 /* NativeLocalizationEnglishMessages.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5F000000000000000000008 /* NativeLocalizationEnglishMessages.swift */; };
+		A5E000000000000000000009 /* NativeI18nKeys.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5F000000000000000000009 /* NativeI18nKeys.swift */; };
+		A5E00000000000000000000A /* NativeLocalizationExtensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5F00000000000000000000A /* NativeLocalizationExtensions.swift */; };
+		A5E00000000000000000000B /* NativeChatStoreCalendarStorage.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5F00000000000000000000B /* NativeChatStoreCalendarStorage.swift */; };
+		A5E00000000000000000000C /* NativeChatStoreAttachmentStorage.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5F00000000000000000000C /* NativeChatStoreAttachmentStorage.swift */; };
+		A5E00000000000000000000D /* NativeKnowledgeModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5F00000000000000000000D /* NativeKnowledgeModels.swift */; };
+		A5E00000000000000000000E /* NativeDocumentTextExtractor.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5F00000000000000000000E /* NativeDocumentTextExtractor.swift */; };
+		A5E00000000000000000000F /* NativeDeviceContextProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5F00000000000000000000F /* NativeDeviceContextProvider.swift */; };
+		A5E000000000000000000010 /* AIEngineGemmaModelClientDownloadDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5F000000000000000000010 /* AIEngineGemmaModelClientDownloadDelegate.swift */; };
+		A5E000000000000000000011 /* AIEngineGemmaModelClientRuntime.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5F000000000000000000011 /* AIEngineGemmaModelClientRuntime.swift */; };
+		A5E000000000000000000012 /* AIEngineFoundationModelClientRuntime.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5F000000000000000000012 /* AIEngineFoundationModelClientRuntime.swift */; };
+		A5E000000000000000000013 /* NativeChatStorePromptHistory.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5F000000000000000000013 /* NativeChatStorePromptHistory.swift */; };
+		A5E000000000000000000014 /* NativeChatStoreSearchPrompt.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5F000000000000000000014 /* NativeChatStoreSearchPrompt.swift */; };
+		A5E000000000000000000015 /* NativeChatStoreRuntimeContext.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5F000000000000000000015 /* NativeChatStoreRuntimeContext.swift */; };
+		A5E000000000000000000016 /* NativeChatStoreStreamingBuffer.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5F000000000000000000016 /* NativeChatStoreStreamingBuffer.swift */; };
+		A5E000000000000000000017 /* NativeChatStoreSearchProgress.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5F000000000000000000017 /* NativeChatStoreSearchProgress.swift */; };
+		A5E000000000000000000018 /* NativeTodoSupportingModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5F000000000000000000018 /* NativeTodoSupportingModels.swift */; };
+		A5E000000000000000000019 /* NativeTodoSeedData.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5F000000000000000000019 /* NativeTodoSeedData.swift */; };
+		A5E00000000000000000001A /* NativeTodoSettingsComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5F00000000000000000001A /* NativeTodoSettingsComponents.swift */; };
+		A5E00000000000000000001B /* NativeChatComposerComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5F00000000000000000001B /* NativeChatComposerComponents.swift */; };
+		A5E00000000000000000001C /* NativeSearchComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5F00000000000000000001C /* NativeSearchComponents.swift */; };
+		A5E00000000000000000001D /* NativeTodoEditorComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5F00000000000000000001D /* NativeTodoEditorComponents.swift */; };
+		A5E00000000000000000001E /* NativeToolRegistry.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5F00000000000000000001E /* NativeToolRegistry.swift */; };
+		A5E00000000000000000001F /* NativeTodoTaskSupportingViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5F00000000000000000001F /* NativeTodoTaskSupportingViews.swift */; };
+		A5E000000000000000000020 /* NativeMarkdownBlock.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5F000000000000000000020 /* NativeMarkdownBlock.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -219,6 +251,38 @@
 		A4F000000000000000000002 /* NativeTodoChatToolHelpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = NativeTodoChatToolHelpers.swift; path = OpenEdgeAI/NativeTodoChatToolHelpers.swift; sourceTree = "<group>"; };
 		A4F000000000000000000003 /* NativeTodoChatToolFormatting.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = NativeTodoChatToolFormatting.swift; path = OpenEdgeAI/NativeTodoChatToolFormatting.swift; sourceTree = "<group>"; };
 		A4F000000000000000000004 /* NativeTodoToolParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = NativeTodoToolParser.swift; path = OpenEdgeAI/NativeTodoToolParser.swift; sourceTree = "<group>"; };
+		A5F000000000000000000001 /* NativeTodoListModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = NativeTodoListModels.swift; path = OpenEdgeAI/NativeTodoListModels.swift; sourceTree = "<group>"; };
+		A5F000000000000000000002 /* NativeTodoListChrome.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = NativeTodoListChrome.swift; path = OpenEdgeAI/NativeTodoListChrome.swift; sourceTree = "<group>"; };
+		A5F000000000000000000003 /* NativeTodoListSections.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = NativeTodoListSections.swift; path = OpenEdgeAI/NativeTodoListSections.swift; sourceTree = "<group>"; };
+		A5F000000000000000000004 /* NativeTodoListCalendarContent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = NativeTodoListCalendarContent.swift; path = OpenEdgeAI/NativeTodoListCalendarContent.swift; sourceTree = "<group>"; };
+		A5F000000000000000000005 /* NativeMarkdownParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = NativeMarkdownParser.swift; path = OpenEdgeAI/NativeMarkdownParser.swift; sourceTree = "<group>"; };
+		A5F000000000000000000006 /* NativeMarkdownTableViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = NativeMarkdownTableViews.swift; path = OpenEdgeAI/NativeMarkdownTableViews.swift; sourceTree = "<group>"; };
+		A5F000000000000000000007 /* NativeLocalizationKoreanMessages.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = NativeLocalizationKoreanMessages.swift; path = OpenEdgeAI/NativeLocalizationKoreanMessages.swift; sourceTree = "<group>"; };
+		A5F000000000000000000008 /* NativeLocalizationEnglishMessages.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = NativeLocalizationEnglishMessages.swift; path = OpenEdgeAI/NativeLocalizationEnglishMessages.swift; sourceTree = "<group>"; };
+		A5F000000000000000000009 /* NativeI18nKeys.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = NativeI18nKeys.swift; path = OpenEdgeAI/NativeI18nKeys.swift; sourceTree = "<group>"; };
+		A5F00000000000000000000A /* NativeLocalizationExtensions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = NativeLocalizationExtensions.swift; path = OpenEdgeAI/NativeLocalizationExtensions.swift; sourceTree = "<group>"; };
+		A5F00000000000000000000B /* NativeChatStoreCalendarStorage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = NativeChatStoreCalendarStorage.swift; path = OpenEdgeAI/NativeChatStoreCalendarStorage.swift; sourceTree = "<group>"; };
+		A5F00000000000000000000C /* NativeChatStoreAttachmentStorage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = NativeChatStoreAttachmentStorage.swift; path = OpenEdgeAI/NativeChatStoreAttachmentStorage.swift; sourceTree = "<group>"; };
+		A5F00000000000000000000D /* NativeKnowledgeModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = NativeKnowledgeModels.swift; path = OpenEdgeAI/NativeKnowledgeModels.swift; sourceTree = "<group>"; };
+		A5F00000000000000000000E /* NativeDocumentTextExtractor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = NativeDocumentTextExtractor.swift; path = OpenEdgeAI/NativeDocumentTextExtractor.swift; sourceTree = "<group>"; };
+		A5F00000000000000000000F /* NativeDeviceContextProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = NativeDeviceContextProvider.swift; path = OpenEdgeAI/NativeDeviceContextProvider.swift; sourceTree = "<group>"; };
+		A5F000000000000000000010 /* AIEngineGemmaModelClientDownloadDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AIEngineGemmaModelClientDownloadDelegate.swift; path = OpenEdgeAI/AIEngineGemmaModelClientDownloadDelegate.swift; sourceTree = "<group>"; };
+		A5F000000000000000000011 /* AIEngineGemmaModelClientRuntime.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AIEngineGemmaModelClientRuntime.swift; path = OpenEdgeAI/AIEngineGemmaModelClientRuntime.swift; sourceTree = "<group>"; };
+		A5F000000000000000000012 /* AIEngineFoundationModelClientRuntime.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AIEngineFoundationModelClientRuntime.swift; path = OpenEdgeAI/AIEngineFoundationModelClientRuntime.swift; sourceTree = "<group>"; };
+		A5F000000000000000000013 /* NativeChatStorePromptHistory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = NativeChatStorePromptHistory.swift; path = OpenEdgeAI/NativeChatStorePromptHistory.swift; sourceTree = "<group>"; };
+		A5F000000000000000000014 /* NativeChatStoreSearchPrompt.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = NativeChatStoreSearchPrompt.swift; path = OpenEdgeAI/NativeChatStoreSearchPrompt.swift; sourceTree = "<group>"; };
+		A5F000000000000000000015 /* NativeChatStoreRuntimeContext.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = NativeChatStoreRuntimeContext.swift; path = OpenEdgeAI/NativeChatStoreRuntimeContext.swift; sourceTree = "<group>"; };
+		A5F000000000000000000016 /* NativeChatStoreStreamingBuffer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = NativeChatStoreStreamingBuffer.swift; path = OpenEdgeAI/NativeChatStoreStreamingBuffer.swift; sourceTree = "<group>"; };
+		A5F000000000000000000017 /* NativeChatStoreSearchProgress.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = NativeChatStoreSearchProgress.swift; path = OpenEdgeAI/NativeChatStoreSearchProgress.swift; sourceTree = "<group>"; };
+		A5F000000000000000000018 /* NativeTodoSupportingModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = NativeTodoSupportingModels.swift; path = OpenEdgeAI/NativeTodoSupportingModels.swift; sourceTree = "<group>"; };
+		A5F000000000000000000019 /* NativeTodoSeedData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = NativeTodoSeedData.swift; path = OpenEdgeAI/NativeTodoSeedData.swift; sourceTree = "<group>"; };
+		A5F00000000000000000001A /* NativeTodoSettingsComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = NativeTodoSettingsComponents.swift; path = OpenEdgeAI/NativeTodoSettingsComponents.swift; sourceTree = "<group>"; };
+		A5F00000000000000000001B /* NativeChatComposerComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = NativeChatComposerComponents.swift; path = OpenEdgeAI/NativeChatComposerComponents.swift; sourceTree = "<group>"; };
+		A5F00000000000000000001C /* NativeSearchComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = NativeSearchComponents.swift; path = OpenEdgeAI/NativeSearchComponents.swift; sourceTree = "<group>"; };
+		A5F00000000000000000001D /* NativeTodoEditorComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = NativeTodoEditorComponents.swift; path = OpenEdgeAI/NativeTodoEditorComponents.swift; sourceTree = "<group>"; };
+		A5F00000000000000000001E /* NativeToolRegistry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = NativeToolRegistry.swift; path = OpenEdgeAI/NativeToolRegistry.swift; sourceTree = "<group>"; };
+		A5F00000000000000000001F /* NativeTodoTaskSupportingViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = NativeTodoTaskSupportingViews.swift; path = OpenEdgeAI/NativeTodoTaskSupportingViews.swift; sourceTree = "<group>"; };
+		A5F000000000000000000020 /* NativeMarkdownBlock.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = NativeMarkdownBlock.swift; path = OpenEdgeAI/NativeMarkdownBlock.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -320,6 +384,38 @@
 				A3F000000000000000000030 /* NativeWebSearchModels.swift */,
 				A3F000000000000000000031 /* NativeWebSearchParsing.swift */,
 				A3F000000000000000000032 /* NativeWebSearchPlanning.swift */,
+				A5F000000000000000000001 /* NativeTodoListModels.swift */,
+				A5F000000000000000000002 /* NativeTodoListChrome.swift */,
+				A5F000000000000000000003 /* NativeTodoListSections.swift */,
+				A5F000000000000000000004 /* NativeTodoListCalendarContent.swift */,
+				A5F000000000000000000005 /* NativeMarkdownParser.swift */,
+				A5F000000000000000000020 /* NativeMarkdownBlock.swift */,
+				A5F000000000000000000006 /* NativeMarkdownTableViews.swift */,
+				A5F000000000000000000007 /* NativeLocalizationKoreanMessages.swift */,
+				A5F000000000000000000008 /* NativeLocalizationEnglishMessages.swift */,
+				A5F000000000000000000009 /* NativeI18nKeys.swift */,
+				A5F00000000000000000000A /* NativeLocalizationExtensions.swift */,
+				A5F00000000000000000000B /* NativeChatStoreCalendarStorage.swift */,
+				A5F00000000000000000000C /* NativeChatStoreAttachmentStorage.swift */,
+				A5F00000000000000000000D /* NativeKnowledgeModels.swift */,
+				A5F00000000000000000000E /* NativeDocumentTextExtractor.swift */,
+				A5F00000000000000000000F /* NativeDeviceContextProvider.swift */,
+				A5F000000000000000000010 /* AIEngineGemmaModelClientDownloadDelegate.swift */,
+				A5F000000000000000000011 /* AIEngineGemmaModelClientRuntime.swift */,
+				A5F000000000000000000012 /* AIEngineFoundationModelClientRuntime.swift */,
+				A5F000000000000000000013 /* NativeChatStorePromptHistory.swift */,
+				A5F000000000000000000014 /* NativeChatStoreSearchPrompt.swift */,
+				A5F000000000000000000015 /* NativeChatStoreRuntimeContext.swift */,
+				A5F000000000000000000016 /* NativeChatStoreStreamingBuffer.swift */,
+				A5F000000000000000000017 /* NativeChatStoreSearchProgress.swift */,
+				A5F000000000000000000018 /* NativeTodoSupportingModels.swift */,
+				A5F000000000000000000019 /* NativeTodoSeedData.swift */,
+				A5F00000000000000000001A /* NativeTodoSettingsComponents.swift */,
+				A5F00000000000000000001B /* NativeChatComposerComponents.swift */,
+				A5F00000000000000000001C /* NativeSearchComponents.swift */,
+				A5F00000000000000000001D /* NativeTodoEditorComponents.swift */,
+				A5F00000000000000000001E /* NativeToolRegistry.swift */,
+				A5F00000000000000000001F /* NativeTodoTaskSupportingViews.swift */,
 				D1A000000000000000000001 /* DynamicIslandActivityAttributes.swift */,
 				D1A000000000000000000004 /* NativeDynamicIslandLiveActivityController.swift */,
 				A1F4C9A12D0B4E8591F00000 /* AIEngineFoundationModelClient.swift */,
@@ -612,6 +708,38 @@
 				A3E000000000000000000030 /* NativeWebSearchModels.swift in Sources */,
 				A3E000000000000000000031 /* NativeWebSearchParsing.swift in Sources */,
 				A3E000000000000000000032 /* NativeWebSearchPlanning.swift in Sources */,
+				A5E000000000000000000001 /* NativeTodoListModels.swift in Sources */,
+				A5E000000000000000000002 /* NativeTodoListChrome.swift in Sources */,
+				A5E000000000000000000003 /* NativeTodoListSections.swift in Sources */,
+				A5E000000000000000000004 /* NativeTodoListCalendarContent.swift in Sources */,
+				A5E000000000000000000005 /* NativeMarkdownParser.swift in Sources */,
+				A5E000000000000000000020 /* NativeMarkdownBlock.swift in Sources */,
+				A5E000000000000000000006 /* NativeMarkdownTableViews.swift in Sources */,
+				A5E000000000000000000007 /* NativeLocalizationKoreanMessages.swift in Sources */,
+				A5E000000000000000000008 /* NativeLocalizationEnglishMessages.swift in Sources */,
+				A5E000000000000000000009 /* NativeI18nKeys.swift in Sources */,
+				A5E00000000000000000000A /* NativeLocalizationExtensions.swift in Sources */,
+				A5E00000000000000000000B /* NativeChatStoreCalendarStorage.swift in Sources */,
+				A5E00000000000000000000C /* NativeChatStoreAttachmentStorage.swift in Sources */,
+				A5E00000000000000000000D /* NativeKnowledgeModels.swift in Sources */,
+				A5E00000000000000000000E /* NativeDocumentTextExtractor.swift in Sources */,
+				A5E00000000000000000000F /* NativeDeviceContextProvider.swift in Sources */,
+				A5E000000000000000000010 /* AIEngineGemmaModelClientDownloadDelegate.swift in Sources */,
+				A5E000000000000000000011 /* AIEngineGemmaModelClientRuntime.swift in Sources */,
+				A5E000000000000000000012 /* AIEngineFoundationModelClientRuntime.swift in Sources */,
+				A5E000000000000000000013 /* NativeChatStorePromptHistory.swift in Sources */,
+				A5E000000000000000000014 /* NativeChatStoreSearchPrompt.swift in Sources */,
+				A5E000000000000000000015 /* NativeChatStoreRuntimeContext.swift in Sources */,
+				A5E000000000000000000016 /* NativeChatStoreStreamingBuffer.swift in Sources */,
+				A5E000000000000000000017 /* NativeChatStoreSearchProgress.swift in Sources */,
+				A5E000000000000000000018 /* NativeTodoSupportingModels.swift in Sources */,
+				A5E000000000000000000019 /* NativeTodoSeedData.swift in Sources */,
+				A5E00000000000000000001A /* NativeTodoSettingsComponents.swift in Sources */,
+				A5E00000000000000000001B /* NativeChatComposerComponents.swift in Sources */,
+				A5E00000000000000000001C /* NativeSearchComponents.swift in Sources */,
+				A5E00000000000000000001D /* NativeTodoEditorComponents.swift in Sources */,
+				A5E00000000000000000001E /* NativeToolRegistry.swift in Sources */,
+				A5E00000000000000000001F /* NativeTodoTaskSupportingViews.swift in Sources */,
 				D1A000000000000000000002 /* DynamicIslandActivityAttributes.swift in Sources */,
 				D1A000000000000000000005 /* NativeDynamicIslandLiveActivityController.swift in Sources */,
 				A1F4C9A12D0B4E8591F00001 /* AIEngineFoundationModelClient.swift in Sources */,

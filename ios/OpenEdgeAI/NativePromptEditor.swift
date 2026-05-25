@@ -35,7 +35,7 @@ struct NativePromptEditor: View {
   }
 
   var body: some View {
-    ZStack(alignment: .topLeading) {
+    ZStack(alignment: .leading) {
       TextEditor(text: $text)
         .font(.system(size: fontSize))
         .foregroundColor(.oeText)
@@ -54,7 +54,7 @@ struct NativePromptEditor: View {
           .font(.system(size: fontSize))
           .foregroundColor(.oeSecondaryText.opacity(0.72))
           .lineLimit(1)
-          .padding(.top, 6)
+          .frame(height: editorHeight, alignment: .center)
           .padding(.leading, 5)
           .allowsHitTesting(false)
           .accessibilityHidden(true)

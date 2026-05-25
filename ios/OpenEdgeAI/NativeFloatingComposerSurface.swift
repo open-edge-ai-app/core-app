@@ -18,8 +18,6 @@ struct NativeComposerInputSurface<Content: View>: View {
     content
       .disabled(isDisabled)
       .background(glassFill)
-      .overlay(glassHighlight)
-      .overlay(glassStroke)
       .opacity(isDisabled ? 0.48 : 1)
       .contentShape(RoundedRectangle(cornerRadius: nativeComposerInputCornerRadius, style: .continuous))
   }
@@ -40,39 +38,6 @@ struct NativeComposerInputSurface<Content: View>: View {
     return Color.white.opacity(isFocused ? 0.72 : 0.62)
   }
 
-  private var glassHighlight: some View {
-    RoundedRectangle(cornerRadius: nativeComposerInputCornerRadius - 1, style: .continuous)
-      .inset(by: 1)
-      .stroke(
-        LinearGradient(
-          colors: [
-            Color.white.opacity(colorScheme == .dark ? 0.14 : 0.82),
-            Color.white.opacity(colorScheme == .dark ? 0.04 : 0.34),
-            Color.black.opacity(colorScheme == .dark ? 0.1 : 0.05)
-          ],
-          startPoint: .topLeading,
-          endPoint: .bottomTrailing
-        ),
-        lineWidth: 0.8
-      )
-      .allowsHitTesting(false)
-  }
-
-  private var glassStroke: some View {
-    RoundedRectangle(cornerRadius: nativeComposerInputCornerRadius, style: .continuous)
-      .stroke(strokeColor, lineWidth: isFocused || isError ? 1.2 : 1)
-      .allowsHitTesting(false)
-  }
-
-  private var strokeColor: Color {
-    if isError {
-      return Color.oeDestructive.opacity(0.5)
-    }
-    if isFocused {
-      return accentColor.opacity(0.36)
-    }
-    return colorScheme == .dark ? Color.white.opacity(0.14) : Color.black.opacity(0.06)
-  }
 }
 
 struct NativeComposerCircleSurface<Content: View>: View {

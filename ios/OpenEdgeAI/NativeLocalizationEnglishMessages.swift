@@ -43,6 +43,8 @@ extension NativeI18n {
     .onboardingNext: "Next",
     .onboardingStart: "Get started",
     .onboardingLegal: "By tapping Get started, you agree to the Privacy Policy and Terms of Use.",
+    .onboardingOfflineTitle: "Run safely without the internet",
+    .onboardingOfflineSubtitle: "On-device models keep working offline and process personal data inside your device.",
     .onboardingChatTitle: "Start a private on-device conversation",
     .onboardingChatSubtitle: "Keeps the conversation moving with answers, follow-ups, and context-aware prompts.",
     .onboardingTodoTitle: "Turn thoughts into Todo and schedule",

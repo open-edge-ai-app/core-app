@@ -44,6 +44,8 @@ enum NativeI18nKey: String, CaseIterable {
   case onboardingNext
   case onboardingStart
   case onboardingLegal
+  case onboardingOfflineTitle
+  case onboardingOfflineSubtitle
   case onboardingChatTitle
   case onboardingChatSubtitle
   case onboardingTodoTitle

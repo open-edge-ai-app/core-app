@@ -1,6 +1,7 @@
 import SwiftUI
 
 enum NativeOnboardingScene {
+  case privacy
   case workspace
   case todo
   case document
@@ -19,6 +20,8 @@ struct NativeOnboardingIllustration: View {
         NativeOnboardingSketchStage(accentColor: accentColor, motion: motion)
 
         switch scene {
+        case .privacy:
+          NativeOnboardingPrivacySketchScene(accentColor: accentColor, motion: motion)
         case .workspace:
           NativeOnboardingChatSketchScene(accentColor: accentColor, motion: motion)
         case .todo:

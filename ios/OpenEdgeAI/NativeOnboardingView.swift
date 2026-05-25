@@ -8,6 +8,11 @@ struct NativeOnboardingView: View {
   private var pages: [NativeOnboardingPage] {
     [
       NativeOnboardingPage(
+        title: .onboardingOfflineTitle,
+        subtitle: .onboardingOfflineSubtitle,
+        scene: .privacy
+      ),
+      NativeOnboardingPage(
         title: .onboardingChatTitle,
         subtitle: .onboardingChatSubtitle,
         scene: .workspace

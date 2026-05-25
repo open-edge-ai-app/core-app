@@ -1,5 +1,28 @@
 import SwiftUI
 
+struct NativeOnboardingPrivacySketchScene: View {
+  var accentColor: NativeAccentColor
+  var motion: NativeOnboardingMotion
+
+  var body: some View {
+    ZStack {
+      NativePixelTrail(color: accentColor.color, variant: 0, motion: motion)
+        .frame(width: 244, height: 134)
+        .offset(x: -6, y: -10)
+
+      NativeHandDrawnPrivacyDevice(accentColor: accentColor)
+        .offset(y: -2)
+
+      NativeOnboardingPetActor(pet: .orbit, petMotion: .resting, size: 56)
+        .rotationEffect(.degrees(motion.degrees(2, speed: 0.36, offset: 0.3)))
+        .offset(x: -128 + motion.float(3, speed: 0.44), y: 58 + motion.float(4, speed: 0.48))
+
+      NativeHandDrawnBlockedCloud(accentColor: accentColor)
+        .offset(x: 122, y: 54)
+    }
+  }
+}
+
 struct NativeOnboardingChatSketchScene: View {
   var accentColor: NativeAccentColor
   var motion: NativeOnboardingMotion
@@ -222,6 +245,78 @@ private struct NativeHandDrawnWandPet: View {
           .opacity(motion.opacity(from: 0.42, to: 1, speed: 0.72, offset: Double(index) * 0.17))
       }
     }
+  }
+}
+
+private struct NativeHandDrawnPrivacyDevice: View {
+  var accentColor: NativeAccentColor
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 14) {
+      HStack(spacing: 10) {
+        ZStack {
+          RoundedRectangle(cornerRadius: 10, style: .continuous)
+            .fill(accentColor.color.opacity(0.16))
+          Image(systemName: "lock.shield.fill")
+            .font(.system(size: 17, weight: .black))
+            .foregroundColor(accentColor.color)
+        }
+        .frame(width: 36, height: 34)
+
+        VStack(alignment: .leading, spacing: 2) {
+          Text("Device only")
+            .font(.system(size: 20, weight: .black))
+            .foregroundColor(.oeText)
+          Text("local AI workspace")
+            .font(.system(size: 10, weight: .heavy))
+            .foregroundColor(.oeMutedText)
+        }
+      }
+
+      HStack(spacing: 10) {
+        NativeHandDrawnPrivacyTile(icon: "wifi.slash", label: "Offline", accentColor: accentColor)
+        NativeHandDrawnPrivacyTile(icon: "lock.doc", label: "No upload", accentColor: accentColor)
+      }
+    }
+    .padding(.horizontal, 16)
+    .padding(.vertical, 16)
+    .frame(width: 236, height: 136, alignment: .topLeading)
+    .nativeHandDrawnBubble(background: Color.oeBackground.opacity(0.78), ink: accentColor.color.opacity(0.46), radius: 24)
+  }
+}
+
+private struct NativeHandDrawnPrivacyTile: View {
+  var icon: String
+  var label: String
+  var accentColor: NativeAccentColor
+
+  var body: some View {
+    HStack(spacing: 8) {
+      Image(systemName: icon)
+        .font(.system(size: 14, weight: .black))
+        .foregroundColor(accentColor.color)
+        .frame(width: 18)
+      Text(label)
+        .font(.system(size: 12, weight: .black))
+        .foregroundColor(.oeText)
+        .lineLimit(1)
+    }
+    .frame(width: 95, height: 40)
+    .background(
+      RoundedRectangle(cornerRadius: 15, style: .continuous)
+        .fill(Color.oeSurface.opacity(0.28))
+    )
+  }
+}
+
+private struct NativeHandDrawnBlockedCloud: View {
+  var accentColor: NativeAccentColor
+
+  var body: some View {
+    Image(systemName: "icloud.slash")
+      .font(.system(size: 28, weight: .black))
+      .foregroundColor(accentColor.color.opacity(0.86))
+    .frame(width: 54, height: 44)
   }
 }
 

@@ -7,18 +7,17 @@ struct NativeOnboardingPrivacySketchScene: View {
   var body: some View {
     ZStack {
       NativePixelTrail(color: accentColor.color, variant: 0, motion: motion)
-        .frame(width: 252, height: 158)
-        .offset(x: -10, y: 4)
+        .frame(width: 270, height: 170)
+        .offset(x: -4, y: 6)
 
-      NativeHandDrawnLocalDevice(accentColor: accentColor, motion: motion)
-        .offset(y: -2)
+      NativeHandDrawnExternalSignal(accentColor: accentColor, motion: motion)
+        .offset(x: -120, y: -54)
 
-      NativeOnboardingPetActor(pet: .orbit, petMotion: .resting, size: 52)
-        .rotationEffect(.degrees(motion.degrees(2, speed: 0.36, offset: 0.3)))
-        .offset(x: -118 + motion.float(3, speed: 0.44), y: 66 + motion.float(4, speed: 0.48))
+      NativeHandDrawnExternalCloud(accentColor: accentColor, motion: motion)
+        .offset(x: 122, y: -52)
 
-      NativeHandDrawnBlockedCloud(accentColor: accentColor, motion: motion)
-        .offset(x: 124, y: -72)
+      NativeHandDrawnPrivateSpace(accentColor: accentColor, motion: motion)
+        .offset(y: 4)
     }
   }
 }
@@ -248,24 +247,23 @@ private struct NativeHandDrawnWandPet: View {
   }
 }
 
-private struct NativeHandDrawnLocalDevice: View {
+private struct NativeHandDrawnPrivateSpace: View {
   var accentColor: NativeAccentColor
   var motion: NativeOnboardingMotion
 
   var body: some View {
     ZStack {
-      RoundedRectangle(cornerRadius: 34, style: .continuous)
-        .fill(Color.oeBackground.opacity(0.82))
-        .overlay {
-          RoundedRectangle(cornerRadius: 34, style: .continuous)
-            .stroke(accentColor.color.opacity(0.50), lineWidth: 1.6)
-        }
-        .overlay(alignment: .top) {
-          Capsule()
-            .fill(Color.oeText.opacity(0.16))
-            .frame(width: 52, height: 5)
-            .offset(y: 11)
-        }
+      Circle()
+        .fill(Color.oeBackground.opacity(0.78))
+        .frame(width: 206, height: 206)
+
+      Circle()
+        .stroke(accentColor.color.opacity(0.42), lineWidth: 1.7)
+        .frame(width: 206, height: 206)
+
+      Circle()
+        .stroke(accentColor.color.opacity(0.13), lineWidth: 12)
+        .frame(width: 224, height: 224)
 
       ForEach(0..<7, id: \.self) { index in
         Circle()
@@ -277,41 +275,45 @@ private struct NativeHandDrawnLocalDevice: View {
           )
       }
 
-      NativeHandDrawnAICore(accentColor: accentColor, motion: motion)
-        .offset(y: -2)
+      NativeHandDrawnLocalCore(accentColor: accentColor, motion: motion)
+        .offset(x: 34, y: -20)
+
+      NativeOnboardingPetActor(pet: .orbit, petMotion: .resting, size: 62)
+        .rotationEffect(.degrees(motion.degrees(2.2, speed: 0.36, offset: 0.3)))
+        .offset(x: -36 + motion.float(3, speed: 0.44), y: 34 + motion.float(4, speed: 0.48))
 
       HStack(spacing: 16) {
         NativeHandDrawnPrivacyGlyph(systemName: "wifi.slash", accentColor: accentColor)
         NativeHandDrawnPrivacyGlyph(systemName: "lock.fill", accentColor: accentColor)
       }
-      .offset(y: 68)
+      .offset(y: 84)
     }
-    .frame(width: 174, height: 214)
+    .frame(width: 244, height: 236)
   }
 
   private func privacyDotOffset(_ index: Int) -> CGPoint {
     let offsets = [
-      CGPoint(x: -46, y: -36),
-      CGPoint(x: 42, y: -44),
-      CGPoint(x: -58, y: 8),
-      CGPoint(x: 54, y: 18),
-      CGPoint(x: -28, y: 48),
-      CGPoint(x: 24, y: -68),
-      CGPoint(x: 0, y: 44)
+      CGPoint(x: -72, y: -44),
+      CGPoint(x: 70, y: -48),
+      CGPoint(x: -78, y: 12),
+      CGPoint(x: 78, y: 22),
+      CGPoint(x: -46, y: 66),
+      CGPoint(x: 20, y: -78),
+      CGPoint(x: 36, y: 58)
     ]
     return offsets[index]
   }
 }
 
-private struct NativeHandDrawnAICore: View {
+private struct NativeHandDrawnLocalCore: View {
   var accentColor: NativeAccentColor
   var motion: NativeOnboardingMotion
 
   var body: some View {
     ZStack {
-      RoundedRectangle(cornerRadius: 22, style: .continuous)
+      RoundedRectangle(cornerRadius: 20, style: .continuous)
         .fill(accentColor.color)
-      RoundedRectangle(cornerRadius: 22, style: .continuous)
+      RoundedRectangle(cornerRadius: 20, style: .continuous)
         .stroke(Color.oeText.opacity(0.26), lineWidth: 1.4)
 
       ForEach(0..<4, id: \.self) { index in
@@ -330,7 +332,7 @@ private struct NativeHandDrawnAICore: View {
         .foregroundColor(accentColor.foregroundColor)
         .scaleEffect(motion.progress(from: 0.92, to: 1.08, speed: 0.62))
     }
-    .frame(width: 86, height: 86)
+    .frame(width: 78, height: 78)
   }
 }
 
@@ -350,7 +352,7 @@ private struct NativeHandDrawnPrivacyGlyph: View {
   }
 }
 
-private struct NativeHandDrawnBlockedCloud: View {
+private struct NativeHandDrawnExternalCloud: View {
   var accentColor: NativeAccentColor
   var motion: NativeOnboardingMotion
 
@@ -362,7 +364,7 @@ private struct NativeHandDrawnBlockedCloud: View {
 
       Image(systemName: "icloud.fill")
         .font(.system(size: 31, weight: .black))
-        .foregroundColor(.oeText.opacity(0.46))
+        .foregroundColor(.oeText.opacity(0.58))
 
       Capsule()
         .fill(accentColor.color)
@@ -370,6 +372,29 @@ private struct NativeHandDrawnBlockedCloud: View {
         .rotationEffect(.degrees(-38 + motion.degrees(3, speed: 0.48)))
     }
     .frame(width: 74, height: 74)
+  }
+}
+
+private struct NativeHandDrawnExternalSignal: View {
+  var accentColor: NativeAccentColor
+  var motion: NativeOnboardingMotion
+
+  var body: some View {
+    ZStack {
+      Circle()
+        .fill(Color.oeBackground.opacity(0.74))
+        .frame(width: 64, height: 64)
+
+      Image(systemName: "wifi")
+        .font(.system(size: 28, weight: .black))
+        .foregroundColor(.oeText.opacity(0.58))
+
+      Capsule()
+        .fill(accentColor.color)
+        .frame(width: 46, height: 4)
+        .rotationEffect(.degrees(-38 - motion.degrees(3, speed: 0.42)))
+    }
+    .frame(width: 70, height: 70)
   }
 }
 

@@ -1,6 +1,7 @@
 import SwiftUI
 
 let nativeComposerInputCornerRadius: CGFloat = 30
+let nativeComposerAttachControlSize: CGFloat = 56
 let nativeComposerSubmitControlSize: CGFloat = 42
 let nativeComposerScrollBottomPadding: CGFloat = 134
 

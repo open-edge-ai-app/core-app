@@ -46,7 +46,7 @@ struct NativeChatComposerBar: View {
             .transition(.move(edge: .bottom).combined(with: .opacity))
         }
 
-        HStack(alignment: .bottom, spacing: 8) {
+        HStack(alignment: .center, spacing: 8) {
           attachButton
 
           NativeComposerInputSurface(
@@ -92,7 +92,7 @@ struct NativeChatComposerBar: View {
         Image(systemName: "plus")
           .font(.system(size: 25, weight: .medium))
           .foregroundColor(.oeText)
-          .frame(width: nativeComposerSubmitControlSize, height: nativeComposerSubmitControlSize)
+          .frame(width: nativeComposerAttachControlSize, height: nativeComposerAttachControlSize)
       }
     }
     .buttonStyle(.plain)

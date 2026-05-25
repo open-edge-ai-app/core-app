@@ -83,6 +83,10 @@ private struct NativeOnboardingChatSketchScene: View {
         .frame(width: 206, height: 112)
         .offset(x: 26, y: -42)
 
+      NativeSketchSceneBadge(icon: "lock.shield", title: "On-device chat", accentColor: accentColor)
+        .offset(y: -124)
+        .zIndex(2)
+
       VStack(spacing: 18) {
         HStack(alignment: .bottom, spacing: 12) {
           NativeOnboardingPetActor(pet: .orbit, petMotion: .resting, size: 96)
@@ -90,9 +94,9 @@ private struct NativeOnboardingChatSketchScene: View {
             .offset(x: motion.float(3, speed: 0.36), y: motion.float(6, speed: 0.42))
 
           VStack(alignment: .leading, spacing: 10) {
-            NativeSketchBubble(text: "Private question", accentColor: accentColor, isAccent: true)
+            NativeSketchBubble(icon: "lock", text: "Ask on device", accentColor: accentColor, isAccent: true)
               .offset(x: motion.float(7, speed: 0.32, offset: 0.16))
-            NativeSketchBubble(text: "Local answer", accentColor: accentColor, isAccent: false)
+            NativeSketchBubble(icon: "cpu", text: "Local answer", accentColor: accentColor, isAccent: false)
               .offset(x: motion.float(6, speed: 0.32, offset: 0.66))
           }
         }
@@ -116,6 +120,10 @@ private struct NativeOnboardingTodoSketchScene: View {
         .frame(width: 230, height: 126)
         .offset(x: -6, y: 18)
 
+      NativeSketchSceneBadge(icon: "checklist", title: "Chat to Todo", accentColor: accentColor)
+        .offset(y: -124)
+        .zIndex(2)
+
       HStack(alignment: .center, spacing: 14) {
         VStack(spacing: 12) {
           NativeSketchTaskRow(title: "VP meeting", time: "4:00 PM", isDone: true, accentColor: accentColor)
@@ -129,7 +137,7 @@ private struct NativeOnboardingTodoSketchScene: View {
       }
       .padding(.horizontal, 24)
 
-      NativeSketchCaption(text: "message becomes a task")
+      NativeSketchFlowCaption(text: "chat note  ->  scheduled task", accentColor: accentColor)
         .offset(y: 106)
         .opacity(motion.opacity(from: 0.58, to: 0.92, speed: 0.44))
     }
@@ -146,6 +154,10 @@ private struct NativeOnboardingProjectSketchScene: View {
         .stroke(Color.oeText.opacity(0.10), style: NativeSketchStyle.thin)
         .frame(width: 246, height: 136)
         .offset(x: 4, y: -16)
+
+      NativeSketchSceneBadge(icon: "folder", title: "Project context", accentColor: accentColor)
+        .offset(y: -124)
+        .zIndex(2)
 
       VStack(spacing: 14) {
         HStack(spacing: 12) {
@@ -188,6 +200,10 @@ private struct NativeOnboardingIslandSketchScene: View {
         .frame(width: 240, height: 138)
         .offset(y: 22)
 
+      NativeSketchSceneBadge(icon: "waveform.path.ecg", title: "Live Activity", accentColor: accentColor)
+        .offset(y: -136)
+        .zIndex(2)
+
       VStack(spacing: 18) {
         NativeSketchIslandPill(accentColor: accentColor, motion: motion)
           .offset(y: motion.float(5, speed: 0.42, offset: 0.18))
@@ -199,6 +215,7 @@ private struct NativeOnboardingIslandSketchScene: View {
           .offset(y: motion.float(7, speed: 0.52, offset: 0.62))
       }
       .padding(.horizontal, 26)
+      .offset(y: 10)
     }
   }
 }

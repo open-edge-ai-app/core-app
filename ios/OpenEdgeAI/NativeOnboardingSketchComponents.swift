@@ -14,7 +14,7 @@ struct NativeOnboardingSketchStage: View {
           .stroke(
             (index.isMultiple(of: 2) ? accentColor.color : Color.oeText)
               .opacity(index.isMultiple(of: 2) ? 0.06 : 0.04),
-            style: StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round)
+            style: NativeSketchStyle.thin
           )
           .frame(width: CGFloat(90 + index * 18), height: CGFloat(44 + index * 9))
           .rotationEffect(.degrees(Double(index * 11)))
@@ -46,28 +46,67 @@ struct NativeOnboardingPetActor: View {
   }
 }
 
+struct NativeSketchSceneBadge: View {
+  var icon: String
+  var title: String
+  var accentColor: NativeAccentColor
+
+  var body: some View {
+    HStack(spacing: 7) {
+      Image(systemName: icon)
+        .font(.system(size: 12, weight: .black))
+      Text(title)
+        .font(.system(size: 12, weight: .black))
+        .lineLimit(1)
+    }
+    .foregroundColor(.oeText)
+    .padding(.horizontal, 13)
+    .frame(height: 34)
+    .background(Color.oeBackground.opacity(0.62), in: Capsule(style: .continuous))
+    .overlay {
+      Capsule(style: .continuous)
+        .stroke(accentColor.color.opacity(0.22), lineWidth: 1)
+    }
+  }
+}
+
 struct NativeSketchBubble: View {
+  var icon: String?
   var text: String
   var accentColor: NativeAccentColor
   var isAccent: Bool
 
+  init(icon: String? = nil, text: String, accentColor: NativeAccentColor, isAccent: Bool) {
+    self.icon = icon
+    self.text = text
+    self.accentColor = accentColor
+    self.isAccent = isAccent
+  }
+
   var body: some View {
-    Text(text)
-      .font(.system(size: 15, weight: .heavy))
-      .foregroundColor(isAccent ? accentColor.foregroundColor : .oeText)
-      .lineLimit(1)
-      .padding(.horizontal, 16)
-      .frame(height: 40)
-      .background(
-        Capsule(style: .continuous)
-          .fill(isAccent ? accentColor.color : Color.oeBackground.opacity(0.70))
-      )
-      .overlay(alignment: .bottomLeading) {
-        NativeSketchTail()
-          .fill(isAccent ? accentColor.color : Color.oeBackground.opacity(0.70))
-          .frame(width: 18, height: 14)
-          .offset(x: 12, y: 7)
+    HStack(spacing: 7) {
+      if let icon {
+        Image(systemName: icon)
+          .font(.system(size: 12, weight: .black))
       }
+
+      Text(text)
+        .font(.system(size: 15, weight: .heavy))
+        .lineLimit(1)
+    }
+    .foregroundColor(isAccent ? accentColor.foregroundColor : .oeText)
+    .padding(.horizontal, 16)
+    .frame(height: 40)
+    .background(
+      Capsule(style: .continuous)
+        .fill(isAccent ? accentColor.color : Color.oeBackground.opacity(0.70))
+    )
+    .overlay(alignment: .bottomLeading) {
+      NativeSketchTail()
+        .fill(isAccent ? accentColor.color : Color.oeBackground.opacity(0.70))
+        .frame(width: 18, height: 14)
+        .offset(x: 12, y: 7)
+    }
   }
 }
 
@@ -79,19 +118,35 @@ struct NativeSketchPromptStrip: View {
     HStack(spacing: 10) {
       Image(systemName: "plus")
         .font(.system(size: 16, weight: .heavy))
-      RoundedRectangle(cornerRadius: 3, style: .continuous)
-        .fill(Color.oeMutedText.opacity(0.28))
-        .frame(height: 8)
-        .overlay(alignment: .leading) {
-          RoundedRectangle(cornerRadius: 3, style: .continuous)
-            .fill(accentColor.color.opacity(0.74))
-            .frame(width: motion.progress(from: 42, to: 118, speed: 0.40, offset: 0.22), height: 8)
+
+      VStack(alignment: .leading, spacing: 5) {
+        HStack(spacing: 6) {
+          Text("Prompt")
+            .font(.system(size: 9, weight: .black))
+            .foregroundColor(.oeSecondaryText)
+          Image(systemName: "sparkles")
+            .font(.system(size: 9, weight: .black))
+            .foregroundColor(accentColor.color)
+          Text("AI")
+            .font(.system(size: 9, weight: .black))
+            .foregroundColor(accentColor.color)
         }
+
+        RoundedRectangle(cornerRadius: 3, style: .continuous)
+          .fill(Color.oeMutedText.opacity(0.28))
+          .frame(height: 8)
+          .overlay(alignment: .leading) {
+            RoundedRectangle(cornerRadius: 3, style: .continuous)
+              .fill(accentColor.color.opacity(0.74))
+              .frame(width: motion.progress(from: 42, to: 118, speed: 0.40, offset: 0.22), height: 8)
+          }
+      }
+
       NativeSketchSendButton(accentColor: accentColor, motion: motion)
     }
     .foregroundColor(.oeText)
     .padding(.horizontal, 16)
-    .frame(height: 46)
+    .frame(height: 52)
     .background(Color.oeBackground.opacity(0.62), in: Capsule(style: .continuous))
   }
 }
@@ -112,9 +167,13 @@ struct NativeSketchTaskRow: View {
         Text(title)
           .font(.system(size: 14, weight: .heavy))
           .foregroundColor(.oeText)
-        Text(time)
-          .font(.system(size: 11, weight: .bold))
-          .foregroundColor(.oeMutedText)
+        HStack(spacing: 5) {
+          Image(systemName: "calendar.badge.clock")
+            .font(.system(size: 9, weight: .black))
+          Text(time)
+            .font(.system(size: 11, weight: .bold))
+        }
+        .foregroundColor(.oeMutedText)
       }
 
       Spacer(minLength: 0)
@@ -182,7 +241,7 @@ struct NativeSketchFolder: View {
     ZStack(alignment: .topLeading) {
       RoundedRectangle(cornerRadius: 18, style: .continuous)
         .fill(accentColor.color.opacity(0.16))
-        .frame(height: 86)
+        .frame(height: 92)
         .offset(y: 12)
 
       RoundedRectangle(cornerRadius: 9, style: .continuous)
@@ -190,18 +249,23 @@ struct NativeSketchFolder: View {
         .frame(width: 78, height: 26)
         .offset(x: 18)
 
-      VStack(alignment: .leading, spacing: 6) {
-        Text("Project")
-          .font(.system(size: 17, weight: .black))
-          .foregroundColor(.oeText)
-        Text("context flows into one place")
-          .font(.system(size: 11, weight: .bold))
-          .foregroundColor(.oeSecondaryText)
+      VStack(alignment: .leading, spacing: 7) {
+        HStack(spacing: 7) {
+          Image(systemName: "folder.fill")
+            .font(.system(size: 16, weight: .black))
+            .foregroundColor(accentColor.color)
+          Text("Workspace")
+            .font(.system(size: 17, weight: .black))
+            .foregroundColor(.oeText)
+        }
+
+        NativeSketchContextLine(icon: "text.alignleft", text: "prompt + files + chats", color: .oeSecondaryText)
+        NativeSketchContextLine(icon: "checkmark.seal.fill", text: "focused project memory", color: accentColor.color)
       }
       .padding(.horizontal, 22)
-      .padding(.top, 34)
+      .padding(.top, 32)
     }
-    .frame(height: 112)
+    .frame(height: 118)
     .overlay {
       NativeSketchRoundedRect()
         .stroke(accentColor.color.opacity(0.24), style: NativeSketchStyle.thin)
@@ -217,19 +281,24 @@ struct NativeSketchIslandPill: View {
   var body: some View {
     Capsule(style: .continuous)
       .fill(Color.oeText)
-      .frame(width: 198, height: 56)
+      .frame(width: 210, height: 58)
       .overlay {
-        HStack(spacing: 14) {
+        HStack(spacing: 12) {
           NativeDynamicIslandPetView(pet: .flux, motion: .running, size: 34)
             .frame(width: 42, height: 38)
 
-          ZStack(alignment: .leading) {
-            Capsule(style: .continuous)
-              .fill(Color.white.opacity(0.22))
-              .frame(width: 94, height: 5)
-            Capsule(style: .continuous)
-              .fill(accentColor.color)
-              .frame(width: motion.progress(from: 28, to: 90, speed: 0.58), height: 5)
+          VStack(alignment: .leading, spacing: 5) {
+            Text("Working")
+              .font(.system(size: 11, weight: .black))
+              .foregroundColor(.white.opacity(0.88))
+            ZStack(alignment: .leading) {
+              Capsule(style: .continuous)
+                .fill(Color.white.opacity(0.22))
+                .frame(width: 94, height: 5)
+              Capsule(style: .continuous)
+                .fill(accentColor.color)
+                .frame(width: motion.progress(from: 28, to: 90, speed: 0.58), height: 5)
+            }
           }
 
           NativeSketchSpinner(motion: motion)
@@ -244,20 +313,83 @@ struct NativeSketchProgressPanel: View {
   var motion: NativeOnboardingMotion
 
   var body: some View {
-    VStack(spacing: 10) {
-      HStack(spacing: 6) {
+    VStack(alignment: .leading, spacing: 8) {
+      NativeSketchQueuedStep(index: 1, label: "answering now", accentColor: accentColor)
+      NativeSketchQueuedStep(index: 2, label: "queued follow-up", accentColor: accentColor)
+    }
+    .padding(.horizontal, 16)
+    .frame(height: 66)
+    .background(Color.oeBackground.opacity(0.52), in: RoundedRectangle(cornerRadius: 21, style: .continuous))
+    .overlay(alignment: .bottomTrailing) {
+      HStack(spacing: 5) {
         ForEach(0..<3, id: \.self) { index in
-          Capsule(style: .continuous)
+          Circle()
             .fill(index == 0 ? accentColor.color : Color.oeMutedText.opacity(0.24))
-            .frame(width: motion.progress(from: 18, to: 46, speed: 0.42, offset: Double(index) * 0.24), height: 7)
+            .frame(width: motion.progress(from: 4, to: 8, speed: 0.46, offset: Double(index) * 0.18))
         }
       }
-
-      NativeSketchCaption(text: "keeps working quietly")
+      .padding(12)
     }
-    .padding(.horizontal, 18)
-    .frame(height: 62)
-    .background(Color.oeBackground.opacity(0.52), in: RoundedRectangle(cornerRadius: 21, style: .continuous))
+  }
+}
+
+struct NativeSketchFlowCaption: View {
+  var text: String
+  var accentColor: NativeAccentColor
+
+  var body: some View {
+    HStack(spacing: 8) {
+      Image(systemName: "arrow.triangle.branch")
+        .font(.system(size: 12, weight: .black))
+      Text(text)
+        .font(.system(size: 12, weight: .black))
+        .lineLimit(1)
+    }
+    .foregroundColor(.oeText)
+    .padding(.horizontal, 14)
+    .frame(height: 34)
+    .background(Color.oeBackground.opacity(0.56), in: Capsule(style: .continuous))
+    .overlay {
+      Capsule(style: .continuous)
+        .stroke(accentColor.color.opacity(0.18), lineWidth: 1)
+    }
+  }
+}
+
+struct NativeSketchContextLine: View {
+  var icon: String
+  var text: String
+  var color: Color
+
+  var body: some View {
+    HStack(spacing: 6) {
+      Image(systemName: icon)
+        .font(.system(size: 9, weight: .black))
+      Text(text)
+        .font(.system(size: 10, weight: .black))
+        .lineLimit(1)
+    }
+    .foregroundColor(color)
+  }
+}
+
+struct NativeSketchQueuedStep: View {
+  var index: Int
+  var label: String
+  var accentColor: NativeAccentColor
+
+  var body: some View {
+    HStack(spacing: 8) {
+      Text("\(index)")
+        .font(.system(size: 10, weight: .black))
+        .foregroundColor(accentColor.foregroundColor)
+        .frame(width: 19, height: 19)
+        .background(accentColor.color, in: Circle())
+      Text(label)
+        .font(.system(size: 11, weight: .black))
+        .foregroundColor(.oeText)
+      Spacer(minLength: 0)
+    }
   }
 }
 
@@ -275,19 +407,6 @@ private struct NativeSketchSendButton: View {
           .foregroundColor(accentColor.foregroundColor)
           .offset(y: motion.float(1.5, speed: 0.48, offset: 0.4))
       }
-  }
-}
-
-struct NativeSketchCaption: View {
-  var text: String
-
-  var body: some View {
-    Text(text)
-      .font(.system(size: 12, weight: .heavy))
-      .foregroundColor(.oeSecondaryText)
-      .padding(.horizontal, 13)
-      .frame(height: 32)
-      .background(Color.oeBackground.opacity(0.46), in: Capsule(style: .continuous))
   }
 }
 

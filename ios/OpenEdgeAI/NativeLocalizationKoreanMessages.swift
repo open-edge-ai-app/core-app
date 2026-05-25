@@ -83,8 +83,8 @@ extension NativeI18n {
     .settingsBackground: "백그라운드",
     .settingsBackgroundExecution: "백그라운드 실행",
     .settingsBackgroundDynamicIsland: "백그라운드 Dynamic Island 활성",
-    .settingsDynamicIslandPet: "Dynamic Island 펫",
-    .settingsDynamicIslandPetEnabled: "Dynamic Island 펫 활성",
+    .settingsDynamicIslandPet: "Dynamic Island 동료",
+    .settingsDynamicIslandPetEnabled: "Dynamic Island 동료 활성",
     .settingsLanguage: "언어",
     .settingsFontSize: "글씨 크기",
     .settingsPreview: "미리보기",
@@ -180,10 +180,10 @@ extension NativeI18n {
     .todoAllowCalendarFirst: "캘린더 권한을 먼저 허용해주세요.",
     .todoNothingToSync: "동기화할 Todo가 없습니다.",
     .todoSyncedCount: "{count}개 Todo를 iOS 캘린더에 동기화했습니다.",
-    .petOrbitSubtitle: "푸른 궤도로 작업을 따라가는 기본 펫",
-    .petStackySubtitle: "노란 블록으로 차분하게 쌓아 올리는 펫",
-    .petSignalSubtitle: "보라색 신호를 조용히 기다리는 펫",
-    .petLumaSubtitle: "민트빛으로 가볍게 반응하는 펫",
-    .petFluxSubtitle: "코랄 톤으로 빠르게 뛰는 펫"
+    .petOrbitSubtitle: "차분하게 생각을 정리하는 파란 동료",
+    .petStackySubtitle: "할 일을 착착 쌓아 올리는 노란 동료",
+    .petSignalSubtitle: "조용히 신호를 읽고 기다리는 보라 동료",
+    .petLumaSubtitle: "밝게 반응하며 흐름을 밝혀주는 민트 동료",
+    .petFluxSubtitle: "빠르게 움직이며 작업을 밀어주는 코랄 동료"
   ]
 }

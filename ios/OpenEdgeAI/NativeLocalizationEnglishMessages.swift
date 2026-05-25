@@ -83,8 +83,8 @@ extension NativeI18n {
     .settingsBackground: "Background",
     .settingsBackgroundExecution: "Background execution",
     .settingsBackgroundDynamicIsland: "Background Dynamic Island",
-    .settingsDynamicIslandPet: "Dynamic Island pet",
-    .settingsDynamicIslandPetEnabled: "Enable Dynamic Island pet",
+    .settingsDynamicIslandPet: "Dynamic Island companion",
+    .settingsDynamicIslandPetEnabled: "Enable Dynamic Island companion",
     .settingsLanguage: "Language",
     .settingsFontSize: "Font size",
     .settingsPreview: "Preview",
@@ -180,10 +180,10 @@ extension NativeI18n {
     .todoAllowCalendarFirst: "Allow Calendar permission first.",
     .todoNothingToSync: "No Todo items to sync.",
     .todoSyncedCount: "Synced {count} Todo items to iOS Calendar.",
-    .petOrbitSubtitle: "Default pet that follows tasks with a blue orbit",
-    .petStackySubtitle: "A calm yellow block pet that stacks work",
-    .petSignalSubtitle: "A purple signal pet that waits quietly",
-    .petLumaSubtitle: "A mint pet that reacts lightly",
-    .petFluxSubtitle: "A fast coral-toned pet"
+    .petOrbitSubtitle: "A calm blue companion for organizing thoughts",
+    .petStackySubtitle: "A steady yellow companion who stacks tasks",
+    .petSignalSubtitle: "A quiet purple companion who reads signals",
+    .petLumaSubtitle: "A bright mint companion that reacts gently",
+    .petFluxSubtitle: "A quick coral companion that keeps work moving"
   ]
 }

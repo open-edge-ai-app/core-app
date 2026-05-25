@@ -13,30 +13,30 @@ enum NativeDynamicIslandPet: String, CaseIterable, Identifiable {
   var title: String {
     switch self {
     case .orbit:
-      return "Orbit"
+      return "Noa"
     case .stacky:
-      return "Stacky"
+      return "Mino"
     case .nullSignal:
-      return "Signal"
+      return "Sia"
     case .luma:
-      return "Luma"
+      return "Lumi"
     case .flux:
-      return "Flux"
+      return "Rio"
     }
   }
 
   var subtitle: String {
     switch self {
     case .orbit:
-      return "푸른 궤도로 작업을 따라가는 기본 펫"
+      return "차분하게 생각을 정리하는 파란 동료"
     case .stacky:
-      return "노란 블록으로 차분하게 쌓아 올리는 펫"
+      return "할 일을 착착 쌓아 올리는 노란 동료"
     case .nullSignal:
-      return "보라색 신호를 조용히 기다리는 펫"
+      return "조용히 신호를 읽고 기다리는 보라 동료"
     case .luma:
-      return "민트빛으로 가볍게 반응하는 펫"
+      return "밝게 반응하며 흐름을 밝혀주는 민트 동료"
     case .flux:
-      return "코랄 톤으로 빠르게 뛰는 펫"
+      return "빠르게 움직이며 작업을 밀어주는 코랄 동료"
     }
   }
 

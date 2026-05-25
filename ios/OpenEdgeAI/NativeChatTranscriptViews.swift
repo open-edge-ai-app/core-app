@@ -2,6 +2,7 @@ import SwiftUI
 
 struct NativeChatTranscript: View {
   @EnvironmentObject private var store: NativeChatStore
+  var topPadding: CGFloat = 18
   var bottomPadding: CGFloat = 24
 
   var body: some View {
@@ -23,7 +24,7 @@ struct NativeChatTranscript: View {
             .id("bottom")
         }
         .padding(.horizontal, 18)
-        .padding(.top, 18)
+        .padding(.top, topPadding)
         .padding(.bottom, bottomPadding)
       }
       .background(Color.oeBackground)

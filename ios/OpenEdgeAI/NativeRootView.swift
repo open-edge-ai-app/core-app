@@ -17,23 +17,25 @@ struct NativeRootView: View {
 
   var body: some View {
     ZStack(alignment: .leading) {
-      VStack(spacing: 0) {
+      ZStack(alignment: .bottom) {
+        NativeChatTranscript(
+          topPadding: nativeTopBarTranscriptPadding,
+          bottomPadding: nativeComposerScrollBottomPadding
+        )
+
+        NativeInputBar(
+          showingAttachmentOptions: $showingAttachmentOptions,
+          onPickPhotoOrVideo: requestPhotoLibraryAccess,
+          onPickFile: openFileImporter
+        )
+          .zIndex(2)
+          .ignoresSafeArea(.container, edges: .bottom)
+      }
+      .overlay(alignment: .top) {
         NativeTopBar(
           showingSessions: $showingSessions
         )
         .zIndex(2)
-
-        ZStack(alignment: .bottom) {
-          NativeChatTranscript(bottomPadding: nativeComposerScrollBottomPadding)
-
-          NativeInputBar(
-            showingAttachmentOptions: $showingAttachmentOptions,
-            onPickPhotoOrVideo: requestPhotoLibraryAccess,
-            onPickFile: openFileImporter
-          )
-            .zIndex(2)
-            .ignoresSafeArea(.container, edges: .bottom)
-        }
       }
       .background(Color.oeBackground)
 

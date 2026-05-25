@@ -1,5 +1,7 @@
 import SwiftUI
 
+let nativeTopBarTranscriptPadding: CGFloat = 74
+
 struct NativeTopBar: View {
   @EnvironmentObject private var store: NativeChatStore
   @Binding var showingSessions: Bool
@@ -29,6 +31,9 @@ struct NativeTopBar: View {
     .padding(.horizontal, 16)
     .padding(.top, 6)
     .padding(.bottom, 8)
+    .background(alignment: .top) {
+      NativeTopBarFadeBackground()
+    }
   }
 }
 
@@ -106,6 +111,33 @@ private struct NativeTopBarGlassCircle<Content: View>: View {
     Circle()
       .stroke(colorScheme == .dark ? Color.white.opacity(0.12) : Color.black.opacity(0.08), lineWidth: 0.7)
       .allowsHitTesting(false)
+  }
+}
+
+private struct NativeTopBarFadeBackground: View {
+  @Environment(\.colorScheme) private var colorScheme
+
+  var body: some View {
+    LinearGradient(
+      stops: [
+        .init(color: Color.oeBackground.opacity(0), location: 0),
+        .init(color: Color.oeBackground.opacity(topFadeMidOpacity), location: 0.46),
+        .init(color: Color.oeBackground.opacity(topFadeBottomOpacity), location: 1)
+      ],
+      startPoint: .top,
+      endPoint: .bottom
+    )
+    .frame(height: 88)
+    .ignoresSafeArea(edges: .top)
+    .allowsHitTesting(false)
+  }
+
+  private var topFadeMidOpacity: Double {
+    colorScheme == .dark ? 0.18 : 0.34
+  }
+
+  private var topFadeBottomOpacity: Double {
+    colorScheme == .dark ? 0.58 : 0.72
   }
 }
 

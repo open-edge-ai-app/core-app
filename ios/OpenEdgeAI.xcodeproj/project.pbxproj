@@ -131,11 +131,7 @@
 		A6E000000000000000000001 /* NativeDynamicIslandPetSprites.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6F000000000000000000001 /* NativeDynamicIslandPetSprites.swift */; };
 		A6E000000000000000000002 /* NativeDynamicIslandPetSprites.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6F000000000000000000001 /* NativeDynamicIslandPetSprites.swift */; };
 		A7E000000000000000000001 /* NativeOnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7F000000000000000000001 /* NativeOnboardingView.swift */; };
-		A8E000000000000000000001 /* onboarding-chat.gif in Resources */ = {isa = PBXBuildFile; fileRef = A8F000000000000000000001 /* onboarding-chat.gif */; };
-		A8E000000000000000000002 /* onboarding-todo.gif in Resources */ = {isa = PBXBuildFile; fileRef = A8F000000000000000000002 /* onboarding-todo.gif */; };
-		A8E000000000000000000003 /* onboarding-project.gif in Resources */ = {isa = PBXBuildFile; fileRef = A8F000000000000000000003 /* onboarding-project.gif */; };
-		A8E000000000000000000004 /* onboarding-island.gif in Resources */ = {isa = PBXBuildFile; fileRef = A8F000000000000000000004 /* onboarding-island.gif */; };
-		A9E000000000000000000001 /* NativeAnimatedGIFView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A9F000000000000000000001 /* NativeAnimatedGIFView.swift */; };
+		A9E000000000000000000001 /* NativeOnboardingIllustrations.swift in Sources */ = {isa = PBXBuildFile; fileRef = A9F000000000000000000001 /* NativeOnboardingIllustrations.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -293,11 +289,7 @@
 		A5F000000000000000000020 /* NativeMarkdownBlock.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = NativeMarkdownBlock.swift; path = OpenEdgeAI/NativeMarkdownBlock.swift; sourceTree = "<group>"; };
 		A6F000000000000000000001 /* NativeDynamicIslandPetSprites.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = NativeDynamicIslandPetSprites.swift; path = OpenEdgeAI/NativeDynamicIslandPetSprites.swift; sourceTree = "<group>"; };
 		A7F000000000000000000001 /* NativeOnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = NativeOnboardingView.swift; path = OpenEdgeAI/NativeOnboardingView.swift; sourceTree = "<group>"; };
-		A8F000000000000000000001 /* onboarding-chat.gif */ = {isa = PBXFileReference; lastKnownFileType = image.gif; name = "onboarding-chat.gif"; path = "OpenEdgeAI/OnboardingAssets/onboarding-chat.gif"; sourceTree = "<group>"; };
-		A8F000000000000000000002 /* onboarding-todo.gif */ = {isa = PBXFileReference; lastKnownFileType = image.gif; name = "onboarding-todo.gif"; path = "OpenEdgeAI/OnboardingAssets/onboarding-todo.gif"; sourceTree = "<group>"; };
-		A8F000000000000000000003 /* onboarding-project.gif */ = {isa = PBXFileReference; lastKnownFileType = image.gif; name = "onboarding-project.gif"; path = "OpenEdgeAI/OnboardingAssets/onboarding-project.gif"; sourceTree = "<group>"; };
-		A8F000000000000000000004 /* onboarding-island.gif */ = {isa = PBXFileReference; lastKnownFileType = image.gif; name = "onboarding-island.gif"; path = "OpenEdgeAI/OnboardingAssets/onboarding-island.gif"; sourceTree = "<group>"; };
-		A9F000000000000000000001 /* NativeAnimatedGIFView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = NativeAnimatedGIFView.swift; path = OpenEdgeAI/NativeAnimatedGIFView.swift; sourceTree = "<group>"; };
+		A9F000000000000000000001 /* NativeOnboardingIllustrations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = NativeOnboardingIllustrations.swift; path = OpenEdgeAI/NativeOnboardingIllustrations.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -375,11 +367,7 @@
 				A3F000000000000000000018 /* NativeModelSettingsView.swift */,
 				A3F000000000000000000019 /* NativeModelStatus.swift */,
 				A7F000000000000000000001 /* NativeOnboardingView.swift */,
-				A9F000000000000000000001 /* NativeAnimatedGIFView.swift */,
-				A8F000000000000000000001 /* onboarding-chat.gif */,
-				A8F000000000000000000002 /* onboarding-todo.gif */,
-				A8F000000000000000000003 /* onboarding-project.gif */,
-				A8F000000000000000000004 /* onboarding-island.gif */,
+				A9F000000000000000000001 /* NativeOnboardingIllustrations.swift */,
 				A3F00000000000000000001A /* NativePersonalSettingsView.swift */,
 				A3F00000000000000000001B /* NativeProjectComposerBar.swift */,
 				A3F00000000000000000001C /* NativeProjectCreatorComponents.swift */,
@@ -595,10 +583,6 @@
 				81AB9BB82411601600AC10FF /* LaunchScreen.storyboard in Resources */,
 				13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */,
 				2D47E8EF76AE2445613FD9E7 /* PrivacyInfo.xcprivacy in Resources */,
-				A8E000000000000000000001 /* onboarding-chat.gif in Resources */,
-				A8E000000000000000000002 /* onboarding-todo.gif in Resources */,
-				A8E000000000000000000003 /* onboarding-project.gif in Resources */,
-				A8E000000000000000000004 /* onboarding-island.gif in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -759,7 +743,7 @@
 				A5E000000000000000000016 /* NativeChatStoreStreamingBuffer.swift in Sources */,
 				A5E000000000000000000017 /* NativeChatStoreSearchProgress.swift in Sources */,
 				A7E000000000000000000001 /* NativeOnboardingView.swift in Sources */,
-				A9E000000000000000000001 /* NativeAnimatedGIFView.swift in Sources */,
+				A9E000000000000000000001 /* NativeOnboardingIllustrations.swift in Sources */,
 				A5E000000000000000000018 /* NativeTodoSupportingModels.swift in Sources */,
 				A5E000000000000000000019 /* NativeTodoSeedData.swift in Sources */,
 				A5E00000000000000000001A /* NativeTodoSettingsComponents.swift in Sources */,

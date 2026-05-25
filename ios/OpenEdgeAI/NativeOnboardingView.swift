@@ -10,22 +10,22 @@ struct NativeOnboardingView: View {
       NativeOnboardingPage(
         title: .onboardingChatTitle,
         subtitle: .onboardingChatSubtitle,
-        artworkName: "onboarding-chat"
+        scene: .workspace
       ),
       NativeOnboardingPage(
         title: .onboardingTodoTitle,
         subtitle: .onboardingTodoSubtitle,
-        artworkName: "onboarding-todo"
+        scene: .todo
       ),
       NativeOnboardingPage(
         title: .onboardingProjectTitle,
         subtitle: .onboardingProjectSubtitle,
-        artworkName: "onboarding-project"
+        scene: .document
       ),
       NativeOnboardingPage(
         title: .onboardingIslandTitle,
         subtitle: .onboardingIslandSubtitle,
-        artworkName: "onboarding-island"
+        scene: .progress
       )
     ]
   }
@@ -89,7 +89,7 @@ struct NativeOnboardingView: View {
 private struct NativeOnboardingPage {
   var title: NativeI18nKey
   var subtitle: NativeI18nKey
-  var artworkName: String
+  var scene: NativeOnboardingScene
 }
 
 private struct NativeOnboardingPageView: View {
@@ -106,7 +106,7 @@ private struct NativeOnboardingPageView: View {
     VStack(spacing: 24) {
       Spacer(minLength: 4)
 
-      NativeOnboardingArtwork(name: page.artworkName, accentColor: accentColor)
+      NativeOnboardingIllustration(scene: page.scene, accentColor: accentColor)
         .frame(height: artworkHeight)
         .padding(.horizontal, 14)
 
@@ -130,43 +130,6 @@ private struct NativeOnboardingPageView: View {
 
       Spacer(minLength: 2)
     }
-  }
-}
-
-private struct NativeOnboardingArtwork: View {
-  var name: String
-  var accentColor: NativeAccentColor
-
-  var body: some View {
-    GeometryReader { proxy in
-      ZStack {
-        NativeAnimatedGIFView(name: name)
-          .clipShape(RoundedRectangle(cornerRadius: 30, style: .continuous))
-          .nativeGlassStroke(cornerRadius: 30, color: Color.oeBorder.opacity(0.12))
-
-        NativeOnboardingFallbackArtwork(accentColor: accentColor)
-          .opacity(NativeAnimatedGIFCache.image(named: name) == nil ? 1 : 0)
-      }
-      .frame(width: proxy.size.width, height: proxy.size.height)
-    }
-    .aspectRatio(1, contentMode: .fit)
-  }
-}
-
-private struct NativeOnboardingFallbackArtwork: View {
-  var accentColor: NativeAccentColor
-
-  var body: some View {
-    VStack(spacing: 12) {
-      Image(systemName: "sparkles")
-        .font(.system(size: 40, weight: .semibold))
-        .foregroundColor(accentColor.color)
-
-      Text("Open Edge AI")
-        .font(.system(size: 15, weight: .bold))
-        .foregroundColor(.oeText)
-    }
-    .frame(maxWidth: .infinity, maxHeight: .infinity)
   }
 }
 

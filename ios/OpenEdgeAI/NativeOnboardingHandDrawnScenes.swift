@@ -160,13 +160,6 @@ private struct NativeHandDrawnUserBubble: View {
     .frame(width: 232, alignment: .leading)
     .nativeHandDrawnBubble(background: accentColor.color, ink: accentColor.foregroundColor.opacity(0.48), radius: 21)
     .rotationEffect(.degrees(1.1))
-    .overlay(alignment: .bottomTrailing) {
-      NativePixelTail()
-        .fill(accentColor.color)
-        .frame(width: 16, height: 13)
-        .scaleEffect(x: -1, y: 1)
-        .offset(x: -14, y: 9)
-    }
   }
 }
 
@@ -195,13 +188,6 @@ private struct NativeHandDrawnAnswerCard: View {
     .frame(width: 214, height: 136, alignment: .topLeading)
     .nativeHandDrawnBubble(background: Color.oeBackground.opacity(0.76), ink: accentColor.color.opacity(0.62), radius: 20)
     .rotationEffect(.degrees(-1.1))
-    .overlay(alignment: .leading) {
-      NativePixelTail()
-        .fill(Color.oeBackground.opacity(0.76))
-        .frame(width: 16, height: 14)
-        .rotationEffect(.degrees(180))
-        .offset(x: -13, y: 30)
-    }
   }
 }
 

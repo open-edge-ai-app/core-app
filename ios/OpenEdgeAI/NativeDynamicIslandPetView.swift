@@ -107,6 +107,8 @@ struct NativeDynamicIslandPetView: View {
       return pet.eyeColor
     case 5:
       return pet.cheekColor
+    case 6:
+      return pet.sparkleColor
     default:
       return Color.clear
     }

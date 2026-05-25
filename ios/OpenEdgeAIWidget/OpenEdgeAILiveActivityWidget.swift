@@ -291,6 +291,8 @@ private struct OpenEdgeAIIslandPet: View {
       return eyeColor
     case 5:
       return cheekColor
+    case 6:
+      return sparkleColor
     default:
       return .clear
     }
@@ -314,5 +316,9 @@ private struct OpenEdgeAIIslandPet: View {
 
   private var cheekColor: Color {
     NativeDynamicIslandPetSprite.cheekColor(for: pet)
+  }
+
+  private var sparkleColor: Color {
+    NativeDynamicIslandPetSprite.sparkleColor(for: pet)
   }
 }

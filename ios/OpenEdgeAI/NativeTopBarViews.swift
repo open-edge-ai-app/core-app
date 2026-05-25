@@ -7,35 +7,35 @@ struct NativeTopBar: View {
   var body: some View {
     NativeGlassEffectContainer(spacing: 12) {
       HStack(spacing: 12) {
-      Button {
-        withAnimation(.easeOut(duration: 0.24)) {
-          showingSessions = true
+        Button {
+          withAnimation(.easeOut(duration: 0.24)) {
+            showingSessions = true
+          }
+        } label: {
+          NativeTopBarGlassCircle {
+            Image(systemName: "line.3.horizontal")
+              .font(.system(size: 18, weight: .semibold))
+          }
         }
-      } label: {
-        Image(systemName: "line.3.horizontal")
-          .font(.system(size: 18, weight: .semibold))
-          .frame(width: 36, height: 36)
-          .background(.ultraThinMaterial, in: Circle())
-          .overlay(
-            Circle()
-              .stroke(Color.oeBorder.opacity(0.18), lineWidth: 1)
-          )
-      }
-      .accessibilityLabel(store.i18n.t(.chatOpenList))
-      .buttonStyle(.plain)
+        .accessibilityLabel(store.i18n.t(.chatOpenList))
+        .buttonStyle(.plain)
 
-      Button {
-        store.createNewSession()
-      } label: {
-        Text(store.currentSession?.title ?? "Open Edge AI")
-          .font(.system(size: 15, weight: .semibold))
-          .lineLimit(1)
-      }
-      .buttonStyle(.plain)
+        Button {
+          store.createNewSession()
+        } label: {
+          NativeTopBarGlassCapsule {
+            Text(store.currentSession?.title ?? "Open Edge AI")
+              .font(.system(size: 15, weight: .semibold))
+              .lineLimit(1)
+              .frame(maxWidth: 132, alignment: .leading)
+          }
+        }
+        .buttonStyle(.plain)
+        .layoutPriority(1)
 
-      Spacer(minLength: 8)
+        Spacer(minLength: 8)
 
-      NativeModelMenu()
+        NativeModelMenu()
       }
     }
     .foregroundColor(.oeText)
@@ -74,21 +74,108 @@ struct NativeModelMenu: View {
         }
       }
     } label: {
-      HStack(spacing: 6) {
-        Text(store.selectedModel.title)
-          .font(.system(size: 13, weight: .semibold))
-          .lineLimit(1)
-        Image(systemName: "chevron.down")
-          .font(.system(size: 10, weight: .bold))
+      NativeTopBarGlassCapsule {
+        HStack(spacing: 6) {
+          Text(store.selectedModel.title)
+            .font(.system(size: 13, weight: .semibold))
+            .lineLimit(1)
+          Image(systemName: "chevron.down")
+            .font(.system(size: 10, weight: .bold))
+        }
+        .frame(minWidth: 72)
       }
       .foregroundColor(.oeText)
-      .padding(.horizontal, 10)
-      .frame(height: 34)
-      .background(.ultraThinMaterial, in: Capsule(style: .continuous))
-      .overlay(
+    }
+  }
+}
+
+private struct NativeTopBarGlassCircle<Content: View>: View {
+  @Environment(\.colorScheme) private var colorScheme
+  @ViewBuilder var content: Content
+
+  var body: some View {
+    content
+      .foregroundColor(.oeText)
+      .frame(width: 38, height: 38)
+      .background(glassFill)
+      .modifier(NativeTopBarCircleGlassEffect(tint: glassTint))
+      .overlay(circleBorder)
+  }
+
+  private var glassFill: some View {
+    Circle()
+      .fill(.ultraThinMaterial)
+      .overlay {
+        Circle()
+          .fill(glassTint)
+      }
+  }
+
+  private var glassTint: Color {
+    colorScheme == .dark ? Color.white.opacity(0.08) : Color.white.opacity(0.68)
+  }
+
+  private var circleBorder: some View {
+    Circle()
+      .stroke(colorScheme == .dark ? Color.white.opacity(0.12) : Color.black.opacity(0.08), lineWidth: 0.7)
+      .allowsHitTesting(false)
+  }
+}
+
+private struct NativeTopBarGlassCapsule<Content: View>: View {
+  @Environment(\.colorScheme) private var colorScheme
+  @ViewBuilder var content: Content
+
+  var body: some View {
+    content
+      .foregroundColor(.oeText)
+      .padding(.horizontal, 12)
+      .frame(height: 36)
+      .background(glassFill)
+      .modifier(NativeTopBarCapsuleGlassEffect(tint: glassTint))
+      .overlay(capsuleBorder)
+  }
+
+  private var glassFill: some View {
+    Capsule(style: .continuous)
+      .fill(.ultraThinMaterial)
+      .overlay {
         Capsule(style: .continuous)
-          .stroke(Color.oeBorder.opacity(0.18), lineWidth: 1)
-      )
+          .fill(glassTint)
+      }
+  }
+
+  private var glassTint: Color {
+    colorScheme == .dark ? Color.white.opacity(0.08) : Color.white.opacity(0.64)
+  }
+
+  private var capsuleBorder: some View {
+    Capsule(style: .continuous)
+      .stroke(colorScheme == .dark ? Color.white.opacity(0.12) : Color.black.opacity(0.08), lineWidth: 0.7)
+      .allowsHitTesting(false)
+  }
+}
+
+private struct NativeTopBarCircleGlassEffect: ViewModifier {
+  var tint: Color
+
+  func body(content: Content) -> some View {
+    if #available(iOS 26.0, *) {
+      content.glassEffect(.regular.tint(tint).interactive(), in: .circle)
+    } else {
+      content
+    }
+  }
+}
+
+private struct NativeTopBarCapsuleGlassEffect: ViewModifier {
+  var tint: Color
+
+  func body(content: Content) -> some View {
+    if #available(iOS 26.0, *) {
+      content.glassEffect(.regular.tint(tint).interactive(), in: .capsule)
+    } else {
+      content
     }
   }
 }

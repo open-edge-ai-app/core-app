@@ -54,6 +54,15 @@ enum NativeI18nKey: String, CaseIterable {
   case onboardingProjectSubtitle
   case onboardingIslandTitle
   case onboardingIslandSubtitle
+  case onboardingWelcomePrefix
+  case onboardingWelcomeProduct
+  case onboardingFeatureOfflineTitle
+  case onboardingFeatureOfflineBody
+  case onboardingFeaturePrivateTitle
+  case onboardingFeaturePrivateBody
+  case onboardingFeatureSiliconTitle
+  case onboardingFeatureSiliconBody
+  case onboardingContinue
 
   case attachmentAdd
   case attachmentPhotoOrVideo

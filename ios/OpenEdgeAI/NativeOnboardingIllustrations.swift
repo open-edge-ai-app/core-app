@@ -21,7 +21,7 @@ struct NativeOnboardingIllustration: View {
 
         switch scene {
         case .privacy:
-          NativeOnboardingStartHeroScene()
+          NativeOnboardingChatSketchScene(accentColor: accentColor, motion: motion)
         case .workspace:
           NativeOnboardingChatSketchScene(accentColor: accentColor, motion: motion)
         case .todo:
@@ -34,15 +34,6 @@ struct NativeOnboardingIllustration: View {
       }
       .clipShape(RoundedRectangle(cornerRadius: 32, style: .continuous))
     }
-  }
-}
-
-private struct NativeOnboardingStartHeroScene: View {
-  var body: some View {
-    Image("OnboardingStartHero")
-      .resizable()
-      .scaledToFit()
-      .frame(maxWidth: .infinity, maxHeight: .infinity)
   }
 }
 

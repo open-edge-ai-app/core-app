@@ -53,7 +53,7 @@ extension NativeI18n {
     .onboardingProjectSubtitle: "Separates instructions, files, and chats so each workspace stays focused.",
     .onboardingIslandTitle: "Track work from Dynamic Island",
     .onboardingIslandSubtitle: "Shows live response work and queued follow-ups while the app keeps running.",
-    .onboardingWelcomePrefix: "Welcome to",
+    .onboardingWelcomePrefix: "Private AI that starts on device",
     .onboardingWelcomeProduct: "Open Edge AI",
     .onboardingFeatureOfflineTitle: "Offline AI Assistant",
     .onboardingFeatureOfflineBody: "Your AI assistant runs completely on your device. No login or internet needed.",

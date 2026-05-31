@@ -96,58 +96,18 @@ private struct NativeOnboardingTitle: View {
   var accentColor: Color
 
   var body: some View {
-    VStack(spacing: 18) {
-      NativeOnboardingOrbitMark(accentColor: accentColor)
+    VStack(spacing: 16) {
+      Text(i18n.t(.onboardingWelcomePrefix))
+        .font(.system(size: 30, weight: .heavy))
+        .foregroundColor(.oeText)
 
-      VStack(spacing: 6) {
-        Text(i18n.t(.onboardingWelcomePrefix))
-          .font(.system(size: 31, weight: .heavy))
-          .foregroundColor(.oeText)
-
-        Text(i18n.t(.onboardingWelcomeProduct))
-          .font(.system(size: 58, weight: .heavy))
-          .foregroundStyle(
-            LinearGradient(
-              colors: [
-                Color.oeText,
-                accentColor.opacity(0.94)
-              ],
-              startPoint: .leading,
-              endPoint: .trailing
-            )
-          )
-      }
-      .multilineTextAlignment(.center)
-      .minimumScaleFactor(0.78)
+      Image("KeplerLogo")
+        .resizable()
+        .scaledToFit()
+        .frame(width: 274, height: 106)
+        .accessibilityLabel(i18n.t(.onboardingWelcomeProduct))
     }
     .padding(.horizontal, 24)
-  }
-}
-
-private struct NativeOnboardingOrbitMark: View {
-  var accentColor: Color
-
-  var body: some View {
-    ZStack {
-      Circle()
-        .stroke(Color.oeBorder.opacity(0.44), lineWidth: 1)
-        .frame(width: 74, height: 74)
-
-      Circle()
-        .stroke(accentColor.opacity(0.34), lineWidth: 1.5)
-        .frame(width: 54, height: 54)
-        .rotationEffect(.degrees(-18))
-
-      Circle()
-        .fill(Color.oeText)
-        .frame(width: 32, height: 32)
-
-      Circle()
-        .fill(accentColor)
-        .frame(width: 9, height: 9)
-        .offset(x: 32, y: -16)
-    }
-    .frame(width: 82, height: 82)
   }
 }
 

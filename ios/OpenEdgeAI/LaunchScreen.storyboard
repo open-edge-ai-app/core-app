@@ -16,7 +16,7 @@
                         <rect key="frame" x="0.0" y="0.0" width="375" height="667"/>
                         <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
                         <subviews>
-                            <imageView clipsSubviews="YES" userInteractionEnabled="NO" contentMode="scaleAspectFit" horizontalHuggingPriority="251" verticalHuggingPriority="251" image="OpenEdgeLogo" translatesAutoresizingMaskIntoConstraints="NO" id="Pdt-U5-A7v">
+                            <imageView clipsSubviews="YES" userInteractionEnabled="NO" contentMode="scaleAspectFit" horizontalHuggingPriority="251" verticalHuggingPriority="251" image="KeplerSymbol" translatesAutoresizingMaskIntoConstraints="NO" id="Pdt-U5-A7v">
                                 <rect key="frame" x="123.5" y="269.5" width="128" height="128"/>
                             </imageView>
                         </subviews>
@@ -36,6 +36,6 @@
         </scene>
     </scenes>
     <resources>
-        <image name="OpenEdgeLogo" width="1024" height="1024"/>
+        <image name="KeplerSymbol" width="1024" height="1024"/>
     </resources>
 </document>

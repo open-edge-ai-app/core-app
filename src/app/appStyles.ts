@@ -310,15 +310,15 @@ export const styles = StyleSheet.create({
   menuHeaderLogoButton: {
     alignItems: 'flex-start',
     flexShrink: 1,
-    height: 44,
+    height: 52,
     justifyContent: 'center',
     marginLeft: MENU_HEADER_LOGO_LEFT_OFFSET,
     marginRight: 16,
-    maxWidth: 152,
-    width: 152,
+    maxWidth: 176,
+    width: 176,
   },
   menuHeaderLogo: {
-    height: 32,
+    height: 44,
     width: '100%',
   },
   menuHeaderActions: {

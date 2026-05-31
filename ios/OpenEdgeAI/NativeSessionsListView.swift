@@ -146,12 +146,10 @@ struct NativeSessionsView: View {
       ZStack(alignment: .bottomTrailing) {
         VStack(alignment: .leading, spacing: 0) {
           HStack(alignment: .center, spacing: 16) {
-            Image("OpenEdgeLogo")
-              .renderingMode(.template)
+            Image("KeplerLogo")
               .resizable()
               .scaledToFit()
-              .foregroundStyle(Color.oeText)
-              .frame(width: 160, height: 40, alignment: .leading)
+              .frame(width: 160, height: 54, alignment: .leading)
               .accessibilityLabel("Kepler")
 
             Spacer(minLength: 12)

@@ -19,9 +19,8 @@ export const styles = StyleSheet.create({
     paddingTop: 2,
   },
   profileLogo: {
-    height: 31,
-    opacity: 0.58,
-    width: 138,
+    height: 52,
+    width: 174,
   },
   header: {
     marginBottom: 20,

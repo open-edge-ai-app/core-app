@@ -62,12 +62,10 @@ struct NativeSettingsView: View {
       .navigationBarTitleDisplayMode(.inline)
       .toolbar {
         ToolbarItem(placement: .principal) {
-          Image("OpenEdgeLogo")
-            .renderingMode(.template)
+          Image("KeplerLogo")
             .resizable()
             .scaledToFit()
-            .foregroundStyle(Color.oeText)
-            .frame(width: 138, height: 34)
+            .frame(width: 138, height: 44)
             .accessibilityLabel("Kepler")
         }
 

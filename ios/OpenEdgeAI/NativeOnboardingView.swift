@@ -96,15 +96,16 @@ private struct NativeOnboardingTitle: View {
   var accentColor: Color
 
   var body: some View {
-    VStack(spacing: 16) {
+    VStack(spacing: 8) {
       Text(i18n.t(.onboardingWelcomePrefix))
-        .font(.system(size: 30, weight: .heavy))
-        .foregroundColor(.oeText)
+        .font(.system(size: 26, weight: .semibold))
+        .foregroundColor(.oeSecondaryText)
 
-      Image("KeplerLogo")
-        .resizable()
-        .scaledToFit()
-        .frame(width: 274, height: 106)
+      Text(i18n.t(.onboardingWelcomeProduct))
+        .font(.system(size: 64, weight: .heavy, design: .rounded))
+        .foregroundColor(.oeText)
+        .lineLimit(1)
+        .minimumScaleFactor(0.72)
         .accessibilityLabel(i18n.t(.onboardingWelcomeProduct))
     }
     .padding(.horizontal, 24)

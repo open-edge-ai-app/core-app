@@ -2,69 +2,139 @@ import SwiftUI
 
 struct NativeOnboardingView: View {
   @EnvironmentObject private var store: NativeChatStore
+  @State private var step: NativeOnboardingStep = .welcome
+  @State private var requestedGemmaDownload = false
   var onStart: () -> Void
 
   var body: some View {
     GeometryReader { proxy in
       let i18n = store.i18n
 
-      VStack(spacing: 0) {
-        Spacer()
-          .frame(height: max(proxy.safeAreaInsets.top + 82, proxy.size.height * 0.16))
-
-        NativeOnboardingTitle(i18n: i18n, accentColor: store.accentColor.color)
-
-        VStack(spacing: 12) {
-          NativeOnboardingFeatureCard(
-            icon: "sparkles",
-            title: i18n.t(.onboardingFeatureOfflineTitle),
-            subtitle: i18n.t(.onboardingFeatureOfflineBody),
-            accentColor: store.accentColor.color
-          )
-
-          NativeOnboardingFeatureCard(
-            icon: "lock.shield.fill",
-            title: i18n.t(.onboardingFeaturePrivateTitle),
-            subtitle: i18n.t(.onboardingFeaturePrivateBody),
-            accentColor: store.accentColor.color
-          )
-
-          NativeOnboardingFeatureCard(
-            icon: "checklist",
-            title: i18n.t(.onboardingTodoTitle),
-            subtitle: i18n.t(.onboardingTodoSubtitle),
-            accentColor: store.accentColor.color
-          )
-
-          NativeOnboardingFeatureCard(
-            icon: "folder.fill",
-            title: i18n.t(.onboardingProjectTitle),
-            subtitle: i18n.t(.onboardingProjectSubtitle),
-            accentColor: store.accentColor.color
-          )
-        }
-        .padding(.horizontal, 24)
-        .padding(.top, 58)
-
-        Spacer(minLength: 24)
-
-        Button(action: onStart) {
-          Text(i18n.t(.onboardingContinue))
-            .font(.system(size: 18, weight: .semibold))
-            .foregroundColor(Color.oeBackground)
-            .frame(maxWidth: .infinity)
-            .frame(height: 58)
-            .background(Color.oeText, in: Capsule(style: .continuous))
-        }
-        .buttonStyle(.plain)
-        .padding(.horizontal, 28)
-        .padding(.bottom, proxy.safeAreaInsets.bottom + 26)
-      }
-      .frame(width: proxy.size.width, height: proxy.size.height)
-      .background {
+      ZStack {
         NativeOnboardingBackground(accentColor: store.accentColor.color)
           .ignoresSafeArea()
+
+        switch step {
+        case .welcome:
+          NativeOnboardingWelcomePage(
+            i18n: i18n,
+            accentColor: store.accentColor.color,
+            safeAreaInsets: proxy.safeAreaInsets,
+            height: proxy.size.height
+          ) {
+            withAnimation(.easeInOut(duration: 0.24)) {
+              step = .modelInstall
+            }
+          }
+        case .modelInstall:
+          NativeOnboardingModelInstallPage(
+            i18n: i18n,
+            status: gemmaStatus,
+            accentColor: store.accentColor.color,
+            safeAreaInsets: proxy.safeAreaInsets,
+            height: proxy.size.height,
+            onDownload: startGemmaDownload
+          )
+        }
       }
+      .frame(width: proxy.size.width, height: proxy.size.height)
+    }
+    .task {
+      await store.refreshModelStatuses()
+    }
+    .onChange(of: gemmaStatus.installed) { _, installed in
+      guard installed, requestedGemmaDownload, step == .modelInstall else {
+        return
+      }
+      finishGemmaSetup()
+    }
+  }
+
+  private var gemmaStatus: NativeModelStatus {
+    store.modelStatuses[.gemma] ?? NativeModelStatus(model: .gemma)
+  }
+
+  private func startGemmaDownload() {
+    store.selectedModel = .gemma
+    store.saveSettings()
+
+    if gemmaStatus.installed {
+      finishGemmaSetup()
+      return
+    }
+
+    requestedGemmaDownload = true
+    store.downloadGemma()
+  }
+
+  private func finishGemmaSetup() {
+    store.selectedModel = .gemma
+    store.loadSelectedModel()
+    onStart()
+  }
+}
+
+private enum NativeOnboardingStep: Equatable {
+  case welcome
+  case modelInstall
+}
+
+private struct NativeOnboardingWelcomePage: View {
+  var i18n: NativeI18n
+  var accentColor: Color
+  var safeAreaInsets: EdgeInsets
+  var height: CGFloat
+  var onContinue: () -> Void
+
+  var body: some View {
+    VStack(spacing: 0) {
+      Spacer()
+        .frame(height: max(safeAreaInsets.top + 82, height * 0.16))
+
+      NativeOnboardingTitle(i18n: i18n, accentColor: accentColor)
+
+      VStack(spacing: 12) {
+        NativeOnboardingFeatureCard(
+          icon: "sparkles",
+          title: i18n.t(.onboardingFeatureOfflineTitle),
+          subtitle: i18n.t(.onboardingFeatureOfflineBody),
+          accentColor: accentColor
+        )
+
+        NativeOnboardingFeatureCard(
+          icon: "lock.shield.fill",
+          title: i18n.t(.onboardingFeaturePrivateTitle),
+          subtitle: i18n.t(.onboardingFeaturePrivateBody),
+          accentColor: accentColor
+        )
+
+        NativeOnboardingFeatureCard(
+          icon: "checklist",
+          title: i18n.t(.onboardingTodoTitle),
+          subtitle: i18n.t(.onboardingTodoSubtitle),
+          accentColor: accentColor
+        )
+
+        NativeOnboardingFeatureCard(
+          icon: "folder.fill",
+          title: i18n.t(.onboardingProjectTitle),
+          subtitle: i18n.t(.onboardingProjectSubtitle),
+          accentColor: accentColor
+        )
+      }
+      .padding(.horizontal, 24)
+      .padding(.top, 58)
+
+      Spacer(minLength: 24)
+
+      NativeOnboardingPrimaryButton(
+        title: i18n.t(.onboardingContinue),
+        systemImage: nil,
+        disabled: false,
+        action: onContinue
+      )
+      .padding(.horizontal, 28)
+      .padding(.bottom, safeAreaInsets.bottom + 26)
     }
   }
 }

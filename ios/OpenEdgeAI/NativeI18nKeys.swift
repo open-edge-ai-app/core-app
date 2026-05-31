@@ -63,6 +63,13 @@ enum NativeI18nKey: String, CaseIterable {
   case onboardingFeatureSiliconTitle
   case onboardingFeatureSiliconBody
   case onboardingContinue
+  case onboardingModelTitle
+  case onboardingModelSubtitle
+  case onboardingModelGemmaBody
+  case onboardingModelKeepOpen
+  case onboardingModelDownloadProgress
+  case onboardingModelDownloaded
+  case onboardingModelDownloadFailed
 
   case attachmentAdd
   case attachmentPhotoOrVideo

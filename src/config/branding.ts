@@ -14,14 +14,14 @@ export type BrandingConfig = {
 };
 
 export const branding: BrandingConfig = {
-  androidAppName: 'OpenEdgeAI',
+  androidAppName: 'Kepler',
   appRegistryName: 'OpenEdgeAI',
   bundleIdentifier: 'com.openedgeai',
-  displayName: 'Open Edge AI',
-  iosDisplayName: 'OpenEdgeAI',
+  displayName: 'Kepler',
+  iosDisplayName: 'Kepler',
   logo: logoSource,
-  productName: 'Open Edge AI',
-  webTitle: 'Open Edge AI',
+  productName: 'Kepler',
+  webTitle: 'Kepler',
 };
 
 export const brandAssets = {

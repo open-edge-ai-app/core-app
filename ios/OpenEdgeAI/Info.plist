@@ -7,7 +7,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
 	<key>CFBundleDisplayName</key>
-	<string>OpenEdgeAI</string>
+	<string>Kepler</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -34,15 +34,15 @@
 		<true/>
 	</dict>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>Open Edge AI uses your location only when you choose to include local context.</string>
+	<string>Kepler uses your location only when you choose to include local context.</string>
 	<key>NSCalendarsFullAccessUsageDescription</key>
-	<string>Open Edge AI syncs Todo items with the iOS Calendar app when you enable calendar integration.</string>
+	<string>Kepler syncs Todo items with the iOS Calendar app when you enable calendar integration.</string>
 	<key>NSCalendarsUsageDescription</key>
-	<string>Open Edge AI syncs Todo items with the iOS Calendar app when you enable calendar integration.</string>
+	<string>Kepler syncs Todo items with the iOS Calendar app when you enable calendar integration.</string>
 	<key>NSCalendarsWriteOnlyAccessUsageDescription</key>
-	<string>Open Edge AI adds Todo items to the iOS Calendar app when you enable calendar integration.</string>
+	<string>Kepler adds Todo items to the iOS Calendar app when you enable calendar integration.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
-	<string>Open Edge AI needs photo library access when you choose images or videos to attach to a chat.</string>
+	<string>Kepler needs photo library access when you choose images or videos to attach to a chat.</string>
 	<key>NSSupportsLiveActivities</key>
 	<true/>
 	<key>UILaunchStoryboardName</key>

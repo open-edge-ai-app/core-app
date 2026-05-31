@@ -25,7 +25,7 @@ class GenerationForegroundService : Service() {
     companion object {
         private const val CHANNEL_ID = "ai_generation_status"
         private const val DEFAULT_TEXT = "응답 생성 중..."
-        private const val DEFAULT_TITLE = "Open Edge AI"
+        private const val DEFAULT_TITLE = "Kepler"
         private const val EXTRA_TEXT = "text"
         private const val EXTRA_TITLE = "title"
         private const val NOTIFICATION_ID = 8401

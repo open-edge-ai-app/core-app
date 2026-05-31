@@ -68,7 +68,7 @@ struct NativeSettingsView: View {
             .scaledToFit()
             .foregroundStyle(Color.oeText)
             .frame(width: 138, height: 34)
-            .accessibilityLabel("Open Edge AI")
+            .accessibilityLabel("Kepler")
         }
 
         ToolbarItem(placement: .confirmationAction) {

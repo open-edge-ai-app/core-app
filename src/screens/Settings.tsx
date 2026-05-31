@@ -502,7 +502,7 @@ function Settings({
     <>
       <View style={styles.profileHeader}>
         <Image
-          accessibilityLabel="Open Edge AI"
+          accessibilityLabel="Kepler"
           resizeMode="contain"
           source={brandAssets.logo}
           style={styles.profileLogo}

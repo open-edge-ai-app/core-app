@@ -152,7 +152,7 @@ struct NativeSessionsView: View {
               .scaledToFit()
               .foregroundStyle(Color.oeText)
               .frame(width: 160, height: 40, alignment: .leading)
-              .accessibilityLabel("Open Edge AI")
+              .accessibilityLabel("Kepler")
 
             Spacer(minLength: 12)
 

@@ -65,13 +65,13 @@ const escapeTsString = value =>
   value.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
 
 const branding = {
-  androidAppName: getEnv('OPEN_EDGE_AI_ANDROID_APP_NAME', 'OpenEdgeAI'),
+  androidAppName: getEnv('OPEN_EDGE_AI_ANDROID_APP_NAME', 'Kepler'),
   appRegistryName: getEnv('OPEN_EDGE_AI_APP_NAME', 'OpenEdgeAI'),
   bundleIdentifier: getEnv('OPEN_EDGE_AI_BUNDLE_IDENTIFIER', 'com.openedgeai'),
-  displayName: getEnv('OPEN_EDGE_AI_DISPLAY_NAME', 'Open Edge AI'),
-  iosDisplayName: getEnv('OPEN_EDGE_AI_IOS_DISPLAY_NAME', 'OpenEdgeAI'),
-  productName: getEnv('OPEN_EDGE_AI_PRODUCT_NAME', 'Open Edge AI'),
-  webTitle: getEnv('OPEN_EDGE_AI_WEB_TITLE', 'Open Edge AI'),
+  displayName: getEnv('OPEN_EDGE_AI_DISPLAY_NAME', 'Kepler'),
+  iosDisplayName: getEnv('OPEN_EDGE_AI_IOS_DISPLAY_NAME', 'Kepler'),
+  productName: getEnv('OPEN_EDGE_AI_PRODUCT_NAME', 'Kepler'),
+  webTitle: getEnv('OPEN_EDGE_AI_WEB_TITLE', 'Kepler'),
 };
 
 const copyFileIfConfigured = (sourceValue, targetPath) => {

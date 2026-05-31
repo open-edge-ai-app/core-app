@@ -26,7 +26,7 @@ class ProgressNotificationModule(
     fun showProgress(options: ReadableMap, promise: Promise) {
         try {
             val id = options.getStringOrNull("id") ?: DEFAULT_ID
-            val title = options.getStringOrNull("title") ?: "Open Edge AI"
+            val title = options.getStringOrNull("title") ?: "Kepler"
             val text = options.getStringOrNull("text") ?: "응답 생성 중…"
             GenerationForegroundService.start(reactContext, title, text)
             promise.resolve(id)

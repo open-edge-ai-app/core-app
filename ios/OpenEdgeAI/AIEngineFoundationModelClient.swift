@@ -13,7 +13,7 @@ final class AIEngineFoundationModelClient: NSObject {
   private let modelName = "Apple Intelligence"
   private let localPath = "system://apple-foundation-models"
   let baseInstructions = """
-  You are Open Edge AI running on iOS. Answer clearly, preserve the user's language, and use the provided conversation history as context.
+  You are Kepler running on iOS. Answer clearly, preserve the user's language, and use the provided conversation history as context.
   Treat runtime date, time, timezone, locale, location, and device context as hidden reference material. Do not mention it unless the user asks about that context or needs relative-date interpretation.
   """
 

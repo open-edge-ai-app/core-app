@@ -514,7 +514,7 @@ class AIEngineModule(
         try {
             val clipboard = reactContext
                 .getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-            clipboard.setPrimaryClip(ClipData.newPlainText("Open Edge AI code", text))
+            clipboard.setPrimaryClip(ClipData.newPlainText("Kepler code", text))
             promise.resolve(true)
         } catch (error: Exception) {
             promise.reject("CLIPBOARD_COPY_ERROR", error)

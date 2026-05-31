@@ -7,68 +7,69 @@ struct NativeOnboardingView: View {
   var body: some View {
     GeometryReader { proxy in
       let i18n = store.i18n
-      let accentColor = store.accentColor.color
 
       VStack(spacing: 0) {
-        NativeOnboardingCorePanel(accentColor: accentColor)
-          .frame(height: min(470, max(410, proxy.size.height * 0.54)))
-          .padding(.horizontal, 22)
-          .padding(.top, proxy.safeAreaInsets.top + 18)
+        Spacer()
+          .frame(height: max(proxy.safeAreaInsets.top + 82, proxy.size.height * 0.16))
 
-        VStack(alignment: .leading, spacing: 22) {
-          NativeOnboardingHeroCopy(i18n: i18n)
+        NativeOnboardingTitle(i18n: i18n, accentColor: store.accentColor.color)
 
-          HStack(spacing: 10) {
-            NativeOnboardingCapabilityChip(
-              icon: "wifi.slash",
-              text: i18n.t(.onboardingFeatureOfflineTitle),
-              accentColor: accentColor
-            )
-            NativeOnboardingCapabilityChip(
-              icon: "lock.shield.fill",
-              text: i18n.t(.onboardingFeaturePrivateTitle),
-              accentColor: accentColor
-            )
-          }
+        VStack(spacing: 12) {
+          NativeOnboardingFeatureCard(
+            icon: "sparkles",
+            title: i18n.t(.onboardingFeatureOfflineTitle),
+            subtitle: i18n.t(.onboardingFeatureOfflineBody),
+            accentColor: store.accentColor.color
+          )
 
-          NativeOnboardingSiliconStrip(
-            title: i18n.t(.onboardingFeatureSiliconTitle),
-            subtitle: i18n.t(.onboardingFeatureSiliconBody),
-            accentColor: accentColor
+          NativeOnboardingFeatureCard(
+            icon: "lock.shield.fill",
+            title: i18n.t(.onboardingFeaturePrivateTitle),
+            subtitle: i18n.t(.onboardingFeaturePrivateBody),
+            accentColor: store.accentColor.color
+          )
+
+          NativeOnboardingFeatureCard(
+            icon: "checklist",
+            title: i18n.t(.onboardingTodoTitle),
+            subtitle: i18n.t(.onboardingTodoSubtitle),
+            accentColor: store.accentColor.color
+          )
+
+          NativeOnboardingFeatureCard(
+            icon: "folder.fill",
+            title: i18n.t(.onboardingProjectTitle),
+            subtitle: i18n.t(.onboardingProjectSubtitle),
+            accentColor: store.accentColor.color
           )
         }
-        .padding(.horizontal, 30)
-        .padding(.top, 28)
+        .padding(.horizontal, 24)
+        .padding(.top, 58)
 
-        Spacer(minLength: 22)
+        Spacer(minLength: 24)
 
         Button(action: onStart) {
-          HStack(spacing: 10) {
-            Text(i18n.t(.onboardingContinue))
-              .font(.system(size: 18, weight: .semibold))
-
-            Image(systemName: "arrow.right")
-              .font(.system(size: 17, weight: .bold))
-          }
-          .foregroundColor(Color.oeBackground)
-          .frame(maxWidth: .infinity)
-          .frame(height: 56)
-          .background(Color.oeText, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+          Text(i18n.t(.onboardingContinue))
+            .font(.system(size: 18, weight: .semibold))
+            .foregroundColor(Color.oeBackground)
+            .frame(maxWidth: .infinity)
+            .frame(height: 58)
+            .background(Color.oeText, in: Capsule(style: .continuous))
         }
         .buttonStyle(.plain)
-        .padding(.horizontal, 30)
-        .padding(.bottom, proxy.safeAreaInsets.bottom + 24)
+        .padding(.horizontal, 28)
+        .padding(.bottom, proxy.safeAreaInsets.bottom + 26)
       }
       .frame(width: proxy.size.width, height: proxy.size.height)
       .background {
-        NativeOnboardingSoftBackground(accentColor: accentColor)
+        NativeOnboardingBackground(accentColor: store.accentColor.color)
           .ignoresSafeArea()
       }
     }
   }
 }
 
-private struct NativeOnboardingSoftBackground: View {
+private struct NativeOnboardingBackground: View {
   var accentColor: Color
 
   var body: some View {
@@ -76,221 +77,120 @@ private struct NativeOnboardingSoftBackground: View {
       Color.oeBackground
 
       Circle()
-        .fill(accentColor.opacity(0.12))
-        .frame(width: 250, height: 250)
-        .blur(radius: 70)
-        .offset(x: -150, y: -250)
+        .fill(accentColor.opacity(0.10))
+        .frame(width: 240, height: 240)
+        .blur(radius: 66)
+        .offset(x: 118, y: -268)
 
       Circle()
-        .fill(Color.oeText.opacity(0.045))
+        .fill(Color.oeText.opacity(0.035))
         .frame(width: 280, height: 280)
-        .blur(radius: 75)
-        .offset(x: 150, y: 250)
+        .blur(radius: 78)
+        .offset(x: -150, y: 286)
     }
   }
 }
 
-private struct NativeOnboardingCorePanel: View {
+private struct NativeOnboardingTitle: View {
+  var i18n: NativeI18n
+  var accentColor: Color
+
+  var body: some View {
+    VStack(spacing: 18) {
+      NativeOnboardingOrbitMark(accentColor: accentColor)
+
+      VStack(spacing: 6) {
+        Text(i18n.t(.onboardingWelcomePrefix))
+          .font(.system(size: 31, weight: .heavy))
+          .foregroundColor(.oeText)
+
+        Text(i18n.t(.onboardingWelcomeProduct))
+          .font(.system(size: 58, weight: .heavy))
+          .foregroundStyle(
+            LinearGradient(
+              colors: [
+                Color.oeText,
+                accentColor.opacity(0.94)
+              ],
+              startPoint: .leading,
+              endPoint: .trailing
+            )
+          )
+      }
+      .multilineTextAlignment(.center)
+      .minimumScaleFactor(0.78)
+    }
+    .padding(.horizontal, 24)
+  }
+}
+
+private struct NativeOnboardingOrbitMark: View {
   var accentColor: Color
 
   var body: some View {
     ZStack {
-      RoundedRectangle(cornerRadius: 38, style: .continuous)
+      Circle()
+        .stroke(Color.oeBorder.opacity(0.44), lineWidth: 1)
+        .frame(width: 74, height: 74)
+
+      Circle()
+        .stroke(accentColor.opacity(0.34), lineWidth: 1.5)
+        .frame(width: 54, height: 54)
+        .rotationEffect(.degrees(-18))
+
+      Circle()
         .fill(Color.oeText)
+        .frame(width: 32, height: 32)
 
-      NativeOnboardingCoreGrid()
-        .opacity(0.24)
-        .clipShape(RoundedRectangle(cornerRadius: 38, style: .continuous))
-
-      VStack(spacing: 24) {
-        HStack {
-          Label("LOCAL CORE", systemImage: "circle.hexagongrid.fill")
-            .font(.system(size: 12, weight: .bold))
-            .tracking(1.6)
-            .foregroundColor(Color.oeBackground.opacity(0.72))
-
-          Spacer()
-
-          Circle()
-            .fill(accentColor)
-            .frame(width: 9, height: 9)
-            .overlay {
-              Circle()
-                .stroke(accentColor.opacity(0.36), lineWidth: 7)
-            }
-        }
-
-        Spacer()
-
-        ZStack {
-          Circle()
-            .stroke(Color.oeBackground.opacity(0.12), lineWidth: 1)
-            .frame(width: 230, height: 230)
-
-          Circle()
-            .stroke(Color.oeBackground.opacity(0.18), lineWidth: 1)
-            .frame(width: 172, height: 172)
-
-          NativeOnboardingOrbitDot(angle: -18, radius: 114, color: accentColor)
-          NativeOnboardingOrbitDot(angle: 142, radius: 86, color: Color.oeBackground.opacity(0.76))
-          NativeOnboardingOrbitDot(angle: 224, radius: 118, color: Color.oeBackground.opacity(0.34))
-
-          RoundedRectangle(cornerRadius: 42, style: .continuous)
-            .fill(Color.oeBackground)
-            .frame(width: 128, height: 128)
-            .overlay {
-              Image(systemName: "bolt.horizontal.circle.fill")
-                .font(.system(size: 54, weight: .semibold))
-                .foregroundStyle(
-                  LinearGradient(
-                    colors: [accentColor, Color.oeText.opacity(0.88)],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                  )
-                )
-            }
-        }
-
-        Spacer()
-
-        VStack(alignment: .leading, spacing: 8) {
-          Text("Private intelligence")
-            .font(.system(size: 28, weight: .heavy))
-            .foregroundColor(Color.oeBackground)
-
-          Text("Runs locally. Keeps context close.")
-            .font(.system(size: 15, weight: .semibold))
-            .foregroundColor(Color.oeBackground.opacity(0.58))
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-      }
-      .padding(28)
+      Circle()
+        .fill(accentColor)
+        .frame(width: 9, height: 9)
+        .offset(x: 32, y: -16)
     }
+    .frame(width: 82, height: 82)
   }
 }
 
-private struct NativeOnboardingCoreGrid: View {
-  var body: some View {
-    Canvas { context, size in
-      let step: CGFloat = 32
-      let lineColor = Color.oeBackground.opacity(0.2)
-
-      for x in stride(from: CGFloat(0), through: size.width, by: step) {
-        var path = Path()
-        path.move(to: CGPoint(x: x, y: 0))
-        path.addLine(to: CGPoint(x: x, y: size.height))
-        context.stroke(path, with: .color(lineColor), lineWidth: 0.6)
-      }
-
-      for y in stride(from: CGFloat(0), through: size.height, by: step) {
-        var path = Path()
-        path.move(to: CGPoint(x: 0, y: y))
-        path.addLine(to: CGPoint(x: size.width, y: y))
-        context.stroke(path, with: .color(lineColor), lineWidth: 0.6)
-      }
-    }
-  }
-}
-
-private struct NativeOnboardingOrbitDot: View {
-  var angle: Double
-  var radius: CGFloat
-  var color: Color
-
-  var body: some View {
-    Circle()
-      .fill(color)
-      .frame(width: 12, height: 12)
-      .offset(
-        x: CGFloat(cos(angle * Double.pi / 180)) * radius,
-        y: CGFloat(sin(angle * Double.pi / 180)) * radius
-      )
-  }
-}
-
-private struct NativeOnboardingHeroCopy: View {
-  var i18n: NativeI18n
-
-  var body: some View {
-    VStack(alignment: .leading, spacing: 10) {
-      Text(i18n.t(.onboardingWelcomePrefix))
-        .font(.system(size: 36, weight: .heavy))
-        .foregroundColor(.oeText)
-        .lineLimit(2)
-        .fixedSize(horizontal: false, vertical: true)
-
-      Text(i18n.t(.onboardingFeatureOfflineBody))
-        .font(.system(size: 17, weight: .medium))
-        .foregroundColor(.oeSecondaryText)
-        .lineSpacing(3)
-        .fixedSize(horizontal: false, vertical: true)
-    }
-  }
-}
-
-private struct NativeOnboardingCapabilityChip: View {
+private struct NativeOnboardingFeatureCard: View {
   var icon: String
-  var text: String
-  var accentColor: Color
-
-  var body: some View {
-    HStack(spacing: 9) {
-      Image(systemName: icon)
-        .font(.system(size: 14, weight: .bold))
-        .foregroundColor(accentColor)
-
-      Text(text)
-        .font(.system(size: 13, weight: .bold))
-        .foregroundColor(.oeText)
-        .lineLimit(1)
-        .minimumScaleFactor(0.78)
-    }
-    .padding(.horizontal, 13)
-    .frame(maxWidth: .infinity)
-    .frame(height: 42)
-    .background(Color.oeSurface.opacity(0.72), in: Capsule(style: .continuous))
-    .overlay {
-      Capsule(style: .continuous)
-        .stroke(Color.oeBorder.opacity(0.28), lineWidth: 1)
-    }
-  }
-}
-
-private struct NativeOnboardingSiliconStrip: View {
   var title: String
   var subtitle: String
   var accentColor: Color
 
   var body: some View {
-    HStack(spacing: 14) {
-      RoundedRectangle(cornerRadius: 16, style: .continuous)
-        .fill(accentColor.opacity(0.16))
-        .frame(width: 48, height: 48)
+    HStack(alignment: .top, spacing: 14) {
+      RoundedRectangle(cornerRadius: 15, style: .continuous)
+        .fill(accentColor.opacity(0.12))
+        .frame(width: 44, height: 44)
         .overlay {
-          Image(systemName: "cpu.fill")
-            .font(.system(size: 20, weight: .bold))
+          Image(systemName: icon)
+            .font(.system(size: 18, weight: .bold))
             .foregroundColor(accentColor)
         }
+        .accessibilityHidden(true)
 
-      VStack(alignment: .leading, spacing: 3) {
+      VStack(alignment: .leading, spacing: 4) {
         Text(title)
-          .font(.system(size: 15, weight: .bold))
+          .font(.system(size: 17, weight: .bold))
           .foregroundColor(.oeText)
+          .lineLimit(1)
+          .minimumScaleFactor(0.86)
 
         Text(subtitle)
-          .font(.system(size: 13, weight: .medium))
+          .font(.system(size: 14, weight: .medium))
           .foregroundColor(.oeSecondaryText)
+          .lineSpacing(2)
           .lineLimit(2)
           .fixedSize(horizontal: false, vertical: true)
       }
-      .layoutPriority(1)
+      .frame(maxWidth: .infinity, alignment: .leading)
     }
-    .padding(14)
-    .frame(minHeight: 78)
-    .background(Color.oeSurface.opacity(0.62), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+    .padding(.horizontal, 16)
+    .padding(.vertical, 14)
+    .background(Color.oeSurface.opacity(0.74), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
     .overlay {
       RoundedRectangle(cornerRadius: 22, style: .continuous)
-        .stroke(Color.oeBorder.opacity(0.24), lineWidth: 1)
+        .stroke(Color.oeBorder.opacity(0.22), lineWidth: 1)
     }
   }
 }
